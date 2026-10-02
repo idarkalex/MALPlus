@@ -231,7 +231,7 @@ namespace MALClient.XShared.ViewModels.Main
                     using var tokenClient = new HttpClient();
                     using var content = new FormUrlEncodedContent(new List<KeyValuePair<string, string>>
                     {
-                        new("client_id", "030f8e30cb57bce625dda6ca8637b75e"),
+                        new("client_id", MalOAuthSettings.ClientId),
                         new("grant_type", "authorization_code"),
                         new("code", apiCode),
                         new("code_verifier", PkceChallenge),
@@ -240,10 +240,30 @@ namespace MALClient.XShared.ViewModels.Main
 
                     var json = await response.Content.ReadAsStringAsync();
                     var tokens = JsonConvert.DeserializeObject<TokenResponse>(json);
+                    // A refused exchange answers with an error object and no tokens at all.
+                    // Reading through it used to throw a NullReferenceException instead of
+                    // telling the user what happened, which is how a rejected sign-in looked
+                    // like a crash.
+                    if (tokens == null || string.IsNullOrEmpty(tokens.access_token))
+                    {
+                        Credentials.SetAuthStatus(false);
+                        Credentials.Update(string.Empty, string.Empty, ApiType.Mal);
+                        ResourceLocator.MessageDialogProvider.ShowMessageDialog(
+                            "MyAnimeList did not accept the sign-in. Please try again.",
+                            "Authorization failed.");
+                        Authenticating = false;
+                        return;
+                    }
                     Settings.ApiToken = tokens.access_token;
                     Settings.RefreshToken = tokens.refresh_token;
-                    Settings.ApiTokenExpires =
-                        DateTimeOffset.UtcNow.AddSeconds(tokens.expires_in).Subtract(TimeSpan.FromHours(1)).ToUnixTimeSeconds();
+                    // MyAnimeList documents a one hour access token, so the safety margin cannot
+                    // be a fixed hour: on a short lived token that subtracted the whole lifetime
+                    // and the token was born already expired, which turned every call into a 401.
+                    var lifetimeSeconds = tokens.expires_in > 0 ? tokens.expires_in : 3600;
+                    var marginSeconds = Math.Max(60, lifetimeSeconds / 10);
+                    Settings.ApiTokenExpires = DateTimeOffset.UtcNow
+                        .AddSeconds(lifetimeSeconds - marginSeconds)
+                        .ToUnixTimeSeconds();
 
                     var client = await ResourceLocator.MalHttpContextProvider.GetApiHttpContextAsync();
                     var profileData = JsonConvert.DeserializeObject<AccountResponse>(await client.GetStringAsync("https://api.myanimelist.net/v2/users/@me"));

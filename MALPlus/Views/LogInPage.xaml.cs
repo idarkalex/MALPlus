@@ -686,7 +686,7 @@ public partial class LogInPage : ContentPage
                 e.Cancel = true;
                 CaptureSessionCookies();
                 AuthWebView.Source = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
-                    + "client_id=030f8e30cb57bce625dda6ca8637b75e&"
+                    + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
                     + "state=signin&"
                     + $"code_challenge={Vm.PkceChallenge}&"
                     + "code_challenge_method=plain";
