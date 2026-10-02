@@ -157,7 +157,7 @@ namespace MALClient.XShared.Comm.Anime
             try
             {
                 using var anonClient = new HttpClient();
-                anonClient.DefaultRequestHeaders.Add("X-MAL-CLIENT-ID", "030f8e30cb57bce625dda6ca8637b75e");
+                anonClient.DefaultRequestHeaders.Add("X-MAL-CLIENT-ID", MalOAuthSettings.ClientId);
                 using var response = await anonClient.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                     return ParseOfficialDetails(await response.Content.ReadAsStringAsync(), id, animeMode);

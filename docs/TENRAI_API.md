@@ -109,3 +109,89 @@ catalogue object (same keys as `/anime/{id}`).
 
 Refer also to the refactor summary in `AGENTS.md` and the cache-version bump rule (`mal_details_v3_*` →
 `v4` when fields added; no in-place migration).
+
+---
+
+## The four remaining HTML scrapers (audited 2026-10-01, deliberate)
+
+Standing rule: **Tenrai > MAL API > HTML scrape**, and HTML is only allowed when the other two
+genuinely cannot answer the question. Four queries still scrape MAL HTML. Every one of them was
+checked against both alternatives with live requests, and each was kept because the data the UI
+needs does not exist elsewhere. Do not "fix" these by pointing them at an endpoint that merely
+returns 200.
+
+| Query | Why it stays HTML |
+|---|---|
+| `AnimeRecomendationsQuery` | Needs **pairs** (A → B) plus the user's written reason. Tenrai has no pairs. |
+| `AnimePersonalizedRecommendationsQuery` | Pairs personalised from the user's own list. Nothing else has it. |
+| `AnimeAdaptedToAnimeQuery` | The global "manga with an anime adaptation" listing. No endpoint exists. |
+| `PopularVideosQuery` | `myanimelist.net/watch/promotion` promos. Not in MAL API at all. |
+
+### Trap 1 — invented filter parameters are ignored, not rejected
+`/manga?adapted=true`, `?has_anime=true`, `?source=anime`, `?adaptation=anime` all return
+**HTTP 200 with the generic top manga list** (first entry "Monster"). A migration written against
+one of these looks like it works and silently serves the wrong data. Always check the payload,
+not the status code.
+
+`/anime?source=manga` *is* honoured (returns One Piece for `status=airing`), but that yields the
+**anime**, whereas this screen must show **manga**. Wrong direction of the relation.
+
+### Trap 2 — `recommendations.php` pairs vs Tenrai's per-anime list
+`AnimeRecomendationsQuery` parses `recommendations.php?s=recentrecs&t=anime`, which yields **100
+pairs**, each with the recommender's own sentence and username.
+
+Measured on the same entry (`Another`, id 11111), MAL pair 1 of the page was:
+
+```
+A origen   : Another  [anime/11111]
+descripcion: "Again, poor students trying to survive some mystery-horror scenario.
+              Gore and screams, all just like 'Another'."
+```
+
+Tenrai `GET /anime/11111/recommendations` returns **106 items for that single anime**:
+
+```
+Higurashi no Naku Koro ni   votes=79
+Shiki                       votes=50
+Corpse Party: Tortured Souls votes=48
+...
+item keys:  entry, url, votes
+entry keys: mal_id, url, images, title
+```
+
+| | MAL HTML | Tenrai |
+|---|---|---|
+| Items | 100 **pairs** | 106, for **one** anime |
+| Written reason | yes | **no** |
+| Recommender username | yes | **no** |
+| Votes | no | **yes** |
+| A → B pair | yes | **no** |
+
+So Tenrai is *richer* (votes) but cannot render this screen at all: the feature is "pairs and why".
+Switching sources is a **product change**, not a data-source swap.
+
+### Trap 3 — the MAL API v2 does have forum endpoints (correcting an earlier claim)
+Forums were previously documented here as having no API. That was wrong. Verified live:
+
+| Endpoint | Result |
+|---|---|
+| `GET /v2/forum/boards` | 200 but `data: []` (**empty**) |
+| `GET /v2/forum/topics?board_id=1` | 200, 10 items (`id,title,created_at,number_of_posts,...`) |
+| `GET /v2/forum/topic/{id}` | **404** — no message bodies |
+
+Forums therefore stay HTML: the API can list boards/topics but **cannot deliver post content**, so
+migrating would half-work and degrade the forums.
+
+### Trap 4 — these MAL API v2 endpoints do not exist (404, not 401)
+`/anime/{id}/recommendations`, `/anime/{id}/videos`, `/anime/{id}/reviews`,
+`/users/@me/animerecommendations`, `/manga/adapted`, `/watch/promotion` all return **404** with a
+valid client id. Auth-required endpoints return **401** (`/users/@me` → `invalid_token`), so 404
+means "no such endpoint".
+
+Note `/anime/{id}/reviews` is 404 in MAL API but **is** available on Tenrai, which is why
+`AnimeReviewsQuery` already uses Tenrai.
+
+### Unauthenticated response shape
+Without an OAuth token, MAL API v2 answers `/anime/{id}` with only `id,title,main_picture` — no
+score, genres, studios or stats. Any new query built on it needs a token, so "just use the API"
+is never a way around a login problem.
