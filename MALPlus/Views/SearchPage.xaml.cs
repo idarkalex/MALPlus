@@ -46,8 +46,14 @@ public partial class SearchPage : ContentPage
 
     public SearchPage()
         {
-            InitializeComponent();
-            BindingContext = ViewModelLocator.SearchPage;
+InitializeComponent();
+        BindingContext = ViewModelLocator.SearchPage;
+        // Subscribed here rather than through XAML: the Focused attribute on an Entry does
+        // not reach the handler on Android, so the dropdown never opened.
+        SearchEntry.Focused += OnSearchEntryFocused;
+        var entryTap = new TapGestureRecognizer();
+        entryTap.Tapped += OnSearchEntryTapped;
+        SearchEntry.GestureRecognizers.Add(entryTap);
             // Infinite scroll is list-level, so it lives on the grid's inner collection.
             ResultsGrid.Inner.SelectionMode = SelectionMode.Single;
             ResultsGrid.Inner.SelectionChanged += OnResultSelected;
@@ -106,27 +112,92 @@ public partial class SearchPage : ContentPage
 
     private void OnSearchCompleted(object sender, EventArgs e)
     {
+        CloseRecentSearches();
         try { MainVm.SearchCommand.Execute(null); } catch { }
     }
 
-    private void OnRecentSearchSelected(object sender, SelectionChangedEventArgs e)
+    // The dropdown hangs off the search bar: it opens when the bar takes focus and closes on
+    // a tap anywhere else, on a picked entry, or on back. It is deliberately NOT closed from
+    // Unfocused, because Android raises that the moment a finger lands inside the list, which
+    // would close it before the row handled the tap. The scrim covers "tap outside" instead.
+    private void OnSearchEntryFocused(object sender, FocusEventArgs e)
+        => OpenRecentSearches();
+
+    // Tapping the bar while it already has focus raises no Focused event, so the list would
+    // stay shut until the bar was blurred first. This covers that case.
+    private void OnSearchEntryTapped(object sender, TappedEventArgs e)
+    {
+        if (!IsRecentSearchesOpen)
+            OpenRecentSearches();
+    }
+
+    private void OpenRecentSearches()
+    {
+        if (IsRecentSearchesOpen)
+            return;
+
+        try
+        {
+            if (MainVm?.RecentSearches == null || MainVm.RecentSearches.Count == 0)
+                return;
+
+            RecentSearchesScrim.IsVisible = true;
+            RecentSearchesDrop.IsVisible = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS recent searches open failed: " + ex.Message);
+        }
+    }
+
+    private void CloseRecentSearches()
     {
         try
         {
-            if (e.CurrentSelection.FirstOrDefault() is string q)
-            {
-                ((CollectionView)sender).SelectedItem = null;
-                if (!string.IsNullOrWhiteSpace(q))
-                {
-                    SearchEntry.Text = q;
-                    MainVm.SearchCommand.Execute(null);
-                }
-            }
+            RecentSearchesScrim.IsVisible = false;
+            RecentSearchesDrop.IsVisible = false;
+        }
+        catch { }
+    }
+
+    private bool IsRecentSearchesOpen => RecentSearchesScrim.IsVisible;
+
+    private void OnRecentSearchesDismissed(object sender, TappedEventArgs e)
+        => CloseRecentSearches();
+
+    private void OnRecentSearchRowTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (e?.Parameter is not string q || string.IsNullOrWhiteSpace(q))
+                return;
+
+            SearchEntry.Text = q;
+            // Search first, then close, then drop the keyboard: hiding the keyboard raises
+            // Unfocused and can cancel the rest of the work if it goes the other way round.
+            MainVm.SearchCommand.Execute(null);
+            CloseRecentSearches();
+            // Drop the focus too: while the bar keeps it, the next tap raises no Focused
+            // event and the list would appear to be stuck shut.
+            SearchEntry.Unfocus();
+            HideKeyboard();
         }
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS recent search failed: " + ex.Message);
         }
+    }
+
+    protected override bool OnBackButtonPressed()
+    {
+        // Back drops the dropdown first and only leaves the page once it is closed.
+        if (IsRecentSearchesOpen)
+        {
+            CloseRecentSearches();
+            return true;
+        }
+
+        return base.OnBackButtonPressed();
     }
 
     private static void HideKeyboard()

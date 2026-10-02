@@ -12,6 +12,22 @@
         <converters:IntEqualityConverter x:Key="IntEq" />
         <converters:BoolTabColorConverter x:Key="BoolTab" />
         <converters:TabColorConverter x:Key="TabColorConverter" />
+        <!-- One row of the recent searches dropdown. A Border with a tap rather than a
+             CollectionView cell, because the results grid below is already a CollectionView
+             and two of them overlapping fight over the touch on Android. -->
+        <DataTemplate x:Key="RecentSearchRow">
+            <Border BackgroundColor="Transparent" Padding="16,12">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnRecentSearchRowTapped"
+                                          CommandParameter="{Binding .}" />
+                </Border.GestureRecognizers>
+                <HorizontalStackLayout Spacing="12">
+                    <Label Text="Search" FontSize="12" VerticalOptions="Center" />
+                    <Label Text="{Binding .}" FontFamily="Inter" FontSize="14"
+                           TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Border>
+        </DataTemplate>
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,Auto,*">
@@ -206,30 +222,33 @@
                         </VerticalStackLayout>
                     </Grid>
 
-                    <VerticalStackLayout Grid.Row="1" Spacing="16" Padding="16"
-                                         IsVisible="{Binding IsFirstVisitGridVisible}">
-                        <Label Text="Recent Searches" FontFamily="InterBold" FontSize="16"
-                               TextColor="{StaticResource BrushText}" Margin="0,0,0,8" />
-                        <CollectionView ItemsSource="{Binding RecentSearches}" Margin="0"
-                                  SelectionMode="Single" SelectionChanged="OnRecentSearchSelected">
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BackgroundColor="{StaticResource EmSheet}"
-                                            Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                            StrokeShape="RoundRectangle 8" Padding="16,12">
-                                        <HorizontalStackLayout Spacing="12">
-                                            <Label Text="Search" FontSize="12" VerticalOptions="Center" />
-                                            <Label Text="{Binding .}" FontFamily="Inter" FontSize="14"
-                                                   TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                                        </HorizontalStackLayout>
-                                    </Border>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
-                    </VerticalStackLayout>
+                    </Grid>
                 </Grid>
+
+                <!-- Recent searches dropdown.
+                     Both live at the end of this Grid so they paint above the results and the
+                     genre grid, and the explicit ZIndex keeps the list above the scrim. -->
+                <Grid Grid.Row="0" Grid.RowSpan="4" ZIndex="90"
+                      BackgroundColor="Transparent"
+                      IsVisible="False" x:Name="RecentSearchesScrim">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRecentSearchesDismissed" />
+                    </Grid.GestureRecognizers>
+                </Grid>
+
+                <Border Grid.Row="1" ZIndex="91" Margin="16,4,16,0"
+                        IsVisible="False" x:Name="RecentSearchesDrop"
+                        BackgroundColor="{StaticResource EmSheet}"
+                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 12" Padding="4">
+                    <!-- Rows, not a CollectionView: the results below already are one and two
+                         overlapping ones fight over the touch on Android. The list holds at
+                         most eight entries, so a stack layout is enough. -->
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecentSearches}"
+                                         BindableLayout.ItemTemplate="{StaticResource RecentSearchRow}"
+                                         Spacing="0" />
+</Border>
             </Grid>
-        </Grid>
 
         <!-- ============ Characters tab (1) ============ -->
         <Grid Grid.Row="1" Grid.RowSpan="2"
