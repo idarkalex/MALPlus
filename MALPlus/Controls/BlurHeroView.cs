@@ -36,7 +36,7 @@ public class BlurHeroView : SKCanvasView
             return;
         try
         {
-            var bytes = await _http.GetByteArrayAsync(url, token);
+            var bytes = await _http.GetByteArrayAsync(url, token).ConfigureAwait(false);
             if (token.IsCancellationRequested)
                 return;
             SKBitmap src = null;

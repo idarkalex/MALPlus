@@ -1,17 +1,24 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-       xmlns:views="clr-namespace:MALPlus.Views"
        x:Class="MALPlus.AppShell"
        Shell.NavBarIsVisible="False"
        Shell.TabBarIsVisible="False">
-    <TabBar Shell.TabBarBackgroundColor="{StaticResource EmSheet}"
-            Shell.TabBarTitleColor="{StaticResource BrushText}"
-            Shell.TabBarUnselectedColor="#80FFFFFF"
-            Shell.TabBarForegroundColor="{StaticResource EmAccent}">
-        <ShellContent Title="Anime" Route="anime" Icon="anime_list.svg" ContentTemplate="{DataTemplate views:AnimeListPage}" />
-        <ShellContent Title="Manga" Route="manga" Icon="manga_books.svg" ContentTemplate="{DataTemplate views:AnimeListPage}" />
-        <ShellContent Title="Discover" Route="discover" Icon="discover_home.svg" ContentTemplate="{DataTemplate views:DiscoverPage}" />
-        <ShellContent Title="More" Route="more" Icon="more_dots.svg" ContentTemplate="{DataTemplate views:MorePage}" />
-    </TabBar>
+    <!--
+      The item / section / content tree is built in AppShell.xaml.cs, not here.
+
+      MAUI 11 RC1's XAML generator emits `section.Items = ...` for the children of a
+      ShellSection, but Items is get-only, so any XAML that puts more than one
+      ShellContent inside a ShellSection fails to compile (CS0200). Doing it in code
+      is both correct and required.
+
+      The structure matters for behaviour: the four root sections must be four
+      ShellContent inside ONE ShellSection. As four ShellContents under a TabBar MAUI
+      produced four ShellItems instead, which land in shellitem_viewpager, whose
+      renderer animates every switch and draws two full pages side by side (their
+      BottomNavBars included). Here they live in shellsection_viewpager, whose renderer
+      switches with SetCurrentItem(position, false), i.e. instantly.
+
+      Routes are unchanged: //anime, //manga, //discover, //more.
+    -->
 </Shell>

@@ -214,6 +214,14 @@ public partial class BottomNavBar : ContentView
     // route left behind, which is how "Anime" ended up showing the Top list.
     private static string SectionRoute(string section, bool reset)
     {
+        var query = SectionQuery(section, reset);
+        if (query == null)
+            return $"///{section}";
+        return $"///{section}?{query}";
+    }
+
+    private static string SectionQuery(string section, bool reset)
+    {
         var query = section switch
         {
             "anime" => "mode=0&status=0",
@@ -221,8 +229,8 @@ public partial class BottomNavBar : ContentView
             _ => null
         };
         if (query == null)
-            return $"///{section}";
-        return reset ? $"///{section}?{query}&reset=1" : $"///{section}?{query}";
+            return null;
+        return reset ? $"{query}&reset=1" : query;
     }
 
     private void NavigateToSection(string section)
@@ -242,7 +250,7 @@ public partial class BottomNavBar : ContentView
             return;
         }
 
-        NavigateToRoute(IsListSection(section) ? $"///{section}?menu=status&{SectionRoute(section, false).Split('?')[1]}"
+        NavigateToRoute(IsListSection(section) ? $"///{section}?menu=status&{SectionQuery(section, false)}"
                                                : $"///{section}?menu=status",
             section, true);
     }
