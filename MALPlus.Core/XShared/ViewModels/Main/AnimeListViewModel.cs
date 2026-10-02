@@ -60,6 +60,7 @@ namespace MALClient.XShared.ViewModels.Main
         private bool _scrollHandlerAdded;
 
         private bool _canLoadMoreFilterLock;
+        private bool _drainWholeList;
 
         public bool CanAddScrollHandler;
         public AnimeSeason CurrentSeason;
@@ -735,6 +736,7 @@ namespace MALClient.XShared.ViewModels.Main
             // up in the anime list and then vanished when the rebuild finished.
             _animeItemsSet = new List<AnimeItemAbstraction>();
             _animeItemsSet.AddRange(items);
+            _drainWholeList = true;
             //});
             //If we have items then we should hide EmptyNotice
             EmptyNoticeVisibility = _animeItemsSet.Count == 0;
@@ -887,6 +889,11 @@ namespace MALClient.XShared.ViewModels.Main
             var minimumIndex = CurrentIndexPosition == -1
                 ? minItems
                 : CurrentIndexPosition + 1 <= minItems ? minItems : CurrentIndexPosition + 1;
+            // A refresh hands over the complete list, so leaving part of it queued only made
+            // the grid show a shorter list and then grow it back, which is what pushed the
+            // last card into view for a moment on every pull to refresh.
+            if (_drainWholeList)
+                minimumIndex = _animeItemsSet.Count;
             var allItems = _animeItemsSet.Count;
             switch (DisplayMode)
             {
@@ -929,6 +936,7 @@ namespace MALClient.XShared.ViewModels.Main
                                                  : ItemsPerPage));
             Loading = false;
             _randomedIds = new List<int>();
+            _drainWholeList = false;
         }
 
         private void PrefetchAirTimesAsync()
