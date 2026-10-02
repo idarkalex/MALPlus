@@ -26,10 +26,20 @@ public class StringToImageSourceConverter : IValueConverter
         if (LocalSources.TryGetValue(url, out var local))
             return local;
 
+        // With a stable cache name the file can already be on disk from a previous
+        // session, so serve it immediately instead of going back to the network.
+        var path = Path.Combine(FileSystem.CacheDirectory, CacheFileFor(url));
+        if (File.Exists(path))
+        {
+            var cached = new FileImageSource { File = path };
+            LocalSources[url] = cached;
+            return cached;
+        }
+
         // Start pulling the file down once per URL in the background. The binding keeps the
         // remote source until the file lands, and later binds pick the local one up.
         if (DownloadStarted.TryAdd(url, 0))
-            _ = DownloadToDiskAsync(url);
+            _ = DownloadToDiskAsync(url, path);
 
         return Sources.GetOrAdd(url, static key => new UriImageSource
         {
@@ -42,17 +52,40 @@ public class StringToImageSourceConverter : IValueConverter
         });
     }
 
-    private static async Task DownloadToDiskAsync(string url)
+    private static readonly HttpClient _downloadClient = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    // A details page warms Related/Recommendations/Characters/Staff at once, which is
+    // dozens of posters. Fetching them all at full speed saturated the connection and
+    // left the hero poster's own request queued behind them for seconds.
+    private static readonly SemaphoreSlim _downloadGate = new(4);
+
+    // string.GetHashCode() is randomized per process in .NET, so the cache file got a
+    // different name on every launch and the disk cache never hit again. SHA1 is stable.
+    private static string CacheFileFor(string url)
+    {
+        var hash = System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(url));
+        return System.Convert.ToHexString(hash).ToLowerInvariant() + ".img";
+    }
+
+    private static async Task DownloadToDiskAsync(string url, string path)
     {
         try
         {
-            var name = Math.Abs(url.GetHashCode()).ToString("x8") + ".img";
-            var path = Path.Combine(FileSystem.CacheDirectory, name);
             if (!File.Exists(path))
             {
-                using var client = new HttpClient();
-                var bytes = await client.GetByteArrayAsync(url);
-                await File.WriteAllBytesAsync(path, bytes);
+                await _downloadGate.WaitAsync();
+                try
+                {
+                    if (!File.Exists(path))
+                    {
+                        var bytes = await _downloadClient.GetByteArrayAsync(url);
+                        await File.WriteAllBytesAsync(path, bytes);
+                    }
+                }
+                finally
+                {
+                    _downloadGate.Release();
+                }
             }
             LocalSources[url] = new FileImageSource { File = path };
         }
