@@ -330,7 +330,6 @@ public partial class LogInPage : ContentPage
 
     private async Task<bool> SubmitWithFallbacksAsync(CancellationToken token)
     {
-        const string stillHere = "(function(){return document.querySelector('input[type=\"password\"]')?'here':'gone';})();";
         var attempts = new (string Name, string Js)[]
         {
             ("submit-event",
@@ -342,6 +341,7 @@ public partial class LogInPage : ContentPage
         };
         foreach (var attempt in attempts)
         {
+            _leftLoginForm = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             try
             {
                 var result = await MainThread.InvokeOnMainThreadAsync(() => AuthWebView.EvaluateJavaScriptAsync(attempt.Js));
@@ -350,23 +350,52 @@ public partial class LogInPage : ContentPage
             catch (Exception ex)
             {
             }
-            for (var waited = 0; waited < 12; waited++)
-            {
-                try
-                {
-                    await Task.Delay(500, token);
-                }
-                catch (TaskCanceledException)
-                {
-                    return false;
-                }
-                var here = await MainThread.InvokeOnMainThreadAsync(() => AuthWebView.EvaluateJavaScriptAsync(stillHere));
-                if (here != null && here.Contains("gone"))
-                    return true;
-            }
+            if (await WaitForLoginFormToGoAsync(token))
+                return true;
         }
         return false;
     }
+
+    // A submit that navigates is the common case, and OnAuthNavigating already sees that
+    // navigation, so it completes the task and this returns at once. The poller stays as
+    // the fallback for MyAnimeList replacing the DOM without navigating, which used to cost
+    // up to twelve 500ms round trips per attempt before anything was noticed.
+    private async Task<bool> WaitForLoginFormToGoAsync(CancellationToken token)
+    {
+        const string stillHere = "(function(){return document.querySelector('input[type=\"password\"]')?'here':'gone';})();";
+        var left = _leftLoginForm?.Task ?? Task.CompletedTask;
+
+        for (var waited = 0; waited < 12; waited++)
+        {
+            try
+            {
+                await Task.Delay(500, token);
+            }
+            catch (TaskCanceledException)
+            {
+                return false;
+            }
+
+            if (left.IsCompletedSuccessfully)
+                return true;
+
+            var here = await MainThread.InvokeOnMainThreadAsync(() => AuthWebView.EvaluateJavaScriptAsync(stillHere));
+            if (here != null && here.Contains("gone"))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsLoginFormUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url))
+            return false;
+        return url.Contains("login.php", StringComparison.OrdinalIgnoreCase) ||
+               url.EndsWith("/login", StringComparison.OrdinalIgnoreCase) ||
+               url.Contains("maloauth", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private TaskCompletionSource<bool> _leftLoginForm;
 
     private async Task DiagnoseReturnToLoginAsync()
     {
@@ -624,6 +653,12 @@ public partial class LogInPage : ContentPage
         {
             var url = e.Url ?? string.Empty;
             Probe("NAVIGATING " + url);
+
+            // A submit that navigates away from the login form is the success signal the
+            // auto-login is blocked on, and this is the only place that knows it happened.
+            if (!IsLoginFormUrl(url))
+                _leftLoginForm?.TrySetResult(true);
+
             if (url.Contains("maloauth?state=signin&error="))
             {
                 e.Cancel = true;
