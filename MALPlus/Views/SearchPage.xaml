@@ -16,16 +16,32 @@
              CollectionView cell, because the results grid below is already a CollectionView
              and two of them overlapping fight over the touch on Android. -->
         <DataTemplate x:Key="RecentSearchRow">
-            <Border BackgroundColor="Transparent" Padding="16,12">
+            <Border BackgroundColor="{StaticResource EmSheet}" Padding="16,12">
+                <!-- The background has to be a real colour: with a transparent one the row is
+                     not hit tested, the tap falls through to whatever is underneath and the
+                     list only ever closes. Same colour as the panel, so it stays invisible. -->
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnRecentSearchRowTapped"
                                           CommandParameter="{Binding .}" />
                 </Border.GestureRecognizers>
-                <HorizontalStackLayout Spacing="12">
-                    <Label Text="Search" FontSize="12" VerticalOptions="Center" />
-                    <Label Text="{Binding .}" FontFamily="Inter" FontSize="14"
-                           TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                </HorizontalStackLayout>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
+                        <Label Text="Search" FontSize="12" VerticalOptions="Center" />
+                        <Label Text="{Binding .}" FontFamily="Inter" FontSize="14"
+                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <!-- Tapping the X must not run the search, so it carries its own recognizer
+                         and stops the row from seeing the touch. -->
+                    <Label Grid.Column="1" Text="✕" FontSize="15" VerticalOptions="Center"
+                           TextColor="#80FFFFFF"
+                           HorizontalOptions="Center" VerticalTextAlignment="Center"
+                           WidthRequest="32" HeightRequest="32">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnRecentSearchRemoveTapped"
+                                                  CommandParameter="{Binding .}" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                </Grid>
             </Border>
         </DataTemplate>
     </ContentPage.Resources>
@@ -65,11 +81,14 @@
         <!-- ============ Main tab (0) ============ -->
         <Grid Grid.Row="1" Grid.RowSpan="2"
               IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=0}">
-            <Grid RowDefinitions="Auto,Auto,Auto,*">
+            <Grid RowDefinitions="Auto,Auto">
                 <!-- Search bar (hidden in catalogue mode) -->
                 <Grid Grid.Row="0" IsVisible="{Binding DirectQueryInputVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
-                      Padding="16,8" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <Entry x:Name="SearchEntry" Placeholder="Search anime, manga..."
+                      Padding="16,8" ColumnDefinitions="*,Auto" ColumnSpacing="8" RowDefinitions="Auto,Auto">
+                    <!-- Row 1 is the recent searches list. It lives inside the bar's own grid so
+                         it can only ever render directly under the bar, with no offset to compute
+                         and nothing to overlap. -->
+                    <Entry Grid.Row="0" x:Name="SearchEntry" Placeholder="Search anime, manga..."
                            Text="{Binding InternalQuery, Mode=TwoWay}"
                            FontFamily="Inter" FontSize="14"
                            BackgroundColor="{StaticResource EmSheet}"
@@ -77,15 +96,37 @@
                            PlaceholderColor="#80FFFFFF"
                            ReturnType="Search"
                            Completed="OnSearchCompleted" />
-                    <Button Grid.Column="1" Text="Go"
+                    <Button Grid.Row="0" Grid.Column="1" Text="Go"
                             Command="{Binding SearchCommand}"
                             FontFamily="InterBold" FontSize="16"
                             BackgroundColor="#0066FF" TextColor="White"
                             CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="0" />
+
+                    <Border Grid.Row="1" Margin="0,8,0,0"
+                            IsVisible="False" x:Name="RecentSearchesDrop"
+                            BackgroundColor="{StaticResource EmSheet}"
+                            Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            StrokeShape="RoundRectangle 12" Padding="4">
+                        <!-- Rows, not a CollectionView: the results below already are one and
+                             two overlapping ones fight over the touch on Android. The list holds
+                             at most eight entries, so a stack layout is enough. -->
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecentSearches}"
+                                             BindableLayout.ItemTemplate="{StaticResource RecentSearchRow}"
+                                             Spacing="0" />
+                    </Border>
                 </Grid>
 
+                <!-- Everything below the search bar lives in its own container so the scrim for
+                     the recent searches can cover all of it in one child, with no RowSpan to
+                     mis-measure and no offset to compute. A tap anywhere in here closes the
+                     list; the list itself lives in the bar's own grid above, so the two can
+                     never fight over the same touch. -->
+                <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto,*">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRecentSearchesDismissed" />
+                    </Grid.GestureRecognizers>
                 <!-- Filter chips (visible during search results) -->
-                <ScrollView Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
+                <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                             IsVisible="{Binding DirectQueryInputVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
                             Padding="16,0,16,8" Margin="0,0,0,4">
                     <HorizontalStackLayout Spacing="8">
@@ -127,7 +168,7 @@
                     </HorizontalStackLayout>
                 </ScrollView>
 
-                <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="16,4,16,4"
+                <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="16,4,16,4"
                       IsVisible="{Binding DirectQueryInputVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                     <Button Grid.Column="0" Text="Anime" FontFamily="InterSemiBold" FontSize="14"
                             TextColor="{Binding AnimeSearch, Converter={StaticResource BoolTab}, ConverterParameter=true}"
@@ -140,7 +181,7 @@
                 </Grid>
 
                 <!-- Genre/Studio Selection Grid -->
-                <Grid Grid.Row="3"
+                <Grid Grid.Row="2"
                       IsVisible="{Binding GenreSelectionGridVisibility}">
                     <Grid RowDefinitions="Auto,*" Padding="16,8" RowSpacing="8">
                         <Label Text="{Binding ActiveCatalogueTitle}"
@@ -225,29 +266,10 @@
                     </Grid>
                 </Grid>
 
-                <!-- Recent searches dropdown.
-                     Both live at the end of this Grid so they paint above the results and the
-                     genre grid, and the explicit ZIndex keeps the list above the scrim. -->
-                <Grid Grid.Row="0" Grid.RowSpan="4" ZIndex="90"
-                      BackgroundColor="Transparent"
-                      IsVisible="False" x:Name="RecentSearchesScrim">
-                    <Grid.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnRecentSearchesDismissed" />
-                    </Grid.GestureRecognizers>
+<!-- No scrim element: it kept stealing the taps meant for the list rows, because a
+                     transparent overlay that overlaps the bar is always above it on Android.
+                     The container above carries the dismissal instead. -->
                 </Grid>
-
-                <Border Grid.Row="1" ZIndex="91" Margin="16,4,16,0"
-                        IsVisible="False" x:Name="RecentSearchesDrop"
-                        BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                        StrokeShape="RoundRectangle 12" Padding="4">
-                    <!-- Rows, not a CollectionView: the results below already are one and two
-                         overlapping ones fight over the touch on Android. The list holds at
-                         most eight entries, so a stack layout is enough. -->
-                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecentSearches}"
-                                         BindableLayout.ItemTemplate="{StaticResource RecentSearchRow}"
-                                         Spacing="0" />
-</Border>
             </Grid>
 
         <!-- ============ Characters tab (1) ============ -->

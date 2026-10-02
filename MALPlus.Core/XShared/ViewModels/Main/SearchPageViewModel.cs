@@ -501,7 +501,7 @@ namespace MALClient.XShared.ViewModels.Main
             RaisePropertyChanged(() => Filter5Label);
         }
 
-        private const int RecentSearchesMax = 8;
+        private const int RecentSearchesMax = 5;
         public System.Collections.ObjectModel.ObservableCollection<string> RecentSearches { get; } =
             new System.Collections.ObjectModel.ObservableCollection<string>();
 
@@ -541,10 +541,26 @@ public async void LoadRecentSearches()
                     .RetrieveDataRoaming<MALClient.Models.Models.Misc.RoamingData<List<string>>>("MALPlus_RecentSearches_v1", -1);
                 if (data?.Data != null)
                 {
-                    RecentSearches.Clear();
-                    foreach (var q in data.Data) RecentSearches.Add(q);
-                }
+RecentSearches.Clear();
+                        foreach (var q in data.Data) RecentSearches.Add(q);
+                        while (RecentSearches.Count > RecentSearchesMax)
+                            RecentSearches.RemoveAt(RecentSearches.Count - 1);
+                    }
 }
+            catch { }
+        }
+
+        public void RemoveRecentSearch(string query)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(query))
+                    return;
+
+                var q = query.Trim();
+                RecentSearches.Remove(q);
+                PersistRecentSearches();
+            }
             catch { }
         }
 

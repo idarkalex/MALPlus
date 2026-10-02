@@ -51,15 +51,19 @@ InitializeComponent();
         // Subscribed here rather than through XAML: the Focused attribute on an Entry does
         // not reach the handler on Android, so the dropdown never opened.
         SearchEntry.Focused += OnSearchEntryFocused;
-        var entryTap = new TapGestureRecognizer();
-        entryTap.Tapped += OnSearchEntryTapped;
-        SearchEntry.GestureRecognizers.Add(entryTap);
             // Infinite scroll is list-level, so it lives on the grid's inner collection.
             ResultsGrid.Inner.SelectionMode = SelectionMode.Single;
             ResultsGrid.Inner.SelectionChanged += OnResultSelected;
             ResultsGrid.Inner.RemainingItemsThreshold = 4;
             ResultsGrid.Inner.RemainingItemsThresholdReachedCommand = MainVm?.LoadMoreCatalogueCommand;
         }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        // The overlay is left on screen otherwise, so coming back to the tab finds it open.
+        CloseRecentSearches();
+    }
 
     protected override async void OnAppearing()
     {
@@ -123,14 +127,6 @@ InitializeComponent();
     private void OnSearchEntryFocused(object sender, FocusEventArgs e)
         => OpenRecentSearches();
 
-    // Tapping the bar while it already has focus raises no Focused event, so the list would
-    // stay shut until the bar was blurred first. This covers that case.
-    private void OnSearchEntryTapped(object sender, TappedEventArgs e)
-    {
-        if (!IsRecentSearchesOpen)
-            OpenRecentSearches();
-    }
-
     private void OpenRecentSearches()
     {
         if (IsRecentSearchesOpen)
@@ -140,8 +136,6 @@ InitializeComponent();
         {
             if (MainVm?.RecentSearches == null || MainVm.RecentSearches.Count == 0)
                 return;
-
-            RecentSearchesScrim.IsVisible = true;
             RecentSearchesDrop.IsVisible = true;
         }
         catch (Exception ex)
@@ -154,14 +148,35 @@ InitializeComponent();
     {
         try
         {
-            RecentSearchesScrim.IsVisible = false;
+            if (!RecentSearchesDrop.IsVisible)
+                return;
+
             RecentSearchesDrop.IsVisible = false;
+            // Release the bar as well. While it keeps the focus, a tap on it raises no Focused
+            // event, which is why the list used to open only every other time.
+            SearchEntry.Unfocus();
         }
         catch { }
     }
 
-    private bool IsRecentSearchesOpen => RecentSearchesScrim.IsVisible;
+    private bool IsRecentSearchesOpen => RecentSearchesDrop.IsVisible;
 
+    private void OnRecentSearchRemoveTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (e?.Parameter is string q && !string.IsNullOrWhiteSpace(q))
+                MainVm.RemoveRecentSearch(q);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS recent search remove failed: " + ex.Message);
+        }
+    }
+
+    // The container below the search bar carries this. It used to be a full screen scrim, but
+    // a transparent overlay that overlaps the bar is always above it on Android, and it
+    // swallowed every tap meant for the rows, so the list only ever closed.
     private void OnRecentSearchesDismissed(object sender, TappedEventArgs e)
         => CloseRecentSearches();
 
@@ -173,8 +188,9 @@ InitializeComponent();
                 return;
 
             SearchEntry.Text = q;
-            // Search first, then close, then drop the keyboard: hiding the keyboard raises
-            // Unfocused and can cancel the rest of the work if it goes the other way round.
+            // Set the query directly instead of trusting the bar's binding to have flushed by
+            // the time the command reads it: Search() bails out on an empty query.
+            MainVm.InternalQuery = q;
             MainVm.SearchCommand.Execute(null);
             CloseRecentSearches();
             // Drop the focus too: while the bar keeps it, the next tap raises no Focused
