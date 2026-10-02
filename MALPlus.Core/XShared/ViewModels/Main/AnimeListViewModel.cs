@@ -727,6 +727,13 @@ namespace MALClient.XShared.ViewModels.Main
             if (SortDescending && SortOption != SortOptions.SortAirDay && SortOption != SortOptions.SortSeason)
                 items = items.Reverse();
             //Add all abstractions to current set (spread across pages)
+            // RefreshList always rebuilds the whole list (init, entry change, sort order, a
+            // forced refresh) and UpdatePageSetup then replaces AnimeItems with a fresh
+            // collection, so the queue has to start empty to match it. It used to be appended
+            // to, which left anything still queued from the previous entry at the front, and
+            // that stale item was drained into the new grid first: a manga card briefly showed
+            // up in the anime list and then vanished when the rebuild finished.
+            _animeItemsSet = new List<AnimeItemAbstraction>();
             _animeItemsSet.AddRange(items);
             //});
             //If we have items then we should hide EmptyNotice
@@ -863,7 +870,14 @@ namespace MALClient.XShared.ViewModels.Main
         /// </summary>
         private void UpdatePageSetup()
         {
-            AnimeItems = new SmartObservableCollection<AnimeItemViewModel>();
+            // Clear the collection the grid is already bound to instead of handing it a brand
+            // new one. Replacing ItemsSource tears down and rebuilds every cell, and while a
+            // refresh was doing that a stray card with no poster appeared at the end of the
+            // grid and then vanished when the rebuild finished.
+            if (AnimeItems == null)
+                AnimeItems = new SmartObservableCollection<AnimeItemViewModel>();
+            else
+                AnimeItems.Clear();
             _lastOffset = 0;
             RaisePropertyChanged(() => DisplayMode);
             var minItems = GetGridItemsToLoad();
@@ -1024,12 +1038,12 @@ namespace MALClient.XShared.ViewModels.Main
             {
                 AddScrollHandlerRequest?.Invoke();
             }
-            catch (Exception)
-            {
-                //we didn't get scroll handler -> add all items
-                AnimeItems.AddRange(_animeItemsSet.Select(abstraction => abstraction.ViewModel));
-                _animeItemsSet.Clear();
-            }
+catch (Exception)
+                        {
+                            //we didn't get scroll handler -> add all items
+                            AnimeItems.AddRange(_animeItemsSet.Select(abstraction => abstraction.ViewModel));
+                            _animeItemsSet.Clear();
+                        }
         }
 
         /// <summary>
