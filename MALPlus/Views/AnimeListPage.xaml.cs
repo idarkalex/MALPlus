@@ -129,6 +129,14 @@ public partial class AnimeListPage : ContentPage
             var forceReset = string.Equals(QueryValue(query, "reset", Reset), "1", StringComparison.Ordinal);
             Menu = null;
             Reset = null;
+            // The query-backed properties are consumed above, so they must not leak into the
+            // next entry. ApplyRoute also runs on a plain back-nav with no query at all, and a
+            // Status left over from an earlier route kept ResolveStatus pinned to that stale
+            // value, which is why returning from a details page reopened the default tab
+            // instead of the one that had been selected.
+            Mode = null;
+            Status = null;
+            Type = null;
 
             var alreadyShowing =
                 !forceReset &&
@@ -245,10 +253,21 @@ public partial class AnimeListPage : ContentPage
 
     private int ResolveStatus()
     {
-        if (string.IsNullOrWhiteSpace(Status))
+        if (!string.IsNullOrWhiteSpace(Status))
+        {
+            if (int.TryParse(Status, out var parsed) && parsed >= 0 && parsed <= MaxStatusIndex)
+                return parsed;
             return DefaultStatusIndex;
-        if (int.TryParse(Status, out var parsed) && parsed >= 0 && parsed <= MaxStatusIndex)
-            return parsed;
+        }
+
+        // No query and no [QueryProperty]: this is a back-nav from a details page, so the
+        // tab the user had chosen is still the right one. Falling back to the default here
+        // is what made "Planned" or "All" reopen as "Watching".
+        if (_appliedStatus >= 0)
+            return _appliedStatus;
+        if (_lastStatus >= 0)
+            return _lastStatus;
+
         return DefaultStatusIndex;
     }
 
@@ -309,6 +328,11 @@ public partial class AnimeListPage : ContentPage
         try
         {
             _lastStatus = statusSelectorIndex;
+            // Keep the applied status in step with the tab the user just picked. Coming back
+            // from a details page re-runs ApplyRoute with no query, and that guard compares
+            // against _appliedStatus: without this the list silently reopened on the default
+            // tab instead of the one that was selected.
+            _appliedStatus = statusSelectorIndex;
             var args = BuildArgs(_lastMode, statusSelectorIndex);
             await Vm.Init(args);
         }
@@ -357,7 +381,23 @@ public partial class AnimeListPage : ContentPage
             // Awaited, and the spinner is put away in the finally. RefreshCommand wraps an async
             // void, so there was nothing to await here and IsRefreshing stayed true once the
             // gesture had set it: the arrow up top spun forever.
-            await Vm.RefreshListAsync();
+            //
+            // Infinite loading is unhooked for the duration. The grid gets shorter while the
+            // refresh rebuilds it, and that trips RemainingItemsThresholdReached, whose command
+            // drains the pending items straight into the list: one extra card appeared and then
+            // vanished again when the refresh finished repopulating.
+            var loadMore = _grid?.RemainingItemsThresholdReachedCommand;
+            if (_grid != null)
+                _grid.RemainingItemsThresholdReachedCommand = null;
+            try
+            {
+                await Vm.RefreshListAsync();
+            }
+            finally
+            {
+                if (_grid != null)
+                    _grid.RemainingItemsThresholdReachedCommand = loadMore;
+            }
         }
         catch (Exception ex)
         {
@@ -409,13 +449,15 @@ public partial class AnimeListPage : ContentPage
     /// </summary>
     private void WireInfiniteScroll()
     {
-        var inner = AnimeGrid.Inner;
-        inner.SelectionMode = SelectionMode.Single;
-        inner.SelectionChanged += OnSelectionChanged;
-        inner.RemainingItemsThreshold = 4;
-        inner.RemainingItemsThresholdReachedCommand = Vm?.LoadMoreCommand;
+        _grid = AnimeGrid.Inner;
+        _grid.SelectionMode = SelectionMode.Single;
+        _grid.SelectionChanged += OnSelectionChanged;
+        _grid.RemainingItemsThreshold = 4;
+        _grid.RemainingItemsThresholdReachedCommand = Vm?.LoadMoreCommand;
         AnimeGrid.ItemTapped += OnGridItemTapped;
     }
+
+    private CollectionView _grid;
 
     private async void OnGridItemTapped(object sender, object item)
     {
