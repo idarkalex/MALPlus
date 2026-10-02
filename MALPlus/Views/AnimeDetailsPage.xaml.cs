@@ -180,7 +180,19 @@ public partial class AnimeDetailsPage : ContentPage
             return;
         // Big enough to be worth scrolling, small enough to leave the page something to scroll
         // for the hero. The floor keeps a short list from becoming a two row window.
-        TabListHeight = Math.Clamp(viewport * 0.72, 320, viewport - 120);
+        const double floor = 320;
+        const double heroRoom = 120;
+        const double minimumUsable = 160;
+
+        var preferred = viewport * 0.72;
+        var ceiling = viewport - heroRoom;
+
+        // On a short viewport the floor and the room left for the hero collide, and
+        // Math.Clamp throws Argument_MinMaxValue as soon as min > max. The page has to fit
+        // first, so on those viewports the floor is dropped instead of the viewport.
+        TabListHeight = ceiling > floor
+            ? Math.Clamp(preferred, floor, ceiling)
+            : Math.Max(minimumUsable, Math.Min(preferred, ceiling));
         _tabListHeightSet = true;
     }
 
