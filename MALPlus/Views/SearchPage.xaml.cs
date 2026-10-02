@@ -136,6 +136,7 @@ InitializeComponent();
         {
             if (MainVm?.RecentSearches == null || MainVm.RecentSearches.Count == 0)
                 return;
+            RecentSearchesScrim.IsVisible = true;
             RecentSearchesDrop.IsVisible = true;
         }
         catch (Exception ex)
@@ -148,8 +149,10 @@ InitializeComponent();
     {
         try
         {
-            if (!RecentSearchesDrop.IsVisible)
+            if (!IsRecentSearchesOpen)
                 return;
+
+            RecentSearchesScrim.IsVisible = false;
 
             RecentSearchesDrop.IsVisible = false;
             // Release the bar as well. While it keeps the focus, a tap on it raises no Focused
@@ -159,7 +162,7 @@ InitializeComponent();
         catch { }
     }
 
-    private bool IsRecentSearchesOpen => RecentSearchesDrop.IsVisible;
+    private bool IsRecentSearchesOpen => RecentSearchesScrim.IsVisible;
 
     private void OnRecentSearchRemoveTapped(object sender, TappedEventArgs e)
     {

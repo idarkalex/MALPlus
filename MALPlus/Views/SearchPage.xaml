@@ -81,46 +81,30 @@
         <!-- ============ Main tab (0) ============ -->
         <Grid Grid.Row="1" Grid.RowSpan="2"
               IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=0}">
-            <Grid RowDefinitions="Auto,Auto">
-                <!-- Search bar (hidden in catalogue mode) -->
+            <Grid RowDefinitions="64,Auto">
+                <!-- Search bar (hidden in catalogue mode). Its row is a fixed 64 (8 padding +
+                     48 entry + 8) so the recent searches list can overflow it as an overlay:
+                     the list is temporary and must not push the rest of the page down. -->
                 <Grid Grid.Row="0" IsVisible="{Binding DirectQueryInputVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
-                      Padding="16,8" ColumnDefinitions="*,Auto" ColumnSpacing="8" RowDefinitions="Auto,Auto">
-                    <!-- Row 1 is the recent searches list. It lives inside the bar's own grid so
-                         it can only ever render directly under the bar, with no offset to compute
-                         and nothing to overlap. -->
-                    <Entry Grid.Row="0" x:Name="SearchEntry" Placeholder="Search anime, manga..."
+                      Padding="16,8" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Entry x:Name="SearchEntry" Placeholder="Search anime, manga..."
                            Text="{Binding InternalQuery, Mode=TwoWay}"
                            FontFamily="Inter" FontSize="14"
+                           HeightRequest="48"
                            BackgroundColor="{StaticResource EmSheet}"
                            TextColor="{StaticResource BrushText}"
                            PlaceholderColor="#80FFFFFF"
                            ReturnType="Search"
                            Completed="OnSearchCompleted" />
-                    <Button Grid.Row="0" Grid.Column="1" Text="Go"
-                            Command="{Binding SearchCommand}"
-                            FontFamily="InterBold" FontSize="16"
-                            BackgroundColor="#0066FF" TextColor="White"
-                            CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="0" />
-
-                    <Border Grid.Row="1" Margin="0,8,0,0"
-                            IsVisible="False" x:Name="RecentSearchesDrop"
-                            BackgroundColor="{StaticResource EmSheet}"
-                            Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                            StrokeShape="RoundRectangle 12" Padding="4">
-                        <!-- Rows, not a CollectionView: the results below already are one and
-                             two overlapping ones fight over the touch on Android. The list holds
-                             at most eight entries, so a stack layout is enough. -->
-                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecentSearches}"
-                                             BindableLayout.ItemTemplate="{StaticResource RecentSearchRow}"
-                                             Spacing="0" />
-                    </Border>
+                    <ImageButton Grid.Column="1" Source="search.svg"
+                                 Command="{Binding SearchCommand}"
+                                 BackgroundColor="#0066FF"
+                                 CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="12" />
                 </Grid>
 
-                <!-- Everything below the search bar lives in its own container so the scrim for
-                     the recent searches can cover all of it in one child, with no RowSpan to
-                     mis-measure and no offset to compute. A tap anywhere in here closes the
-                     list; the list itself lives in the bar's own grid above, so the two can
-                     never fight over the same touch. -->
+                <!-- Everything below the search bar lives in its own container. A tap anywhere in
+                     here closes the list; the list itself is declared after this container, so it
+                     paints above it and the two never fight over the same touch. -->
                 <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto,*">
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnRecentSearchesDismissed" />
@@ -262,14 +246,39 @@
                                    TextColor="#80FFFFFF" HorizontalOptions="Center" />
                         </VerticalStackLayout>
                     </Grid>
-
-                    </Grid>
                 </Grid>
 
-<!-- No scrim element: it kept stealing the taps meant for the list rows, because a
-                     transparent overlay that overlaps the bar is always above it on Android.
-                     The container above carries the dismissal instead. -->
+<!-- Tap catcher for the recent searches list. It lives inside this container, so it can
+                     only ever cover what is below the search bar, and it is declared just
+                     before the list, which therefore paints above it and keeps the taps meant
+                     for its own rows. It cannot be a full screen scrim: that one reached over
+                     the bar and swallowed every tap on a row. -->
+                <Grid Grid.Row="0" Grid.RowSpan="4" BackgroundColor="Transparent"
+                      IsVisible="False" x:Name="RecentSearchesScrim">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRecentSearchesDismissed" />
+                    </Grid.GestureRecognizers>
                 </Grid>
+
+<!-- Recent searches list. Last child of this container, so it starts exactly where the
+                     search bar ends and paints above everything below it. It is temporary and
+                     must not push the page down, so it overflows its row instead of growing
+                     it, and being declared last it also keeps the taps meant for its own
+                     rows. There is deliberately no scrim: a transparent overlay above the bar
+                     used to swallow every one of them. -->
+                <Border VerticalOptions="Start" Margin="16,0,16,8"
+                        IsVisible="False" x:Name="RecentSearchesDrop"
+                        BackgroundColor="{StaticResource EmSheet}"
+                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 12" Padding="4">
+                    <!-- Rows, not a CollectionView: the results below already are one and two
+                         overlapping ones fight over the touch on Android. -->
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecentSearches}"
+                                         BindableLayout.ItemTemplate="{StaticResource RecentSearchRow}"
+                                         Spacing="0" />
+</Border>
+                </Grid>
+            </Grid>
             </Grid>
 
         <!-- ============ Characters tab (1) ============ -->
