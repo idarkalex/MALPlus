@@ -1,8 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
+    <!-- Preview SDK: do not fail the build on the EOL warning for the preview framework. -->
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
     <ImplicitUsings>disable</ImplicitUsings>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <AssemblyName>MALPlus.Core</AssemblyName>
@@ -13,7 +15,8 @@
     <PackageReference Include="HtmlAgilityPack" Version="1.11.28" />
     <PackageReference Include="MvvmLightLibsStd10" Version="5.4.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <!-- System.Text.Json ships in the net11.0 framework; the explicit 8.0.5 reference only
+         pinned it downwards and does not exist for this version. -->
   </ItemGroup>
 
   <ItemGroup>
