@@ -68,6 +68,7 @@ public partial class LogInPage : ContentPage
             _autoPass = pass;
             _autoMode = true;
             _autoSubmitted = false;
+            _oauthInFlight = false;
             LoginForm.IsEnabled = false;
             ShowBusy(true, "Connecting to MyAnimeList…");
 #if ANDROID
@@ -319,6 +320,16 @@ public partial class LogInPage : ContentPage
             }
             else
             {
+                // No fields means the WebView is not on the login form. While MyAnimeList is
+                // bouncing through its own OAuth redirect that is expected, and it means the
+                // credentials were already accepted: without this the sign in finished and then
+                // announced "Could not fill the login form" on top of it.
+                if (_oauthInFlight)
+                {
+                    Probe("no login fields, but OAuth is already in flight");
+                    return;
+                }
+
                 FallbackToManual("Could not fill the login form.");
             }
         }
@@ -396,6 +407,7 @@ public partial class LogInPage : ContentPage
     }
 
     private TaskCompletionSource<bool> _leftLoginForm;
+    private bool _oauthInFlight;
 
     private async Task DiagnoseReturnToLoginAsync()
     {
@@ -653,6 +665,12 @@ public partial class LogInPage : ContentPage
         {
             var url = e.Url ?? string.Empty;
             Probe("NAVIGATING " + url);
+
+            // MyAnimeList accepting the credentials sends it straight into its own OAuth
+            // redirect. Anything after that point is the sign in succeeding, not a form to fill.
+            if (url.Contains("/v1/oauth2/authorize", StringComparison.OrdinalIgnoreCase) ||
+                url.Contains("maloauth", StringComparison.OrdinalIgnoreCase))
+                _oauthInFlight = true;
 
             // A submit that navigates away from the login form is the success signal the
             // auto-login is blocked on, and this is the only place that knows it happened.
