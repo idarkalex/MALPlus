@@ -72,8 +72,13 @@ namespace MALClient.XShared.ViewModels
             }
         }
 
-        public string CardBadgeAccent => MyStatusBindShort;
-        public string CardBadgeMain => MyEpisodesBindShort;
+        /// <summary>
+        /// Status and progress only make sense for something the user actually follows. A search
+        /// hit that is not on the list has no status and no progress, and the raw values rendered
+        /// as the meaningless "N/A" and "0/220" on every result.
+        /// </summary>
+        public string CardBadgeAccent => IsAuth ? MyStatusBindShort : string.Empty;
+        public string CardBadgeMain => IsAuth ? MyEpisodesBindShort : string.Empty;
 
         /// <summary>
         /// Mean score, only when signed out: signed in the counter pill carries the real progress

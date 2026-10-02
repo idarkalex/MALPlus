@@ -20,8 +20,8 @@
                     TypeTag="{Binding TypeTag}"
                     ScoreTag="{Binding CardScore}"
                     BadgeVisible="True"
-                    BadgeAccent="{Binding MyStatusBindShort}"
-                    BadgeMain="{Binding MyEpisodesBindShort}"
+                    BadgeAccent="{Binding LibraryBadgeAccent}"
+                    BadgeMain="{Binding LibraryBadgeMain}"
                     BadgeExtra="{Binding AirDayTillBind}">
                     <controls:AnimePosterCard.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnCellTapped" />
