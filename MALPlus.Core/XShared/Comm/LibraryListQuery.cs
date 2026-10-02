@@ -19,6 +19,8 @@ namespace MALClient.XShared.Comm
         private readonly AnimeListWorkModes _mode;
         private string _source;
 
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<List<ILibraryData>>> _inFlight = new();
+
         public LibraryListQuery(string source, AnimeListWorkModes mode)
         {
             Debug.WriteLine($"Getting library for {mode}@{source}.");
@@ -27,6 +29,41 @@ namespace MALClient.XShared.Comm
         }
 
         public async Task<List<ILibraryData>> GetLibrary(bool force = false, bool forceOtherUser = false)
+        {
+            // The library request asks MAL for up to 1000 entries at once, so it is the
+            // single most expensive call at startup. The splash preloads the start tab
+            // and the list page asks for the same list moments later; without this both
+            // would run and the second would wait for nothing. Sharing the in-flight
+            // task means one request that starts while the splash is still up.
+            var key = $"{_source}|{_mode}|{force}|{forceOtherUser}";
+
+            while (true)
+            {
+                var existing = _inFlight.TryGetValue(key, out var running) ? running : null;
+                if (existing != null)
+                    return new List<ILibraryData>(await existing);
+
+                var mine = GetLibraryCore(force, forceOtherUser);
+                if (!_inFlight.TryAdd(key, mine))
+                {
+                    // Another caller won the race; drop ours and use theirs.
+                    mine.ContinueWith(t => { var ignored = t.Exception; },
+                        TaskContinuationOptions.OnlyOnFaulted);
+                    continue;
+                }
+
+                try
+                {
+                    return new List<ILibraryData>(await mine);
+                }
+                finally
+                {
+                    _inFlight.TryRemove(key, out _);
+                }
+            }
+        }
+
+        private async Task<List<ILibraryData>> GetLibraryCore(bool force, bool forceOtherUser)
         {
             var output = force
                 ? new List<ILibraryData>()

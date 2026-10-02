@@ -67,6 +67,32 @@ namespace MALClient.XShared.BL
                 try { await tokenTask; } catch { }
             });
 
+            // Start the start tab's library request while the splash is still on screen.
+            // LibraryListQuery shares in-flight requests, so the list page finds the data
+            // already coming instead of opening its own, and this never delays startup.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (!Credentials.Authenticated || string.IsNullOrWhiteSpace(Credentials.UserName))
+                        return;
+
+                    await tokenTask;
+                    var startTab = Settings.DefaultMenuTab ?? "anime";
+                    var mode = string.Equals(startTab, "manga", StringComparison.OrdinalIgnoreCase)
+                        ? AnimeListWorkModes.Manga
+                        : AnimeListWorkModes.Anime;
+
+                    Console.WriteLine($"Preloading start tab library: {mode}");
+                    await new LibraryListQuery(Credentials.UserName, mode).GetLibrary(false);
+                    Console.WriteLine("Preloaded start tab library");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Start tab preload failed: " + e.Message);
+                }
+            });
+
             if (Settings.NotificationCheckInRuntime && Credentials.Authenticated)
                 ResourceLocator.SchdeuledJobsManger.StartJob(ScheduledJob.FetchNotifications, 5,
                     () => { ResourceLocator.NotificationsTaskManager.CallTask(BgTasks.Notifications); });

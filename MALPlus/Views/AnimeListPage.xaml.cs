@@ -72,7 +72,31 @@ public partial class AnimeListPage : ContentPage
         // Otherwise UpdatePageSetup only ever exposes ~27 items and never drains the rest.
             Vm.DimensionsProvider = new MauiDimensionsProvider();
             WireInfiniteScroll();
+            WatchFirstItems();
         }
+
+    private bool _watchedFirstItems;
+
+    // The moment the grid has something in it is the moment the user stops looking at
+    // an empty screen, so that is the one startup number worth having.
+    private void WatchFirstItems()
+    {
+        if (_watchedFirstItems || Vm is not System.ComponentModel.INotifyPropertyChanged vm)
+            return;
+
+        _watchedFirstItems = true;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(AnimeListViewModel.AnimeItems) && e.PropertyName != null)
+                return;
+
+            if ((Vm.AnimeItems?.Count ?? 0) <= 0)
+                return;
+
+            StartupTrace.Mark("first-items-visible");
+            StartupTrace.LogSummary();
+        };
+    }
 
     protected override void OnAppearing()
     {

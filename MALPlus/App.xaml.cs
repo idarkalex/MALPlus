@@ -8,9 +8,11 @@ public partial class App : Application
 {
     public App()
     {
+        StartupTrace.Mark("app-ctor-begin");
         InitializeComponent();
         MauiCrashDiagnostics.Install();
         MainPage = new AppShell();
+        StartupTrace.Mark("shell-built");
     }
 
     private static string TryPeekVaultUser()
@@ -33,6 +35,7 @@ public partial class App : Application
 
         Task.Run(async () =>
         {
+            StartupTrace.Mark("initapp-begin");
             var initTask = InitializationRoutines.InitApp();
             try
             {
@@ -46,6 +49,8 @@ public partial class App : Application
                 InitializationRoutines.AwaitableCompletion.TrySetResult(true);
                 initTask.ContinueWith(t => { var ignored = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
             }
+
+            StartupTrace.Mark("initapp-ready");
             try
             {
                 Console.WriteLine("MALPLUS boot state: auth=" + Credentials.Authenticated +
@@ -71,6 +76,7 @@ public partial class App : Application
                             "manga" => "//manga",
                             _ => "//anime"
                         };
+                        StartupTrace.Mark("start-tab-" + startTab);
                         await MainThread.InvokeOnMainThreadAsync(() =>
                             Shell.Current?.GoToAsync(route));
                     }
