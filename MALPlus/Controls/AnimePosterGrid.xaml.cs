@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Input;
+using MALClient.XShared.ViewModels;
 
 namespace MALPlus.Controls;
 
@@ -54,6 +55,19 @@ public partial class AnimePosterGrid : ContentView
     private bool _spanApplied;
     private double _lastWidth = -1;
 
+    /// <summary>
+    ///     How many upcoming items get their countdown resolved ahead of the scroll.
+    ///     A countdown is only free when the series is in the cached airing schedule; the rest cost
+    ///     one request each. Resolving just the visible screenful meant everything below it waited
+    ///     in the global lookup queue, so the lower rows of a grid showed their date about ten
+    ///     seconds late. A window of thirty six covers a long screenful plus what the user
+    ///     reaches while the next batch is already in flight.
+    /// </summary>
+    private const int AirWarmWindow = 36;
+
+    /// <summary>Index up to which countdowns have been asked for, in grid order.</summary>
+    private int _airWarmed;
+
     public static readonly BindableProperty ItemsSourceProperty =
         BindableProperty.Create(nameof(ItemsSource), typeof(IEnumerable), typeof(AnimePosterGrid),
             default(IEnumerable), propertyChanged: OnItemsSourceChanged);
@@ -66,14 +80,63 @@ public partial class AnimePosterGrid : ContentView
         if (newValue is INotifyCollectionChanged newNotifier)
             newNotifier.CollectionChanged += grid.OnItemsSourceCollectionChanged;
         grid.Inner.ItemsSource = newValue as IEnumerable;
+        grid._airWarmed = 0;
         grid.ApplyLayout(force: true);
+        grid.WarmAirTimes();
     }
 
     /// <summary>
     ///     A fixed-height grid lives inside a ScrollView, so it has to grow as items stream in.
+    ///     Infinite scroll appends to the same collection, so the warm window is extended here
+    ///     too: without it only the first screenful of a long grid would ever be resolved ahead
+    ///     of the scroll. A reset means a different list, so the window starts over.
     /// </summary>
     private void OnItemsSourceCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
-        => ApplyLayout(force: true);
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+            _airWarmed = 0;
+        ApplyLayout(force: true);
+        WarmAirTimes();
+    }
+
+    /// <summary>
+    ///     Asks for the countdown of the next window of items, in the order they appear, so the
+    ///     posters below the fold already carry their date by the time they are scrolled to.
+    ///     <see cref="AnimeItemViewModel.RefreshTimeTillNextAirInBackground" /> is a no-op for an
+    ///     entry that is already fresh, in flight, or in failure backoff, so this is safe to call
+    ///     as often as the scroll asks for it.
+    /// </summary>
+    private void WarmAirTimes()
+    {
+        if (ItemsView.ItemsSource is not IEnumerable source)
+            return;
+
+        // Only anime air. A manga card is skipped outright rather than queued behind the gate for
+        // a lookup that can never return anything.
+        var pending = source.Cast<object>()
+            .OfType<AnimeItemViewModel>()
+            .Where(item => item.ParentAbstraction != null && item.ParentAbstraction.RepresentsAnime)
+            .ToList();
+        if (pending.Count == 0)
+            return;
+
+        var target = Math.Min(pending.Count, _airWarmed + AirWarmWindow);
+        for (var i = _airWarmed; i < target; i++)
+            pending[i].RefreshTimeTillNextAirInBackground();
+        _airWarmed = target;
+    }
+
+    /// <summary>
+    ///     Grows the warm window as the user approaches its end, so a long grid keeps resolving
+    ///     ahead of the scroll instead of one row at a time behind it.
+    /// </summary>
+    private void OnItemsScrolled(object sender, ItemsViewScrolledEventArgs e)
+    {
+        if (e.LastVisibleItemIndex < 0 || _airWarmed == 0)
+            return;
+        if (e.LastVisibleItemIndex >= _airWarmed - AirWarmWindow / 2)
+            WarmAirTimes();
+    }
 
     public static readonly BindableProperty SpanProperty =
         BindableProperty.Create(nameof(Span), typeof(int), typeof(AnimePosterGrid), 0,
@@ -182,6 +245,7 @@ public partial class AnimePosterGrid : ContentView
     public AnimePosterGrid()
     {
         InitializeComponent();
+        ItemsView.Scrolled += OnItemsScrolled;
         ApplyLayout(force: true);
     }
 

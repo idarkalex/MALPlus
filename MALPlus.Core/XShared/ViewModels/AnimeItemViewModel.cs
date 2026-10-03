@@ -933,7 +933,19 @@ namespace MALClient.XShared.ViewModels
         }
         private string _timeTillNextAirCache;
         private bool _airFetchInFlight;
-        private static readonly SemaphoreSlim AirFetchGate = new SemaphoreSlim(4);
+        /// <summary>
+        ///     How many countdown lookups may be in flight at once.
+        ///     Four was set when a fetch per rebind was flooding the API, but that flood had two
+        ///     other causes that are now fixed on their own: every rebind used to start a new
+        ///     lookup for the same entry, and a failure used to be retried immediately. Both are
+        ///     gone, guarded by <see cref="_airFetchInFlight" /> and by the five minute failure
+        ///     backoff below. With those in place the gate was only buying queueing, not safety,
+        ///     and the queue is what the user sees: a countdown that takes ten seconds to appear
+        ///     on the last rows of a grid is a request waiting behind a global semaphore, not a
+        ///     slow request. Eight keeps a burst bounded while letting a screenful of posters
+        ///     resolve in about the time of one request instead of four.
+        /// </summary>
+        private static readonly SemaphoreSlim AirFetchGate = new SemaphoreSlim(8);
         /// <summary>
         ///     The single source of truth for a countdown pill.
         ///     The grid, the details hero and the related/recommendation chips all resolve through
