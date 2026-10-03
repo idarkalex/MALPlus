@@ -1,4 +1,4 @@
-﻿using MALClient.Models.Enums;
+using MALClient.Models.Enums;
 using MALClient.Models.Models.MalSpecific;
 using MALClient.XShared.NavArgs;
 using MALClient.XShared.ViewModels;
@@ -15,7 +15,7 @@ public partial class ArticlesPage : ContentPage
 
     private MalArticlesViewModel Vm => (MalArticlesViewModel)BindingContext;
 
-    // EM theme CSS (Electric Midnight) â€” matches v2's "CssManager.GetArticleBody()".
+    // EM theme CSS (Electric Midnight) — matches v2's "CssManager.GetArticleBody()".
     private const string EmCss = @"
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
 background:#051522;color:#d4e4f7;line-height:1.6;padding:16px;margin:0;font-size:14px;}
@@ -56,17 +56,34 @@ pre,code{background:#0a1d2e;padding:6px 10px;border-radius:4px;font-size:12px;co
         NewsList.Scrolled += OnListScrolled;
     }
 
+    // Static because the page is rebuilt every time it is opened: an instance field dies with the
+    // page that set it, which is exactly why the position was never restored. The tab is kept
+    // with it, because coming back to the flyout entry reopens whatever feed that entry points
+    // at, and landing on a different feed than the one that was left is just as disorienting as
+    // losing the place.
+    private static int _savedScrollIndex = -1;
+    private static ArticlePageWorkMode? _savedScrollMode;
+    private static ArticlePageWorkMode? _lastVisitedMode;
+
     private int _firstVisibleIndex;
-    private int _pendingRestoreIndex = -1;
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        if (_initialized) return;
+        if (_initialized)
+        {
+            // Reused instance: the list is still loaded, so only the position is missing.
+            RestoreListScroll();
+            return;
+        }
         _initialized = true;
         try
         {
-            _currentMode = ResolveWorkMode(InitialWorkMode);
+            var requested = ResolveWorkMode(InitialWorkMode);
+            _currentMode = _lastVisitedMode ?? requested;
+            _lastVisitedMode = _currentMode;
+            if (_currentMode != requested)
+                HighlightTab(_currentMode);
             Vm.Init(MakeArgs(_currentMode));
             for (int i = 0; i < 60; i++)
             {
@@ -82,29 +99,39 @@ pre,code{background:#0a1d2e;padding:6px 10px;border-radius:4px;font-size:12px;co
         }
     }
 
+// Nothing to do here: navigating away through the flyout does not raise this event on the
+    // page, which is why both the remembered feed and the place are kept as they change
+    // instead. Kept because a shell back navigation does raise it, and then the mode is
+    // remembered even if the reader never scrolled a single row.
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        // The page is rebuilt every time it is opened, so without this the list comes back at the
-        // top and the reader loses their place in a long feed. The position is kept as an item
-        // index rather than a pixel offset: CollectionView has no ScrollY, and an index also
-        // survives the feed growing or shrinking underneath it.
-        _pendingRestoreIndex = _firstVisibleIndex;
+        _lastVisitedMode = _currentMode;
+        _savedScrollIndex = _firstVisibleIndex;
+        _savedScrollMode = _currentMode;
     }
 
-    private void OnListScrolled(object sender, ItemsViewScrolledEventArgs e)
+private void OnListScrolled(object sender, ItemsViewScrolledEventArgs e)
     {
-        if (e.FirstVisibleItemIndex >= 0)
-            _firstVisibleIndex = e.FirstVisibleItemIndex;
-    }
-
-    private async void RestoreListScroll()
-    {
-        var target = _pendingRestoreIndex;
-        _pendingRestoreIndex = -1;
-        if (target <= 0 || NewsList == null)
+        if (e.FirstVisibleItemIndex < 0)
             return;
 
+        _firstVisibleIndex = e.FirstVisibleItemIndex;
+        // Saved as it changes rather than on the way out: OnDisappearing is not raised when the
+        // flyout navigates away from this page, so a save there never ran and the place was
+        // always lost.
+        _savedScrollIndex = e.FirstVisibleItemIndex;
+        _savedScrollMode = _currentMode;
+        _lastVisitedMode = _currentMode;
+    }
+
+private async void RestoreListScroll()
+    {
+        var target = _savedScrollIndex;
+        if (target <= 0 || NewsList == null || _savedScrollMode != _currentMode)
+            return;
+
+        _savedScrollIndex = -1;
         try
         {
             // The collection has to be populated before an index means anything, and a scroll to
@@ -149,7 +176,9 @@ pre,code{background:#0a1d2e;padding:6px 10px;border-radius:4px;font-size:12px;co
                 // A different feed starts at the top; keeping the old offset would land the
                 // reader in the middle of an unrelated list.
                 _firstVisibleIndex = 0;
-                _pendingRestoreIndex = -1;
+                _savedScrollIndex = -1;
+                _savedScrollMode = null;
+                _lastVisitedMode = _currentMode;
                 Vm.Init(MakeArgs(_currentMode), true);
                 HighlightTab(_currentMode);
             }
