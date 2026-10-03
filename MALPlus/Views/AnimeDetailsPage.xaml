@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
@@ -55,7 +55,7 @@
                            VerticalOptions="Center" />
                     <Label Grid.Column="2" Text="est." FontFamily="InterSemiBold" FontSize="10" TextColor="#7AB4FF"
                            MaxLines="1" VerticalOptions="Center" IsVisible="{Binding IsEstimated}" />
-                    <Label Grid.Column="3" Text="?" FontFamily="InterBold" FontSize="13" TextColor="#2E9E5B"
+                    <Label Grid.Column="3" Text="✓" FontFamily="InterBold" FontSize="13" TextColor="#2E9E5B"
                            MaxLines="1" VerticalOptions="Center" IsVisible="{Binding IsWatched}" />
                     <Label Grid.Column="4" Text="{Binding AiredLabel}" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF"
                            MaxLines="1" VerticalOptions="Center" />
@@ -141,7 +141,7 @@
                             </Border>
                             <HorizontalStackLayout Spacing="3" IsVisible="{Binding HasFavorites}"
                                                    VerticalOptions="Center">
-                                <Label Text="?" FontFamily="Inter" FontSize="9" TextColor="#FFD700"
+                                <Label Text="★" FontFamily="Inter" FontSize="9" TextColor="#FFD700"
                                        VerticalOptions="Center" />
                                 <Label Text="{Binding FavoritesText}" FontFamily="Inter" FontSize="11"
                                        TextColor="#8FA8C0" VerticalOptions="Center" />
@@ -160,7 +160,7 @@
                                    MaxLines="1" VerticalOptions="Center" />
                             <HorizontalStackLayout Spacing="3" IsVisible="{Binding HasVoiceFavorites}"
                                                    VerticalOptions="Center">
-                                <Label Text="?" FontFamily="Inter" FontSize="9" TextColor="#FFD700"
+                                <Label Text="★" FontFamily="Inter" FontSize="9" TextColor="#FFD700"
                                        VerticalOptions="Center" />
                                 <Label Text="{Binding VoiceFavoritesText}" FontFamily="Inter" FontSize="10"
                                        TextColor="#6E8AA6" VerticalOptions="Center" />
@@ -190,7 +190,7 @@
                             </Border>
                             <HorizontalStackLayout Spacing="3" IsVisible="{Binding HasFavorites}"
                                                    VerticalOptions="Center">
-                                <Label Text="?" FontFamily="Inter" FontSize="9" TextColor="#FFD700"
+                                <Label Text="★" FontFamily="Inter" FontSize="9" TextColor="#FFD700"
                                        VerticalOptions="Center" />
                                 <Label Text="{Binding FavoritesText}" FontFamily="Inter" FontSize="11"
                                        TextColor="#8FA8C0" VerticalOptions="Center" />
@@ -559,6 +559,8 @@
                                 </DataTemplate>
                             </controls:AnimePosterGrid.CellTemplate>
                         </controls:AnimePosterGrid>
+                        <!-- Only reachable past the safety cap on Related, which normally shows
+                             everything it has. -->
                         <Button Text="{Binding Source={x:Reference DetailsPage}, Path=RelatedMoreText}"
                                 IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RelatedMoreVisible}"
                                 Clicked="OnRelatedMoreTapped"
@@ -669,7 +671,7 @@
                         </BoxView.Background>
                     </BoxView>
                     <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="Start" Margin="0,12,12,0" Spacing="8">
-                        <Button Text="?" Clicked="OnTrailerClicked" IsVisible="{Binding HasTrailer}"
+                        <Button Text="▶" Clicked="OnTrailerClicked" IsVisible="{Binding HasTrailer}"
                                 FontFamily="InterBold" FontSize="14" BackgroundColor="#33FFFFFF"
                                 TextColor="White" BorderColor="#80FFFFFF" BorderWidth="1"
                                 CornerRadius="18" WidthRequest="36" HeightRequest="36" Padding="0" />
@@ -697,9 +699,9 @@
                                 </Frame.IsVisible>
                                 <Label Text="{Binding TimeTillNextAir}" FontFamily="InterBold" FontSize="11" TextColor="White" />
                             </Frame>
-                            <Label Text="�" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" VerticalOptions="Center" Margin="6,0" />
+                            <Label Text="•" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" VerticalOptions="Center" Margin="6,0" />
                             <Label Text="{Binding StartYear}" FontFamily="Inter" FontSize="12" TextColor="#CCFFFFFF" VerticalOptions="Center" />
-                            <Label Text="�" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" VerticalOptions="Center" Margin="6,0" />
+                            <Label Text="•" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" VerticalOptions="Center" Margin="6,0" />
                             <Label Text="{Binding AllEpisodesBind, StringFormat='{0} Episodes'}" IsVisible="{Binding AnimeMode}"
                                    FontFamily="Inter" FontSize="12" TextColor="#CCFFFFFF" VerticalOptions="Center" />
                             <Label Text="{Binding AllEpisodesBind, StringFormat='{0} Chapters'}"
@@ -717,7 +719,7 @@
                                   RowDefinitions="Auto,Auto" HorizontalOptions="Start"
                                   VerticalOptions="Center">
                                 <HorizontalStackLayout x:Name="ScoreHeaderGroup" Grid.Row="0" Grid.Column="0" Spacing="3">
-                                    <Label Text="?" FontFamily="InterBold" FontSize="9" TextColor="#FFD700" />
+                                    <Label Text="★" FontFamily="InterBold" FontSize="9" TextColor="#FFD700" />
                                     <Label Text="SCORE" FontFamily="InterBold" FontSize="9" TextColor="#80FFFFFF" />
                                 </HorizontalStackLayout>
                                 <Label x:Name="ScoreMetaGroup" Grid.Row="1" Grid.Column="0"
@@ -762,7 +764,7 @@
                                     Padding="0" VerticalOptions="End" HeightRequest="32"
                                     IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                                 <Grid ColumnDefinitions="32,Auto,32" ColumnSpacing="0">
-                                    <Button Grid.Column="0" Command="{Binding DecrementEpsCommand}" FontFamily="InterBold" FontSize="16" Text="-"
+                                    <Button Grid.Column="0" Command="{Binding DecrementEpsCommand}" FontFamily="InterBold" FontSize="16" Text="−"
                                             BackgroundColor="Transparent" TextColor="#80FFFFFF" BorderWidth="0" CornerRadius="0"
                                             WidthRequest="32" HeightRequest="32" Padding="0" />
                                     <Label Grid.Column="1" Text="{Binding MyEpisodesBind}" FontFamily="InterBold" FontSize="13"
@@ -786,7 +788,7 @@
                     <Button Grid.Column="0" Text="Add to List" Command="{Binding AddAnimeCommand}" IsVisible="{Binding AddAnimeVisibility}"
                             IsEnabled="{Binding IsAddAnimeButtonEnabled}" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
                             TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0" />
-                    <Button Grid.Column="0" Text="? Unranked" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
+                    <Button Grid.Column="0" Text="★ Unranked" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
                             TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0">
                         <Button.IsVisible>
                             <MultiBinding Converter="{StaticResource MultiAnd}">
@@ -795,7 +797,7 @@
                             </MultiBinding>
                         </Button.IsVisible>
                     </Button>
-                    <Button Grid.Column="0" Text="? {0}" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12"
+                    <Button Grid.Column="0" Text="★ {0}" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12"
                             BackgroundColor="#141d2b" TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0">
                         <Button.IsVisible>
                             <MultiBinding Converter="{StaticResource MultiAnd}">
@@ -804,22 +806,22 @@
                             </MultiBinding>
                         </Button.IsVisible>
                     </Button>
-                    <Button Grid.Column="1" x:Name="FavouriteButton" Text="? Favorite" Command="{Binding ToggleFavouriteCommand}"
+                    <Button Grid.Column="1" x:Name="FavouriteButton" Text="♥ Favorite" Command="{Binding ToggleFavouriteCommand}"
                             IsEnabled="{Binding IsFavouriteButtonEnabled}" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
                             TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0">
                         <Button.Triggers>
                             <DataTrigger TargetType="Button" Binding="{Binding IsFavourite}" Value="True">
-                                <Setter Property="Text" Value="? Favourited" />
+                                <Setter Property="Text" Value="♥ Favourited" />
                                 <Setter Property="TextColor" Value="{StaticResource EmAccent}" />
                                 <Setter Property="BorderColor" Value="{StaticResource EmAccent}" />
                             </DataTrigger>
                         </Button.Triggers>
                     </Button>
-                    <Button Grid.Column="2" Text="?" Clicked="OnTrailerClicked" IsVisible="{Binding HasTrailer}" FontFamily="InterBold" FontSize="14"
+                    <Button Grid.Column="2" Text="▶" Clicked="OnTrailerClicked" IsVisible="{Binding HasTrailer}" FontFamily="InterBold" FontSize="14"
                             BackgroundColor="#141d2b" TextColor="#FF6B00" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" WidthRequest="40" Padding="0" />
-                    <Button Grid.Column="3" Text="?" Command="{Binding RefreshCommand}" FontFamily="InterBold" FontSize="14" BackgroundColor="#141d2b"
+                    <Button Grid.Column="3" Text="↻" Command="{Binding RefreshCommand}" FontFamily="InterBold" FontSize="14" BackgroundColor="#141d2b"
                             TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" WidthRequest="40" Padding="0" />
-                    <Button Grid.Column="4" Text="?" Command="{Binding ShowMoreCommand}" FontFamily="InterBold" FontSize="18" BackgroundColor="#141d2b"
+                    <Button Grid.Column="4" Text="⋯" Command="{Binding ShowMoreCommand}" FontFamily="InterBold" FontSize="18" BackgroundColor="#141d2b"
                             TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" WidthRequest="40" Padding="0" />
                 </Grid>
             </Border>
@@ -874,7 +876,7 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="CloseVideoOverlay" />
                 </Border.GestureRecognizers>
-                <Label Text="?" FontFamily="InterBold" FontSize="18" TextColor="White"
+                <Label Text="✕" FontFamily="InterBold" FontSize="18" TextColor="White"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
             <!-- The WebView is created by ShowVideoOverlay, not here: an Android WebView
