@@ -32,7 +32,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Device = "192.168.1.201:35695",
+    [string]$Device = "192.168.1.201:43539",
     [string]$Configuration = "Debug",
     [int]$DeviceTimeoutSeconds = 30,
     [switch]$SkipBuild,
