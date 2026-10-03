@@ -593,14 +593,14 @@
                                         IsVisible="{Binding AnimeMode}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedCharacters}"
                                         ItemTemplate="{StaticResource AnimeCharacterTemplate}"
-                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=TabListHeight}"
+                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=CharactersListHeight}"
                                         SelectionMode="Single"
                                         SelectionChanged="OnCharacterItemSelected" />
                         <CollectionView x:Name="MangaCharactersList"
                                         IsVisible="{Binding AnimeMode, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedMangaCharacters}"
                                         ItemTemplate="{StaticResource MangaCharacterTemplate}"
-                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=TabListHeight}"
+                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=MangaCharactersListHeight}"
                                         SelectionMode="Single"
                                         SelectionChanged="OnCharacterItemSelected" />
                     </VerticalStackLayout>
@@ -627,7 +627,7 @@
                                         IsVisible="{Binding Source={x:Reference DetailsPage}, Path=StaffContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedStaff}"
                                         ItemTemplate="{StaticResource StaffTemplate}"
-                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=TabListHeight}"
+                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=StaffListHeight}"
                                         SelectionMode="Single"
                                         SelectionChanged="OnStaffItemSelected" />
                     </VerticalStackLayout>

@@ -35,7 +35,6 @@ public partial class AnimeDetailsPage : ContentPage
     //the rest is reached with the Show more button instead.
     private const int ImageTabChunkSize = 12;
     private double _lastProgressiveAppendScrollY = double.NaN;
-    private double _boundedListScrollY;
     private int _charactersShown = ImageTabChunkSize;
     private int _mangaCharactersShown = ImageTabChunkSize;
     private int _staffShown = ImageTabChunkSize;
@@ -223,12 +222,6 @@ public partial class AnimeDetailsPage : ContentPage
         BindingContext = ViewModelLocator.AnimeDetails;
         if (RelatedGrid?.Inner != null)
             RelatedGrid.Inner.SelectionChanged += OnRelatedSelectionChanged;
-        // Subscribed here rather than through the XAML Scrolled attribute: the generator rejects
-        // the handler on a CollectionView with MAUIX2014 even though the signature is identical
-        // to the page's own OnPageScrolled, which is wired the same way and compiles.
-        CharactersList.Scrolled += OnBoundedListScrolled;
-        MangaCharactersList.Scrolled += OnBoundedListScrolled;
-        StaffList.Scrolled += OnBoundedListScrolled;
         ApplyTabActiveState();
         UpdateHeroMetaLayout();
     }
@@ -542,15 +535,17 @@ public partial class AnimeDetailsPage : ContentPage
             var pairs = animeMode ? Vm.AnimeStaffData?.AnimeCharacterPairs : null;
             var mangaCharacters = animeMode ? null : Vm.MangaCharacterData;
             var staff = animeMode ? Vm.AnimeStaffData?.AnimeStaff : null;
-            // Characters and staff are bounded boxes now (TabListHeight), so the CollectionView
-            // recycles and every entry can go in at once: the height no longer tracks the count,
-            // so a full list costs the same as a chunk. Related still grows in chunks, its grid
-            // sizes itself to its content and cannot recycle.
             var cap = MALClient.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxCharacterPairs;
             var staffCap = MALClient.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxStaff;
-            var charTarget = Math.Min(cap, pairs?.Count ?? 0);
-            var mangaTarget = Math.Min(cap, mangaCharacters?.Count ?? 0);
-            var staffTarget = Math.Min(staffCap, staff?.Count ?? 0);
+            // Characters and staff are sized to their content and live inside the page ScrollView, so they
+            // scroll with the page and the hero reacts to them the way it does everywhere else.
+            // That means the height does track the count, so they are filled a chunk at a time and
+            // the rest arrives as the page reaches its bottom, exactly like Episodes and Reviews.
+            // Filling a two hundred strong cast in one pass is what pinned a gigabyte of views
+            // before this list was ever given a bound of its own.
+            var charTarget = Math.Min(cap, Math.Min(pairs?.Count ?? 0, _charactersShown));
+            var mangaTarget = Math.Min(cap, Math.Min(mangaCharacters?.Count ?? 0, _mangaCharactersShown));
+            var staffTarget = Math.Min(staffCap, Math.Min(staff?.Count ?? 0, _staffShown));
             var relatedTarget = Math.Min(Vm.RelatedAnime.Count, RelatedShowCap);
             DisplayedCharacters.Clear();
             DisplayedMangaCharacters.Clear();
@@ -1539,21 +1534,14 @@ public partial class AnimeDetailsPage : ContentPage
 
     public void OnBoundedListScrolled(object sender, ItemsViewScrolledEventArgs e)
     {
-        // Characters and staff are bounded boxes with a height of their own, so they scroll
-        // themselves and the page never moves: the hero used to stay fully expanded while the
-        // user scrolled a long staff list. Feeding the inner offset into the same progress the
-        // page scroll drives brings the hero back without giving up the bounded height, which
-        // is what keeps a full cast from being realised in one layout pass. The arguments are
-        // ItemsViewScrolledEventArgs, which carries a delta rather than an absolute offset like
-        // the ScrolledEventArgs the page ScrollView uses, so the offset is accumulated here.
-        _boundedListScrollY = Math.Max(0, _boundedListScrollY + e.VerticalDelta);
-        ApplyHeroState(Math.Max(PageScroll?.ScrollY ?? 0, _boundedListScrollY));
+        // Characters and staff are sized to their content again and sit inside the page
+        // ScrollView, so the page moves when they are scrolled and this handler has nothing left
+        // to do. It is kept only as a spare hook: wiring it again would be a mistake, because the
+        // hero has to follow the page scroll and nothing else.
     }
 
     private void OnPageScrolled(object sender, ScrolledEventArgs e)
     {
-        // Back on the page itself, so the bounded lists no longer get a say.
-        _boundedListScrollY = 0;
         ApplyHeroState(e.ScrollY);
         var near = IsNearPageBottom(e.ScrollY);
         if (!near)
@@ -1698,6 +1686,29 @@ public partial class AnimeDetailsPage : ContentPage
             case 5:
                 GrowImageTab(Vm.RelatedAnime, DisplayedRelated, ref _relatedShown, MakeRelatedCard, int.MaxValue);
                 break;
+            case 6:
+                if (!Vm.AnimeMode)
+                    GrowImageTab(Vm.MangaCharacterData, DisplayedMangaCharacters,
+                        ref _mangaCharactersShown, MakeMangaCharacterCard);
+                else
+                    GrowImageTab(Vm.AnimeStaffData?.AnimeCharacterPairs, DisplayedCharacters,
+                        ref _charactersShown, MakeCharacterCard);
+                break;
+            case 7:
+                GrowImageTab(Vm.AnimeStaffData?.AnimeStaff, DisplayedStaff,
+                    ref _staffShown, MakeStaffCard);
+                break;
+        }
+
+        // A row added to one of these lists changes the height that list is asked to occupy, and
+        // that height is a plain number read through a binding, so it does not follow the
+        // collection on its own. Without this the list stayed at its old height while its content
+        // grew, and the page had empty space to scroll through at the end of it.
+        if (tab >= 6 && tab <= 7)
+        {
+            OnPropertyChanged(nameof(CharactersListHeight));
+            OnPropertyChanged(nameof(MangaCharactersListHeight));
+            OnPropertyChanged(nameof(StaffListHeight));
         }
     }
 
