@@ -252,11 +252,13 @@ namespace MALClient.XShared.ViewModels.Details
         public string LastAired { get; private set; } = "";
 
     /// <summary>
-    /// Header for the value below it. "LAST AIRED" is a label for a date, but the value is an
-    /// episode number and a date, and on a long runner the old "EP 1180 - 27 Sep" ran into the
-    /// episode stepper. The header now says what the pair actually is.
+    ///     Header for the value below it, which is an episode number paired with its air date.
+    ///     This used to read "EPISODE" because the older format was "EP 1180 - 27 Sep", which ran
+    ///     into the episode stepper and made the label redundant with the value. It sits on the
+    ///     same row as SCORE and STATUS, so there is no vertical collision to design around, and
+    ///     naming what the pair IS is both shorter and clearer than naming half of it.
     /// </summary>
-    public string LastAiredHeader => AnimeMode ? "EPISODE" : "CHAPTER";
+    public string LastAiredHeader => AnimeMode ? "LAST AIRED" : "LAST CHAPTER";
 
     /// <summary>
     /// Episode number and air date, "1180 Â· 27 Sep". Shorter than the old "EP 1180 - 27 Sep" on
@@ -266,6 +268,47 @@ namespace MALClient.XShared.ViewModels.Details
 
         private void UpdateLastAired()
         {
+            ApplyLastAired(null);
+        }
+
+        /// <summary>
+        ///     The authoritative version, and the reason the hero stopped showing plausible wrong
+        ///     numbers. It used to be built from the newest episode in our own list, which for One
+        ///     Piece was episode 1177 of a real 1180 because Tenrai's list has gaps; and it printed
+        ///     that date as whatever UTC handed over, which is a day early for anything airing late
+        ///     at night in Japan. AniList carries both the real number and a true instant, and the
+        ///     instant is converted to JST before the date is written, because the Japanese
+        ///     broadcast day is the only one that means anything to a reader of this app.
+        /// </summary>
+        private async Task UpdateLastAiredFromScheduleAsync()
+        {
+            if (!AniListScheduleClient.Enabled)
+                return;
+            try
+            {
+                var schedule = await AniListScheduleClient.GetScheduleAsync(MalId);
+                var last = schedule?.LastAired(DateTime.UtcNow);
+                if (last == null)
+                    return;
+                ApplyLastAired(last);
+            }
+            catch
+            {
+                // Fall back to whatever the episode list produced.
+            }
+        }
+
+        private void ApplyLastAired(AniListEpisodeSlot authoritative)
+        {
+            if (authoritative != null)
+            {
+                LastAired = LastAiredValue =
+                    $"{authoritative.Number} · {authoritative.AiringJstDate.ToString("d MMM", CultureInfo.InvariantCulture)}";
+                RaisePropertyChanged(() => LastAired);
+                RaisePropertyChanged(() => LastAiredValue);
+                return;
+            }
+
             var nowSched = DateTime.UtcNow;
             DateTime? schedDate = null;
             int schedEp = 0;
@@ -2341,12 +2384,17 @@ RaisePropertyChanged(() => OpEdEmptyVisible);
         {
             if (source == null || source.Count == 0)
                 return;
-            Episodes.Clear();
-            foreach (var ep in source)
-                Episodes.Add(ep);
-            RaisePropertyChanged(() => Episodes);
-            RaisePropertyChanged(() => EpisodesLoaded);
-        }
+Episodes.Clear();
+                foreach (var ep in source)
+                    Episodes.Add(ep);
+                RaisePropertyChanged(() => Episodes);
+                RaisePropertyChanged(() => EpisodesLoaded);
+                // The hero's LAST AIRED used to be refreshed only after the FULL episode list
+                // landed, so for a twelve page series it waited for all twelve requests before
+                // showing anything. This callback is the newest page, which is exactly what the
+                // hero needs, so the countdown now appears with the first batch.
+                UpdateLastAired();
+            }
 
         public async Task LoadEpisodes(bool force = false)
         {
@@ -2364,7 +2412,7 @@ RaisePropertyChanged(() => OpEdEmptyVisible);
                 // twelve) and publish it, then let the full list land behind it.
                 if (!force && isAiring && (AllEpisodes > 60 || MalId == 21))
                 {
-                    var head = await new AnimeEpisodesQuery().GetLastEpisodesAsync(MalId);
+                    var head = await new AnimeEpisodesQuery().GetLastEpisodesWithScheduleAsync(MalId);
                     if (head != null && head.Count > 0)
                     {
                         foreach (var ep in head)
@@ -2375,13 +2423,13 @@ RaisePropertyChanged(() => OpEdEmptyVisible);
 
                 if (isAiring)
                 {
-                    episodes = await new AnimeEpisodesQuery().GetEpisodes(MalId, force);
+                    episodes = await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force);
                     if ((episodes == null || episodes.Count == 0) && cached != null && cached.Count > 0)
                         episodes = cached;
                 }
                 else
                 {
-                    episodes = cached != null && cached.Count > 0 ? cached : await new AnimeEpisodesQuery().GetEpisodes(MalId, force);
+                    episodes = cached != null && cached.Count > 0 ? cached : await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force);
                 }
                 var fromStale = false;
 
@@ -2437,6 +2485,7 @@ RaisePropertyChanged(() => OpEdEmptyVisible);
                 Episodes.AddRange(display);
                 _loadedEpisodes = true;
                 UpdateLastAired();
+                await UpdateLastAiredFromScheduleAsync();
                 RaisePropertyChanged(() => TimeTillNextAir);
 
                 if (_animeItemReference is AnimeItemViewModel itemVm)

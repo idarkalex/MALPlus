@@ -46,8 +46,24 @@ namespace MALClient.XShared.BL
             if (!force && DataCache.TryRetrieveDataForId(malId, out var vd) && vd.NextAirUtc.HasValue)
             {
                 if (!AirTimeUtils.NeedsRefresh(vd.NextAirUtc, vd.NextAirFetchedAtUtc, now))
-                    return vd.NextAirUtc;
-                if (!string.IsNullOrEmpty(vd.LastKnownStatus) && !AirTimeUtils.IsCurrentlyAiringStatus(vd.LastKnownStatus))
+                {
+                    // The TTL expired check used to return the persisted date with no status test at
+                    // all, which is how a series that finished kept counting down: the prediction
+                    // had been written while the entry was still running, the status that would
+                    // have contradicted it was missing, and inside the TTL nothing ever looked.
+                    // The provider is the cheap positive signal here, because being in the airing
+                    // feed IS proof that it is running.
+                    if (ResourceLocator.AiringInfoProvider.TryGetNextAirDate(malId, now, out _))
+                        return vd.NextAirUtc;
+                    if (!string.IsNullOrEmpty(vd.LastKnownStatus) && !AirTimeUtils.IsCurrentlyAiringStatus(vd.LastKnownStatus))
+                    {
+                        DataCache.UpdateVolatileDataWithNextAir(malId, null);
+                        return null;
+                    }
+                    // Unknown status and not in the feed: fall through to a real resolution instead
+                    // of serving a value nobody has re-verified.
+                }
+                else if (!string.IsNullOrEmpty(vd.LastKnownStatus) && !AirTimeUtils.IsCurrentlyAiringStatus(vd.LastKnownStatus))
                     return null;
             }
             lock (_lockObj)
@@ -72,7 +88,8 @@ namespace MALClient.XShared.BL
                 now = DateTime.UtcNow;
                 if (!force && DataCache.TryRetrieveDataForId(malId, out var vd2) && vd2.NextAirUtc.HasValue)
                 {
-                    if (!AirTimeUtils.NeedsRefresh(vd2.NextAirUtc, vd2.NextAirFetchedAtUtc, now))
+                    if (!AirTimeUtils.NeedsRefresh(vd2.NextAirUtc, vd2.NextAirFetchedAtUtc, now) &&
+                        ResourceLocator.AiringInfoProvider.TryGetNextAirDate(malId, now, out _))
                     {
                         lock (_lockObj) _memCache[malId] = (vd2.NextAirUtc, vd2.NextAirFetchedAtUtc ?? now);
                         return vd2.NextAirUtc;
@@ -86,11 +103,18 @@ namespace MALClient.XShared.BL
                     return res;
                 }
 
+                // Ask AniList whether this thing is still running BEFORE extrapolating a cadence
+                // from its own episode list. It is the only source consulted here that is not our
+                // own possibly-stale cache: Mushoku Tensei III reads "Currently Airing" in the
+                // details cache for up to fourteen days after it finished, and that stale string
+                // was enough to keep predicting a weekly episode forever.
+                var stillRunning = await ResolveIsStillRunningAsync(malId);
+
                 var fromEpisodes = await GetEpisodesFallbackAsync(malId);
                 if (fromEpisodes.HasValue)
                 {
-                    var isAiring = await IsCurrentlyAiringAsync(malId);
-                    if (isAiring)
+                    var isAiring = stillRunning ?? await IsCurrentlyAiringAsync(malId);
+                    if (isAiring == true)
                     {
                         lock (_lockObj) _memCache[malId] = (fromEpisodes, now);
                         DataCache.UpdateVolatileDataWithNextAir(malId, fromEpisodes);
@@ -98,7 +122,7 @@ namespace MALClient.XShared.BL
                     }
                 }
 
-                var broadcast = await GetBroadcastFallbackAsync(malId);
+                var broadcast = await GetBroadcastFallbackAsync(malId, stillRunning);
                 if (broadcast.HasValue)
                 {
                     lock (_lockObj) _memCache[malId] = (broadcast, now);
@@ -145,7 +169,7 @@ namespace MALClient.XShared.BL
             catch { return false; }
         }
 
-        private static async Task<DateTime?> GetBroadcastFallbackAsync(int malId)
+        private static async Task<DateTime?> GetBroadcastFallbackAsync(int malId, bool? stillRunning = null)
         {
             try
             {
@@ -160,6 +184,46 @@ namespace MALClient.XShared.BL
                 return AirTimeUtils.ComputeNextAirDate(data.Broadcast, DateTime.UtcNow, true);
             }
             catch { return null; }
+        }
+
+        /// <summary>
+        ///     Is this entry actually still running? AniList first, because it answers fresh and its
+        ///     status field is what the schedule itself is derived from, then our own details cache
+        ///     as the fallback. Null means nobody could say, which the caller treats as "do not
+        ///     extrapolate" rather than as a yes.
+        ///
+        ///     The value is also written into the volatile cache, because LastKnownStatus being
+        ///     empty is what let a finished series keep a countdown: every guard in the app is
+        ///     conditional on that string being populated, and it was only ever written when the
+        ///     user happened to open the details page.
+        /// </summary>
+        private static async Task<bool?> ResolveIsStillRunningAsync(int malId)
+        {
+            if (AniListScheduleClient.Enabled)
+            {
+                var schedule = await AniListScheduleClient.GetScheduleAsync(malId);
+                if (schedule != null && !string.IsNullOrWhiteSpace(schedule.Status))
+                {
+                    var mapped = schedule.IsReleasing ? "Currently Airing" : "Finished Airing";
+                    DataCache.UpdateVolatileStatus(malId, mapped);
+                    return schedule.IsReleasing;
+                }
+            }
+
+            try
+            {
+                var data = await DataCache.RetrieveAnimeSearchResultsDataStale(malId.ToString(), true);
+                if (data == null || string.IsNullOrEmpty(data.Status))
+                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(true, malId.ToString(), "", true);
+                if (data == null || string.IsNullOrEmpty(data.Status))
+                    return null;
+                DataCache.UpdateVolatileStatus(malId, data.Status);
+                return AirTimeUtils.IsCurrentlyAiringStatus(data.Status);
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

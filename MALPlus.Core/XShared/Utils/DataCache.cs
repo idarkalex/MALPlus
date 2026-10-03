@@ -616,6 +616,65 @@ namespace MALClient.XShared.Utils
     /// </summary>
     private const int FinishedDetailsTtlDays = 60;
 
+    /// <summary>
+    ///     Airing schedules are cached on disk too, not just in memory, because AniList is rate
+    ///     limited to 30 requests a minute and every launch would otherwise re-ask for the same
+    ///     posters. Six hours is well inside how often a broadcast day changes, and the countdown
+    ///     itself re-reads the persisted value continuously, so a stale schedule costs nothing in
+    ///     accuracy: it just means the next refresh is up to six hours away.
+    /// </summary>
+    private const int AiringScheduleTtlHours = 6;
+
+    /// <summary>
+    ///     Wraps the schedule with the moment it was fetched. The cache store's own expiry works in
+    ///     whole days and this wants hours, so the age travels with the payload instead of relying
+    ///     on a file timestamp that the platform layer owns.
+    /// </summary>
+    private class CachedAiringSchedule
+    {
+        public AniListSchedule Schedule { get; set; }
+        public DateTime FetchedAtUtc { get; set; }
+    }
+
+    public static async Task SaveAiringSchedule(int id, AniListSchedule schedule)
+    {
+        if (schedule == null)
+            return;
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(new CachedAiringSchedule
+            {
+                Schedule = schedule,
+                FetchedAtUtc = DateTime.UtcNow
+            });
+            await DataCacheService.SaveData(json, $"anilist_schedule_{id}.json", "AiringSchedule");
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    public static async Task<AniListSchedule> RetrieveAiringSchedule(int id)
+    {
+        try
+        {
+            var json = await DataCacheService.RetrieveData<string>($"anilist_schedule_{id}.json",
+                "AiringSchedule", 0);
+            if (string.IsNullOrEmpty(json))
+                return null;
+            var cached = System.Text.Json.JsonSerializer.Deserialize<CachedAiringSchedule>(json);
+            if (cached?.Schedule == null)
+                return null;
+            if ((DateTime.UtcNow - cached.FetchedAtUtc).TotalHours > AiringScheduleTtlHours)
+                return null;
+            return cached.Schedule;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     public static async Task SaveAnimeSearchResultsData(string id, AnimeGeneralDetailsData data, bool anime)
     {
         try

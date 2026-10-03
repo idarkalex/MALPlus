@@ -23,10 +23,15 @@
             </Style.Triggers>
         </Style>
     </ContentView.Resources>
-    <Border Stroke="#14FFFFFF" StrokeThickness="1"
-            StrokeShape="RoundRectangle 0" Padding="0,6,0,8">
+    <!-- No Stroke here on purpose. A 1px #14FFFFFF ring drew a line down both sides and along the
+         bottom of the navigation bar, which read as the bar being boxed in rather than as a bar.
+         The Padding is what sets the bar's height and stays. -->
+    <Border Padding="0,6,0,8">
         <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="0">
             <Grid Grid.Column="0" ColumnDefinitions="*">
+                <Border x:Name="DiscoverIndicator" IsVisible="False" BackgroundColor="#1F0066FF"
+                        StrokeShape="RoundRectangle 14" WidthRequest="72" HeightRequest="42"
+                        HorizontalOptions="Center" VerticalOptions="Center" />
                 <Button x:Name="DiscoverButton" Clicked="OnDiscoverTapped"
                         Style="{StaticResource BottomNavButtonStyle}"
                         AutomationId="BottomNavDiscoverButton"
@@ -44,6 +49,9 @@
             </Grid>
 
             <Grid Grid.Column="1" ColumnDefinitions="*">
+                <Border x:Name="AnimeIndicator" IsVisible="False" BackgroundColor="#1F0066FF"
+                        StrokeShape="RoundRectangle 14" WidthRequest="72" HeightRequest="42"
+                        HorizontalOptions="Center" VerticalOptions="Center" />
                 <Button x:Name="AnimeButton" Clicked="OnAnimeTapped"
                         Style="{StaticResource BottomNavButtonStyle}"
                         AutomationId="BottomNavAnimeButton"
@@ -69,6 +77,9 @@
             </Grid>
 
             <Grid Grid.Column="2" ColumnDefinitions="*">
+                <Border x:Name="MangaIndicator" IsVisible="False" BackgroundColor="#1F0066FF"
+                        StrokeShape="RoundRectangle 14" WidthRequest="72" HeightRequest="42"
+                        HorizontalOptions="Center" VerticalOptions="Center" />
                 <Button x:Name="MangaButton" Clicked="OnMangaTapped"
                         Style="{StaticResource BottomNavButtonStyle}"
                         AutomationId="BottomNavMangaButton"
@@ -94,6 +105,9 @@
             </Grid>
 
             <Grid Grid.Column="3" ColumnDefinitions="*">
+                <Border x:Name="MoreIndicator" IsVisible="False" BackgroundColor="#1F0066FF"
+                        StrokeShape="RoundRectangle 14" WidthRequest="72" HeightRequest="42"
+                        HorizontalOptions="Center" VerticalOptions="Center" />
                 <Button x:Name="MoreButton" Clicked="OnMoreTapped"
                         Style="{StaticResource BottomNavButtonStyle}"
                         AutomationId="BottomNavMoreButton"

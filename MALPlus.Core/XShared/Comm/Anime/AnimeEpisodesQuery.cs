@@ -202,5 +202,147 @@ namespace MALClient.XShared.Comm.Anime
             }
             return null;
         }
+
+        /// <summary>
+        ///     The episode list, with AniList supplying the skeleton when it has a schedule.
+        ///
+        ///     WHY. Tenrai's list is incomplete rather than wrong: the numbers it carries ARE the
+        ///     real MyAnimeList episode numbers (its rows 1173, 1174 and 1177 for One Piece line
+        ///     up with AniList's numbers AND dates exactly), but the list has gaps. One Piece is
+        ///     missing 1175, 1176, 1178, 1179 and 1180, which is why "last aired" stalled at 1177
+        ///     while the real episode was 1180. For five of six currently airing titles Tenrai
+        ///     returns an EMPTY episode array with HTTP 200, including ones AniList marks
+        ///     RELEASING. For finished titles Tenrai is complete and correct, which is why it is
+        ///     still the fallback and still the title source.
+        ///
+        ///     AniList cannot replace it because its schedule has no title field at all, so this is
+        ///     a merge and not a swap: AniList decides how many episodes there are and when each
+        ///     one aired, Tenrai decides what they are called. Episodes Tenrai does not know about
+        ///     still appear, without a title.
+        ///
+        ///     Dates. Tenrai's `aired` is the JST broadcast date stored as midnight UTC, so its
+        ///     DATE PART IS ALREADY the Japanese calendar day and must not be shifted. AniList's
+        ///     airingAt is a true UTC instant, so it has to be taken to JST before its date is used,
+        ///     otherwise an episode airing Monday 00:00 in Tokyo reads as Sunday. Mushoku Tensei
+        ///     III episode 14 is the reference case: AniList says 2026-09-27 UTC, the broadcast
+        ///     date in Tokyo is 2026-09-28, and Tenrai already says 2026-09-28.
+        /// </summary>
+        public async Task<List<AnimeEpisode>> GetEpisodesWithScheduleAsync(int animeId, bool force = false,
+            CancellationToken cancellationToken = default, Action<List<AnimeEpisode>> onFirstBatch = null)
+        {
+            var tenrai = await GetEpisodes(animeId, force, cancellationToken, onFirstBatch);
+            if (!AniListScheduleClient.Enabled)
+                return tenrai;
+
+            var schedule = await AniListScheduleClient.GetScheduleAsync(animeId);
+            if (schedule == null || !schedule.HasSchedule)
+                return tenrai;
+
+            var now = DateTime.UtcNow;
+            var aired = schedule.Slots.Where(s => s.AiringUtc <= now).OrderBy(s => s.Number).ToList();
+            if (aired.Count == 0)
+                return tenrai;
+
+            // Tenrai rows keyed by their number, which is already the real episode number, so the
+            // join is exact. The date index is the fallback for the rare entry where the two
+            // sources disagree by one episode number but agree on the day.
+            var byNumber = new Dictionary<long, AnimeEpisode>();
+            var byJstDate = new Dictionary<DateTime, AnimeEpisode>();
+            foreach (var episode in tenrai ?? new List<AnimeEpisode>())
+            {
+                if (episode == null)
+                    continue;
+                if (episode.EpisodeId > 0)
+                    byNumber[episode.EpisodeId] = episode;
+                if (episode.AiredDate.HasValue)
+                {
+                    var key = episode.AiredDate.Value.Date;
+                    byJstDate[key] = episode;
+                }
+            }
+
+            var merged = new List<AnimeEpisode>(aired.Count);
+            foreach (var slot in aired)
+            {
+                if (!byNumber.TryGetValue(slot.Number, out var episode))
+                    byJstDate.TryGetValue(slot.AiringJstDate, out episode);
+
+                merged.Add(new AnimeEpisode
+                {
+                    EpisodeId = slot.Number,
+                    AiredDate = slot.AiringJstDate,
+                    Title = episode?.Title,
+                    TitleJapanese = episode?.TitleJapanese,
+                    TitleRomanji = episode?.TitleRomanji,
+                    Filler = episode?.Filler ?? false,
+                    Recap = episode?.Recap ?? false,
+                    VideoUrl = episode?.VideoUrl,
+                    ForumUrl = episode?.ForumUrl
+                });
+            }
+
+            // Rows Tenrai has that AniList does not cover: an entry can carry older seasons or a
+            // cour AniList has dropped. They stay, ordered by date, so nothing is ever hidden.
+            var covered = new HashSet<long>(merged.Select(e => e.EpisodeId));
+            foreach (var episode in tenrai ?? new List<AnimeEpisode>())
+            {
+                if (episode == null || covered.Contains(episode.EpisodeId))
+                    continue;
+                merged.Add(episode);
+            }
+
+            return merged
+                .OrderBy(e => e.AiredDate ?? DateTime.MaxValue)
+                .ThenBy(e => e.EpisodeId)
+                .ToList();
+        }
+
+        /// <summary>
+        ///     The newest page only, with the same AniList skeleton applied. Used for the
+        ///     long-runner fast path where walking every page would be the slow part.
+        /// </summary>
+        public async Task<List<AnimeEpisode>> GetLastEpisodesWithScheduleAsync(int animeId)
+        {
+            var tail = await GetLastEpisodesAsync(animeId);
+            if (!AniListScheduleClient.Enabled)
+                return tail;
+
+            var schedule = await AniListScheduleClient.GetScheduleAsync(animeId);
+            if (schedule == null || !schedule.HasSchedule)
+                return tail;
+
+            var last = schedule.LastAired(DateTime.UtcNow);
+            if (last == null)
+                return tail;
+
+            var byNumber = (tail ?? new List<AnimeEpisode>())
+                .Where(e => e != null)
+                .GroupBy(e => e.EpisodeId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var now = DateTime.UtcNow;
+            var newest = schedule.Slots
+                .Where(s => s.AiringUtc <= now && s.Number >= last.Number)
+                .OrderBy(s => s.Number)
+                .Select(slot =>
+                {
+                    byNumber.TryGetValue(slot.Number, out var episode);
+                    return new AnimeEpisode
+                    {
+                        EpisodeId = slot.Number,
+                        AiredDate = slot.AiringJstDate,
+                        Title = episode?.Title,
+                        TitleJapanese = episode?.TitleJapanese,
+                        TitleRomanji = episode?.TitleRomanji,
+                        Filler = episode?.Filler ?? false,
+                        Recap = episode?.Recap ?? false,
+                        VideoUrl = episode?.VideoUrl,
+                        ForumUrl = episode?.ForumUrl
+                    };
+                })
+                .ToList();
+
+            return newest.Count > 0 ? newest : tail;
+        }
     }
 }

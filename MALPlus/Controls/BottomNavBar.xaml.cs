@@ -128,21 +128,29 @@ public partial class BottomNavBar : ContentView
 
     private void SetSelectedSection(string section)
     {
-        SetSelected(DiscoverButton, DiscoverIcon, DiscoverLabel, "discover_home",
+        SetSelected(DiscoverButton, DiscoverIndicator, DiscoverIcon, DiscoverLabel, "discover_home",
             string.Equals(section, "discover", StringComparison.OrdinalIgnoreCase));
-        SetSelected(AnimeButton, AnimeIcon, AnimeLabel, "anime_list",
+        SetSelected(AnimeButton, AnimeIndicator, AnimeIcon, AnimeLabel, "anime_list",
             string.Equals(section, "anime", StringComparison.OrdinalIgnoreCase));
-        SetSelected(MangaButton, MangaIcon, MangaLabel, "manga_books",
+        SetSelected(MangaButton, MangaIndicator, MangaIcon, MangaLabel, "manga_books",
             string.Equals(section, "manga", StringComparison.OrdinalIgnoreCase));
-        SetSelected(MoreButton, MoreIcon, MoreLabel, "more_dots",
+        SetSelected(MoreButton, MoreIndicator, MoreIcon, MoreLabel, "more_dots",
             string.Equals(section, "more", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static void SetSelected(Button button, Image icon, Label label, string iconName, bool selected)
+    /// <summary>
+    ///     The selection pill is a Border behind the icon rather than a colour on the Button.
+    ///     Painting the Button meant filling the whole grid cell, so on the first and last tabs the
+    ///     rounded ends ran into the edge of the screen and the pill looked cut off. The Button
+    ///     stays transparent and full size so the touch target is unchanged.
+    /// </summary>
+    private static void SetSelected(Button button, View indicator, Image icon, Label label, string iconName, bool selected)
     {
         try
         {
-            button.BackgroundColor = selected ? SelectedButtonColor : TransparentButtonColor;
+            button.BackgroundColor = TransparentButtonColor;
+            if (indicator != null)
+                indicator.IsVisible = selected;
             label.TextColor = selected ? SelectedColor : UnselectedColor;
             // Image has no tint in MAUI 7, so the selected tab swaps to an accent-coloured
             // copy of the same glyph instead of being marked with an outline.

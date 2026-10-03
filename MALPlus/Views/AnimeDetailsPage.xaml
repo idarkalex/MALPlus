@@ -469,26 +469,15 @@
                          latter builds a real view per item and a long-runner like One Piece has
                          well over a thousand episodes, which pinned ~1GB of RSS and got the
                          process killed. CollectionView recycles cells instead. -->
+                    <!-- The three state panels sit ON TOP of the list in the same cell rather than above it in
+                         their own rows. They used to be three Auto rows with RowSpacing, and an
+                         Auto row does not collapse to nothing when it is invisible: measured on a
+                         device, a phantom ViewGroup of 208px stayed between the tab strip and the
+                         first card, so these tabs opened with roughly twice the gap the others
+                         have. Same content, no dead space. -->
                     <Grid IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
-                          Padding="0,8,0,32" RowSpacing="6" RowDefinitions="Auto,Auto,Auto,*">
-                        <Border Grid.Row="0" IsVisible="{Binding LoadingEpisodes}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
-                                <ActivityIndicator IsRunning="{Binding LoadingEpisodes}" Color="#0066FF"
-                                                   WidthRequest="22" HeightRequest="22" />
-                                <Label Text="Loading episodes..." Style="{StaticResource StateTextStyle}" />
-                            </HorizontalStackLayout>
-                        </Border>
-                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesErrorVisible}"
-                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <Label Text="{Binding Source={x:Reference DetailsPage}, Path=EpisodesErrorText}"
-                                   Style="{StaticResource StateTextStyle}" />
-                        </Border>
-                        <Border Grid.Row="2" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesEmptyVisible}"
-                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <Label Text="No episodes available." Style="{StaticResource StateTextStyle}" />
-                        </Border>
-                        <CollectionView Grid.Row="3"
-                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesContentVisible}"
+                          Padding="0,8,0,32">
+                        <CollectionView IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedEpisodes}"
                                         ItemTemplate="{StaticResource EpisodeTemplate}"
                                         RemainingItemsThreshold="6">
@@ -496,6 +485,22 @@
                                 <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
                             </CollectionView.ItemsLayout>
                         </CollectionView>
+                        <Border IsVisible="{Binding LoadingEpisodes}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
+                                <ActivityIndicator IsRunning="{Binding LoadingEpisodes}" Color="#0066FF"
+                                                   WidthRequest="22" HeightRequest="22" />
+                                <Label Text="Loading episodes..." Style="{StaticResource StateTextStyle}" />
+                            </HorizontalStackLayout>
+                        </Border>
+                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesErrorVisible}"
+                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <Label Text="{Binding Source={x:Reference DetailsPage}, Path=EpisodesErrorText}"
+                                   Style="{StaticResource StateTextStyle}" />
+                        </Border>
+                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesEmptyVisible}"
+                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <Label Text="No episodes available." Style="{StaticResource StateTextStyle}" />
+                        </Border>
                     </Grid>
 
                     <!-- Reviews and Recommendations are CollectionViews for the same reason the
@@ -503,25 +508,8 @@
                          tab becomes visible, and doing that synchronously on the tap is what made
                          switching tabs feel like it hung. -->
                     <Grid IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
-                          Padding="0,8,0,32" RowSpacing="6" RowDefinitions="Auto,Auto,Auto,*">
-                        <Border Grid.Row="0" IsVisible="{Binding LoadingReviews}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
-                                <ActivityIndicator IsRunning="{Binding LoadingReviews}" Color="#0066FF"
-                                                   WidthRequest="22" HeightRequest="22" />
-                                <Label Text="Loading reviews..." Style="{StaticResource StateTextStyle}" />
-                            </HorizontalStackLayout>
-                        </Border>
-                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsErrorVisible}"
-                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <Label Text="{Binding Source={x:Reference DetailsPage}, Path=ReviewsErrorText}"
-                                   Style="{StaticResource StateTextStyle}" />
-                        </Border>
-                        <Border Grid.Row="2" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsEmptyVisible}"
-                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <Label Text="No reviews available." Style="{StaticResource StateTextStyle}" />
-                        </Border>
-                        <CollectionView Grid.Row="3"
-                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsContentVisible}"
+                          Padding="0,8,0,32">
+                        <CollectionView IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedReviews}"
                                         ItemTemplate="{StaticResource ReviewTemplate}"
                                         RemainingItemsThreshold="4">
@@ -529,28 +517,27 @@
                                 <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
                             </CollectionView.ItemsLayout>
                         </CollectionView>
+                        <Border IsVisible="{Binding LoadingReviews}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
+                                <ActivityIndicator IsRunning="{Binding LoadingReviews}" Color="#0066FF"
+                                                   WidthRequest="22" HeightRequest="22" />
+                                <Label Text="Loading reviews..." Style="{StaticResource StateTextStyle}" />
+                            </HorizontalStackLayout>
+                        </Border>
+                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsErrorVisible}"
+                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <Label Text="{Binding Source={x:Reference DetailsPage}, Path=ReviewsErrorText}"
+                                   Style="{StaticResource StateTextStyle}" />
+                        </Border>
+                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsEmptyVisible}"
+                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <Label Text="No reviews available." Style="{StaticResource StateTextStyle}" />
+                        </Border>
                     </Grid>
 
                     <Grid IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
-                          Padding="0,8,0,32" RowSpacing="6" RowDefinitions="Auto,Auto,Auto,*">
-                        <Border Grid.Row="0" IsVisible="{Binding LoadingRecommendations}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
-                                <ActivityIndicator IsRunning="{Binding LoadingRecommendations}" Color="#0066FF"
-                                                   WidthRequest="22" HeightRequest="22" />
-                                <Label Text="Loading recommendations..." Style="{StaticResource StateTextStyle}" />
-                            </HorizontalStackLayout>
-                        </Border>
-                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsErrorVisible}"
-                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <Label Text="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsErrorText}"
-                                   Style="{StaticResource StateTextStyle}" />
-                        </Border>
-                        <Border Grid.Row="2" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsEmptyVisible}"
-                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
-                            <Label Text="No recommendations available." Style="{StaticResource StateTextStyle}" />
-                        </Border>
-                        <CollectionView Grid.Row="3"
-                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsContentVisible}"
+                          Padding="0,8,0,32">
+                        <CollectionView IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedRecommendations}"
                                         ItemTemplate="{StaticResource RecommendationTemplate}"
                                         RemainingItemsThreshold="4">
@@ -558,6 +545,22 @@
                                 <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
                             </CollectionView.ItemsLayout>
                         </CollectionView>
+                        <Border IsVisible="{Binding LoadingRecommendations}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
+                                <ActivityIndicator IsRunning="{Binding LoadingRecommendations}" Color="#0066FF"
+                                                   WidthRequest="22" HeightRequest="22" />
+                                <Label Text="Loading recommendations..." Style="{StaticResource StateTextStyle}" />
+                            </HorizontalStackLayout>
+                        </Border>
+                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsErrorVisible}"
+                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <Label Text="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsErrorText}"
+                                   Style="{StaticResource StateTextStyle}" />
+                        </Border>
+                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsEmptyVisible}"
+                                Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                            <Label Text="No recommendations available." Style="{StaticResource StateTextStyle}" />
+                        </Border>
                     </Grid>
 
                     <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=5}"
