@@ -69,7 +69,8 @@ xmlns:mmalspecific="clr-namespace:MALClient.Models.Models.MalSpecific;assembly=M
             </ScrollView>
 
             <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingVisibility}" Refreshing="OnRefreshing">
-                <CollectionView ItemsSource="{Binding Articles}" SelectionMode="Single"
+                <CollectionView x:Name="NewsList"
+                                ItemsSource="{Binding Articles}" SelectionMode="Single"
                                 SelectionChanged="OnArticleTapped">
                     <CollectionView.EmptyView>
                         <Label Text="No articles" FontFamily="Inter" FontSize="13"
@@ -82,6 +83,14 @@ xmlns:mmalspecific="clr-namespace:MALClient.Models.Models.MalSpecific;assembly=M
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="0">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="0">
+                                    <Grid Grid.Column="0" IsVisible="{Binding ImgUrl, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                                        <!-- Placeholder while the picture has not been fetched yet. Without
+                                             it the thumbnail column simply vanishes and the row looks
+                                             broken rather than pending. -->
+                                        <BoxView WidthRequest="100" HeightRequest="80" Color="{StaticResource EmBackground}" />
+                                        <Label Text="▪" FontSize="20" TextColor="#29FFFFFF"
+                                               HorizontalOptions="Center" VerticalOptions="Center" />
+                                    </Grid>
                                     <Image Grid.Column="0" Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
                                            Aspect="AspectFill" HeightRequest="80" WidthRequest="100"
                                            IsVisible="{Binding ImgUrl, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
@@ -92,11 +101,16 @@ xmlns:mmalspecific="clr-namespace:MALClient.Models.Models.MalSpecific;assembly=M
                                         <HorizontalStackLayout Spacing="6">
                                             <Label Text="{Binding Source}" FontFamily="Inter" FontSize="10"
                                                    TextColor="{StaticResource EmAccent}" />
+                                            <!-- The editor name was often blank or just said "ANN" here,
+                                                 so the slot carries the publication date instead and
+                                                 disappears when there is none. -->
                                             <Label Text="·" FontFamily="Inter" FontSize="10"
-                                                   TextColor="#80FFFFFF" />
-                                            <Label Text="{Binding Author}" FontFamily="Inter" FontSize="10"
+                                                   TextColor="#80FFFFFF"
+                                                   IsVisible="{Binding PublishedLabel, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
+                                            <Label Text="{Binding PublishedLabel}" FontFamily="Inter" FontSize="10"
                                                    TextColor="#80FFFFFF" MaxLines="1"
-                                                   LineBreakMode="TailTruncation" />
+                                                   LineBreakMode="TailTruncation"
+                                                   IsVisible="{Binding PublishedLabel, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
                                         </HorizontalStackLayout>
                                     </VerticalStackLayout>
                                 </Grid>

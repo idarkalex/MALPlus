@@ -32,9 +32,13 @@ namespace MALClient.XShared.Comm.Articles
         {
             var cached = force
                 ? null
-                : await DataCache.RetrieveData<List<MalNewsUnitModel>>("ann_news_index_v7.json", "Articles", 1);
+                : await DataCache.RetrieveData<List<MalNewsUnitModel>>("ann_news_index_v8.json", "Articles", 1);
             if (cached != null && cached.Count > 0)
             {
+                // The index is cached for a day, so the images learned from opened stories have
+                // to be topped up here too, otherwise a card stays blank until the cache expires.
+                await ApplyRememberedThumbs(cached);
+                _ = PrefetchThumbs(cached);
                 return cached;
             }
 
@@ -71,7 +75,10 @@ namespace MALClient.XShared.Comm.Articles
                         filled++;
                     }
                 }
-                DataCache.SaveData(output, "ann_news_index_v7.json", "Articles");
+                // Stories whose image only exists on their own page fill in as they get opened.
+                await ApplyRememberedThumbs(output);
+                DataCache.SaveData(output, "ann_news_index_v8.json", "Articles");
+                _ = PrefetchThumbs(output);
             }
             return output;
         }
@@ -86,7 +93,13 @@ namespace MALClient.XShared.Comm.Articles
 
             var cached = await DataCache.RetrieveArticleContentData($"ann_v4_{id}", MalNewsType.News);
             if (cached != null)
+            {
+                // Also on the cached path: the card only needs a cheap regex over the body we
+                // already have, and doing it here means a story opened once keeps its picture
+                // even when its body is never downloaded again.
+                RememberArticleThumb(id, cached);
                 return cached;
+            }
 
             string html = null;
             for (var attempt = 1; attempt <= 3 && html == null; attempt++)
@@ -212,7 +225,151 @@ namespace MALClient.XShared.Comm.Articles
                 }
 
                 DataCache.SaveArticleContentData($"ann_v4_{id}", inner, MalNewsType.News);
+                RememberArticleThumb(id, inner);
                 return inner;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        ///     The RSS carries no images at all, and only a couple of the stories on the news index
+        ///     have a thumbnail there, so most cards had no picture even though every story has
+        ///     one. The article itself is the only place left to get it from.
+        ///     Budget is deliberately small and results are remembered per id, so each story is
+        ///     fetched at most once and never again. Only the top of the list is worth it: that is
+        ///     what the user can see.
+        /// </summary>
+        private const int AnnThumbPrefetchCount = 40;
+
+        /// <summary>
+        ///     Cheap part: only reads what earlier visits already learned. Awaited, because it is
+        ///     a handful of local reads and it fills most of the list.
+        /// </summary>
+        private static async Task ApplyRememberedThumbs(List<MalNewsUnitModel> entries)
+        {
+            if (entries == null)
+                return;
+            foreach (var entry in entries)
+            {
+                // The date is derived rather than stored, so an index cached before the card
+                // started showing it fills itself in without a rebuild.
+                if (string.IsNullOrEmpty(entry.PublishedLabel) && entry.PublishedAt.HasValue)
+                    entry.PublishedLabel = entry.PublishedAt.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+                if (!string.IsNullOrEmpty(entry.ImgUrl) || string.IsNullOrEmpty(entry.Id))
+                    continue;
+                var remembered = await RecallArticleThumb(entry.Id);
+                if (!string.IsNullOrEmpty(remembered))
+                    entry.ImgUrl = remembered;
+            }
+        }
+
+        /// <summary>
+        ///     Runs after the list is already on screen. Fetching a dozen story pages takes
+        ///     several seconds and blocking the tab on it cost a visible five second wait, so the
+        ///     cards start blank and fill themselves in as each answer lands.
+        /// </summary>
+        private static async Task PrefetchThumbs(List<MalNewsUnitModel> entries)
+        {
+            if (entries == null || entries.Count == 0)
+                return;
+            var pending = 0;
+            var failures = 0;
+            foreach (var entry in entries)
+            {
+                if (!string.IsNullOrEmpty(entry.ImgUrl) || string.IsNullOrEmpty(entry.Id))
+                    continue;
+                // The budget covers several screens. It used to stop at the twelfth story, which
+                // read as "images stop here" rather than as a limit, so the placeholders and the
+                // remembered per id results carry the rest.
+                if (pending >= AnnThumbPrefetchCount || failures >= 4)
+                    break;
+                pending++;
+
+                var remembered = await RecallArticleThumb(entry.Id);
+                if (!string.IsNullOrEmpty(remembered))
+                {
+                    entry.ImgUrl = remembered;
+                    continue;
+                }
+                if (string.IsNullOrEmpty(entry.Url))
+                    continue;
+                try
+                {
+                    // Also fills the article cache, so opening the story later is instant.
+                    var html = await GetAnnArticleHtml(entry.Url, entry.Id);
+                    if (string.IsNullOrEmpty(html))
+                    {
+                        failures++;
+                        continue;
+                    }
+                    var first = Regex.Match(html, "<img[^>]+src=\"([^\"]+)\"", RegexOptions.IgnoreCase);
+                    if (!first.Success)
+                    {
+                        failures++;
+                        continue;
+                    }
+                    var url = SanitizeUrl(first.Groups[1].Value);
+                    if (string.IsNullOrEmpty(url))
+                    {
+                        failures++;
+                        continue;
+                    }
+                    entry.ImgUrl = url;
+                    _ = DataCache.SaveData(url, AnnThumbFile(entry.Id), "Articles");
+                    failures = 0;
+                }
+                catch (Exception)
+                {
+                    failures++;
+                }
+                // Sequential on purpose: a burst of requests at ANN is what gets the whole feed
+                // rate limited, and this shares the connection with the rest of the app.
+                await Task.Delay(250);
+            }
+            try
+            {
+                DataCache.SaveData(entries, "ann_news_index_v8.json", "Articles");
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        /// <summary>
+        ///     Plenty of ANN stories have no thumbnail on the news index, so their card showed no
+        ///     picture at all, even though the story itself always has one. The body is already
+        ///     downloaded by the time we get here, so the first content image is remembered under
+        ///     the story id and the index picks it up as a fallback. Costs no extra request.
+        /// </summary>
+        private static void RememberArticleThumb(string id, string articleHtml)
+        {
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrEmpty(articleHtml))
+                return;
+            var match = Regex.Match(articleHtml, "<img[^>]+src=\"([^\"]+)\"", RegexOptions.IgnoreCase);
+            if (!match.Success)
+                return;
+            var url = SanitizeUrl(match.Groups[1].Value);
+            if (string.IsNullOrEmpty(url))
+                return;
+            try
+            {
+                _ = DataCache.SaveData(url, AnnThumbFile(id), "Articles");
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private static string AnnThumbFile(string id) => $"ann_thumb_{id}.json";
+
+        private static async Task<string> RecallArticleThumb(string id)
+        {
+            try
+            {
+                return await DataCache.RetrieveData<string>(AnnThumbFile(id), "Articles", -1);
             }
             catch (Exception)
             {
@@ -350,6 +507,7 @@ public static async Task<Dictionary<string, string>> FetchThumbMap()
                         Type = MalNewsType.News,
                         Source = "ANN",
                         PublishedAt = published,
+                        PublishedLabel = published?.ToString("d MMM yyyy", CultureInfo.InvariantCulture) ?? "",
                         ImgUrl = imgUrl,
                         Id = ExtractAnnId(link) ?? ExtractAnnId(guid) ?? Guid.NewGuid().ToString("N"),
                     });
@@ -370,7 +528,12 @@ public static async Task<Dictionary<string, string>> FetchThumbMap()
                 return "";
             var value = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
             value = Regex.Replace(value, "^\\s*<!\\[CDATA\\[", "");
-            value = Regex.Replace(value, "\\]\\]>\\s*$", "").Trim();
+            value = Regex.Replace(value, "\\]\\]>\\s*$", "");
+            // The first alternative swallows the ">" that closes the opening tag, so every
+            // extracted value started with one. The title and the description had a
+            // TrimStart('>') to cope with it, but the date did not, so it never parsed and the
+            // card had no publication date at all.
+            value = value.TrimStart('>', '<', ' ', '\t', '\r', '\n').Trim();
             return value;
         }
 

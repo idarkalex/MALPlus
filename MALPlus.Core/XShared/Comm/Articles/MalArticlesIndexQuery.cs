@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -26,6 +26,23 @@ namespace MALClient.XShared.Comm.Articles
                     Uri.EscapeUriString(mode == ArticlePageWorkMode.Articles
                         ? "https://myanimelist.net/featured"
                         : "https://myanimelist.net/news"));
+        }
+
+        /// <summary>
+        ///     The info line is "2 hours ago by editor 3 Comments". Only the age is wanted, since
+        ///     the card shows the publication date next to the source and the editor name was
+        ///     often missing there anyway.
+        /// </summary>
+        private static string AgeFromInfo(string infoText)
+        {
+            if (string.IsNullOrWhiteSpace(infoText))
+                return "";
+            var cut = infoText.IndexOf(" by ", StringComparison.OrdinalIgnoreCase);
+            var head = cut > 0 ? infoText.Substring(0, cut) : infoText;
+            head = head.Replace('\n', ' ').Replace('\r', ' ');
+            while (head.Contains("  "))
+                head = head.Replace("  ", " ");
+            return WebUtility.HtmlDecode(head).Trim();
         }
 
         public async Task<List<MalNewsUnitModel>> GetArticlesIndex(bool force = false)
@@ -67,6 +84,8 @@ namespace MALClient.XShared.Comm.Articles
                             var infoDiv = featuredNewsUnit.FirstOfDescendantsWithClass("div", "information");
                             var infoDivsParagraphs = infoDiv.Descendants("p").ToList();
                             current.Author = WebUtility.HtmlDecode(infoDivsParagraphs[0].InnerText.Trim());
+                            // The featured block carries no date, only the editor and the views.
+                            current.PublishedLabel = "";
                             current.Views = WebUtility.HtmlDecode(infoDivsParagraphs[1].InnerText.Trim());
                             current.Tags = "New";
 
@@ -98,6 +117,7 @@ namespace MALClient.XShared.Comm.Articles
                             current.Highlight = WebUtility.HtmlDecode(contentDivs[1].InnerText.Trim());
                             var infos = contentDivs[2].Descendants("p").ToList();
                             current.Author = infos[0].InnerText.Trim();
+                            current.PublishedLabel = AgeFromInfo(infos[0].InnerText);
                             current.Views = infos[1].InnerText.Trim();
                             try
                             {
@@ -147,6 +167,7 @@ namespace MALClient.XShared.Comm.Articles
                             current.Highlight = WebUtility.HtmlDecode(contentDivs[1].InnerText.Trim());
                             var infos = contentDivs[2].Descendants("p").ToList();
                             current.Author = "By: " + infos[0].ChildNodes[1].InnerText.Trim();
+                            current.PublishedLabel = AgeFromInfo(infos[0].ChildNodes[0].InnerText);
                             current.Views = infos[0].ChildNodes[3].InnerText.Trim();
                             try
                             {

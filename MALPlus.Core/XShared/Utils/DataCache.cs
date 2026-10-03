@@ -845,7 +845,7 @@ namespace MALClient.XShared.Utils
                 {
                     await
                         DataCacheService.SaveData(data,
-                            mode == ArticlePageWorkMode.Articles ? "mal_article_index.json" : "mal_news_index.json",
+                            mode == ArticlePageWorkMode.Articles ? "mal_article_index_v2.json" : "mal_news_index_v2.json",
                             "Articles");
                 });
             }
@@ -860,8 +860,8 @@ namespace MALClient.XShared.Utils
             try
             {
                 return await DataCacheService.RetrieveData<List<MalNewsUnitModel>>(mode == ArticlePageWorkMode.Articles
-                    ? "mal_article_index.json"
-                    : "mal_news_index.json", "Articles", 1);
+                    ? "mal_article_index_v2.json"
+                    : "mal_news_index_v2.json", "Articles", 1);
             }
             catch (Exception)
             {
