@@ -340,6 +340,16 @@ namespace MALClient.XShared.ViewModels.Details
         public string GeneralFavorites { get; private set; }
         public string GeneralMembers { get; private set; }
         public string GeneralSeason { get; private set; }
+
+        /// <summary>
+        ///     The raw counts behind the formatted General* strings. The one line in the merged
+        ///     Overview has to decide whether a number is worth printing at all, which means
+        ///     comparing numbers, not reading "#N/A" back out of a string.
+        /// </summary>
+        private int _rankNumber;
+        private int _popularityNumber;
+        private int _membersNumber;
+        private int _favoritesNumber;
         public string TrailerUrl { get; private set; }
         public bool HasTrailer => !string.IsNullOrEmpty(TrailerUrl);
 
@@ -445,6 +455,289 @@ namespace MALClient.XShared.ViewModels.Details
         public ObservableCollection<string> OPs { get; } = new ObservableCollection<string>();
         public ObservableCollection<string> EDs { get; } = new ObservableCollection<string>();
 
+        /// <summary>
+        ///     One list for the merged Overview tab: the Information and Stats rows the scrape
+        ///     produced, in a deliberate order, with everything the hero already shows removed.
+        /// </summary>
+        public ObservableCollection<Tuple<string, string>> DetailsRows { get; } =
+            new ObservableCollection<Tuple<string, string>>();
+
+        public ObservableCollection<string> GenreChips { get; } = new ObservableCollection<string>();
+
+        public ObservableCollection<AnimeExternalLink> LinkChips { get; } =
+            new ObservableCollection<AnimeExternalLink>();
+
+        public ObservableCollection<Tuple<string, string>> AltTitleRows { get; } =
+            new ObservableCollection<Tuple<string, string>>();
+
+        public string ProducersText { get; private set; } = "";
+        public string StreamingText { get; private set; } = "";
+        public string MoreInfoText
+        {
+            get => _moreInfoExpandedFlag ? MoreInfoFullText : _moreInfoPreview;
+            private set => _moreInfoPreview = value;
+        }
+
+        private string _moreInfoPreview = "";
+        public string MoreInfoFullText { get; private set; } = "";
+        private bool _moreInfoExpandedFlag;
+
+        public bool MoreInfoVisible => !string.IsNullOrWhiteSpace(MoreInfoText);
+        public bool MoreInfoHasMore => !string.IsNullOrWhiteSpace(MoreInfoFullText);
+        public bool MoreInfoExpanded => _moreInfoExpandedFlag;
+
+        /// <summary>Two lines of note until the reader asks for the rest of it.</summary>
+        public int MoreInfoMaxLines => MoreInfoExpanded ? int.MaxValue : 2;
+        public string MoreInfoToggleText => MoreInfoExpanded ? "Show less" : "Show full note";
+        public bool MoreInfoToggleVisible => MoreInfoHasMore;
+
+        public void SetMoreInfoExpanded()
+        {
+            if (!MoreInfoHasMore)
+                return;
+            _moreInfoExpandedFlag = !_moreInfoExpandedFlag;
+            RaisePropertyChanged(() => MoreInfoText);
+            RaisePropertyChanged(() => MoreInfoExpanded);
+            RaisePropertyChanged(() => MoreInfoMaxLines);
+            RaisePropertyChanged(() => MoreInfoToggleText);
+        }
+        public bool LinksVisible => LinkChips.Count > 0;
+        public bool AltTitlesVisible => AltTitleRows.Count > 0;
+        public bool ProducersVisible => !string.IsNullOrWhiteSpace(ProducersText);
+        public bool GenresVisible => GenreChips.Count > 0;
+
+        /// <summary>
+        ///     The OP/ED tab hides itself entirely for manga and for entries with no themes, rather
+        ///     than showing an empty tab. Both properties are raised whenever the lists are refilled.
+        /// </summary>
+        public bool OpEdVisible => AnimeMode && (OPs.Count > 0 || EDs.Count > 0);
+        public bool OpEdEmptyVisible => AnimeMode && OPs.Count == 0 && EDs.Count == 0;
+
+        /// <summary>
+        ///     Rank, popularity, members and favourites. They used to be four cards at 18sp, which
+        ///     is the most space on the page given to the least actionable numbers; four plain rows
+        ///     say the same thing in a fraction of the space.
+        /// </summary>
+        public ObservableCollection<Tuple<string, string>> MalStatRows { get; } =
+            new ObservableCollection<Tuple<string, string>>();
+
+        public bool MalStatsVisible => MalStatRows.Count > 0;
+
+private static string FormatCompact(int value)
+        {
+            if (value >= 1000000)
+                return (value / 1000000d).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "M";
+            if (value >= 1000)
+                return (value / 1000d).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "K";
+            return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        ///     Recovers a number out of a scraped label such as "#1,204" or "1.2M". Used only for the
+        ///     MAL stats rows when the structured payload had no value and the text scrape did.
+        /// </summary>
+        private static int ParseLeadingNumber(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return 0;
+            var digits = new string(text.Where(c => char.IsDigit(c) || c == '.').ToArray());
+            if (string.IsNullOrEmpty(digits) || !double.TryParse(digits, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var value))
+                return 0;
+            if (text.IndexOf('M') >= 0 || text.IndexOf('m') >= 0) return (int)(value * 1000000);
+            if (text.IndexOf('K') >= 0 || text.IndexOf('k') >= 0) return (int)(value * 1000);
+            return (int)value;
+        }
+
+        /// <summary>
+        ///     The hero already prints the year, the episode count, the score, the status, the
+        ///     media type and the next air countdown, so those never reach the tab. Premiered and
+        ///     Aired are NOT in that list on purpose: the hero only has the start year, and the
+        ///     season and the end date are things the hero does not say.
+        /// </summary>
+        private static readonly HashSet<string> HeroOwnedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Type", "Episodes", "Chapters", "Volumes", "Status", "Studios", "Serialization",
+            "Score", "Rank", "Popularity", "Members", "Favorites", "Favourites",
+            // Lives in the MAL section instead, next to the numbers it qualifies.
+            "Scored by"
+        };
+
+        /// <summary>
+        ///     The scrape and the structured payload call the same things different things. Both
+        ///     reach this tab, so the label has to be canonicalised before the dedupe runs or the
+        ///     same fact turns up twice under two names.
+        /// </summary>
+        private static string NormalizeRowLabel(string label)
+        {
+            switch (label.Trim())
+            {
+                case "Studios":
+                case "Studio":
+                    return "Studio";
+                case "Producer":
+                    return "Producers";
+                case "Licensors":
+                case "Licensor":
+                    // Not its own row: an entry with no streaming list falls back to the licensors,
+                    // and showing both would say the same thing twice.
+                    return "";
+                default:
+                    return label.Trim();
+            }
+        }
+
+        /// <summary>
+        ///     Section order for the merged tab. Anything the scrape produced that is not named here
+        ///     still gets shown, after the ones that are, in the order it arrived.
+        /// </summary>
+        private static readonly string[] DetailsRowOrder =
+        {
+            "Premiered", "Aired", "Duration", "Rating", "Broadcast", "Source",
+            "Demographic", "Demographics", "Genre", "Themes", "Serialization", "Alternative"
+        };
+
+        private void BuildDetailsRows(IEnumerable<Tuple<string, string>> information,
+            IEnumerable<Tuple<string, string>> stats, string seasonFallback)
+        {
+            var rows = new List<Tuple<string, string>>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void Add(string label, string value)
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+                var canonical = NormalizeRowLabel(label);
+                if (string.IsNullOrEmpty(canonical)) return;
+                if (HeroOwnedFields.Contains(canonical)) return;
+                if (!seen.Add(canonical)) return;
+                rows.Add(new Tuple<string, string>(canonical, value.Trim()));
+            }
+
+            var merged = new List<Tuple<string, string>>();
+            merged.AddRange(information ?? Enumerable.Empty<Tuple<string, string>>());
+            merged.AddRange(stats ?? Enumerable.Empty<Tuple<string, string>>());
+
+            foreach (var label in DetailsRowOrder)
+                foreach (var row in merged)
+                    if (row.Item1.Equals(label, StringComparison.OrdinalIgnoreCase))
+                        Add(row.Item1, row.Item2);
+
+            bool hasPremiered = rows.Any(r => r.Item1.Equals("Premiered", StringComparison.OrdinalIgnoreCase));
+            if (!hasPremiered && !string.IsNullOrWhiteSpace(seasonFallback))
+            {
+                seen.Add("Premiered");
+                rows.Insert(0, new Tuple<string, string>("Premiered", seasonFallback.Trim()));
+            }
+
+            // Studio and producers go here like everything else, and the Add helper drops them whenever
+            // there is nothing to say. Streaming and licensors are parsed but never shown: both
+            // lists come from AniDB and are not resolved per region, so they answer "what was
+            // this licensed to" and not "what can I play", which is not a useful thing to print
+            // to someone reading a MAL client.
+            Add("Studio", GeneralStudios);
+            Add("Producers", ProducersText);
+
+            foreach (var row in merged)
+                Add(row.Item1, row.Item2);
+
+            DetailsRows.Clear();
+            foreach (var row in rows)
+                DetailsRows.Add(row);
+
+            MalStatRows.Clear();
+            if (_rankNumber > 0) MalStatRows.Add(new Tuple<string, string>("Rank", $"#{_rankNumber}"));
+            if (_popularityNumber > 0) MalStatRows.Add(new Tuple<string, string>("Popularity", $"#{_popularityNumber}"));
+            if (_membersNumber > 0) MalStatRows.Add(new Tuple<string, string>("Members", FormatCompact(_membersNumber)));
+            if (_favoritesNumber > 0) MalStatRows.Add(new Tuple<string, string>("Favourites", FormatCompact(_favoritesNumber)));
+            var scoredBy = (stats ?? Enumerable.Empty<Tuple<string, string>>())
+                .FirstOrDefault(r => r.Item1.Equals("Scored by", StringComparison.OrdinalIgnoreCase));
+            if (scoredBy != null && !string.IsNullOrWhiteSpace(scoredBy.Item2))
+                MalStatRows.Add(new Tuple<string, string>("Scored by", scoredBy.Item2.Trim()));
+            RaisePropertyChanged(() => MalStatsVisible);
+        }
+
+        /// <summary>
+        ///     Tenrai's moreinfo is AniDB's note field, which for a long show is a wall of
+        ///     crossover trivia and schedule history. Only a short note is worth showing on its
+        ///     own; anything longer has to be opened deliberately.
+        /// </summary>
+        private const int MoreInfoPreviewLength = 200;
+
+        private static string BuildMoreInfoPreview(string moreInfo)
+        {
+            var clean = CleanMoreInfo(moreInfo);
+            if (string.IsNullOrWhiteSpace(clean))
+                return "";
+            return clean.Length <= MoreInfoPreviewLength ? clean : clean.Substring(0, MoreInfoPreviewLength).TrimEnd() + "…";
+        }
+
+        private static string BuildMoreInfoFull(string moreInfo)
+        {
+            var clean = CleanMoreInfo(moreInfo);
+            return clean.Length <= MoreInfoPreviewLength ? "" : clean;
+        }
+
+        private static string CleanMoreInfo(string moreInfo)
+        {
+            if (string.IsNullOrWhiteSpace(moreInfo))
+                return "";
+            // AniDB stamps its attribution on the block and it is never worth a line of our own.
+            var text = Regex.Replace(moreInfo, @"\(Source:\s*[^)]+\)", "");
+            text = Regex.Replace(text, @"\r\n?|\n", " ");
+            text = Regex.Replace(text, @"\s{2,}", " ");
+            return text.Trim();
+        }
+
+        private void FillGenreChips(AnimeGeneralDetailsData data)
+        {
+            GenreChips.Clear();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void Add(IEnumerable<string> source)
+            {
+                foreach (var raw in source ?? Enumerable.Empty<string>())
+                {
+                    var value = Utils.Utilities.FirstCharToUpper(raw?.Trim() ?? "");
+                    if (string.IsNullOrWhiteSpace(value) || !seen.Add(value))
+                        continue;
+                    GenreChips.Add(value);
+                }
+            }
+
+            Add(data.Themes);
+            Add(data.Genres);
+            Add(data.Demographics);
+            Add(data.ExplicitGenres);
+        }
+
+        private void FillLinkChips(AnimeGeneralDetailsData data)
+        {
+            LinkChips.Clear();
+            if (data.ExternalLinks == null)
+                return;
+            // Four is the number that still reads as a row of chips rather than a wall.
+            foreach (var link in data.ExternalLinks.Where(l => l != null && !string.IsNullOrWhiteSpace(l.Url))
+                         .Take(5))
+                LinkChips.Add(link);
+        }
+
+        private void FillAltTitles(AnimeGeneralDetailsData data)
+        {
+            AltTitleRows.Clear();
+            if (!string.IsNullOrWhiteSpace(data.TitleJapanese) &&
+                !data.TitleJapanese.Equals(data.Title, StringComparison.OrdinalIgnoreCase))
+                AltTitleRows.Add(new Tuple<string, string>("Japanese", data.TitleJapanese));
+            if (!string.IsNullOrWhiteSpace(data.TitleEnglish) &&
+                !data.TitleEnglish.Equals(data.Title, StringComparison.OrdinalIgnoreCase))
+                AltTitleRows.Add(new Tuple<string, string>("English", data.TitleEnglish));
+            foreach (var synonym in data.Synonyms ?? new List<string>())
+            {
+                var cleaned = Regex.Replace(synonym, @" ?\(.*?\)", string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(cleaned) || cleaned.Length <= 2)
+                    continue;
+                AltTitleRows.Add(new Tuple<string, string>("Also", cleaned));
+            }
+        }
+
         /// <summary>AnimeThemes results for the current entry, filled in by the OP/ED pre-cache.</summary>
         public List<AnimeThemesHelper.ThemeVideo> OpEdThemes { get; set; } = new List<AnimeThemesHelper.ThemeVideo>();
 
@@ -521,6 +814,20 @@ namespace MALClient.XShared.ViewModels.Details
                 GeneralMembers = "";
                 GeneralSeason = "";
                 TrailerUrl = "";
+                _rankNumber = 0;
+                _popularityNumber = 0;
+                _membersNumber = 0;
+                _favoritesNumber = 0;
+                ProducersText = "";
+                StreamingText = "";
+                MoreInfoText = "";
+                MoreInfoFullText = "";
+                _moreInfoExpandedFlag = false;
+                GenreChips.Clear();
+                LinkChips.Clear();
+                AltTitleRows.Clear();
+                DetailsRows.Clear();
+                MalStatRows.Clear();
                 _imgUrl = "";
                 _detailImage = "";
                 _alternateImgUrl = null;
@@ -542,8 +849,22 @@ namespace MALClient.XShared.ViewModels.Details
                 RaisePropertyChanged(() => GeneralStudios);
                 RaisePropertyChanged(() => GeneralFavorites);
                 RaisePropertyChanged(() => GeneralMembers);
-                RaisePropertyChanged(() => GeneralSeason);
-                RaisePropertyChanged(() => TrailerUrl);
+RaisePropertyChanged(() => GeneralSeason);
+            RaisePropertyChanged(() => ProducersText);
+            RaisePropertyChanged(() => ProducersVisible);
+            RaisePropertyChanged(() => StreamingText);
+            RaisePropertyChanged(() => MoreInfoText);
+            RaisePropertyChanged(() => MoreInfoFullText);
+            RaisePropertyChanged(() => MoreInfoExpanded);
+            RaisePropertyChanged(() => MoreInfoMaxLines);
+            RaisePropertyChanged(() => MoreInfoToggleText);
+            RaisePropertyChanged(() => MoreInfoToggleVisible);
+            RaisePropertyChanged(() => MoreInfoVisible);
+            RaisePropertyChanged(() => MoreInfoHasMore);
+            RaisePropertyChanged(() => LinksVisible);
+            RaisePropertyChanged(() => AltTitlesVisible);
+            RaisePropertyChanged(() => GenresVisible);
+                    RaisePropertyChanged(() => TrailerUrl);
                 RaisePropertyChanged(() => DetailImage);
             }
             var t1Reset = t0.ElapsedMilliseconds;
@@ -1477,6 +1798,40 @@ namespace MALClient.XShared.ViewModels.Details
             GeneralMembers = data.MembersCount > 0 ? data.MembersCount.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) : "";
             GeneralSeason = string.IsNullOrWhiteSpace(data.Season) ? "" : data.Season;
             TrailerUrl = data.TrailerUrl;
+            _rankNumber = data.Rank;
+            _popularityNumber = data.Popularity;
+            _membersNumber = data.MembersCount;
+            _favoritesNumber = data.FavoritesCount;
+            ProducersText = data.Producers != null && data.Producers.Any()
+                ? string.Join(", ", data.Producers)
+                : "";
+            // Tenrai's streaming list is AniDB's and is not resolved per region, so it is labelled
+            // for what it is rather than sold as "where to watch".
+            StreamingText = data.Streaming != null && data.Streaming.Any()
+                ? string.Join(", ", data.Streaming)
+                : string.Join(", ", data.Licensors ?? new List<string>());
+            MoreInfoText = BuildMoreInfoPreview(data.MoreInfo);
+            MoreInfoFullText = BuildMoreInfoFull(data.MoreInfo);
+            _moreInfoExpandedFlag = false;
+            // The text itself, not just the visibility: announcing only the flags is what left the
+            // NOTE panel visible but blank.
+            RaisePropertyChanged(() => MoreInfoText);
+            RaisePropertyChanged(() => MoreInfoFullText);
+            FillGenreChips(data);
+            FillLinkChips(data);
+            FillAltTitles(data);
+            // These four sections are shown through a computed flag, and the flag was being
+            // announced further up, BEFORE the collections were filled. A bool property only
+            // re-reads the view model when somebody says so, so every one of them stayed false
+            // with content sitting in the collection behind it and the section never appeared.
+            RaisePropertyChanged(() => GenresVisible);
+            RaisePropertyChanged(() => LinksVisible);
+            RaisePropertyChanged(() => AltTitlesVisible);
+            RaisePropertyChanged(() => MoreInfoVisible);
+            RaisePropertyChanged(() => MoreInfoHasMore);
+            RaisePropertyChanged(() => MoreInfoToggleVisible);
+            RaisePropertyChanged(() => MoreInfoMaxLines);
+            RaisePropertyChanged(() => ProducersVisible);
             _imgUrl = NormalizeImageUrl((_animeItemReference as AnimeItemViewModel)?.ImgUrl ?? data.ImgUrl);
             if (Settings.SelectedApiType == ApiType.Hummingbird)
                 MalId = data.MalId;
@@ -1813,8 +2168,11 @@ namespace MALClient.XShared.ViewModels.Details
                         airingTime = data.ExtractAiringTime();
                     }
 
-                    var duplicated = label == "Type" || label == "Episodes" || label == "Status"
-                                     || label == "Aired" || label == "Premiered" || label == "Studios";
+// Only what the hero genuinely already prints is dropped. Aired and Premiered used to be
+                    // filtered out here too, on the grounds that the hero has the year; but the hero
+                    // says neither the season nor when the run ended, so the merged tab needs both
+                    // and they were arriving as nothing.
+                    var duplicated = label == "Type" || label == "Episodes" || label == "Status" || label == "Studios";
                     if (label == "Studios" && string.IsNullOrEmpty(GeneralStudios))
                         studiosBackfill = value;
                     if (label == "Premiered" && string.IsNullOrEmpty(GeneralSeason))
@@ -1914,7 +2272,15 @@ namespace MALClient.XShared.ViewModels.Details
             EDs.Clear();
             foreach (var ending in endings)
                 EDs.Add(ending);
-            OpEdThemes = new List<AnimeThemesHelper.ThemeVideo>();
+            RaisePropertyChanged(() => OpEdVisible);
+RaisePropertyChanged(() => OpEdEmptyVisible);
+                // These three are answered off GeneralStudios and the two new production strings, and
+                // all three can still be filled by the scrape backfills that run AFTER the block which
+                // first announced them. Asking again here is what stops PRODUCTION from rendering as
+                // an empty box under a heading.
+                        RaisePropertyChanged(() => ProducersVisible);
+                    RaisePropertyChanged(() => MalStatsVisible);
+                OpEdThemes = new List<AnimeThemesHelper.ThemeVideo>();
 
             if (string.IsNullOrEmpty(GeneralStudios) && !string.IsNullOrEmpty(studiosBackfill))
                 GeneralStudios = studiosBackfill;
@@ -1928,6 +2294,16 @@ namespace MALClient.XShared.ViewModels.Details
                 GeneralMembers = membersBackfill;
             if (string.IsNullOrEmpty(GeneralFavorites) && !string.IsNullOrEmpty(favoritesBackfill))
                 GeneralFavorites = favoritesBackfill;
+
+            // The scrape can only offer these as text, so the numeric fields the compact rows need
+            // are recovered from the backfill when the structured payload had nothing.
+            if (_rankNumber <= 0) _rankNumber = ParseLeadingNumber(rankBackfill);
+            if (_popularityNumber <= 0) _popularityNumber = ParseLeadingNumber(popularityBackfill);
+            if (_membersNumber <= 0) _membersNumber = ParseLeadingNumber(membersBackfill);
+            if (_favoritesNumber <= 0) _favoritesNumber = ParseLeadingNumber(favoritesBackfill);
+
+            BuildDetailsRows(information, stats, GeneralSeason);
+
             _loadedDetails = true;
             DetailedDataVisibility = true;
             DetailsAvailable = true;

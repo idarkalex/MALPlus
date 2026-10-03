@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
@@ -30,6 +30,16 @@
             <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
             <Setter Property="StrokeThickness" Value="1" />
             <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+        </Style>
+
+        <!-- Section titles sit OUTSIDE the panel. Inside a card a label reads as a field of that
+             card; above it, with the border below, it reads as the heading of what follows. -->
+        <Style x:Key="SectionLabelStyle" TargetType="Label">
+            <Setter Property="FontFamily" Value="InterBold" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="TextColor" Value="#8FA8C0" />
+            <Setter Property="MaxLines" Value="1" />
+            <Setter Property="Margin" Value="2,16,2,6" />
         </Style>
 
         <Style x:Key="StateTextStyle" TargetType="Label">
@@ -232,10 +242,16 @@
                 <Grid x:Name="HeaderSpacer" HeightRequest="600" BackgroundColor="Transparent" />
 
                 <Grid x:Name="TabContentHost" BackgroundColor="{StaticResource EmSheet}">
+<!-- One tab for what used to be General and Details. The split was costing a tap
+                         and duplicating nothing useful, while the four 18sp rank cards were eating
+                         the top of the screen and pushing the synopsis, the actual reason for
+                         opening the page, below the fold. Everything the hero already prints (year,
+                         episode count, score, status, type, next air) is filtered out of the rows
+                         in the view model, so nothing is said twice. -->
                     <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
-                                         Padding="12,12,12,32" Spacing="12">
+                                         Padding="12,4,12,32" Spacing="0">
                         <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralLoadingVisible}"
-                                Style="{StaticResource PanelStyle}" Padding="18">
+                                Style="{StaticResource PanelStyle}" Padding="18" Margin="0,12,0,0">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                                 <ActivityIndicator IsRunning="{Binding LoadingGlobal}" Color="#0066FF"
                                                    WidthRequest="22" HeightRequest="22" />
@@ -247,186 +263,213 @@
                             <Label Text="{Binding Source={x:Reference DetailsPage}, Path=GeneralErrorText}"
                                    Style="{StaticResource StateTextStyle}" />
                         </Border>
-                        <VerticalStackLayout IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralContentVisible}"
-                                             Spacing="12">
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                <Border Style="{StaticResource PanelStyle}" Padding="12">
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Text="RANK" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                        <Label Text="{Binding GeneralRank}" FontFamily="InterBold" FontSize="18"
-                                               TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
-                                    </VerticalStackLayout>
-                                </Border>
-                                <Border Grid.Column="1" Style="{StaticResource PanelStyle}" Padding="12">
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Text="POPULARITY" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                        <Label Text="{Binding GeneralPopularity}" FontFamily="InterBold" FontSize="18"
-                                               TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
-                                    </VerticalStackLayout>
-                                </Border>
-                            </Grid>
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                <Border Style="{StaticResource PanelStyle}" Padding="12">
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Text="FAVORITES" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                        <Label Text="{Binding GeneralFavorites}" FontFamily="InterBold" FontSize="18"
-                                               TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
-                                    </VerticalStackLayout>
-                                </Border>
-                                <Border Grid.Column="1" Style="{StaticResource PanelStyle}" Padding="12">
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Text="MEMBERS" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                        <Label Text="{Binding GeneralMembers}" FontFamily="InterBold" FontSize="18"
-                                               TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
-                                    </VerticalStackLayout>
-                                </Border>
-                            </Grid>
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                <Border Style="{StaticResource PanelStyle}" Padding="12">
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Text="STUDIOS" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                        <Label Text="{Binding GeneralStudios}" FontFamily="InterBold" FontSize="15"
-                                               TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
-                                    </VerticalStackLayout>
-                                </Border>
-                                <Border Grid.Column="1" Style="{StaticResource PanelStyle}" Padding="12">
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Text="PREMIERED" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                        <Label Text="{Binding GeneralSeason}" FontFamily="InterBold" FontSize="15"
-                                               TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
-                                    </VerticalStackLayout>
-                                </Border>
-                            </Grid>
-                            <Border Style="{StaticResource PanelStyle}" Padding="14">
-                                <VerticalStackLayout Spacing="7">
-                                    <Label Text="SYNOPSIS" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                    <Label Text="{Binding Synopsis}" FontFamily="Inter" FontSize="13"
-                                           TextColor="{StaticResource BrushText}" LineHeight="1.4" />
-                                    <Label Text="No synopsis available."
-                                           IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralSynopsisEmptyVisible}"
-                                           FontFamily="Inter" FontSize="12" TextColor="#8FA8C0" MaxLines="1" />
-                                </VerticalStackLayout>
-                            </Border>
-                        </VerticalStackLayout>
+
+                        <Label Text="SYNOPSIS" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralContentVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="14"
+                                IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralContentVisible}">
+                            <VerticalStackLayout Spacing="7">
+                                <Label Text="{Binding Synopsis}" FontFamily="Inter" FontSize="13"
+                                       TextColor="{StaticResource BrushText}" LineHeight="1.45"
+                                       MaxLines="{Binding SynopsisMaxLines}" LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding SynopsisToggleText}" FontFamily="InterSemiBold" FontSize="11"
+                                       TextColor="#7AB4FF" MaxLines="1"
+                                       IsVisible="{Binding SynopsisToggleVisible}">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnSynopsisTapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                                <Label Text="No synopsis available."
+                                       IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralSynopsisEmptyVisible}"
+                                       FontFamily="Inter" FontSize="12" TextColor="#8FA8C0" MaxLines="1" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Label Text="GENRES" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding GenresVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding GenresVisible}">
+                            <FlexLayout BindableLayout.ItemsSource="{Binding GenreChips}"
+                                        Wrap="Wrap" Direction="Row" JustifyContent="Start"
+                                        AlignItems="Start">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Stroke="#24405A" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                                Padding="9,4" Margin="0,0,6,6">
+                                            <Label Text="{Binding .}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="#D4E4F7" MaxLines="1" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </Border>
+
+                        <Label Text="DETAILS" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding Source={x:Reference DetailsPage}, Path=DetailsContentVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding Source={x:Reference DetailsPage}, Path=DetailsContentVisible}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding DetailsRows}" Spacing="0">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
+                                            <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="#8FA8C0" MaxLines="1" />
+                                            <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="{StaticResource BrushText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Tenrai's moreinfo is AniDB's note field. On a long show it is pages of
+                             crossover trivia, so it only gets a panel when it is short enough to be
+                             useful and otherwise has to be expanded on purpose. -->
+                        <Label Text="NOTE" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding MoreInfoVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding MoreInfoVisible}">
+                            <VerticalStackLayout Spacing="5">
+                                <Label Text="{Binding MoreInfoText}" FontFamily="Inter" FontSize="12"
+                                       TextColor="#B7CBDD" LineHeight="1.4"
+                                       MaxLines="{Binding MoreInfoMaxLines}" LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding MoreInfoToggleText}" FontFamily="InterSemiBold" FontSize="11"
+                                       TextColor="#7AB4FF" MaxLines="1"
+                                       IsVisible="{Binding MoreInfoToggleVisible}">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnMoreInfoTapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Label Text="ON MAL" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding MalStatsVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding MalStatsVisible}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding MalStatRows}" Spacing="0">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
+                                            <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="#8FA8C0" MaxLines="1" />
+                                            <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="{StaticResource BrushText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Label Text="LINKS" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding LinksVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding LinksVisible}">
+                            <FlexLayout BindableLayout.ItemsSource="{Binding LinkChips}"
+                                        Wrap="Wrap" Direction="Row" JustifyContent="Start"
+                                        AlignItems="Start">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Stroke="#1E3A52" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                                Padding="9,5" Margin="0,0,6,6">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnExternalLinkTapped"
+                                                                      CommandParameter="{Binding Url}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Label}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="#8FB8E8" MaxLines="1" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </Border>
+
+                        <Label Text="ALT. TITLES" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding AltTitlesVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding AltTitlesVisible}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding AltTitleRows}" Spacing="0">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
+                                            <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="#8FA8C0" MaxLines="1" />
+                                            <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="{StaticResource BrushText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </Border>
                     </VerticalStackLayout>
 
-                    <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
-                                         Padding="12,12,12,32" Spacing="12">
-                        <Border IsVisible="{Binding LoadingDetails}" Style="{StaticResource PanelStyle}" Padding="18">
-                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
-                                <ActivityIndicator IsRunning="{Binding LoadingDetails}" Color="#0066FF"
-                                                   WidthRequest="22" HeightRequest="22" />
-                                <Label Text="Loading details..." Style="{StaticResource StateTextStyle}" />
-                            </HorizontalStackLayout>
-                        </Border>
-                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=DetailsErrorVisible}"
-                                Style="{StaticResource PanelStyle}" Padding="18">
-                            <Label Text="{Binding Source={x:Reference DetailsPage}, Path=DetailsErrorText}"
-                                   Style="{StaticResource StateTextStyle}" />
-                        </Border>
-                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=DetailsEmptyVisible}"
-                                Style="{StaticResource PanelStyle}" Padding="18">
-                            <Label Text="No additional details available." Style="{StaticResource StateTextStyle}" />
-                        </Border>
-                        <VerticalStackLayout IsVisible="{Binding Source={x:Reference DetailsPage}, Path=DetailsContentVisible}"
-                                             Spacing="12">
-                            <Border Style="{StaticResource PanelStyle}" Padding="12">
-                                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding LeftGenres}">
-                                        <BindableLayout.ItemTemplate>
-                                            <DataTemplate>
+                    <!-- OP/ED got its own tab because it is the one part of a details page people
+                         come back for, and it used to sit below two tables of scraped text. All of
+                         them are listed: the list is short and a "+N more" would only hide things.
+                         A row is a Border with a coloured leading edge, since opening and ending
+                         used to be identical chips and the only difference was a text colour. -->
+                    <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
+                                         Padding="12,4,12,32" Spacing="0">
+                        <Label Text="OPENING" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding OpEdVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding OpEdVisible}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding OPs}" Spacing="0">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,7" ColumnSpacing="10">
+                                            <Border Grid.Row="0" WidthRequest="3" BackgroundColor="#0066FF"
+                                                    Margin="0,1" />
+                                            <Border Grid.Column="1" Stroke="#24405A" StrokeThickness="1"
+                                                    StrokeShape="RoundRectangle 8" Padding="10,9"
+                                                    BackgroundColor="#101D2A">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnOpEdTapped" CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
                                                 <Label Text="{Binding .}" FontFamily="Inter" FontSize="13"
-                                                       TextColor="{StaticResource BrushText}" Padding="0,4" MaxLines="1" />
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Column="1" BindableLayout.ItemsSource="{Binding RightGenres}">
-                                        <BindableLayout.ItemTemplate>
-                                            <DataTemplate>
+                                                       TextColor="#DCE9F5" MaxLines="2" />
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Label Text="ENDING" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding OpEdVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding OpEdVisible}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding EDs}" Spacing="0">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,7" ColumnSpacing="10">
+                                            <Border Grid.Row="0" WidthRequest="3" BackgroundColor="#FF6B00"
+                                                    Margin="0,1" />
+                                            <Border Grid.Column="1" Stroke="#24405A" StrokeThickness="1"
+                                                    StrokeShape="RoundRectangle 8" Padding="10,9"
+                                                    BackgroundColor="#101D2A">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnOpEdTapped" CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
                                                 <Label Text="{Binding .}" FontFamily="Inter" FontSize="13"
-                                                       TextColor="{StaticResource BrushText}" Padding="0,4" MaxLines="1" />
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </VerticalStackLayout>
-                                </Grid>
-                            </Border>
-                            <Border Style="{StaticResource PanelStyle}" Padding="12">
-                                <VerticalStackLayout Spacing="6">
-                                    <Label Text="INFORMATION" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Information}">
-                                        <BindableLayout.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid ColumnDefinitions="110,*" Padding="0,3">
-                                                    <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                           TextColor="#8FA8C0" MaxLines="1" />
-                                                    <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
-                                                           TextColor="{StaticResource BrushText}" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </VerticalStackLayout>
-                                </VerticalStackLayout>
-                            </Border>
-                            <Border Style="{StaticResource PanelStyle}" Padding="12">
-                                <VerticalStackLayout Spacing="6">
-                                    <Label Text="STATS" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Stats}">
-                                        <BindableLayout.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid ColumnDefinitions="110,*" Padding="0,3">
-                                                    <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                           TextColor="#8FA8C0" MaxLines="1" />
-                                                    <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
-                                                           TextColor="{StaticResource BrushText}" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </VerticalStackLayout>
-                                </VerticalStackLayout>
-                            </Border>
-                            <Border Style="{StaticResource PanelStyle}" Padding="12">
-                                <VerticalStackLayout Spacing="6">
-                                    <Label Text="OPENING" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0" MaxLines="1" />
-                                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding OPs}">
-                                        <BindableLayout.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border BackgroundColor="#1A0066FF" StrokeShape="RoundRectangle 6"
-                                                        Stroke="#330066FF" StrokeThickness="1" Padding="8,5" Margin="0,2">
-                                                    <Border.GestureRecognizers>
-                                                        <TapGestureRecognizer Tapped="OnOpEdTapped" CommandParameter="{Binding .}" />
-                                                    </Border.GestureRecognizers>
-                                                    <Label Text="{Binding .}" FontFamily="Inter" FontSize="13"
-                                                           TextColor="#7AB4FF" MaxLines="2" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </VerticalStackLayout>
-                                    <Label Text="ENDING" FontFamily="InterBold" FontSize="10" TextColor="#8FA8C0"
-                                           Margin="0,6,0,0" MaxLines="1" />
-                                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding EDs}">
-                                        <BindableLayout.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border BackgroundColor="#1AFF6B00" StrokeShape="RoundRectangle 6"
-                                                        Stroke="#33FF6B00" StrokeThickness="1" Padding="8,5" Margin="0,2">
-                                                    <Border.GestureRecognizers>
-                                                        <TapGestureRecognizer Tapped="OnOpEdTapped" CommandParameter="{Binding .}" />
-                                                    </Border.GestureRecognizers>
-                                                    <Label Text="{Binding .}" FontFamily="Inter" FontSize="13"
-                                                           TextColor="#FFB47A" MaxLines="2" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </VerticalStackLayout>
-                                </VerticalStackLayout>
-                            </Border>
-                        </VerticalStackLayout>
+                                                       TextColor="#DCE9F5" MaxLines="2" />
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Label Text="No opening or ending themes listed for this entry."
+                               IsVisible="{Binding OpEdEmptyVisible}" Style="{StaticResource StateTextStyle}"
+                               Margin="0,18,0,0" />
                     </VerticalStackLayout>
 
                     <!-- Episodes. This one has to be a CollectionView, not BindableLayout: the
                          latter builds a real view per item and a long-runner like One Piece has
                          well over a thousand episodes, which pinned ~1GB of RSS and got the
                          process killed. CollectionView recycles cells instead. -->
-                    <Grid IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
+                    <Grid IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
                           Padding="0,8,0,32" RowSpacing="6" RowDefinitions="Auto,Auto,Auto,*">
                         <Border Grid.Row="0" IsVisible="{Binding LoadingEpisodes}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
@@ -829,13 +872,13 @@
             <ScrollView x:Name="TabStripScroll" HorizontalOptions="Fill" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                         Margin="0,0,0,0" Padding="14,4,14,0" BackgroundColor="{StaticResource EmSheet}">
                 <HorizontalStackLayout Spacing="20">
-                    <Label x:Name="TabGeneral" Text="General" Style="{StaticResource TabLabelStyle}">
+                    <Label x:Name="TabGeneral" Text="Overview" Style="{StaticResource TabLabelStyle}">
                         <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="0" /></Label.GestureRecognizers>
                     </Label>
-                    <Label x:Name="TabDetails" Text="Details" Style="{StaticResource TabLabelStyle}">
+                    <Label x:Name="TabEpisodes" Text="Episodes" Style="{StaticResource TabLabelStyle}">
                         <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="1" /></Label.GestureRecognizers>
                     </Label>
-                    <Label x:Name="TabEpisodes" Text="Episodes" Style="{StaticResource TabLabelStyle}">
+                    <Label x:Name="TabOpEd" Text="OP/ED" Style="{StaticResource TabLabelStyle}">
                         <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="2" /></Label.GestureRecognizers>
                     </Label>
                     <Label x:Name="TabReviews" Text="Reviews" Style="{StaticResource TabLabelStyle}">

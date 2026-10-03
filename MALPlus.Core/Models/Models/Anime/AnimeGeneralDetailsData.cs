@@ -8,6 +8,18 @@ using System.Xml.Linq;
 
 namespace MALClient.Models.Models.Anime
 {
+    /// <summary>
+    ///     An off-site reference for an entry, kept as name plus url so the UI can decide what to
+    ///     show. <see cref="Label" /> is the short text meant for a chip; Tenrai hands over names
+    ///     like "@OnePieceAnime" or "Wikipedia (ja)" that mean nothing as a button.
+    /// </summary>
+    public class AnimeExternalLink
+    {
+        public string Name { get; set; }
+        public string Url { get; set; }
+        public string Label { get; set; }
+    }
+
     public class AnimeGeneralDetailsData
     {
         private int _id = -1;
@@ -49,6 +61,13 @@ namespace MALClient.Models.Models.Anime
         public List<string> ExplicitGenres { get; set; } = new List<string>();
         public List<string> Demographics { get; set; } = new List<string>();
         public string MoreInfo { get; set; }
+
+        public List<string> Producers { get; set; } = new List<string>();
+        public List<string> Licensors { get; set; } = new List<string>();
+        public List<string> Streaming { get; set; } = new List<string>();
+        public List<AnimeExternalLink> ExternalLinks { get; set; } = new List<AnimeExternalLink>();
+        public string TitleJapanese { get; set; }
+        public string TitleEnglish { get; set; }
 
         public void ParseXElement(XElement xmlObj, bool anime,bool preferEnglishTitle)
         {

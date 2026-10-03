@@ -86,8 +86,15 @@ namespace MALClient.XShared.Comm.Anime
                     ExplicitGenres = GetNameList(data, "explicit_genres"),
                     Demographics = GetNameList(data, "demographics"),
                     MoreInfo = WebUtility.HtmlDecode(GetString(data, "moreinfo")),
+                    Producers = GetNameList(data, "producers"),
+                    Licensors = GetNameList(data, "licensors"),
+                    Streaming = GetNameList(data, "streaming"),
+                    ExternalLinks = GetExternalLinks(data),
+                    TitleJapanese = GetString(data, "title_japanese"),
+                    TitleEnglish = GetString(data, "title_english"),
                 };
 
+                FilterSynonyms(output);
                 if ((output.Type == "Movie" || output.AllEpisodes == 1) && output.EndDate == "N/A" &&
                     output.Status == "Finished Airing")
                 {
@@ -129,11 +136,106 @@ namespace MALClient.XShared.Comm.Anime
                 ExplicitGenres = GetNameList(data, "explicit_genres"),
                 Demographics = GetNameList(data, "demographics"),
                 MoreInfo = WebUtility.HtmlDecode(GetString(data, "moreinfo")),
+                Producers = GetNameList(data, "producers"),
+                Licensors = GetNameList(data, "licensors"),
+                ExternalLinks = GetExternalLinks(data),
+                TitleJapanese = GetString(data, "title_japanese"),
+                TitleEnglish = GetString(data, "title_english"),
             };
 
+            FilterSynonyms(manga);
             ResourceLocator.EnglishTitlesProvider.AddOrUpdate(id, false, GetString(data, "title_english"));
             return manga;
         }
+
+        /// <summary>
+        ///     Tenrai hands over whatever synonym AniDB has, which includes stubs like "OP" for
+        ///     One Piece. Left alone they end up rendered as an "Alt. Titles" block of noise, so
+        ///     anything that cannot plausibly be a title of the thing is dropped.
+        /// </summary>
+        private static void FilterSynonyms(AnimeGeneralDetailsData data)
+        {
+            if (data.Synonyms == null)
+                return;
+            data.Synonyms = data.Synonyms
+                .Where(s => !string.IsNullOrWhiteSpace(s) && s.Trim().Length > 2)
+                .Where(s => !s.Equals(data.Title, StringComparison.OrdinalIgnoreCase))
+                .Where(s => !s.Equals(data.TitleJapanese, StringComparison.OrdinalIgnoreCase))
+                .Where(s => !s.Equals(data.TitleEnglish, StringComparison.OrdinalIgnoreCase))
+                .Select(s => s.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /// <summary>
+        ///     Off-site references, reduced to the few a reader actually wants and relabelled for a
+        ///     chip. AniList is deliberately not carried over: it is a competing list and this is a
+        ///     MyAnimeList client. The Japanese Wikipedia duplicate is dropped in favour of the
+        ///     English one, and the Chinese and schedule-database mirrors are left out as noise.
+        /// </summary>
+        private static List<AnimeExternalLink> GetExternalLinks(JsonElement data)
+        {
+            var links = new List<AnimeExternalLink>();
+            if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("external", out var external) ||
+                external.ValueKind != JsonValueKind.Array)
+                return links;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in external.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                    continue;
+                var url = GetString(item, "url");
+                var name = GetString(item, "name");
+                if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(name))
+                    continue;
+
+                var lower = url.ToLowerInvariant();
+                if (lower.Contains("anilist.co"))
+                    continue;
+                var isJapanese = name.Contains("(ja)") || lower.Contains("ja.wikipedia");
+                if (isJapanese)
+                    continue;
+                if (!seen.Add(url))
+                    continue;
+
+                links.Add(new AnimeExternalLink
+                {
+                    Name = name,
+                    Url = url,
+                    Label = LinkLabel(name, lower)
+                });
+            }
+
+            return links.OrderBy(l => LinkRank(l.Label)).ThenBy(l => l.Label).ToList();
+        }
+
+        private static string LinkLabel(string name, string lowerUrl)
+        {
+            if (lowerUrl.Contains("wikipedia")) return "Wikipedia";
+            if (name.Contains("Official", StringComparison.OrdinalIgnoreCase)) return "Official";
+            if (lowerUrl.Contains("youtube.com") || lowerUrl.Contains("youtu.be")) return "YouTube";
+            if (lowerUrl.Contains("animenewsnetwork")) return "ANN";
+            if (lowerUrl.Contains("twitter.com") || lowerUrl.Contains("x.com") ||
+                name.StartsWith("@", StringComparison.Ordinal))
+                return name.StartsWith("@", StringComparison.Ordinal) ? name : "X";
+            if (lowerUrl.Contains("myanimelist.net")) return "MAL";
+            return name;
+        }
+
+        /// <summary>
+        ///     Chip order. Official first because it is the one a reader clicks most, then the
+        ///     reference sites, then everything else alphabetically.
+        /// </summary>
+        private static int LinkRank(string label) => label switch
+        {
+            "Official" => 0,
+            "YouTube" => 1,
+            "Wikipedia" => 2,
+            "ANN" => 3,
+            "MAL" => 4,
+            _ => 10
+        };
 
         private static async Task<AnimeGeneralDetailsData> TryGetDetailsFromOfficialMalApi(string id, bool animeMode)
         {
@@ -201,7 +303,31 @@ namespace MALClient.XShared.Comm.Anime
                 Synopsis = WebUtility.HtmlDecode(GetString(data, "synopsis")),
                 Title = WebUtility.HtmlDecode(GetString(data, "title")),
                 Synonyms = GetNestedStringList(data, "alternative_titles", "synonyms"),
+                TitleJapanese = GetNestedString(data, "alternative_titles", "ja"),
+                TitleEnglish = GetNestedString(data, "alternative_titles", "en"),
             };
+
+            // MAL's own external_links so the links row still fills when Tenrai is unreachable.
+            if (data.ValueKind == JsonValueKind.Object &&
+                data.TryGetProperty("external_links", out var officialLinks) &&
+                officialLinks.ValueKind == JsonValueKind.Array)
+                foreach (var link in officialLinks.EnumerateArray())
+                {
+                    var url = GetString(link, "url");
+                    var name = GetString(link, "name");
+                    if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(name))
+                        continue;
+                    if (url.Contains("anilist.co", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    output.ExternalLinks.Add(new AnimeExternalLink
+                    {
+                        Name = name,
+                        Url = url,
+                        Label = LinkLabel(name, url.ToLowerInvariant())
+                    });
+                }
+
+            FilterSynonyms(output);
 
             var englishTitle = GetNestedString(data, "alternative_titles", "en");
             if (!string.IsNullOrEmpty(englishTitle))

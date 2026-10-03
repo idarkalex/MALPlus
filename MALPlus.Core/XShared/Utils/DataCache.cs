@@ -605,24 +605,33 @@ namespace MALClient.XShared.Utils
 
         #endregion
 
-        #region AnimeSerachResults
+#region AnimeSerachResults
 
-        public static async Task SaveAnimeSearchResultsData(string id, AnimeGeneralDetailsData data, bool anime)
+    /// <summary>
+    ///     How long a Finished Airing entry stays cached. It used to be passed as 0, which
+    ///     <see cref="RetrieveData{T}" /> reads as "never expires", so a finished title was frozen
+    ///     for the life of the install: its rank, popularity, members and favourites never moved
+    ///     again, and no schema change could ever reach it. Sixty days costs one request per
+    ///     finished entry every couple of months and lets both drift and new fields settle in.
+    /// </summary>
+    private const int FinishedDetailsTtlDays = 60;
+
+    public static async Task SaveAnimeSearchResultsData(string id, AnimeGeneralDetailsData data, bool anime)
+    {
+        try
         {
-            try
+            await Task.Run(async () =>
             {
-                await Task.Run(async () =>
-                {
-                    await
-                        DataCacheService.SaveData(data, $"mal_details_v4_{id}.json",
-                            anime ? "AnimeDetails" : "MangaDetails");
-                });
-            }
-            catch (Exception)
-            {
-                //magic
-            }
+                await
+                    DataCacheService.SaveData(data, $"mal_details_v5_{id}.json",
+                        anime ? "AnimeDetails" : "MangaDetails");
+            });
         }
+        catch (Exception)
+        {
+            //magic
+        }
+    }
 
         public static async Task SaveAnimeSearchResultsDataFinal(string id, AnimeGeneralDetailsData data, bool anime)
         {
@@ -653,12 +662,14 @@ namespace MALClient.XShared.Utils
         {
             try
             {
-                var final = await DataCacheService.RetrieveData<AnimeGeneralDetailsData>($"mal_details_final_{animeId}.json",
-                    anime ? "AnimeDetails" : "MangaDetails", 0);
+                var folder = anime ? "AnimeDetails" : "MangaDetails";
+                var final =
+                    await DataCacheService.RetrieveData<AnimeGeneralDetailsData>(
+                        $"mal_details_final_{animeId}.json", folder, FinishedDetailsTtlDays);
                 if (final != null)
                     return final;
-                return await DataCacheService.RetrieveData<AnimeGeneralDetailsData>($"mal_details_v4_{animeId}.json",
-                    anime ? "AnimeDetails" : "MangaDetails", 14);
+                return await DataCacheService.RetrieveData<AnimeGeneralDetailsData>(
+                    $"mal_details_v5_{animeId}.json", folder, 14);
             }
             catch (Exception)
             {
@@ -667,12 +678,23 @@ namespace MALClient.XShared.Utils
             return null;
         }
 
+        /// <summary>
+        ///     Last resort when the network is gone. It has to try the finished file too, not just
+        ///     the airing one: a finished entry is only ever written to mal_details_final_, so with
+        ///     a finite TTL on that file an expired finished entry would otherwise find no stale
+        ///     copy at all and the details page would come up empty while offline.
+        /// </summary>
         public static async Task<AnimeGeneralDetailsData> RetrieveAnimeSearchResultsDataStale(string animeId, bool anime)
         {
             try
             {
-                return await DataCacheService.RetrieveData<AnimeGeneralDetailsData>($"mal_details_v4_{animeId}.json",
-                    anime ? "AnimeDetails" : "MangaDetails", 0);
+                var folder = anime ? "AnimeDetails" : "MangaDetails";
+                var final = await DataCacheService.RetrieveData<AnimeGeneralDetailsData>(
+                    $"mal_details_final_{animeId}.json", folder, 0);
+                if (final != null)
+                    return final;
+                return await DataCacheService.RetrieveData<AnimeGeneralDetailsData>(
+                    $"mal_details_v5_{animeId}.json", folder, 0);
             }
             catch (Exception)
             {

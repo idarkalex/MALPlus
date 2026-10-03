@@ -433,8 +433,8 @@ public partial class AnimeDetailsPage : ContentPage
     private void ApplyTabStripVisibilityFromParams(bool isManga)
     {
         TabGeneral.IsVisible = true;
-        TabDetails.IsVisible = true;
         TabEpisodes.IsVisible = !isManga;
+        TabOpEd.IsVisible = !isManga && Vm?.OpEdVisible == true;
         TabReviews.IsVisible = !isManga;
         TabRecs.IsVisible = !isManga;
         TabRelated.IsVisible = !isManga;
@@ -446,8 +446,8 @@ public partial class AnimeDetailsPage : ContentPage
     private void ApplyTabStripVisibility()
     {
         TabGeneral.IsVisible = true;
-        TabDetails.IsVisible = true;
         TabEpisodes.IsVisible = true;
+        TabOpEd.IsVisible = true;
         TabReviews.IsVisible = true;
         TabRecs.IsVisible = true;
         TabRelated.IsVisible = true;
@@ -458,6 +458,7 @@ public partial class AnimeDetailsPage : ContentPage
         if (!Vm.AnimeMode)
         {
             TabEpisodes.IsVisible = false;
+            TabOpEd.IsVisible = false;
             TabReviews.IsVisible = false;
             TabRecs.IsVisible = false;
             TabRelated.IsVisible = false;
@@ -467,6 +468,10 @@ public partial class AnimeDetailsPage : ContentPage
         {
             TabEpisodes.IsVisible = false;
         }
+
+        // OP/ED only earns its place once the entry actually has themes, which arrives with the
+        // details payload and can be after the strip was first laid out.
+        TabOpEd.IsVisible = Vm.OpEdVisible;
         ApplyTabActiveState();
     }
 
@@ -507,6 +512,12 @@ public partial class AnimeDetailsPage : ContentPage
         {
             ApplyTabStripVisibility();
             ApplyCharacterStaffBindings();
+        }
+        if (e.PropertyName == nameof(AnimeDetailsPageViewModel.OpEdVisible))
+        {
+            ApplyTabStripVisibility();
+            if (!IsTabVisible(Vm.DetailsPivotSelectedIndex))
+                Vm.DetailsPivotSelectedIndex = FindAdjacentVisibleTab(Vm.DetailsPivotSelectedIndex, 1) ?? 0;
         }
         if (e.PropertyName == nameof(AnimeDetailsPageViewModel.Type))
         {
@@ -639,10 +650,9 @@ public partial class AnimeDetailsPage : ContentPage
             SetTabError(tabIndex, null);
             switch (tabIndex)
             {
+                // OP/ED used to be a section of the Details tab, so tapping it still has to make
+                // sure the payload that carries the themes has actually been asked for.
                 case 1:
-                    await Vm.LoadDetails(false);
-                    break;
-                case 2:
                     if (!_episodesLoaded)
                     {
                         await Vm.LoadEpisodes(false);
@@ -652,6 +662,10 @@ public partial class AnimeDetailsPage : ContentPage
                             RefreshDisplayedEpisodes(false);
                         }
                     }
+                    break;
+                case 2:
+                    if (!Vm.DetailsLoaded)
+                        await Vm.LoadDetails(false);
                     break;
                 case 3:
                     if (!_reviewsLoaded)
@@ -1034,6 +1048,44 @@ public partial class AnimeDetailsPage : ContentPage
         }
     }
 
+    /// <summary>
+    ///     The synopsis is capped at four lines with a Show more underneath. Same reason as the
+    ///     moreinfo note: the full text is printed by nobody on purpose, it just pushes the rest of
+    ///     the tab below a wall of MAL Rewrite prose.
+    /// </summary>
+    private void OnSynopsisTapped(object sender, TappedEventArgs e)
+    {
+        Vm?.SetSynopsisExpanded();
+    }
+
+    /// <summary>
+    ///     Expands the moreinfo note in place. The preview is capped at two lines because Tenrai's
+    ///     field is AniDB's note dump: on a long show it is pages of crossover trivia and schedule
+    ///     history that nobody wants pushed in front of them unasked.
+    /// </summary>
+    private void OnMoreInfoTapped(object sender, TappedEventArgs e)
+    {
+        Vm?.SetMoreInfoExpanded();
+    }
+
+    /// <summary>
+    ///     An off-site reference chip. MAL is a list, not a browser, so these leave the app rather
+    ///     than try to render inside it.
+    /// </summary>
+    private async void OnExternalLinkTapped(object sender, TappedEventArgs e)
+    {
+        if (e.Parameter is not string url || string.IsNullOrWhiteSpace(url))
+            return;
+        try
+        {
+            await global::Microsoft.Maui.ApplicationModel.Launcher.Default.OpenAsync(url);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnExternalLinkTapped failed: " + ex.GetType().Name);
+        }
+    }
+
     private async void OnOpEdTapped(object sender, TappedEventArgs e)
     {
         if (e.Parameter is not string text || string.IsNullOrWhiteSpace(text) || Vm == null)
@@ -1285,8 +1337,9 @@ public partial class AnimeDetailsPage : ContentPage
         if (Vm == null) return false;
         switch (tabIndex)
         {
-            case 1: return Vm.DetailsLoaded || Vm.DetailsRowsLoaded;
-            case 2: return Vm.EpisodesLoaded;
+            // The OP/ED tab rides on the details payload, so it is warm exactly when Overview is.
+            case 2: return Vm.DetailsLoaded || Vm.DetailsRowsLoaded;
+            case 1: return Vm.EpisodesLoaded;
             case 3: return Vm.ReviewsLoaded;
             case 4: return Vm.RecommendationsLoaded;
             case 5: return Vm.RelatedLoaded;
@@ -1444,27 +1497,36 @@ public partial class AnimeDetailsPage : ContentPage
         return null;
     }
 
-    private bool IsTabVisible(int index)
-    {
-        if (Vm == null)
+/// <summary>
+        ///     Which tabs exist for the current entry. General and Details merged into one Overview,
+        ///     so the indices shifted: 0 Overview, 1 Episodes, 2 OP/ED, 3 Reviews, 4
+        ///     Recommendations, 5 Related, 6 Characters, 7 Staff. Movies have no episode list and
+        ///     OP/ED hides itself until the entry actually has themes, which is why both of those
+        ///     answer to the view model instead of to the media type alone.
+        /// </summary>
+        private bool IsTabVisible(int index)
+        {
+            if (Vm == null)
+                return true;
+            if (!Vm.AnimeMode)
+                return index is not (1 or 2 or 3 or 4 or 5 or 7);
+            if (index == 2)
+                return Vm.OpEdVisible;
+            if (Vm.Type?.Equals("Movie", StringComparison.OrdinalIgnoreCase) == true)
+                return index != 1;
             return true;
-        if (!Vm.AnimeMode)
-            return index is not (2 or 3 or 4 or 5 or 7);
-        if (Vm.Type?.Equals("Movie", StringComparison.OrdinalIgnoreCase) == true)
-            return index != 2;
-        return true;
-    }
+        }
 
-    private void ApplyTabActiveState()
-    {
-        if (TabGeneral == null || TabDetails == null || TabEpisodes == null || TabReviews == null ||
-            TabRecs == null || TabRelated == null || TabCharacters == null || TabStaff == null)
-            return;
-        var selected = Vm?.DetailsPivotSelectedIndex ?? 0;
-        var labels = new[] { TabGeneral, TabDetails, TabEpisodes, TabReviews, TabRecs, TabRelated, TabCharacters, TabStaff };
-        for (var index = 0; index < labels.Length; index++)
-            labels[index].TextColor = index == selected ? Color.FromArgb("#0066FF") : Color.FromArgb("#B3FFFFFF");
-    }
+        private void ApplyTabActiveState()
+        {
+            if (TabGeneral == null || TabEpisodes == null || TabOpEd == null || TabReviews == null ||
+                TabRecs == null || TabRelated == null || TabCharacters == null || TabStaff == null)
+                return;
+            var selected = Vm?.DetailsPivotSelectedIndex ?? 0;
+            var labels = new[] { TabGeneral, TabEpisodes, TabOpEd, TabReviews, TabRecs, TabRelated, TabCharacters, TabStaff };
+            for (var index = 0; index < labels.Length; index++)
+                labels[index].TextColor = index == selected ? Color.FromArgb("#0066FF") : Color.FromArgb("#B3FFFFFF");
+        }
 
     /// <summary>
     /// LAST AIRED only exists while something is actually airing, so the row can end up with a
@@ -1662,7 +1724,7 @@ public partial class AnimeDetailsPage : ContentPage
         // rows are a portrait each, so an unbounded append is a stutter, not a few lines of text.
         switch (tab)
         {
-            case 2:
+            case 1:
                 if (Vm.Episodes.Count > DisplayedEpisodes.Count)
                 {
                     var target = Math.Min(Vm.Episodes.Count, DisplayedEpisodes.Count + ProgressiveChunkSize);

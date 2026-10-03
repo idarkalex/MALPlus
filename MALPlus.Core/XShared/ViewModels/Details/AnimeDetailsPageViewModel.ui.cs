@@ -171,8 +171,47 @@ namespace MALClient.XShared.ViewModels.Details
             set
             {
                 _synopsis = value;
+                _synopsisExpanded = false;
                 RaisePropertyChanged(() => Synopsis);
+                RaiseSynopsisToggle();
             }
+        }
+
+        /// <summary>
+        ///     Four lines of synopsis, then a Show more. A MAL synopsis is three paragraphs of
+        ///     MAL Rewrite prose for a long show and five for a short one, so printing all of it
+        ///     pushes everything else on the page under a wall of text. The label keeps the WHOLE
+        ///     synopsis and only caps MaxLines, so the app does the ellipsis and the expanded state
+        ///     is the same text with no truncation artefacts.
+        /// </summary>
+        private const int SynopsisCollapsedLines = 4;
+
+        /// <summary>
+        ///     Roughly what four lines hold at 13px on a phone. It is a guess because a view model
+        ///     cannot measure rendered text, and the only cost of guessing low is a Show more on a
+        ///     synopsis that happened to fit, which costs one tap.
+        /// </summary>
+        private const int SynopsisCollapseThreshold = 300;
+
+        private bool _synopsisExpanded;
+
+        public bool SynopsisExpanded => _synopsisExpanded;
+        public int SynopsisMaxLines => _synopsisExpanded ? int.MaxValue : SynopsisCollapsedLines;
+        public string SynopsisToggleText => _synopsisExpanded ? "Show less" : "Show more";
+        public bool SynopsisToggleVisible => (_synopsis?.Length ?? 0) > SynopsisCollapseThreshold;
+
+        public void SetSynopsisExpanded()
+        {
+            _synopsisExpanded = !_synopsisExpanded;
+            RaiseSynopsisToggle();
+        }
+
+        private void RaiseSynopsisToggle()
+        {
+            RaisePropertyChanged(() => SynopsisExpanded);
+            RaisePropertyChanged(() => SynopsisMaxLines);
+            RaisePropertyChanged(() => SynopsisToggleText);
+            RaisePropertyChanged(() => SynopsisToggleVisible);
         }
 
         public float GlobalScore
