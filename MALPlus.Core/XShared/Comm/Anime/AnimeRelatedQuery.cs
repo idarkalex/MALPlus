@@ -169,37 +169,44 @@ namespace MALClient.XShared.Comm.Anime
                                 node.Attributes["class"].Value ==
                                 "content").ToList();
 
-                    foreach (var content in tileContents)
+foreach (var content in tileContents)
                     {
-                        var relationDiv = content.Descendants("div")
-                        .First(
-                            node =>
-                                node.Attributes.Contains("class") &&
-                                node.Attributes["class"].Value ==
-                                "relation");
+                        // One entry per try: the whole loop used to sit inside a single catch, so
+                        // a single unexpected tile threw away every entry after it. That is why
+                        // One Piece showed twenty four of the thirty one relations MAL lists.
+                        try
+                        {
+                            var relationDiv = content.Descendants("div")
+                                .First(
+                                    node =>
+                                        node.Attributes.Contains("class") &&
+                                        node.Attributes["class"].Value ==
+                                        "relation");
 
-                        var relation = WebUtility.HtmlDecode(relationDiv.InnerText.Trim());
-                        relation = Regex.Replace(relation.Trim(), @"\t|\n|\r|  ", "");
-                        if (string.IsNullOrWhiteSpace(relation))
-                            continue;
+                            var relation = WebUtility.HtmlDecode(relationDiv.InnerText.Trim());
+                            relation = Regex.Replace(relation.Trim(), @"\t|\n|\r|  ", "");
+                            if (string.IsNullOrWhiteSpace(relation))
+                                continue;
 
-                        var titleDiv = content.Descendants("div")
-                        .First(
-                            node =>
-                                node.Attributes.Contains("class") &&
-                                node.Attributes["class"].Value ==
-                                "title");
+                            var titleDiv = content.Descendants("div")
+                                .First(
+                                    node =>
+                                        node.Attributes.Contains("class") &&
+                                        node.Attributes["class"].Value ==
+                                        "title");
 
-                        var linkNode = titleDiv.Descendants("a").First();
+                            var linkNode = titleDiv.Descendants("a").First();
 
-                        var current = new RelatedAnimeData();
-                        current.WholeRelation = relation;
+                            var current = new RelatedAnimeData();
+                            current.WholeRelation = relation;
                         current.Relations.Add(relation);
                         var link = linkNode.Attributes["href"].Value.Split('/');
-                        current.Type = link[3] == "anime"
+                        current.Type = link.Length > 3 && link[3] == "anime"
                             ? RelatedItemType.Anime
-                            : link[3] == "manga" ? RelatedItemType.Manga : RelatedItemType.Unknown;
-                        current.Id = Convert.ToInt32(link[4]);
+                            : link.Length > 3 && link[3] == "manga" ? RelatedItemType.Manga : RelatedItemType.Unknown;
+                        if (current.Type == RelatedItemType.Unknown || !int.TryParse(link[4], out var tileId))
+                            continue;
+                        current.Id = tileId;
                         current.Title = WebUtility.HtmlDecode(linkNode.InnerText.Trim().Trim('\n'));
 
                         // The entry's real poster lives in the sibling div.image of
@@ -216,6 +223,11 @@ namespace MALClient.XShared.Comm.Anime
                         }
 
                         output.Add(current);
+                        }
+                        catch (Exception)
+                        {
+                            // One malformed entry must not cost the rest of the tile.
+                        }
                     }
                 }
                 catch (Exception)
@@ -230,22 +242,57 @@ namespace MALClient.XShared.Comm.Anime
 
                     foreach (var t in trs)
                     {
-                        var tds = t.Descendants("td").ToList();
-                        var relation = WebUtility.HtmlDecode(tds[0].InnerText.Trim());
-                        if (string.IsNullOrWhiteSpace(relation))
-                            continue;
-                        foreach (var linkNode in tds[1].Descendants("a"))
+                        // Same per row guard as the tiles: indexing tds[0] and tds[1] blindly
+                        // threw on any row that did not have exactly two cells, and the catch
+                        // around the whole table then cost every row after it.
+                        try
                         {
-                            var current = new RelatedAnimeData();
-                            current.WholeRelation = relation;
-                            current.Relations.Add(relation);
-                            var link = linkNode.Attributes["href"].Value.Split('/');
-                            current.Type = link[3] == "anime"
-                                ? RelatedItemType.Anime
-                                : link[3] == "manga" ? RelatedItemType.Manga : RelatedItemType.Unknown;
-                            current.Id = Convert.ToInt32(link[4]);
-                            current.Title = WebUtility.HtmlDecode(linkNode.InnerText.Trim());
-                            output.Add(current);
+                            var tds = t.Descendants("td").ToList();
+                            if (tds.Count == 0)
+                                continue;
+
+                            // The relation sits in its own cell, but which one is not guaranteed,
+                            // so it is taken from the first cell with text and no link in it.
+                            var relation = "";
+                            foreach (var td in tds)
+                            {
+                                if (td.Descendants("a").Any())
+                                    continue;
+                                var text = WebUtility.HtmlDecode(td.InnerText.Trim());
+                                if (!string.IsNullOrWhiteSpace(text))
+                                {
+                                    relation = text;
+                                    break;
+                                }
+                            }
+                            if (string.IsNullOrWhiteSpace(relation))
+                                continue;
+
+                            foreach (var td in tds)
+                            foreach (var linkNode in td.Descendants("a"))
+                            {
+                                var href = linkNode.Attributes["href"]?.Value;
+                                if (string.IsNullOrEmpty(href))
+                                    continue;
+                                var link = href.Split('/');
+                                if (link.Length < 5)
+                                    continue;
+                                var current = new RelatedAnimeData();
+                                current.WholeRelation = relation;
+                                current.Relations.Add(relation);
+                                current.Type = link[3] == "anime"
+                                    ? RelatedItemType.Anime
+                                    : link[3] == "manga" ? RelatedItemType.Manga : RelatedItemType.Unknown;
+                                if (current.Type == RelatedItemType.Unknown || !int.TryParse(link[4], out var rowId))
+                                    continue;
+                                current.Id = rowId;
+                                current.Title = WebUtility.HtmlDecode(linkNode.InnerText.Trim());
+                                output.Add(current);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            // One malformed row must not cost the rest of the table.
                         }
                     }
                 }
