@@ -35,10 +35,17 @@ public partial class AnimeDetailsPage : ContentPage
     //the rest is reached with the Show more button instead.
     private const int ImageTabChunkSize = 12;
     private double _lastProgressiveAppendScrollY = double.NaN;
+    private double _boundedListScrollY;
     private int _charactersShown = ImageTabChunkSize;
     private int _mangaCharactersShown = ImageTabChunkSize;
     private int _staffShown = ImageTabChunkSize;
     private int _relatedShown = ImageTabChunkSize;
+    // Related is a grid of plain posters, with none of the seiyuu avatars that made the
+    // characters and staff lists expensive, so it does not need the twelve row chunk. It used
+    // to grow only when the page reached its bottom, and a short grid means the page never
+    // reaches it, so the tab looked permanently cut. Showing the whole thing up front is cheap;
+    // the cap is only a guard against a pathological list.
+    private const int RelatedShowCap = 40;
     private const double HeroExpandedHeight = 460;
     private const double HeroCollapsedHeight = 210;
     private const double HeroCollapseRange = HeroExpandedHeight - HeroCollapsedHeight;
@@ -125,6 +132,18 @@ public partial class AnimeDetailsPage : ContentPage
     public bool RelatedEmptyVisible => Vm != null && !Vm.LoadingRelated && !RelatedErrorVisible && Vm.RelatedAnime.Count == 0;
     public bool RelatedContentVisible => Vm != null && !RelatedErrorVisible && Vm.RelatedAnime.Count > 0;
 
+    /// <summary>
+    /// Related normally shows everything, so this is only a guard for a pathological list.
+    /// The old growth path relied on the page reaching its bottom, which a short grid never
+    /// does, and there was no visible control at all, so it just looked cut.
+    /// </summary>
+    public int RelatedRemainingCount =>
+        Vm == null ? 0 : Math.Max(0, Vm.RelatedAnime.Count - Math.Min(Vm.RelatedAnime.Count, RelatedShowCap));
+
+    public bool RelatedMoreVisible => RelatedRemainingCount > 0;
+
+    public string RelatedMoreText => $"Show {RelatedRemainingCount} more";
+
     public string CharactersErrorText => EmptyStateText(_charactersError, "Unable to load characters.");
     public bool CharactersErrorVisible => !string.IsNullOrWhiteSpace(_charactersError);
     public bool CharactersEmptyVisible => Vm != null && !Vm.LoadingCharactersVisibility && !CharactersErrorVisible &&
@@ -204,6 +223,12 @@ public partial class AnimeDetailsPage : ContentPage
         BindingContext = ViewModelLocator.AnimeDetails;
         if (RelatedGrid?.Inner != null)
             RelatedGrid.Inner.SelectionChanged += OnRelatedSelectionChanged;
+        // Subscribed here rather than through the XAML Scrolled attribute: the generator rejects
+        // the handler on a CollectionView with MAUIX2014 even though the signature is identical
+        // to the page's own OnPageScrolled, which is wired the same way and compiles.
+        CharactersList.Scrolled += OnBoundedListScrolled;
+        MangaCharactersList.Scrolled += OnBoundedListScrolled;
+        StaffList.Scrolled += OnBoundedListScrolled;
         ApplyTabActiveState();
         UpdateHeroMetaLayout();
     }
@@ -526,7 +551,7 @@ public partial class AnimeDetailsPage : ContentPage
             var charTarget = Math.Min(cap, pairs?.Count ?? 0);
             var mangaTarget = Math.Min(cap, mangaCharacters?.Count ?? 0);
             var staffTarget = Math.Min(staffCap, staff?.Count ?? 0);
-            var relatedTarget = Math.Min(Vm.RelatedAnime.Count, _relatedShown);
+            var relatedTarget = Math.Min(Vm.RelatedAnime.Count, RelatedShowCap);
             DisplayedCharacters.Clear();
             DisplayedMangaCharacters.Clear();
             DisplayedStaff.Clear();
@@ -717,13 +742,13 @@ public partial class AnimeDetailsPage : ContentPage
     {
         // The grid binds to the paged DisplayedRelated, not straight to the source, so it has to
         // be filled here. The load path clears the VM collection and then adds the entries one by
-        // one, so this runs once per item and appends only what the current chunk size allows.
+        // one, so this runs once per item and appends whatever the tab is allowed to show.
         if (e.Action == NotifyCollectionChangedAction.Reset)
             DisplayedRelated.Clear();
         var source = Vm?.RelatedAnime;
         if (source != null)
         {
-            var target = Math.Min(source.Count, _relatedShown);
+            var target = Math.Min(source.Count, RelatedShowCap);
             for (var index = DisplayedRelated.Count; index < target; index++)
                 DisplayedRelated.Add(source[index]);
         }
@@ -1512,8 +1537,23 @@ public partial class AnimeDetailsPage : ContentPage
         }
     }
 
+    public void OnBoundedListScrolled(object sender, ItemsViewScrolledEventArgs e)
+    {
+        // Characters and staff are bounded boxes with a height of their own, so they scroll
+        // themselves and the page never moves: the hero used to stay fully expanded while the
+        // user scrolled a long staff list. Feeding the inner offset into the same progress the
+        // page scroll drives brings the hero back without giving up the bounded height, which
+        // is what keeps a full cast from being realised in one layout pass. The arguments are
+        // ItemsViewScrolledEventArgs, which carries a delta rather than an absolute offset like
+        // the ScrolledEventArgs the page ScrollView uses, so the offset is accumulated here.
+        _boundedListScrollY = Math.Max(0, _boundedListScrollY + e.VerticalDelta);
+        ApplyHeroState(Math.Max(PageScroll?.ScrollY ?? 0, _boundedListScrollY));
+    }
+
     private void OnPageScrolled(object sender, ScrolledEventArgs e)
     {
+        // Back on the page itself, so the bounded lists no longer get a say.
+        _boundedListScrollY = 0;
         ApplyHeroState(e.ScrollY);
         var near = IsNearPageBottom(e.ScrollY);
         if (!near)
@@ -1656,20 +1696,35 @@ public partial class AnimeDetailsPage : ContentPage
                 }
                 break;
             case 5:
-                GrowImageTab(Vm.RelatedAnime, DisplayedRelated, ref _relatedShown, MakeRelatedCard);
+                GrowImageTab(Vm.RelatedAnime, DisplayedRelated, ref _relatedShown, MakeRelatedCard, int.MaxValue);
                 break;
+        }
+    }
+
+    private void OnRelatedMoreTapped(object sender, EventArgs e)
+    {
+        try
+        {
+            // Only ever reached past RelatedShowCap, so the character pair limit that the other
+            // tabs share does not apply here: it exists for cast lists, not for a grid of posters.
+            _relatedShown = Math.Min(Vm.RelatedAnime.Count, _relatedShown + ImageTabChunkSize);
+            GrowImageTab(Vm.RelatedAnime, DisplayedRelated, ref _relatedShown, MakeRelatedCard, int.MaxValue);
+            NotifyStateProperties();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Related grow failed: " + ex.GetType().Name);
         }
     }
 
     private delegate TCard TCardFactory<TSource, TCard>(TSource source);
 
     private static void GrowImageTab<TSource, TCard>(IReadOnlyList<TSource> source, ObservableCollection<TCard> target,
-        ref int shown, TCardFactory<TSource, TCard> factory)
+        ref int shown, TCardFactory<TSource, TCard> factory, int cap = MALClient.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxCharacterPairs)
     {
         if (source == null || target == null)
             return;
         // One chunk per pass, and never past what the query already trimmed.
-        var cap = MALClient.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxCharacterPairs;
         var next = Math.Min(source.Count, Math.Min(cap, shown + ImageTabChunkSize));
         if (next <= target.Count)
             return;
@@ -1746,6 +1801,9 @@ public partial class AnimeDetailsPage : ContentPage
         OnPropertyChanged(nameof(RelatedErrorVisible));
         OnPropertyChanged(nameof(RelatedEmptyVisible));
         OnPropertyChanged(nameof(RelatedContentVisible));
+        OnPropertyChanged(nameof(RelatedRemainingCount));
+        OnPropertyChanged(nameof(RelatedMoreVisible));
+        OnPropertyChanged(nameof(RelatedMoreText));
         OnPropertyChanged(nameof(CharactersErrorText));
         OnPropertyChanged(nameof(CharactersErrorVisible));
         OnPropertyChanged(nameof(CharactersEmptyVisible));
