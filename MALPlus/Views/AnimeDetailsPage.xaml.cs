@@ -36,6 +36,10 @@ public partial class AnimeDetailsPage : ContentPage
     private const int ImageTabChunkSize = 12;
     private double _lastProgressiveAppendScrollY = double.NaN;
     private double _boundedListScrollY;
+    private double _heroProgress;
+    private int _spacerStep = -1;
+    private long _lastSpacerWriteTicks;
+    private const long SpacerWriteCooldownMs = 120;
     private int _charactersShown = ImageTabChunkSize;
     private int _mangaCharactersShown = ImageTabChunkSize;
     private int _staffShown = ImageTabChunkSize;
@@ -1547,13 +1551,61 @@ public partial class AnimeDetailsPage : ContentPage
         // ItemsViewScrolledEventArgs, which carries a delta rather than an absolute offset like
         // the ScrolledEventArgs the page ScrollView uses, so the offset is accumulated here.
         _boundedListScrollY = Math.Max(0, _boundedListScrollY + e.VerticalDelta);
-        ApplyHeroState(Math.Max(PageScroll?.ScrollY ?? 0, _boundedListScrollY));
+        var pageScrollY = PageScroll?.ScrollY ?? 0;
+        ApplyHeroState(Math.Max(pageScrollY, _boundedListScrollY));
+
+        // The spacer reserves the room the hero occupies. Normally the page scroll brings the
+        // content up as the hero shrinks, so the spacer keeps its full height for the whole
+        // collapse. One of these lists scrolling on its own leaves the page exactly where it
+        // was, and the hero then shrank inside a full height slot, which showed up as a wide
+        // empty band under it. Only when the list is driving the collapse, and not the page.
+        if (_boundedListScrollY > pageScrollY)
+            SyncHeaderSpacerToHero();
+    }
+
+    private void SyncHeaderSpacerToHero()
+    {
+        if (HeaderSpacer == null)
+            return;
+        var bar = (ActionBar?.Height ?? 0) + (TabStripScroll?.Height ?? 0);
+        if (bar <= 0)
+            return;
+
+        // Driven by the progress value, never by the hero's current HeightRequest: writing the
+        // spacer re-lays out the page, which raises another scroll event, and reading the height
+        // back made the two chase each other and the tab juddered as if it were being tapped.
+        // Two guards on top of that. Quantised, so a change too small to move a step cannot start
+        // the loop again, and rate limited, because the events arrive faster than a layout pass
+        // can settle and the loop was living on that gap.
+        var hero = HeroExpandedHeight - HeroCollapseRange * _heroProgress;
+        var step = (int)Math.Round(hero / 8.0);
+        if (step == _spacerStep)
+            return;
+        var now = Environment.TickCount64;
+        if (now - _lastSpacerWriteTicks < SpacerWriteCooldownMs)
+            return;
+        _lastSpacerWriteTicks = now;
+        _spacerStep = step;
+        HeaderSpacer.HeightRequest = step * 8.0 + bar;
+    }
+
+    private void RestoreHeaderSpacer()
+    {
+        if (HeaderSpacer == null)
+            return;
+        var bar = (ActionBar?.Height ?? 0) + (TabStripScroll?.Height ?? 0);
+        if (bar <= 0)
+            return;
+        _spacerStep = -1;
+        if (Math.Abs(HeaderSpacer.HeightRequest - (HeroExpandedHeight + bar)) > 0.5)
+            HeaderSpacer.HeightRequest = HeroExpandedHeight + bar;
     }
 
     private void OnPageScrolled(object sender, ScrolledEventArgs e)
     {
         // Back on the page itself, so the bounded lists no longer get a say.
         _boundedListScrollY = 0;
+        RestoreHeaderSpacer();
         ApplyHeroState(e.ScrollY);
         var near = IsNearPageBottom(e.ScrollY);
         if (!near)
@@ -1622,6 +1674,7 @@ public partial class AnimeDetailsPage : ContentPage
         if (HeroContainer == null || HeroVisual == null || PosterContainer == null || HeroScrim == null)
             return;
         var progress = GetCollapseProgress(scrollY);
+        _heroProgress = progress;
         var targetHeight = HeroExpandedHeight - HeroCollapseRange * progress;
         if (Math.Abs(HeroContainer.HeightRequest - targetHeight) > 0.5)
         {
