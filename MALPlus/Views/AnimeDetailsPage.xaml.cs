@@ -39,12 +39,15 @@ public partial class AnimeDetailsPage : ContentPage
     private int _mangaCharactersShown = ImageTabChunkSize;
     private int _staffShown = ImageTabChunkSize;
     private int _relatedShown = ImageTabChunkSize;
-    // Related is a grid of plain posters, with none of the seiyuu avatars that made the
-    // characters and staff lists expensive, so it does not need the twelve row chunk. It used
-    // to grow only when the page reached its bottom, and a short grid means the page never
-    // reaches it, so the tab looked permanently cut. Showing the whole thing up front is cheap;
-    // the cap is only a guard against a pathological list.
-    private const int RelatedShowCap = 40;
+    /// <summary>
+    ///     Related is shown in full. It used to be capped, first at twelve rows and then at forty,
+    ///     and both were guesses rather than measurements: One Piece has thirty relations and a
+    ///     handful of other franchises have more, so the tab looked permanently cut for them. A
+    ///     hundred is a safety net rather than a limit, since nothing real comes close; past it
+    ///     the Show N more button takes over, and the scroll driven growth keeps working so the
+    ///     list never ends in a dead end.
+    /// </summary>
+    private const int RelatedShowCap = 100;
     private const double HeroExpandedHeight = 460;
     private const double HeroCollapsedHeight = 210;
     private const double HeroCollapseRange = HeroExpandedHeight - HeroCollapsedHeight;
