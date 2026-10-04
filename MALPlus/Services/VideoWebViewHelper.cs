@@ -67,6 +67,48 @@ public static class VideoWebViewHelper
         }
     }
 
+    /// <summary>
+    ///     Silences and tears down the WebView's document.
+    ///
+    ///     Assigning Source = null on its own does NOT stop playback: the document keeps running
+    ///     inside the WebView, which is why the audio survived closing the overlay, and a fast
+    ///     close gesture raced the unload and won. So the media elements are paused first, the
+    ///     page is pointed at about:blank to destroy the document rather than navigate it, and
+    ///     loading is stopped. about:blank is also not a remote origin, so nothing is fetched on
+    ///     the way out. Evaluating JS is asynchronous and nothing here waits on it: that is
+    ///     deliberate, because blocking the close gesture on a round trip is what made the old
+    ///     version feel unresponsive.
+    /// </summary>
+    public static void StopMediaAndClear(global::Microsoft.Maui.Controls.WebView webView)
+    {
+        if (webView?.Handler?.PlatformView is not global::Android.Webkit.WebView wv)
+        {
+            if (webView != null)
+                webView.Source = null;
+            return;
+        }
+        try
+        {
+            wv.EvaluateJavascript(
+                "(function(){try{var m=document.querySelectorAll('video,audio');for(var i=0;i<m.length;i++){m[i].pause();m[i].src='';}}catch(e){}})()",
+                null);
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "StopMediaAndClear eval: " + ex.GetType().Name);
+        }
+        try
+        {
+            wv.StopLoading();
+            wv.LoadUrl("about:blank");
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "StopMediaAndClear url: " + ex.GetType().Name);
+        }
+        webView.Source = null;
+    }
+
     public static void Resume(global::Android.Views.View platformView)
     {
         if (platformView is not global::Android.Webkit.WebView wv) return;

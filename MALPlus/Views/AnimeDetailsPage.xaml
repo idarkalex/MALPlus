@@ -924,10 +924,14 @@
                 <Label Text="✕" FontFamily="InterBold" FontSize="18" TextColor="White"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-            <!-- The WebView is created by ShowVideoOverlay, not here: an Android WebView
-                 spawns a Chromium child process and costs 100-400ms plus tens of MB, and
-                 MAUI builds handlers for the whole tree when the page attaches, so
-                 declaring it here stalled EVERY details open for a video nobody played. -->
-        </Grid>
+<!-- The WebView is created by ShowVideoOverlay, not here: an Android WebView
+                   spawns a Chromium child process and costs 100-400ms plus tens of MB, and
+                   MAUI builds handlers for the whole tree when the page attaches, so
+                   declaring it here stalled EVERY details open for a video nobody played.
+                   MAUI 11 RC1 has no MediaElement at all (it is absent from
+                   Microsoft.Maui.Controls on every target framework, and there is no separate
+                   media package), so a native ExoPlayer is not reachable through a built in
+                   control either. -->
+          </Grid>
     </Grid>
 </ContentPage>

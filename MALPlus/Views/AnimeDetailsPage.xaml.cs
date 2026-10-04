@@ -1248,21 +1248,27 @@ public partial class AnimeDetailsPage : ContentPage
         return _videoWebView;
     }
 
+    /// <summary>
+    ///     One overlay, and the WebView is the only player here. The obvious upgrade is a native
+    ///     ExoPlayer, either through MediaElement or through AndroidX Media3 directly. Neither is
+    ///     reachable in this toolchain: MAUI 11 RC1 ships no MediaElement, no MediaSource and no
+    ///     MediaController in Microsoft.Maui.Controls on any target framework, and Media3 is not
+    ///     referenced. So the direct media keeps playing in the WebView until one of those changes,
+    ///     and this method stays the single place that decides what to load.
+    /// </summary>
     private void ShowVideoOverlay(string url)
     {
         try
         {
             if (VideoOverlay == null || string.IsNullOrWhiteSpace(url))
                 return;
-                var webView = EnsureVideoWebView();
-                VideoOverlay.IsVisible = true;
-                VideoWebViewHelper.BackHandler = OnVideoBackPressed;
-                VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
-                // Single source of truth: routes YouTube to the iframe and direct media
-                // (AnimeThemes WebM) to its own <video> player, with the working BaseUrl.
-                webView.Source = VideoWebViewHelper.BuildSource(url);
-                VideoWebViewHelper.ApplyMediaSettings(webView);
-                SetSystemBars(true);
+            VideoWebViewHelper.BackHandler = OnVideoBackPressed;
+            VideoOverlay.IsVisible = true;
+            SetSystemBars(true);
+            var webView = EnsureVideoWebView();
+            VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
+            webView.Source = VideoWebViewHelper.BuildSource(url);
+            VideoWebViewHelper.ApplyMediaSettings(webView);
         }
         catch (Exception ex)
         {
@@ -1290,6 +1296,14 @@ public partial class AnimeDetailsPage : ContentPage
         catch { }
     }
 
+    /// <summary>
+    ///     Tears the overlay down, and this is where the "the music keeps playing after I close it"
+    ///     bug lived. Setting Source = null unloads the WebView's document but does not stop what
+    ///     is already playing inside it, and a quick close gesture races that unload entirely. The
+    ///     media has to be paused explicitly first, and only then pointed at about:blank, which
+    ///     tears the document down rather than just navigating it. The native side is paused and
+    ///     stopped too, so either player goes quiet.
+    /// </summary>
     private void HideVideoLoading()
         {
             try
@@ -1297,7 +1311,9 @@ public partial class AnimeDetailsPage : ContentPage
                 if (VideoOverlay != null && VideoOverlay.IsVisible)
                     VideoWebViewHelper.BackHandler = null;
                 if (_videoWebView != null)
-                    _videoWebView.Source = null;
+                {
+                    VideoWebViewHelper.StopMediaAndClear(_videoWebView);
+                }
                 if (VideoOverlay != null)
                     VideoOverlay.IsVisible = false;
                 SetSystemBars(false);
