@@ -1273,6 +1273,7 @@ public partial class AnimeDetailsPage : ContentPage
             if (VideoOverlay == null || string.IsNullOrWhiteSpace(url))
                 return;
             VideoWebViewHelper.BackHandler = OnVideoBackPressed;
+            MainActivity.ArmVideoBackCallback();
             VideoOverlay.IsVisible = true;
             SetSystemBars(true);
 
@@ -1386,6 +1387,7 @@ public partial class AnimeDetailsPage : ContentPage
             {
                 if (VideoOverlay != null && VideoOverlay.IsVisible)
                     VideoWebViewHelper.BackHandler = null;
+                MainActivity.DisarmVideoBackCallback();
                 StopDirectMedia();
                 if (_videoWebView != null)
                 {
