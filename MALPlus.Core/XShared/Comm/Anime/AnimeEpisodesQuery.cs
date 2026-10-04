@@ -228,7 +228,8 @@ namespace MALClient.XShared.Comm.Anime
         ///     date in Tokyo is 2026-09-28, and Tenrai already says 2026-09-28.
         /// </summary>
         public async Task<List<AnimeEpisode>> GetEpisodesWithScheduleAsync(int animeId, bool force = false,
-            CancellationToken cancellationToken = default, Action<List<AnimeEpisode>> onFirstBatch = null)
+            CancellationToken cancellationToken = default, Action<List<AnimeEpisode>> onFirstBatch = null,
+            IReadOnlyDictionary<int, string> episodeForumTopics = null)
         {
             var tenrai = await GetEpisodes(animeId, force, cancellationToken, onFirstBatch);
             if (!AniListScheduleClient.Enabled)
@@ -267,17 +268,27 @@ namespace MALClient.XShared.Comm.Anime
                 if (!byNumber.TryGetValue(slot.Number, out var episode))
                     byJstDate.TryGetValue(slot.AiringJstDate, out episode);
 
+                // The forum thread comes from the same numeric key, so nothing here is guessed. The
+                // thread index is scraped from the series' own MAL forum and is keyed by MAL's
+                // episode number, exactly like the titles are: MAL opens a thread when an episode
+                // airs, so the newest episodes are covered. Verified against One Piece, where
+                // episode 1180 (topicid 2280701) and 1179 (2279909) are both present while Tenrai
+                // has neither episode at all. No title matching and no name inference involved.
+                string forumUrl = null;
+                if (episodeForumTopics != null)
+                    episodeForumTopics.TryGetValue(slot.Number, out forumUrl);
+
                 merged.Add(new AnimeEpisode
                 {
                     EpisodeId = slot.Number,
                     AiredDate = slot.AiringJstDate,
-                    Title = episode?.Title,
+                    Title = FallbackTitle(episode?.Title, slot.Number),
                     TitleJapanese = episode?.TitleJapanese,
                     TitleRomanji = episode?.TitleRomanji,
                     Filler = episode?.Filler ?? false,
                     Recap = episode?.Recap ?? false,
                     VideoUrl = episode?.VideoUrl,
-                    ForumUrl = episode?.ForumUrl
+                    ForumUrl = forumUrl ?? episode?.ForumUrl
                 });
             }
 
@@ -331,7 +342,7 @@ namespace MALClient.XShared.Comm.Anime
                     {
                         EpisodeId = slot.Number,
                         AiredDate = slot.AiringJstDate,
-                        Title = episode?.Title,
+                        Title = FallbackTitle(episode?.Title, slot.Number),
                         TitleJapanese = episode?.TitleJapanese,
                         TitleRomanji = episode?.TitleRomanji,
                         Filler = episode?.Filler ?? false,
@@ -343,6 +354,17 @@ namespace MALClient.XShared.Comm.Anime
                 .ToList();
 
             return newest.Count > 0 ? newest : tail;
+        }
+
+        /// <summary>
+        ///     Episodes that are on the schedule but that no title source has a name for yet, which
+        ///     is every episode between what Tenrai last stored and now, are still listed. A blank
+        ///     title cell reads as a broken row rather than as an episode whose name has not been
+        ///     written yet, so the number stands in for the name.
+        /// </summary>
+        private static string FallbackTitle(string title, int number)
+        {
+            return string.IsNullOrWhiteSpace(title) ? "Episode " + number : title;
         }
     }
 }

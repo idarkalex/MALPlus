@@ -12,6 +12,7 @@ public partial class BottomNavBar : ContentView
     private static readonly Color SelectedColor = Color.FromArgb("#0066FF");
     private static readonly Color UnselectedColor = Color.FromArgb("#A0FFFFFF");
     private static readonly Color SelectedButtonColor = Color.FromArgb("#1F0066FF");
+    private static readonly Color OverflowIdleColor = Color.FromArgb("#A0FFFFFF");
     private static readonly Color TransparentButtonColor = Color.FromArgb("#00000000");
     private static readonly string[] Sections = { "discover", "anime", "manga", "more" };
     private Shell _subscribedShell;
@@ -128,30 +129,36 @@ public partial class BottomNavBar : ContentView
 
     private void SetSelectedSection(string section)
     {
-        SetSelected(DiscoverButton, DiscoverIndicator, DiscoverIcon, DiscoverLabel, "discover_home",
+        SetSelected(DiscoverButton, DiscoverIcon, DiscoverLabel, "discover_home", null,
             string.Equals(section, "discover", StringComparison.OrdinalIgnoreCase));
-        SetSelected(AnimeButton, AnimeIndicator, AnimeIcon, AnimeLabel, "anime_list",
+        SetSelected(AnimeButton, AnimeIcon, AnimeLabel, "anime_list", AnimeDots,
             string.Equals(section, "anime", StringComparison.OrdinalIgnoreCase));
-        SetSelected(MangaButton, MangaIndicator, MangaIcon, MangaLabel, "manga_books",
+        SetSelected(MangaButton, MangaIcon, MangaLabel, "manga_books", MangaDots,
             string.Equals(section, "manga", StringComparison.OrdinalIgnoreCase));
-        SetSelected(MoreButton, MoreIndicator, MoreIcon, MoreLabel, "more_dots",
+        SetSelected(MoreButton, MoreIcon, MoreLabel, "more_dots", null,
             string.Equals(section, "more", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
-    ///     The selection pill is a Border behind the icon rather than a colour on the Button.
-    ///     Painting the Button meant filling the whole grid cell, so on the first and last tabs the
-    ///     rounded ends ran into the edge of the screen and the pill looked cut off. The Button
-    ///     stays transparent and full size so the touch target is unchanged.
+    ///     The selected tab is marked by tint alone: accent coloured icon, accent coloured label.
+    ///
+    ///     It used to be a tinted Button background, which filled the whole grid cell, and then a
+    ///     Border pill sized 72x42, and both were wrong in the same way. Any background that
+    ///     belongs to the tab also belongs to the overflow dots sitting beside the label, so the
+    ///     dots either fell outside it or carried a second, different background of their own. A
+    ///     background cannot exclude a sibling, so the pill was dropped rather than resized.
+    ///     Nothing is lost: the dots tint with the tab they belong to, which is arguably clearer
+    ///     than a pill that stopped short of them.
     /// </summary>
-    private static void SetSelected(Button button, View indicator, Image icon, Label label, string iconName, bool selected)
+    private static void SetSelected(Button button, Image icon, Label label, string iconName, Button overflow,
+        bool selected)
     {
         try
         {
             button.BackgroundColor = TransparentButtonColor;
-            if (indicator != null)
-                indicator.IsVisible = selected;
             label.TextColor = selected ? SelectedColor : UnselectedColor;
+            if (overflow != null)
+                overflow.TextColor = selected ? SelectedColor : OverflowIdleColor;
             // Image has no tint in MAUI 7, so the selected tab swaps to an accent-coloured
             // copy of the same glyph instead of being marked with an outline.
             icon.Source = ImageSource.FromFile(selected ? $"{iconName}_accent" : iconName);

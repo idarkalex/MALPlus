@@ -2421,15 +2421,31 @@ Episodes.Clear();
                     }
                 }
 
+                // The forum thread index is fetched BEFORE the episode list now, so the merge can attach it
+                // to episodes it learned about from AniList. It used to be fetched after, which is
+                // why episodes Tenrai was missing also arrived with no thread: the merge had
+                // already run by the time anyone knew which episode numbers to look up. MAL opens a
+                // thread when the episode airs, so the newest numbers are in there.
+                Dictionary<int, string> episodeForumTopics = null;
+                try
+                {
+                    episodeForumTopics = await new AnimeEpisodeForumQuery(MalId, true).GetEpisodeTopicsAsync();
+                }
+                catch
+                {
+                }
+
                 if (isAiring)
                 {
-                    episodes = await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force);
+                    episodes = await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force,
+                        cancellationToken: default, onFirstBatch: null, episodeForumTopics: episodeForumTopics);
                     if ((episodes == null || episodes.Count == 0) && cached != null && cached.Count > 0)
                         episodes = cached;
                 }
                 else
                 {
-                    episodes = cached != null && cached.Count > 0 ? cached : await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force);
+                    episodes = cached != null && cached.Count > 0 ? cached : await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force,
+                        cancellationToken: default, onFirstBatch: null, episodeForumTopics: episodeForumTopics);
                 }
                 var fromStale = false;
 

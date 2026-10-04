@@ -51,6 +51,7 @@ namespace MALClient.XShared.Comm.Anime
                         result[episodeNumber] = $"https://myanimelist.net/forum/?topicid={topicId}";
                 }
             }
+            }
             catch
             {
                 // A missing forum index only costs us the thread link, never the row.
