@@ -57,5 +57,11 @@
   <ItemGroup>
     <ProjectReference Include="..\MALPlus.Core\MALPlus.Core.csproj" />
     <PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
+    <!-- Real player for the OP/ED direct video. MAUI 11 RC1 has no MediaElement at all
+         (absent from Microsoft.Maui.Controls on every TFM, no separate media package), so
+         ExoPlayer has to come from AndroidX Media3 and be hosted by our own handler. WebM
+         needs the container package, which is why this is not a plain ExoPlayer reference. -->
+    <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.4.1" />
+    <PackageReference Include="Xamarin.AndroidX.Media3.UI" Version="1.4.1" />
   </ItemGroup>
 </Project>

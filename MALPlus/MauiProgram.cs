@@ -11,6 +11,13 @@ public static class MauiProgram
         builder
             .UseMauiApp<App>()
             .UseSkiaSharp()
+            .ConfigureMauiHandlers(handlers =>
+            {
+                // MAUI 11 RC1 has no MediaElement, so the OP/ED direct video gets ExoPlayer
+                // through our own handler over AndroidX Media3. Registered explicitly rather than
+                // left to assembly scanning, because nothing else in this app registers a handler.
+                handlers.AddHandler<Controls.NativeVideoView, Controls.NativeVideoViewHandler>();
+            })
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("inter_regular.ttf", "Inter");

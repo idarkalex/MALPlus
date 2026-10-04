@@ -1234,6 +1234,12 @@ public partial class AnimeDetailsPage : ContentPage
 
     private WebView VideoWebView => _videoWebView ??= EnsureVideoWebView();
 
+    /// <summary>
+    ///     URL handed to ExoPlayer, kept so a playback failure can fall back to the WebView with the
+    ///     same file instead of leaving a black rectangle.
+    /// </summary>
+    private string _directMediaUrl;
+
     private WebView EnsureVideoWebView()
     {
         if (_videoWebView != null)
@@ -1249,12 +1255,16 @@ public partial class AnimeDetailsPage : ContentPage
     }
 
     /// <summary>
-    ///     One overlay, and the WebView is the only player here. The obvious upgrade is a native
-    ///     ExoPlayer, either through MediaElement or through AndroidX Media3 directly. Neither is
-    ///     reachable in this toolchain: MAUI 11 RC1 ships no MediaElement, no MediaSource and no
-    ///     MediaController in Microsoft.Maui.Controls on any target framework, and Media3 is not
-    ///     referenced. So the direct media keeps playing in the WebView until one of those changes,
-    ///     and this method stays the single place that decides what to load.
+    ///     One overlay, two players, and this is the only place that decides between them.
+    ///
+    ///     Direct media (AnimeThemes WebM) goes to ExoPlayer through <see cref="NativeVideoView"/>,
+    ///     which finally gives a real scrub bar, a play button that agrees with what you can hear,
+    ///     a start that does not wait on preload='auto', and a stop that actually silences it.
+    ///     YouTube, the OP/ED search results page and the YouTube fallback stay on the WebView,
+    ///     because a watch page is HTML with an iframe and ExoPlayer cannot load one.
+    ///
+    ///     MAUI 11 RC1 ships no MediaElement at all, which is why this is a hand written handler
+    ///     over AndroidX Media3 rather than the built in control.
     /// </summary>
     private void ShowVideoOverlay(string url)
     {
@@ -1265,6 +1275,14 @@ public partial class AnimeDetailsPage : ContentPage
             VideoWebViewHelper.BackHandler = OnVideoBackPressed;
             VideoOverlay.IsVisible = true;
             SetSystemBars(true);
+
+            if (VideoWebViewHelper.IsDirectMedia(url))
+            {
+                StartDirectMedia(url);
+                return;
+            }
+
+            StopDirectMedia();
             var webView = EnsureVideoWebView();
             VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
             webView.Source = VideoWebViewHelper.BuildSource(url);
@@ -1273,6 +1291,64 @@ public partial class AnimeDetailsPage : ContentPage
         catch (Exception ex)
         {
             global::Android.Util.Log.Warn("MALPlus Video", "ShowVideoOverlay: " + ex.GetType().Name);
+        }
+    }
+
+    private void StartDirectMedia(string url)
+    {
+        var player = DirectVideoPlayer;
+        if (player == null)
+            return;
+        _directMediaUrl = url;
+        if (_videoWebView != null)
+            _videoWebView.IsVisible = false;
+        player.IsVisible = true;
+        player.Source = url;
+    }
+
+    /// <summary>
+    ///     ExoPlayer refused the file. Hand it to the WebView player rather than leaving a black
+    ///     rectangle, since the point of the tab is that the theme plays. WebM support is not
+    ///     guaranteed across devices, so this is a real path, not a formality.
+    /// </summary>
+    private void OnDirectVideoFailed(object sender, string reason)
+    {
+        var url = _directMediaUrl;
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+        global::Android.Util.Log.Warn("MALPlus Video", "ExoPlayer fallback to WebView: " + reason);
+        _directMediaUrl = null;
+        StopDirectMedia();
+        try
+        {
+            var webView = EnsureVideoWebView();
+            webView.IsVisible = true;
+            VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
+            webView.Source = VideoWebViewHelper.BuildSource(url);
+            VideoWebViewHelper.ApplyMediaSettings(webView);
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "DirectMedia fallback failed: " + ex.GetType().Name);
+        }
+    }
+
+    private void StopDirectMedia()
+    {
+        var player = DirectVideoPlayer;
+        _directMediaUrl = null;
+        if (player == null)
+            return;
+        try
+        {
+            // Source = null makes the handler Stop and Release, which is what guarantees the audio
+            // is gone. Pause alone would leave the track running behind the closed overlay.
+            player.IsPlaying = false;
+            player.Source = null;
+            player.IsVisible = false;
+        }
+        catch (Exception)
+        {
         }
     }
 
@@ -1310,9 +1386,11 @@ public partial class AnimeDetailsPage : ContentPage
             {
                 if (VideoOverlay != null && VideoOverlay.IsVisible)
                     VideoWebViewHelper.BackHandler = null;
+                StopDirectMedia();
                 if (_videoWebView != null)
                 {
                     VideoWebViewHelper.StopMediaAndClear(_videoWebView);
+                    _videoWebView.IsVisible = true;
                 }
                 if (VideoOverlay != null)
                     VideoOverlay.IsVisible = false;

@@ -129,7 +129,7 @@ public static class VideoWebViewHelper
     private static bool IsSearchUrl(string url) =>
         !string.IsNullOrEmpty(url) && url.Contains("search_query=", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsDirectMedia(string url)
+    public static bool IsDirectMedia(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return false;
         var lower = url.Split('?')[0].ToLowerInvariant();

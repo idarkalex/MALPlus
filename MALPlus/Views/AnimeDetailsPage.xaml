@@ -924,14 +924,14 @@
                 <Label Text="✕" FontFamily="InterBold" FontSize="18" TextColor="White"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-<!-- The WebView is created by ShowVideoOverlay, not here: an Android WebView
-                   spawns a Chromium child process and costs 100-400ms plus tens of MB, and
-                   MAUI builds handlers for the whole tree when the page attaches, so
-                   declaring it here stalled EVERY details open for a video nobody played.
-                   MAUI 11 RC1 has no MediaElement at all (it is absent from
-                   Microsoft.Maui.Controls on every target framework, and there is no separate
-                   media package), so a native ExoPlayer is not reachable through a built in
-                   control either. -->
+<!-- Direct media (AnimeThemes WebM) plays on ExoPlayer here. The WebView below handles YouTube,
+                   which ExoPlayer cannot load at all because a watch page is HTML with an iframe.
+                   The WebView is created by ShowVideoOverlay rather than declared here: an Android
+                   WebView spawns a Chromium child process and costs 100-400ms plus tens of MB,
+                   and MAUI builds handlers for the whole tree when the page attaches, so declaring
+                   it stalled EVERY details open for a video nobody played. -->
+              <controls:NativeVideoView x:Name="DirectVideoPlayer" Grid.Row="1" IsVisible="False"
+                                         PlayFailed="OnDirectVideoFailed" />
           </Grid>
     </Grid>
 </ContentPage>
