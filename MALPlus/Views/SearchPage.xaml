@@ -31,17 +31,17 @@
                         <Label Text="{Binding .}" FontFamily="Inter" FontSize="14"
                                TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                     </HorizontalStackLayout>
-                    <!-- Tapping the X must not run the search, so it carries its own recognizer
-                         and stops the row from seeing the touch. -->
-                    <Label Grid.Column="1" Text="âœ•" FontSize="15" VerticalOptions="Center"
-                           TextColor="#80FFFFFF"
-                           HorizontalOptions="Center" VerticalTextAlignment="Center"
-                           WidthRequest="32" HeightRequest="32">
-                        <Label.GestureRecognizers>
+<!-- Tapping the X must not run the search, so it carries its own recognizer
+                         and stops the row from seeing the touch. A drawable again rather than a
+                         character: as text the cross came out as mojibake, and a vector cannot
+                         depend on the font carrying the glyph. -->
+                    <Image Grid.Column="1" Source="icon_close.png" WidthRequest="20" HeightRequest="20"
+                           VerticalOptions="Center">
+                        <Image.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRecentSearchRemoveTapped"
                                                   CommandParameter="{Binding .}" />
-                        </Label.GestureRecognizers>
-                    </Label>
+                        </Image.GestureRecognizers>
+                    </Image>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -145,17 +145,14 @@
                            PlaceholderColor="#80FFFFFF"
                            ReturnType="Search"
                            Completed="OnSearchCompleted" />
-                    <!-- Clear. A real Button beside the Entry and never a recognizer on the Entry
-                         itself: a TapGestureRecognizer on an Entry consumes the touch, the field
-                         never takes focus and the keyboard never opens.
-                         No FontFamily on purpose: InterBold has no glyph for the multiplication X
-                         and it came out as mojibake, while the default face renders the same
-                         character fine on the recent-search rows. -->
-                    <Button Grid.Column="1" Text="✕" Clicked="OnClearQueryClicked"
-                            FontSize="16" TextColor="#B3FFFFFF"
-                            BackgroundColor="{StaticResource EmSheet}"
-                            CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="0"
-                            IsVisible="{Binding InternalQuery, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
+<!-- Clear. A real Button beside the Entry and never a recognizer on the Entry,
+                         which would consume the touch and stop the keyboard opening. The mark is a
+                         drawable rather than a character: as text it came out as mojibake twice,
+                         and a vector cannot depend on the font having the glyph. -->
+                    <ImageButton Grid.Column="1" Source="icon_close.png" Clicked="OnClearQueryClicked"
+                                 BackgroundColor="{StaticResource EmSheet}"
+                                 WidthRequest="48" HeightRequest="48" Padding="14"
+                                 IsVisible="{Binding InternalQuery, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
                     <ImageButton Grid.Column="2" Source="search.svg"
                                  Command="{Binding SearchCommand}"
                                  BackgroundColor="#0066FF"
@@ -185,17 +182,20 @@
                                     <Border BackgroundColor="{StaticResource EmSheet}"
                                             Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                             StrokeShape="RoundRectangle 8" Padding="16,12">
-                                        <Grid ColumnDefinitions="44,*" ColumnSpacing="10">
-                                            <!-- Studio logo, loaded on demand. MAL does not return
-                                                 these; Tenrai does, at /v1/producers/{id}, and the
-                                                 enum already carries every studio's MAL id. -->
-                                            <Image Grid.Column="0" Aspect="AspectFit"
+                                        <!-- Studio logo above the name rather than beside it. A two column grid on a phone leaves
+                                             about 80dp next to a 64dp icon, which broke the names
+                                             into "ABC Ani mation"; stacked, both get the full cell
+                                             width and the logos read at their natural shape. -->
+                                        <VerticalStackLayout Spacing="8">
+                                            <Image Aspect="AspectFit" HeightRequest="56"
                                                    IsVisible="{Binding IconUrl, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
                                                    Source="{Binding IconUrl, Converter={StaticResource ImageConverter}}" />
-                                            <Label Grid.Column="1" Text="{Binding Name}" FontFamily="InterBold" FontSize="16"
+                                            <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="13"
                                                    TextColor="{StaticResource BrushText}"
-                                                   VerticalOptions="Center" />
-                                        </Grid>
+                                                   MaxLines="2" LineBreakMode="TailTruncation"
+                                                   HorizontalOptions="Center"
+                                                   HorizontalTextAlignment="Center" />
+                                        </VerticalStackLayout>
                                     </Border>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
@@ -260,17 +260,17 @@
                     </Grid>
                 </Grid>
 
-                <!-- Recent searches. It lives in the content row and is Start-aligned, and because that row is
-                     a star row a Start-aligned child cannot change its height: the dropdown is an
-                     overlay that leaves the page exactly where it was. Declared last so it paints
-                     above the results.
+                <!-- Recent searches. It hangs off the content row so it cannot push the page, and it is pulled
+                     up by the height of the chip row so it reads as hanging off the SEARCH BAR
+                     rather than off the chips, which is where the eye expects it. Declared last so
+                     it paints above both the chips and the results.
 
-                     There is deliberately NO scrim behind it. A transparent overlay over the grid is
-                     always above it on Android, so it swallowed the scroll as well as every tap on
-                     a row, which is what made the list feel like it broke scrolling. The list now
-                     closes on the gestures that mean "I am done with it": scrolling the results,
-                     picking a result, switching tab or tapping a filter chip. Back also closes it. -->
-                <Border VerticalOptions="Start" Margin="16,0,16,8"
+                     There is deliberately no scrim. A transparent overlay across the grid is always
+                     above it on Android, so it swallowed the scroll and every tap on a row, which
+                     is what made the list break scrolling. It closes on the gestures that mean the
+                     user is done with it: scrolling, picking a result, switching tab, tapping a
+                     chip, or back. -->
+                <Border VerticalOptions="Start" Margin="16,-52,16,8"
                         IsVisible="False" x:Name="RecentSearchesDrop"
                         BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
@@ -338,13 +338,13 @@
             </Grid>
         </Grid>
 
-        <!-- ============ Genres tab (3) â€” reuses Main tab's catalogue by setting mode=Genres ============ -->
+        <!-- ============ Genres tab (3) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â reuses Main tab's catalogue by setting mode=Genres ============ -->
         <Grid Grid.Row="1"
               IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=3}">
-            <Grid RowDefinitions="Auto,*" Padding="16,8">
-                <Label Grid.Row="0" Text="Pick a genre"
-                       FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}" />
-                <CollectionView Grid.Row="1" ItemsSource="{Binding AvailableSelectionChoices}"
+            <!-- Two rows but the list spans both. With the title gone there is nothing in row0, and
+                 leaving it as a star row handed it half the height and pushed the grid down. -->
+            <Grid RowDefinitions="*,*" Padding="16,8">
+                <CollectionView x:Name="GenreList" Grid.Row="0" Grid.RowSpan="2" ItemsSource="{Binding AvailableSelectionChoices}"
                                 SelectionMode="Single" SelectionChanged="OnGenreStudioSelected">
                     <CollectionView.ItemsLayout>
                         <GridItemsLayout Orientation="Vertical" Span="2" HorizontalItemSpacing="12" VerticalItemSpacing="12" />
@@ -367,10 +367,10 @@
         <!-- ============ Studios tab (4) ============ -->
         <Grid Grid.Row="1"
               IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=4}">
-            <Grid RowDefinitions="Auto,*" Padding="16,8">
-                <Label Grid.Row="0" Text="Pick a studio"
-                       FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}" />
-                <CollectionView Grid.Row="1" ItemsSource="{Binding AvailableSelectionChoices}"
+            <!-- Two rows but the list spans both. With the title gone there is nothing in row0, and
+                 leaving it as a star row handed it half the height and pushed the grid down. -->
+            <Grid RowDefinitions="*,*" Padding="16,8">
+                <CollectionView x:Name="StudioList" Grid.Row="0" Grid.RowSpan="2" ItemsSource="{Binding AvailableSelectionChoices}"
                                 SelectionMode="Single" SelectionChanged="OnGenreStudioSelected">
                     <CollectionView.ItemsLayout>
                         <GridItemsLayout Orientation="Vertical" Span="2" HorizontalItemSpacing="12" VerticalItemSpacing="12" />
@@ -380,15 +380,16 @@
                             <Border BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12,10">
-                                <Grid ColumnDefinitions="44,*" ColumnSpacing="10">
-                                    <Image Grid.Column="0" Aspect="AspectFit"
+<VerticalStackLayout Spacing="8">
+                                    <Image Aspect="AspectFit" HeightRequest="56"
                                            IsVisible="{Binding IconUrl, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
                                            Source="{Binding IconUrl, Converter={StaticResource ImageConverter}}" />
-                                    <Label Grid.Column="1" Text="{Binding Name}" FontFamily="InterBold" FontSize="15"
+                                    <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="13"
                                            TextColor="{StaticResource BrushText}"
-                                           VerticalOptions="Center" MaxLines="2"
-                                           LineBreakMode="TailTruncation" />
-                                </Grid>
+                                           MaxLines="2" LineBreakMode="TailTruncation"
+                                           HorizontalOptions="Center"
+                                           HorizontalTextAlignment="Center" />
+                                </VerticalStackLayout>
                             </Border>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>

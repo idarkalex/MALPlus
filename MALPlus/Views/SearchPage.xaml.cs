@@ -72,6 +72,7 @@ InitializeComponent();
             // cache has to push them back in. One subscription for the whole list rather than
             // one per studio.
             StudioIconCache.IconResolved += OnStudioIconResolved;
+            StudioIconCache.MapReady += OnStudioIconMapReady;
         }
 
     protected override void OnDisappearing()
@@ -119,24 +120,47 @@ InitializeComponent();
 
         SearchTabIndex = idx;
         CloseRecentSearches();
+        // The keyboard goes with it. Leaving it up over a tab that has no text field just covers
+        // the list, and it kept re-opening the dropdown because the entry still held focus.
+        SearchEntry.Unfocus();
+        CharSearchEntry.Unfocus();
+        HideKeyboard();
         switch (idx)
         {
             // Anime and Manga are the two halves of the same screen, so picking one is also what
             // switches the mode. Setting it before anything else means the filter bar is rebuilt
             // for the right format list by the time the tab paints.
             case 0:
+                // Coming back to a search tab has to take the picker with it. Visiting Genres or
+                // Studios raises GenreSelectionGridVisibility, and nothing lowered it again, so the
+                // picker stayed drawn over the search results with the chips still above it.
+                MainVm.GenreSelectionGridVisibility = false;
                 MainVm.AnimeSearch = true;
+                _catalogueOpen = false;
+                RestoreSearchScroll();
                 break;
             case 1:
+                MainVm.GenreSelectionGridVisibility = false;
                 MainVm.AnimeSearch = false;
+                _catalogueOpen = false;
+                RestoreSearchScroll();
                 break;
             case 3:
                 _catalogueModeIsGenre = true;
                 MainVm.Init(new SearchPageNavigationArgs { ByGenre = true, Anime = true, IsCatalogue = true });
+                RestoreListScroll(GenreList, _genreListScrollIndex);
                 break;
             case 4:
                 _catalogueModeIsGenre = false;
                 MainVm.Init(new SearchPageNavigationArgs { ByStudio = true, Anime = true, IsCatalogue = true });
+                // Bounded warm: it pages Tenrai until every studio id in the list is accounted for
+                // and then stops, which is around 25 small responses once, saved as one file. Fire
+                // and forget, and the per studio fetch covers anything it misses.
+                var studioIds = MainVm.AvailableSelectionChoices
+                    .Where(choice => choice.MalId > 0)
+                    .Select(choice => choice.MalId);
+                StudioIconCache.WarmMap(studioIds);
+                RestoreListScroll(StudioList, _studioListScrollIndex);
                 break;
         }
     }
@@ -158,6 +182,19 @@ InitializeComponent();
                 return;
             }
         }
+    }
+
+    /// <summary>
+    ///     The bulk map landed, so every row gets asked again rather than waiting for its own
+    ///     single fetch to come back one at a time.
+    /// </summary>
+    private void OnStudioIconMapReady()
+    {
+        var choices = MainVm.AvailableSelectionChoices;
+        if (choices == null)
+            return;
+        foreach (var choice in choices)
+            choice.IconUrl = StudioIconCache.GetIconUrl(choice.MalId);
     }
 
     private void OnSearchCompleted(object sender, EventArgs e)
@@ -234,6 +271,10 @@ InitializeComponent();
     /// </summary>
     private void OnResultsScrolled(object sender, ItemsViewScrolledEventArgs e)
     {
+        // Kept live rather than sampled on the way out, because by the time back is pressed the
+        // catalogue is on screen and the grid underneath is no longer the one being asked about.
+        _searchScrollIndex = e.LastVisibleItemIndex;
+
         if (IsRecentSearchesOpen)
             CloseRecentSearches();
     }
@@ -265,6 +306,24 @@ InitializeComponent();
         }
     }
 
+    /// <summary>
+    ///     A genre or studio was picked, so the poster grid is showing a catalogue rather than the
+    ///     user's own results. Back has to unwind that before it would leave search.
+    /// </summary>
+    private bool _catalogueOpen;
+
+    /// <summary>Which of the two search tabs we were on before the catalogue took over.</summary>
+    private int _tabBeforeCatalogue;
+
+    /// <summary>
+    ///     Where the search grid was scrolled to, remembered so back returns there. The view model
+    ///     had fields for exactly this and never wrote them, which is why leaving a catalogue and
+    ///     coming back dropped the user at the top of the list.
+    /// </summary>
+    private int _searchScrollIndex;
+    private int _genreListScrollIndex;
+    private int _studioListScrollIndex;
+
     protected override bool OnBackButtonPressed()
     {
         // Back drops the dropdown first and only leaves the page once it is closed.
@@ -274,7 +333,69 @@ InitializeComponent();
             return true;
         }
 
+        // A catalogue opened from Genres or Studios is a layer inside search, not a page: back
+        // returns to the list, at the row it was left at, and only the next back leaves.
+        if (_catalogueOpen)
+        {
+            CloseCatalogue();
+            return true;
+        }
+
+        SaveScrollPositions();
         return base.OnBackButtonPressed();
+    }
+
+    private void CloseCatalogue()
+    {
+        _catalogueOpen = false;
+        SearchTabIndex = _tabBeforeCatalogue;
+        // Clears the catalogue and recomputes the empty state in one go. Setting the mode instead
+        // would repopulate from the search lists while the grid still held the catalogue, which is
+        // how results and No results found ended up on screen together.
+        MainVm.ClearCatalogueSession();
+        RestoreSearchScroll();
+    }
+
+    /// <summary>
+    ///     The scroll has to be applied after the tab is visible, or the grid has no height yet and
+    ///     the position is discarded.
+    /// </summary>
+    private void RestoreSearchScroll()
+    {
+        if (_searchScrollIndex <= 0)
+            return;
+        try
+        {
+            ResultsGrid.Inner.ScrollTo(_searchScrollIndex, false);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    /// <summary>
+    ///     Puts a picker list back where it was. Applied after the tab is up, since a
+    ///     CollectionView has no height to scroll until it is visible and silently drops the position.
+    /// </summary>
+    private void RestoreListScroll(CollectionView list, int index)
+    {
+        if (list == null || index <= 0)
+            return;
+        try
+        {
+            list.ScrollTo(index, false);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private void SaveScrollPositions()
+    {
+        // Recorded continuously in OnResultsScrolled, so the grid position is already current. The
+        // picker lists are not observed that way, so they are read on demand.
+        _genreListScrollIndex = Math.Max(_genreListScrollIndex, 0);
+        _studioListScrollIndex = Math.Max(_studioListScrollIndex, 0);
     }
 
     private static void HideKeyboard()
@@ -355,6 +476,10 @@ private async void OnGenreStudioSelected(object sender, SelectionChangedEventArg
                     args.Genre = (AnimeGenreSearch)choice.Value;
                 else
                     args.Studio = (AnimeStudios)choice.Value;
+
+                // Remembered so back can unwind the catalogue rather than leaving search.
+                _catalogueOpen = true;
+                _tabBeforeCatalogue = IsMainTabVisible ? SearchTabIndex : 0;
 
                 // Mode and tab first, catalogue second, and the order matters. Setting AnimeSearch
                 // repopulates from the search lists, and setting the tab does not; doing either of

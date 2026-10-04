@@ -129,12 +129,30 @@ namespace MALClient.XShared.ViewModels.Main
         public int GenreListScrollPosition { get; set; }
         public int StudioListScrollPosition { get; set; }
 
+        /// <summary>
+        ///     Leaves a genre or studio browse and puts the page back on the user's own results.
+        ///     <para>
+        ///     It has to recompute the empty state here rather than leave it to the mode setter.
+        ///     Setting AnimeSearch repopulates from the search lists, which is correct, but doing it
+        ///     while the grid was still showing the catalogue left the two disagreeing: results on
+        ///     screen with No results found drawn over them. Clearing the catalogue and announcing
+        ///     the change together is what keeps them in step.
+        ///     </para>
+        /// </summary>
         public void ClearCatalogueSession()
         {
             CatalogueIsGenre = null;
             ActiveCatalogueTitle = null;
             CatalogueScrollPosition = 0;
             CatalogueScrollOffset = 0;
+            CatalogueResults.Clear();
+            // Through PopulateItems rather than by announcing CurrentSearchItems. That property is
+            // computed, and re-raising it did not make the poster grid swap collections: the grid
+            // went on showing the catalogue. Clearing and refilling the ObservableCollections does
+            // refresh it, and it recomputes the empty state at the same moment, which is what keeps
+            // the results and the No results found overlay from disagreeing.
+            PopulateItems();
+            RaisePropertyChanged(nameof(CurrentSearchItems));
         }
 
         private SearchPageNavigationArgs _catalogueArgs;
@@ -185,17 +203,20 @@ namespace MALClient.XShared.ViewModels.Main
                 HasMoreCatalogue = hasMore;
                 ResourceLocator.DispatcherAdapter.Run(() =>
                 {
-                    CatalogueResults.Clear();
+CatalogueResults.Clear();
+            // Also drops the picker. It is raised when a catalogue is opened and nothing lowered it
+            // again, so backing out of a browse left the genre or studio grid drawn over the
+            // search results.
+            GenreSelectionGridVisibility = false;
                     var seen = new HashSet<int>();
                     foreach (var item in allItems)
                         if (seen.Add(item.Id))
-                            CatalogueResults.Add(new AnimeSearchItemViewModel(item, ViewModelLocator.AnimeList));
-                    EmptyNoticeVisibility = CatalogueResults.Count == 0;
+                            AnimeSearchItemViewModels.Add(new AnimeSearchItemViewModel(item, ViewModelLocator.AnimeList));
+                    EmptyNoticeVisibility = AnimeSearchItemViewModels.Count == 0;
                     IsFirstVisitGridVisible = false;
-                    // The results grid binds CurrentSearchItems, not CatalogueResults: without
-                    // this the genre/studio browse filled a collection nothing was bound to and
-                    // the page came up blank.
-                    _catalogueBrowseActive = true;
+                    // The grid binds CurrentSearchItems, which is this very collection for the
+                    // anime mode, so the catalogue rows arrive through the collection's own change
+                    // notifications and no swap of ItemsSource is needed.
                     RaisePropertyChanged(nameof(CurrentSearchItems));
                 });
             }
@@ -225,10 +246,10 @@ namespace MALClient.XShared.ViewModels.Main
                 var newItems = items.Select(item => new AnimeSearchItemViewModel(item, ViewModelLocator.AnimeList)).ToList();
                 ResourceLocator.DispatcherAdapter.Run(() =>
                 {
-                    var seen = new HashSet<int>(CatalogueResults.Select(result => result.Id));
+                    var seen = new HashSet<int>(AnimeSearchItemViewModels.Select(result => result.Id));
                     foreach (var vm in newItems)
                         if (seen.Add(vm.Id))
-                            CatalogueResults.Add(vm);
+                            AnimeSearchItemViewModels.Add(vm);
                 });
             }
             catch (Exception ex)
@@ -312,12 +333,18 @@ _filters.Clear();
             }
         }
 
-        private bool _catalogueBrowseActive;
-
+        /// <summary>
+        ///     The one collection the results grid binds to.
+        ///     <para>
+        ///     A genre or studio browse used to load into a collection of its own and this picked
+        ///     between the two, but ItemsSource bound to a computed property does not re-read when
+        ///     that property raises: the grid stayed on whichever collection it already had, so
+        ///     backing out of a browse kept showing the browse. Both now feed the same collection,
+        ///     so the grid is never asked to swap and ordinary collection notifications do the work.
+        ///     </para>
+        /// </summary>
         public ObservableCollection<AnimeSearchItemViewModel> CurrentSearchItems =>
-            _catalogueBrowseActive
-                ? CatalogueResults
-                : _animeSearch ? AnimeSearchItemViewModels : MangaSearchItemViewModels;
+            _animeSearch ? AnimeSearchItemViewModels : MangaSearchItemViewModels;
 
         /// <summary>
         ///     Rebuilds both result lists from the full result sets, applying the type filters.
@@ -334,7 +361,6 @@ _filters.Clear();
 
         private void PopulateItems()
         {
-            _catalogueBrowseActive = false;
             AnimeSearchItemViewModels.Clear();
             MangaSearchItemViewModels.Clear();
             foreach (var item in _allAnimeSearchItemViewModels.Where(MatchesTypeFilters))
@@ -442,8 +468,15 @@ _filters.Clear();
         public ObservableCollection<AnimeSearchItemViewModel> MangaSearchItemViewModels { get; } =
             new ObservableCollection<AnimeSearchItemViewModel>();
 
-        public ObservableCollection<AnimeSearchItemViewModel> CatalogueResults { get; } =
-            new ObservableCollection<AnimeSearchItemViewModel>();
+        /// <summary>
+    ///     Kept only as an alias. The catalogue used to load into a collection of its own and
+    ///     CurrentSearchItems picked between the two, but binding ItemsSource to a computed
+    ///     property does not re-read when the property raises: the grid stayed on the collection it
+    ///     had, so backing out of a genre browse kept showing the browse. One collection for both
+    ///     means the grid is never asked to swap, and plain collection notifications do the work.
+    /// </summary>
+    public ObservableCollection<AnimeSearchItemViewModel> CatalogueResults => AnimeSearchItemViewModels;
+
 
         public AnimeSearchItemViewModel CurrentlySelectedItem
         {
