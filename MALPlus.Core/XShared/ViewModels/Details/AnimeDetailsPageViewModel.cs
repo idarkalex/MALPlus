@@ -2421,19 +2421,30 @@ Episodes.Clear();
                     }
                 }
 
-                // The forum thread index is fetched BEFORE the episode list now, so the merge can attach it
-                // to episodes it learned about from AniList. It used to be fetched after, which is
-                // why episodes Tenrai was missing also arrived with no thread: the merge had
-                // already run by the time anyone knew which episode numbers to look up. MAL opens a
-                // thread when the episode airs, so the newest numbers are in there.
-                Dictionary<int, string> episodeForumTopics = null;
-                try
+                // The forum thread index and the AniList schedule are independent of each other and of the
+                // episode list, and all three were running in series, one after the other, in
+                // front of the code that builds the list. That is what made this tab feel slow to
+                // open and sometimes look empty: it was waiting for a forum scrape and a rate
+                // limited lookup it does not need in order to show rows. They run together now, and
+                // the forum index is allowed to come back empty: a row without its thread is
+                // exactly what the app already did when a thread did not exist.
+                var forumTask = Task.Run(async () =>
                 {
-                    episodeForumTopics = await new AnimeEpisodeForumQuery(MalId, true).GetEpisodeTopicsAsync();
-                }
-                catch
-                {
-                }
+                    try
+                    {
+                        return await new AnimeEpisodeForumQuery(MalId, true).GetEpisodeTopicsAsync();
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                });
+                var scheduleTask = AniListScheduleClient.Enabled
+                    ? AniListScheduleClient.GetScheduleAsync(MalId)
+                    : Task.FromResult<AniListSchedule>(null);
+
+                await Task.WhenAll(forumTask, scheduleTask);
+                var episodeForumTopics = forumTask.Result;
 
                 if (isAiring)
                 {

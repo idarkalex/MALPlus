@@ -717,10 +717,9 @@
                         </BoxView.Background>
                     </BoxView>
                     <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="Start" Margin="0,12,12,0" Spacing="8">
-                        <Button Text="▶" Clicked="OnTrailerClicked" IsVisible="{Binding HasTrailer}"
-                                FontFamily="InterBold" FontSize="14" BackgroundColor="#33FFFFFF"
-                                TextColor="White" BorderColor="#80FFFFFF" BorderWidth="1"
-                                CornerRadius="18" WidthRequest="36" HeightRequest="36" Padding="0" />
+                        <!-- The trailer button used to live here AND in the action bar below, so
+                             every entry showed two of them wired to the same handler. The action
+                             bar copy stays; this overlay only keeps the loading spinner. -->
                         <ActivityIndicator IsRunning="{Binding LoadingGlobal}" IsVisible="{Binding LoadingGlobal}"
                                            Color="{StaticResource EmAccent}" WidthRequest="28" HeightRequest="28" />
                     </HorizontalStackLayout>

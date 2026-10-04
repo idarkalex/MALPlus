@@ -120,11 +120,12 @@ namespace MALClient.XShared.Comm.Anime
         private static readonly SemaphoreSlim Gate = new SemaphoreSlim(4, 4);
 
         /// <summary>
-        ///     AniList allows 30 requests per minute per IP. Token bucket with a burst of 5 so a
-        ///     screenful of posters does not serialise into one request every two seconds, but a
-        ///     long scroll still cannot push the app over the limit.
+        ///     AniList allows 30 requests per minute per IP. The bucket holds a burst of eight so a
+        ///     screenful of posters and one details page can be in flight together: with a burst of
+        ///     five the details page waited behind the grid's warming and the Episodes tab visibly
+        ///     stalled on WaitForTokenAsync. Eight still leaves the long-run average at 30/min.
         /// </summary>
-        private const int BucketCapacity = 5;
+        private const int BucketCapacity = 8;
         private static readonly TimeSpan RefillInterval = TimeSpan.FromSeconds(2);
         private static int _tokens = BucketCapacity;
         private static DateTime _lastRefill = DateTime.UtcNow;

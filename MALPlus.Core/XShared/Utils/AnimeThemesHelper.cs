@@ -51,7 +51,108 @@ namespace MALClient.XShared.Utils
             public int Sequence { get; set; }
             public string Url { get; set; }
             public string AnimeSlug { get; set; }
-            public string SongTitle { get; set; }
+public string SongTitle { get; set; }
+
+                /// <summary>
+                ///     Episode coverage, as inclusive ranges. This is what the match keys on.
+                /// </summary>
+                public List<EpisodeRange> Episodes { get; set; } = new List<EpisodeRange>();
+            }
+
+            /// <summary>
+            ///     A class and not a ValueTuple on purpose: this list is round tripped through the
+            ///     cache with plain System.Text.Json options, and a tuple serialises as an anonymous
+            ///     Item1/Item2 blob that is easy to lose on the way back.
+            /// </summary>
+            public class EpisodeRange
+            {
+                public int From { get; set; }
+                public int To { get; set; }
+
+                public EpisodeRange()
+                {
+                }
+
+                public EpisodeRange(int from, int to)
+                {
+                    From = from;
+                    To = to;
+                }
+            }
+
+        /// <summary>
+        ///     Parses AnimeThemes' episode coverage into inclusive ranges.
+        ///     The format is loose on purpose at their end and this has to survive all of it:
+        ///     "1163", "1123-1138", "1157-1162, 1164-", "1-47, 1000". An open ended "1164-" means
+        ///     "from 1164 onwards", which is capped generously because the field only exists to
+        ///     decide whether two entries describe the same theme.
+        /// </summary>
+        internal static List<EpisodeRange> ParseEpisodeRanges(string raw)
+        {
+            var result = new List<EpisodeRange>();
+            if (string.IsNullOrWhiteSpace(raw))
+                return result;
+            foreach (var part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var token = part.Trim().Replace("–", "-").Replace("—", "-");
+                if (token.Length == 0)
+                    continue;
+                var bounds = token.Split('-');
+                if (!int.TryParse(bounds[0].Trim(), out var from))
+                    continue;
+                var to = from;
+                if (bounds.Length > 1)
+                {
+                    var tail = bounds[1].Trim();
+                    if (tail.Length == 0)
+                        to = from + 5000;
+                    else if (!int.TryParse(tail, out to))
+                        continue;
+                }
+                if (to < from) { var swap = from; from = to; to = swap; }
+                result.Add(new EpisodeRange(from, to));
+            }
+            return result;
+        }
+
+        /// <summary>
+        ///     Parses the episode numbers out of a Tenrai theme line, e.g.
+        ///     28: "Never Was Alone in This World (????????????)" by Maki Otsuki (eps 1163)
+        ///     or a range such as "(eps 1139-)". The Japanese in those lines arrives as literal
+        ///     question marks, which is why the title can never be the reliable key and this is.
+        /// </summary>
+        internal static List<EpisodeRange> ExtractEpisodeRanges(string opEdText)
+        {
+            var result = new List<EpisodeRange>();
+            if (string.IsNullOrEmpty(opEdText))
+                return result;
+            var match = Regex.Match(opEdText, @"\(\s*eps?\s*\.?\s*([0-9]+)\s*(?:-\s*([0-9]+)?\s*)?\)",
+                RegexOptions.IgnoreCase);
+            if (!match.Success)
+                return result;
+            if (!int.TryParse(match.Groups[1].Value, out var from))
+                return result;
+            var to = from;
+            var tailGroup = match.Groups[2];
+            if (tailGroup.Success)
+            {
+                var tail = tailGroup.Value.Trim();
+                to = tail.Length == 0 ? from + 5000 : (int.TryParse(tail, out var parsed) ? parsed : from);
+            }
+            if (to < from) { var swap = from; from = to; to = swap; }
+            result.Add(new EpisodeRange(from, to));
+            return result;
+        }
+
+        internal static bool RangesOverlap(List<EpisodeRange> a, List<EpisodeRange> b)
+        {
+            if (a == null || b == null || a.Count == 0 || b.Count == 0)
+                return false;
+            foreach (var x in a)
+            foreach (var y in b)
+                if (x.From <= y.To && y.From <= x.To)
+                    return true;
+            return false;
         }
 
         private static string NormalizeSong(string s)
@@ -98,6 +199,23 @@ namespace MALClient.XShared.Utils
                 if (char.IsLetterOrDigit(c))
                     sb.Append(c);
             return sb.ToString();
+        }
+
+        /// <summary>
+        ///     Cache file name for a resolved anime.
+        ///
+        ///     The v2 in the name is not cosmetic. v1 entries were written before ThemeVideo
+        ///     carried episode coverage, so every one of them deserialises with an empty Episodes
+        ///     list, and the episode first match then finds no overlap anywhere and silently falls
+        ///     back to the fuzzy title score, which cannot match across languages. The result was
+        ///     that the fix appeared to do nothing for up to seven days: the tab loaded a healthy
+        ///     looking cache written by the old code. There is no in-place migration for this
+        ///     cache, so the version lives in the filename and bumping it is how a new field
+        ///     reaches an existing install.
+        /// </summary>
+        private static string ThemeCacheFile(string cacheKey)
+        {
+            return "animethemes_v2_" + CacheFileName(cacheKey);
         }
 
         private static string CacheFileName(string key)
@@ -201,8 +319,8 @@ namespace MALClient.XShared.Utils
                 try
                 {
                     var diskList = await DataCache.RetrieveData<List<ThemeVideo>>(
-                        "animethemes_" + CacheFileName(cacheKey), "AnimeThemes", 7);
-                    AppendThemeDebug($"  disk cache key='animethemes_{CacheFileName(cacheKey)}' hit={diskList?.Count ?? 0}");
+                        ThemeCacheFile(cacheKey), "AnimeThemes", 7);
+                    AppendThemeDebug($"  disk cache key='{ThemeCacheFile(cacheKey)}' hit={diskList?.Count ?? 0}");
                     if (diskList != null && diskList.Count > 0)
                     {
                         foreach (var v in variants)
@@ -227,7 +345,7 @@ namespace MALClient.XShared.Utils
                             Cache[vKey] = videos;
                             try
                             {
-                                await DataCache.SaveData(videos, "animethemes_" + CacheFileName(vKey), "AnimeThemes");
+                                await DataCache.SaveData(videos, ThemeCacheFile(vKey), "AnimeThemes");
                             }
                             catch (Exception)
                             {
@@ -463,14 +581,15 @@ namespace MALClient.XShared.Utils
                             continue;
                         if (videos.Any(v => v.Url == video.link))
                             continue;
-                        videos.Add(new ThemeVideo
-                        {
-                            Type = theme.type,
-                            Sequence = theme.sequence ?? 1,
-                            Url = video.link,
-                            AnimeSlug = Slugify(anime.name),
-                            SongTitle = theme.song?.title
-                        });
+videos.Add(new ThemeVideo
+                            {
+                                Type = theme.type,
+                                Sequence = theme.sequence ?? 1,
+                                Url = video.link,
+                                AnimeSlug = Slugify(anime.name),
+                                SongTitle = theme.song?.title,
+                                Episodes = ParseEpisodeRanges(entry.episodes)
+                            });
                     }
                 }
             }
@@ -514,10 +633,17 @@ namespace MALClient.XShared.Utils
             [JsonProperty("title")] public string title { get; set; }
         }
 
-        private class InlineThemeEntry
-        {
-            [JsonProperty("videos")] public List<InlineVideo> videos { get; set; }
-        }
+private class InlineThemeEntry
+             {
+                 [JsonProperty("videos")] public List<InlineVideo> videos { get; set; }
+                 /// <summary>
+                 ///     Raw episode coverage, e.g. "1163", "1123-1138" or "1157-1162, 1164-".
+                 ///     AnimeThemes ships this for 74 of 75 entries on One Piece and it is the only
+                 ///     join key between the two sources that actually holds: their titles are in
+                 ///     different languages and there is no alternate-title field to translate with.
+                 /// </summary>
+                 [JsonProperty("episodes")] public string episodes { get; set; }
+             }
 
         private class InlineVideo
         {
@@ -525,14 +651,50 @@ namespace MALClient.XShared.Utils
         }
 
         /// <summary>
-        /// Picks the theme whose song best matches artist+song (high-percentage fuzzy).
-        /// Deliberately ignores OP/ED type and sequence (user rule: "no te ofusques en ED/OP").
-        /// Returns null when nothing clears the threshold so the caller falls back to YouTube.
+        ///     Picks the theme for an OP/ED row.
+        ///
+        ///     Episode coverage is the primary key, and the reason is that the two sources name the
+        ///     same theme in different languages. One Piece's last ending is
+        ///     "Never Was Alone in This World" from Tenrai, with the Japanese mangled to literal
+        ///     question marks, and AnimeThemes lists that exact episode as "Sekai wa Hitori ja
+        ///     Nakatta". AnimeThemes has no alternate-title field, so there is nothing to translate
+        ///     with and a fuzzy title score cannot rescue it: the row fell through to YouTube for
+        ///     every Japanese-titled theme of a show whose list is entirely in English. Both sides
+        ///     carry the episode numbers though, and they agree, so the join is done on those and
+        ///     the title only breaks ties between candidates that overlap.
+        ///
+        ///     Sequence is still ignored on purpose: it is not aligned between the sources (Tenrai
+        ///     calls "Sono Mirai" number 27 where AnimeThemes calls it 26).
         /// </summary>
-        public static ThemeVideo FindMatch(List<ThemeVideo> videos, bool isOp, int sequence, string songQuery = null, string songName = null)
+        public static ThemeVideo FindMatch(List<ThemeVideo> videos, bool isOp, int sequence, string songQuery = null, string songName = null, string opEdText = null)
         {
             if (videos == null || videos.Count == 0)
                 return null;
+
+            var wanted = ExtractEpisodeRanges(opEdText);
+            if (wanted.Count > 0)
+            {
+                var overlapping = videos.Where(v => RangesOverlap(wanted, v.Episodes)).ToList();
+                if (overlapping.Count == 1)
+                    return overlapping[0];
+                if (overlapping.Count > 1)
+                {
+                    // Several versions cover the same episodes. Score the title to choose between
+                    // them, and fall back to the first rather than giving up when no title matches.
+                    ThemeVideo bestByEpisode = null;
+                    var bestEpisodeScore = 0.0;
+                    foreach (var v in overlapping)
+                    {
+                        var score = ScoreSong(v, songQuery, songName);
+                        if (score > bestEpisodeScore)
+                        {
+                            bestEpisodeScore = score;
+                            bestByEpisode = v;
+                        }
+                    }
+                    return bestByEpisode ?? overlapping[0];
+                }
+            }
 
             ThemeVideo best = null;
             var bestScore = 0.0;
@@ -540,9 +702,7 @@ namespace MALClient.XShared.Utils
             {
                 // Prefer the bare song name (artist tokens the title lacks would unfairly
                 // drag the score down); fall back to the full artist+song otherwise.
-                var score = string.IsNullOrEmpty(songName)
-                    ? SongMatchScore(songQuery, v.SongTitle)
-                    : Math.Max(SongMatchScore(songName, v.SongTitle), SongMatchScore(songQuery, v.SongTitle));
+                var score = ScoreSong(v, songQuery, songName);
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -550,6 +710,15 @@ namespace MALClient.XShared.Utils
                 }
             }
             return bestScore >= 0.7 ? best : null;
+        }
+
+        private static double ScoreSong(ThemeVideo v, string songQuery, string songName)
+        {
+            if (string.IsNullOrWhiteSpace(v?.SongTitle))
+                return 0.0;
+            return string.IsNullOrEmpty(songName)
+                ? SongMatchScore(songQuery, v.SongTitle)
+                : Math.Max(SongMatchScore(songName, v.SongTitle), SongMatchScore(songQuery, v.SongTitle));
         }
 
         /// <summary>

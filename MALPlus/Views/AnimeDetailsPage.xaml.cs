@@ -1113,7 +1113,7 @@ public partial class AnimeDetailsPage : ContentPage
                         entryId, animeMode, out var english);
                     themes = await AnimeThemesHelper.SearchAsync(entryTitle, english);
                 }
-                var match = AnimeThemesHelper.FindMatch(themes, isOp, sequence, query, song);
+                var match = AnimeThemesHelper.FindMatch(themes, isOp, sequence, query, song, text);
                 if (!string.IsNullOrEmpty(match?.Url))
                     return match.Url;
 
