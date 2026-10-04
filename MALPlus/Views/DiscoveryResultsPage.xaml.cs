@@ -99,8 +99,12 @@ public partial class DiscoveryResultsPage : ContentPage
             // MAUI re-applies MediaPlaybackRequiresUserGesture on every source update and puts it
             // back to true, so the media element would never start without this.
             VideoWebViewHelper.ApplyMediaSettings(webView);
-            VideoWebViewHelper.BackHandler = OnVideoBackPressed;
-        }
+VideoWebViewHelper.BackHandler = OnVideoBackPressed;
+              // Registered here rather than once at startup: OnBackPressedDispatcher runs the most
+              // recently added callback first and the Shell adds its own after
+              // MainActivity.OnCreate, so a callback added back then never sees the press.
+              MainActivity.ArmVideoBackCallback();
+          }
         catch (Exception ex)
         {
             global::Android.Util.Log.Warn("MALPlus Discover", "theme play: " + ex.GetType().Name);
@@ -138,8 +142,9 @@ public partial class DiscoveryResultsPage : ContentPage
     {
         try
         {
-            VideoWebViewHelper.BackHandler = null;
-            if (_videoWebView != null)
+VideoWebViewHelper.BackHandler = null;
+              MainActivity.DisarmVideoBackCallback();
+              if (_videoWebView != null)
                 _videoWebView.Source = null;
             VideoOverlay.IsVisible = false;
         }

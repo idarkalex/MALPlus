@@ -106,8 +106,12 @@ public partial class VideosPage : ContentPage
                 // MAUI re-applies MediaPlaybackRequiresUserGesture on every source update and puts
                 // it back to true, so the media element would never start without this.
                 MALPlus.Services.VideoWebViewHelper.ApplyMediaSettings(VideoWebView);
-                MALPlus.Services.VideoWebViewHelper.BackHandler = OnVideoBackPressed;
-                SetSystemBars(true);
+MALPlus.Services.VideoWebViewHelper.BackHandler = OnVideoBackPressed;
+                  // Registered here rather than once at startup: OnBackPressedDispatcher runs the
+                  // most recently added callback first and the Shell adds its own after
+                  // MainActivity.OnCreate, so a callback added back then never sees the press.
+                  MainActivity.ArmVideoBackCallback();
+                  SetSystemBars(true);
                 VideoOverlayVisibility = true;
                 VideoOverlay.IsVisible = true;
                 VideoListRoot.IsVisible = false;
@@ -123,8 +127,9 @@ public partial class VideosPage : ContentPage
     {
         try
         {
-            MALPlus.Services.VideoWebViewHelper.BackHandler = null;
-            VideoWebView.Source = null;
+MALPlus.Services.VideoWebViewHelper.BackHandler = null;
+              MainActivity.DisarmVideoBackCallback();
+              VideoWebView.Source = null;
             VideoOverlay.IsVisible = false;
             VideoOverlayVisibility = false;
             VideoListRoot.IsVisible = true;

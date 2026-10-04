@@ -907,8 +907,11 @@ RaisePropertyChanged(() => GeneralSeason);
             RaisePropertyChanged(() => LinksVisible);
             RaisePropertyChanged(() => AltTitlesVisible);
             RaisePropertyChanged(() => GenresVisible);
-                    RaisePropertyChanged(() => TrailerUrl);
-                RaisePropertyChanged(() => DetailImage);
+            // HasTrailer is what the button binds to, not TrailerUrl, so announcing TrailerUrl
+            // alone leaves IsVisible stuck at whatever it evaluated to when the page attached.
+            RaisePropertyChanged(() => HasTrailer);
+            RaisePropertyChanged(() => TrailerUrl);
+            RaisePropertyChanged(() => DetailImage);
             }
             var t1Reset = t0.ElapsedMilliseconds;
 
@@ -2321,7 +2324,14 @@ RaisePropertyChanged(() => OpEdEmptyVisible);
                 // all three can still be filled by the scrape backfills that run AFTER the block which
                 // first announced them. Asking again here is what stops PRODUCTION from rendering as
                 // an empty box under a heading.
-                        RaisePropertyChanged(() => ProducersVisible);
+RaisePropertyChanged(() => ProducersVisible);
+              // The trailer button binds IsVisible to HasTrailer, so that is the name the view has
+              // to hear. Announcing TrailerUrl does nothing for it: a computed bool only re-reads
+              // when its own name comes through, which is the same trap already fixed for the
+              // section flags just above. Without this the button only ever appears on the second
+              // entry opened in a session, because by then the singleton already held a trailer
+              // from the first one and the binding evaluated true when the page attached.
+              RaisePropertyChanged(() => HasTrailer);
                     RaisePropertyChanged(() => MalStatsVisible);
                 OpEdThemes = new List<AnimeThemesHelper.ThemeVideo>();
 
