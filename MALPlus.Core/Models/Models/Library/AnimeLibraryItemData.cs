@@ -18,6 +18,7 @@ namespace MALClient.Models.Models.Library
             ImgUrl = other.ImgUrl;
             Type = other.Type;
             RewatchingCount = other.RewatchingCount;
+            GlobalScore = other.GlobalScore;
         }
 
         private int _id = -1;
@@ -35,6 +36,7 @@ namespace MALClient.Models.Models.Library
         public string Title { get; set; }
         public AnimeStatus MyStatus { get; set; }
         public float MyScore { get; set; }
+        public float GlobalScore { get; set; }
         public int MyEpisodes { get; set; }
         public int AllEpisodes { get; set; }
         public string ImgUrl { get; set; }

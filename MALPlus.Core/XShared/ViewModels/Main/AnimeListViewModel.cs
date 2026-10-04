@@ -1237,6 +1237,15 @@ catch (Exception)
             LoadErrorVisibility = false;
         }
 
+        /// <summary>
+        ///     Fills <see cref="SeasonSelection" /> from the Tenrai seasons index, once. It already ran
+        ///     as part of the seasonal init, so the page only calls this when the picker is opened on a
+        ///     list that has not been through it, which costs one cached request rather than one per
+        ///     open.
+        /// </summary>
+        public Task PopulateSeasonSelectionAsync()
+            => LoadSeasonSelection(false);
+
         private async Task LoadSeasonSelection(bool setDefaultSeason)
         {
             if (WorkMode != AnimeListWorkModes.SeasonalAnime || SeasonSelection.Count != 0)

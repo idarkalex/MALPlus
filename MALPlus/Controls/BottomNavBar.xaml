@@ -12,7 +12,7 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinimumHeightRequest" Value="0" />
             <Setter Property="MinimumWidthRequest" Value="0" />
-            <Setter Property="HeightRequest" Value="56" />
+            <Setter Property="HeightRequest" Value="48" />
             <Setter Property="HorizontalOptions" Value="Fill" />
             <Setter Property="VerticalOptions" Value="Fill" />
             <Style.Triggers>
@@ -25,8 +25,15 @@
     </ContentView.Resources>
     <!-- No Stroke here on purpose. A 1px #14FFFFFF ring drew a line down both sides and along the
          bottom of the navigation bar, which read as the bar being boxed in rather than as a bar.
-         The Padding is what sets the bar's height and stays. -->
-    <Border Padding="0,6,0,8">
+         The Padding is what sets the bar's height and stays.
+
+         The Anime and Manga cells used to carry a third child, a "⋮" button right next to the
+         icon, to reach the list status filter. The four tabs were already centred exactly, but the
+         dots sat inside the Anime and Manga cells only, so the eye read those two clusters as
+         shifted right and the row as a whole as off centre. The status filter now lives in its own
+         bar at the top of the list page, which says which status you are looking at instead of
+         hiding it behind a glyph, and these cells hold nothing but the icon and its label. -->
+    <Border Padding="0,4,0,6">
         <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="0">
             <Grid Grid.Column="0" ColumnDefinitions="*">
                 <Button x:Name="DiscoverButton" Clicked="OnDiscoverTapped"
@@ -60,14 +67,6 @@
                            TextColor="{StaticResource BrushText}" HorizontalOptions="Fill"
                            LineBreakMode="NoWrap" MaxLines="1" HorizontalTextAlignment="Center" />
                 </VerticalStackLayout>
-                <Button x:Name="AnimeDots" Text="⋮" Clicked="OnAnimeDotsClicked"
-                        Style="{StaticResource BottomNavButtonStyle}"
-                        FontFamily="InterBold" FontSize="20"
-                        TextColor="#A0FFFFFF" WidthRequest="24"
-                        HorizontalOptions="End" VerticalOptions="Fill"
-                        AutomationId="BottomNavAnimeDots"
-                        SemanticProperties.Description="Open Anime status menu"
-                        SemanticProperties.Hint="Choose an Anime list status" />
             </Grid>
 
             <Grid Grid.Column="2" ColumnDefinitions="*">
@@ -85,14 +84,6 @@
                            TextColor="{StaticResource BrushText}" HorizontalOptions="Fill"
                            LineBreakMode="NoWrap" MaxLines="1" HorizontalTextAlignment="Center" />
                 </VerticalStackLayout>
-                <Button x:Name="MangaDots" Text="⋮" Clicked="OnMangaDotsClicked"
-                        Style="{StaticResource BottomNavButtonStyle}"
-                        FontFamily="InterBold" FontSize="20"
-                        TextColor="#A0FFFFFF" WidthRequest="24"
-                        HorizontalOptions="End" VerticalOptions="Fill"
-                        AutomationId="BottomNavMangaDots"
-                        SemanticProperties.Description="Open Manga status menu"
-                        SemanticProperties.Hint="Choose a Manga list status" />
             </Grid>
 
             <Grid Grid.Column="3" ColumnDefinitions="*">

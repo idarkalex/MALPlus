@@ -658,7 +658,7 @@ namespace MALClient.XShared.ViewModels
         }
 
         public string GlobalScoreBind
-            => ParentAbstraction.LoadedVolatile && GlobalScore != 0 ? GlobalScore == 0 ? "N/A" : GlobalScore.ToString("N2") : "";
+            => GlobalScore > 0 ? GlobalScore.ToString("N2") : "";
 
         /// <summary>
         /// Mean score as the blue tag under the type.
@@ -670,11 +670,11 @@ namespace MALClient.XShared.ViewModels
         /// is known.
         /// </para>
         /// <para>
-        /// On the library that is only ever partial, and honestly so: a mean score arrives with the
-        /// volatile cache entry that opening the details page fills in, not with the library payload
-        /// itself, which does not include it. Cards fill in as their entry gets visited rather than
-        /// all at once. Backfilling every visible card would cost a request per card, so it is not
-        /// done silently.
+        /// The gate used to be the volatile cache, which the library never has until an entry has
+        /// been opened, so the library filled in piecemeal as you visited things while every other
+        /// view showed a score from the first paint. The library payload now carries the mean and
+        /// the abstraction seeds it, so the cache is not the condition any more: one rule for every
+        /// source, and the same card everywhere.
         /// </para>
         /// </summary>
         public string CardScore => GlobalScoreBind;

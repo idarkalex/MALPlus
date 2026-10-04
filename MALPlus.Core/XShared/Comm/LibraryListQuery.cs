@@ -109,6 +109,7 @@ namespace MALClient.XShared.Comm
                                                 $"status," +
                                                 $"media_type," +
                                                 $"num_episodes," +
+                                                $"mean," +
                                                 $"list_status{{start_date," +
                                                 $"tags," +
                                                 $"finish_date," +
@@ -177,6 +178,7 @@ namespace MALClient.XShared.Comm
                                                         MyStartDate = FixDate(node.list_status.start_date),
                                                         MyEndDate = FixDate(node.list_status.finish_date),
                                                         MyScore = node.list_status.score,
+                                                        GlobalScore = item.mean,
                                                         Notes = string.Join(",", node.list_status.tags),
                                                         IsRewatching = node.list_status.is_rewatching,
                                                         LastWatched = node.list_status.updated_at,
@@ -208,6 +210,7 @@ namespace MALClient.XShared.Comm
                                                 $"media_type," +
                                                 $"num_chapters," +
                                                 $"num_volumes," +
+                                                $"mean," +
                                                 $"list_status{{start_date," +
                                                 $"tags," +
                                                 $"finish_date," +
@@ -686,6 +689,13 @@ namespace MALClient.XShared.Comm
             public int num_episodes { get; set; }
             public int num_chapters { get; set; }
             public int num_volumes { get; set; }
+
+            /// <summary>
+            ///     Community mean, requested through fields=. Without it the payload carries no score at
+            ///     all and the card can only show one once the entry has been opened, which is why the
+            ///     library used to fill in piecemeal as you visited entries.
+            /// </summary>
+            public float mean { get; set; }
 
         }
 

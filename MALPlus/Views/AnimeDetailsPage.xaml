@@ -842,7 +842,7 @@
                             </MultiBinding>
                         </Button.IsVisible>
                     </Button>
-                    <Button Grid.Column="0" Text="★ {0}" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12"
+                    <Button Grid.Column="0" Text="{Binding MyScoreBind, StringFormat='★ {0}'}" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12"
                             BackgroundColor="#141d2b" TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0">
                         <Button.IsVisible>
                             <MultiBinding Converter="{StaticResource MultiAnd}">

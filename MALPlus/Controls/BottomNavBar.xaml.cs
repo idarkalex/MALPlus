@@ -2,17 +2,20 @@ namespace MALPlus.Controls;
 
 public partial class BottomNavBar : ContentView
 {
-    public event Action<string> DotsClicked;
-
     // Fired after a successful tab navigation with the exact route used. MAUI does
     // not raise Navigated when only the query changes on an already-visible
     // ShellContent, so pages that need to react to a re-tap rely on this.
     public event Action<string> SectionActivated;
 
+    // Fired the moment a tab is tapped, with the route that is about to be applied, BEFORE
+    // GoToAsync. SectionActivated only arrives after the navigation resolves, which for the
+    // pager is after its scroll, and anything that has to look instant (the status name on the
+    // list page) used to arrive a visible beat late because of it.
+    public event Action<string> SectionChanging;
+
     private static readonly Color SelectedColor = Color.FromArgb("#0066FF");
     private static readonly Color UnselectedColor = Color.FromArgb("#A0FFFFFF");
     private static readonly Color SelectedButtonColor = Color.FromArgb("#1F0066FF");
-    private static readonly Color OverflowIdleColor = Color.FromArgb("#A0FFFFFF");
     private static readonly Color TransparentButtonColor = Color.FromArgb("#00000000");
     private static readonly string[] Sections = { "discover", "anime", "manga", "more" };
     private Shell _subscribedShell;
@@ -129,13 +132,13 @@ public partial class BottomNavBar : ContentView
 
     private void SetSelectedSection(string section)
     {
-        SetSelected(DiscoverButton, DiscoverIcon, DiscoverLabel, "discover_home", null,
+        SetSelected(DiscoverButton, DiscoverIcon, DiscoverLabel, "discover_home",
             string.Equals(section, "discover", StringComparison.OrdinalIgnoreCase));
-        SetSelected(AnimeButton, AnimeIcon, AnimeLabel, "anime_list", AnimeDots,
+        SetSelected(AnimeButton, AnimeIcon, AnimeLabel, "anime_list",
             string.Equals(section, "anime", StringComparison.OrdinalIgnoreCase));
-        SetSelected(MangaButton, MangaIcon, MangaLabel, "manga_books", MangaDots,
+        SetSelected(MangaButton, MangaIcon, MangaLabel, "manga_books",
             string.Equals(section, "manga", StringComparison.OrdinalIgnoreCase));
-        SetSelected(MoreButton, MoreIcon, MoreLabel, "more_dots", null,
+        SetSelected(MoreButton, MoreIcon, MoreLabel, "more_dots",
             string.Equals(section, "more", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -144,60 +147,21 @@ public partial class BottomNavBar : ContentView
     ///
     ///     It used to be a tinted Button background, which filled the whole grid cell, and then a
     ///     Border pill sized 72x42, and both were wrong in the same way. Any background that
-    ///     belongs to the tab also belongs to the overflow dots sitting beside the label, so the
-    ///     dots either fell outside it or carried a second, different background of their own. A
-    ///     background cannot exclude a sibling, so the pill was dropped rather than resized.
-    ///     Nothing is lost: the dots tint with the tab they belong to, which is arguably clearer
-    ///     than a pill that stopped short of them.
+    ///     belongs to the tab also belonged to the overflow dots sitting beside the label, so the
+    ///     dots either fell outside it or carried a second, different background of their own. The
+    ///     dots are gone now, moved to the status bar on the list page, so a pill could be brought
+    ///     back if the tint ever stops being enough.
     /// </summary>
-    private static void SetSelected(Button button, Image icon, Label label, string iconName, Button overflow,
-        bool selected)
+    private static void SetSelected(Button button, Image icon, Label label, string iconName, bool selected)
     {
         try
         {
             button.BackgroundColor = TransparentButtonColor;
             label.TextColor = selected ? SelectedColor : UnselectedColor;
-            if (overflow != null)
-                overflow.TextColor = selected ? SelectedColor : OverflowIdleColor;
             // Image has no tint in MAUI 7, so the selected tab swaps to an accent-coloured
             // copy of the same glyph instead of being marked with an outline.
             icon.Source = ImageSource.FromFile(selected ? $"{iconName}_accent" : iconName);
             icon.Opacity = selected ? 1.0 : 0.55;
-        }
-        catch { }
-    }
-    public Rect GetDotsBounds(bool manga)
-    {
-        try
-        {
-            var btn = manga ? MangaDots : AnimeDots;
-            return btn.Bounds;
-        }
-        catch { return Rect.Zero; }
-    }
-
-    public void OpenStatusMenu(bool manga, IEnumerable<(string Label, int Index)> items, Action<int> selected)
-    {
-        _ = ShowStatusMenuAsync(manga, items.ToArray(), selected);
-    }
-
-    private async Task ShowStatusMenuAsync(bool manga, IReadOnlyList<(string Label, int Index)> items, Action<int> selected)
-    {
-        try
-        {
-            var page = Application.Current?.MainPage;
-            if (page == null || items.Count == 0)
-                return;
-            var result = await page.DisplayActionSheet(
-                manga ? "Manga status" : "Anime status",
-                "Cancel",
-                null,
-                items.Select(item => item.Label).ToArray());
-            if (result == null)
-                return;
-            var index = items.ToList().FindIndex(item => item.Label == result);
-            if (index >= 0)
-                selected(items[index].Index);
         }
         catch { }
     }
@@ -213,12 +177,6 @@ public partial class BottomNavBar : ContentView
 
     private void OnMoreTapped(object sender, EventArgs e)
         => NavigateToSection("more");
-
-    private void OnAnimeDotsClicked(object sender, EventArgs e)
-        => OpenDotsMenu("anime");
-
-    private void OnMangaDotsClicked(object sender, EventArgs e)
-        => OpenDotsMenu("manga");
 
     private static bool IsListSection(string section)
         => string.Equals(section, "anime", StringComparison.OrdinalIgnoreCase)
@@ -252,24 +210,6 @@ public partial class BottomNavBar : ContentView
         => NavigateToRoute(SectionRoute(section, OnSection(section) && IsListSection(section)),
             section, IsListSection(section));
 
-    private void OpenDotsMenu(string section)
-    {
-        SetSelectedSection(section);
-        if (OnSection(section))
-        {
-            _pendingRoute = null;
-            _pendingSection = null;
-            _pendingAllowsCurrent = false;
-            DotsClicked?.Invoke(section);
-            RefreshSelection();
-            return;
-        }
-
-        NavigateToRoute(IsListSection(section) ? $"///{section}?menu=status&{SectionQuery(section, false)}"
-                                               : $"///{section}?menu=status",
-            section, true);
-    }
-
     private void NavigateToRoute(string route, string section, bool allowCurrent)
     {
         var requestId = ++_requestVersion;
@@ -282,6 +222,11 @@ public partial class BottomNavBar : ContentView
             RefreshSelection();
             return;
         }
+
+        // Synchronous and before GoToAsync on purpose: the caller repaints from this, so the
+        // label follows the finger instead of trailing the pager's scroll.
+        try { SectionChanging?.Invoke(route); }
+        catch { }
 
         var navigationVersion = _navigationVersion;
         _ = NavigateToRouteAsync(route, section, allowCurrent, requestId, navigationVersion);

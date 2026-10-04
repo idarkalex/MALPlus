@@ -14,12 +14,41 @@
         <converters:IntEqualityConverter x:Key="IntEq" />
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="*,Auto">
+    <!-- Status bar on top, season bar above the navigation, grid in between. The status selector
+         used to be a "⋮" glyph inside the Anime and Manga cells of the navigation bar, which made
+         those two clusters read as off centre; here it can also say which status is being shown
+         instead of hiding it behind a glyph. Both bars are Auto rows, so they collapse to nothing
+         in the modes that do not use them.
+
+         Neither bar draws a Stroke, not even a hairline: a rule above and below turned the block
+         into two stacked framed boxes and fought the grid underneath it. The fill alone is enough
+         to separate them from EmBackground. -->
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+        <Border x:Name="StatusBar" Grid.Row="0" IsVisible="False"
+                BackgroundColor="{StaticResource EmSheet}" Padding="14,0">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Label x:Name="StatusLabel" Grid.Column="0" Text="Watching"
+                       FontFamily="InterSemiBold" FontSize="16" TextColor="{StaticResource BrushText}"
+                       VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                <!-- A solid 28dp chevron inside a soft circle. It used to be the "▾" glyph at 14sp
+                     in #A0FFFFFF, which read as a dim smudge next to a 16sp label. -->
+                <Border Grid.Column="1" WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
+                        BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                    <Image x:Name="StatusDropdownIcon" Source="icon_arrow_down_solid"
+                           WidthRequest="28" HeightRequest="28"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnStatusDropdownTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+        </Border>
+
         <!-- No IsRefreshing binding. The gesture sets the flag itself and the reload is awaited
              in OnRefreshing, which puts it away in a finally; a one way binding to Loading could
              only fight that and won, because Loading stays true on a list that already has
              items, and the arrow up top spun forever. -->
-        <RefreshView x:Name="ListRefresh" Grid.Row="0" Refreshing="OnRefreshing">
+        <RefreshView x:Name="ListRefresh" Grid.Row="1" Refreshing="OnRefreshing">
             <!-- One component for every poster grid in the app: the list, Related, Search and
                  Discover all get their span, cell size and spacing from AnimePosterGrid. -->
             <controls:AnimePosterGrid x:Name="AnimeGrid" ItemsSource="{Binding AnimeItems}" />
@@ -28,9 +57,9 @@
         <Label Text="{Binding EmptyNoticeContent}" IsVisible="{Binding EmptyNoticeVisibility}"
                FontFamily="Inter" FontSize="14" TextColor="{StaticResource BrushText}"
                HorizontalOptions="Center" VerticalOptions="Center"
-               Grid.Row="0" />
+               Grid.Row="1" />
 
-        <VerticalStackLayout IsVisible="{Binding LoadErrorVisibility}" Grid.Row="0"
+        <VerticalStackLayout IsVisible="{Binding LoadErrorVisibility}" Grid.Row="1"
                              HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
             <Label Text="{Binding LoadError}" FontFamily="InterSemiBold" FontSize="15"
                    TextColor="{StaticResource EmAccent}" HorizontalOptions="Center" />
@@ -38,6 +67,60 @@
                    TextColor="#B3FFFFFF" HorizontalOptions="Center" />
         </VerticalStackLayout>
 
-        <controls:BottomNavBar x:Name="BottomNav" Grid.Row="1" />
+        <!-- Seasonal only: which season is on screen, and the two seasons next to it. The selector
+             itself is filled from the same Tenrai seasons list the query uses, so it costs nothing
+             extra. It sits directly above the navigation bar so it never moves the grid. -->
+        <Border x:Name="SeasonBar" Grid.Row="2" IsVisible="False"
+                BackgroundColor="{StaticResource EmSheet}" Padding="10,0">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                <Border Grid.Column="0" WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17"
+                        BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                    <Image Source="icon_chevron_left" WidthRequest="26" HeightRequest="26"
+                           HorizontalOptions="Center" VerticalOptions="Center">
+                        <Image.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSeasonPreviousTapped" />
+                        </Image.GestureRecognizers>
+                    </Image>
+                </Border>
+                <Button x:Name="SeasonPicker" Grid.Column="1" Text="Season" Clicked="OnSeasonPickerTapped"
+                        FontFamily="InterSemiBold" FontSize="15"
+                        TextColor="{StaticResource BrushText}" BackgroundColor="Transparent"
+                        BorderColor="Transparent" BorderWidth="0" Padding="0" HeightRequest="44"
+                        AutomationId="SeasonPicker" />
+                <Border Grid.Column="2" WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17"
+                        BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                    <Image Source="icon_chevron_right" WidthRequest="26" HeightRequest="26"
+                           HorizontalOptions="Center" VerticalOptions="Center">
+                        <Image.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSeasonNextTapped" />
+                        </Image.GestureRecognizers>
+                    </Image>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Status dropdown, anchored under the bar it belongs to and right aligned with the
+             chevron. Rows live in a VerticalStackLayout, not a CollectionView: two collections
+             fighting over the same touch is a known way to lose the tap entirely, and there are
+             only six rows.
+
+             The scrim deliberately covers the grid and the season bar but stops short of the
+             navigation, so switching tabs stays possible while it is open. It has to carry an
+             explicit Transparent background or it is not hit tested at all and nothing closes. -->
+        <Grid x:Name="StatusDropdownOverlay" Grid.Row="1" Grid.RowSpan="2" IsVisible="False"
+              InputTransparent="False">
+            <Grid BackgroundColor="Transparent">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnStatusDropdownDismissed" />
+                </Grid.GestureRecognizers>
+            </Grid>
+            <Border HorizontalOptions="End" VerticalOptions="Start" WidthRequest="252"
+                    Margin="0,8,14,0" Padding="6"
+                    BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 16">
+                <VerticalStackLayout x:Name="StatusDropdownList" Spacing="0" />
+            </Border>
+        </Grid>
+
+        <controls:BottomNavBar x:Name="BottomNav" Grid.Row="3" />
     </Grid>
 </ContentPage>

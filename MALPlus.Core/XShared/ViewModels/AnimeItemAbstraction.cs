@@ -60,6 +60,7 @@ namespace MALClient.XShared.ViewModels
                 EntryData = entry;
                 MyStartDate = entry.MyStartDate;
                 MyEndDate = entry.MyEndDate;
+                GlobalScore = entry.GlobalScore;
             }
 
             if (ResourceLocator.AiringInfoProvider.TryGetAiringDay(id ?? Id, out DayOfWeek day))
@@ -67,9 +68,18 @@ namespace MALClient.XShared.ViewModels
             else
                 AirDay = -1;
 
-            if (!DataCache.TryRetrieveDataForId(id ?? Id, out VolatileDataCache data)) return;
-            VolatileData = data;
-            LoadedVolatile = true;
+            // A cached entry carries the score the details page fetched, so the payload only fills the gap.
+            // It matters for an entry that has never been opened, and equally for a cache written
+            // before the payload carried a mean at all, which is why this runs after the load
+            // instead of before it: assigning VolatileData above replaces the object outright.
+            if (DataCache.TryRetrieveDataForId(id ?? Id, out VolatileDataCache data))
+            {
+                VolatileData = data;
+                LoadedVolatile = true;
+            }
+
+            if (VolatileData.GlobalScore <= 0)
+                GlobalScore = entry?.GlobalScore ?? 0;
         }
 
         //three constructors depending on original init
@@ -81,6 +91,7 @@ namespace MALClient.XShared.ViewModels
             if (!int.TryParse(data.Episodes, out var eps))
                 eps = 0;
             AllEpisodes = eps;
+            GlobalScore = data.Score;
         }
 
         public AnimeItemAbstraction(bool auth, MangaLibraryItemData data) : this(data)

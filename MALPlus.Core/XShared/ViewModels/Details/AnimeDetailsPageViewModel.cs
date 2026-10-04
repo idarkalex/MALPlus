@@ -2592,7 +2592,15 @@ Episodes.Clear();
             });
         }
 
-        private const int MaxRelatedEntries = 30;
+        /// <summary>
+        ///     Ceiling on the Related grid. The query does not cap anything: Tenrai returns the relation
+        ///     groups flattened, 94 for One Piece, and the dedupe by (type, id) keeps all of them
+        ///     because no pair repeats. This used to be 30, which silently threw away everything past
+        ///     the first page and with it most of Other, Side Story and Summary. The page shows a
+        ///     chunk at a time and grows through the more button up to its own cap of 100, so this only
+        ///     has to stay at or above that rather than try to be the limiter.
+        /// </summary>
+        private const int MaxRelatedEntries = 100;
 
         private string ComputeAirCountdown(int id)
         {

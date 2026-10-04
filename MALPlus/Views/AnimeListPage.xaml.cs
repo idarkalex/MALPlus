@@ -1,4 +1,5 @@
 using MALClient.Models.Enums;
+using MALClient.Models.Models.Anime;
 using MALClient.XShared.BL;
 using MALClient.XShared.Comm.Anime;
 using MALClient.XShared.NavArgs;
@@ -25,7 +26,7 @@ public partial class AnimeListPage : ContentPage
     private string _appliedType;
     private int _lastMode = -1;
     private int _lastStatus = -1;
-    private bool _dotsConnected;
+    private bool _navConnected;
     private TopAnimeType _topType = TopAnimeType.General;
     private MangaTopType _mangaTopType = MangaTopType.All;
     private MangaAdaptedType _adaptedType = MangaAdaptedType.AiringNow;
@@ -101,11 +102,11 @@ public partial class AnimeListPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        if (!_dotsConnected)
+        if (!_navConnected)
         {
-            BottomNav.DotsClicked += OnBottomNavDotsClicked;
             BottomNav.SectionActivated += OnSectionActivated;
-            _dotsConnected = true;
+            BottomNav.SectionChanging += OnSectionChanging;
+            _navConnected = true;
         }
         ApplyRoute(null);
     }
@@ -113,6 +114,29 @@ public partial class AnimeListPage : ContentPage
     private void OnSectionActivated(string route)
     {
         ApplyRoute(route);
+    }
+
+    /// <summary>
+    ///     Runs on the tap, before the shell has navigated, so the status name and the dropdown
+    ///     follow the finger. Waiting for <see cref="OnSectionActivated" /> meant the name only
+    ///     changed once the pager had finished scrolling, which read as lag on the label.
+    /// </summary>
+    private void OnSectionChanging(string route)
+    {
+        try
+        {
+            var query = ParseQuery(route);
+            var mode = ResolveMode(query, out var modeFromQuery);
+            var status = ResolveStatus(query, modeFromQuery);
+            _lastMode = mode;
+            _lastStatus = status;
+            CloseStatusDropdown();
+            UpdateContextBars();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS section changing failed: " + ex.Message);
+        }
     }
 
     private void ApplyRoute(string route)
@@ -149,9 +173,11 @@ public partial class AnimeListPage : ContentPage
                 $"AnimeList apply route='{route ?? "(properties)"}' -> mode={mode} status={status} type={type} reset={forceReset} skip={alreadyShowing} applied=({_appliedMode},{_appliedStatus},{_appliedType})");
             if (alreadyShowing)
             {
-                if (openStatusMenu)
-                    OpenStatusMenu(mode);
+if (openStatusMenu)
+                OpenStatusMenu(mode);
+                UpdateContextBars();
                 return;
+
             }
 
             _applied = true;
@@ -160,6 +186,7 @@ public partial class AnimeListPage : ContentPage
             _appliedType = type;
             _lastMode = mode;
             _lastStatus = status;
+            UpdateContextBars();
 
             _ = InitAndObserveAsync(mode, status, openStatusMenu);
         }
@@ -206,8 +233,166 @@ public partial class AnimeListPage : ContentPage
         }
         finally
         {
+            UpdateContextBars();
             if (openStatusMenu)
                 MainThread.BeginInvokeOnMainThread(() => OpenStatusMenu(mode));
+        }
+    }
+
+    /// <summary>
+    ///     Both context bars read from the applied route, never from the VM, so they always say what
+    ///     the grid is actually showing. The status bar replaces the "⋮" glyph that used to sit inside
+    ///     the Anime and Manga cells of the navigation bar: the four tabs were already centred, but
+    ///     those two cells carried an extra element and the row read as off centre. The season bar is
+    ///     Seasonal only and sits directly above the navigation so the grid never moves.
+    /// </summary>
+    private void UpdateContextBars()
+    {
+        try
+        {
+            var manga = _lastMode == (int)AnimeListWorkModes.Manga;
+            var isList = _lastMode == (int)AnimeListWorkModes.Anime || manga;
+
+            StatusBar.IsVisible = isList;
+            if (isList)
+            {
+                var tabs = manga ? MangaStatusTabs : AnimeStatusTabs;
+                var label = tabs.FirstOrDefault(tab => tab.StatusSelectorIndex == _lastStatus).Label;
+                StatusLabel.Text = label ?? tabs[1].Label;
+                StatusLabel.Text = manga && label == "Watching" ? "Reading" : label ?? StatusLabel.Text;
+            }
+
+            var seasonal = _lastMode == (int)AnimeListWorkModes.SeasonalAnime;
+            SeasonBar.IsVisible = seasonal;
+            if (seasonal)
+                UpdateSeasonBar();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS context bars failed: " + ex.Message);
+        }
+    }
+
+    private static AnimeSeason SeasonStep(AnimeSeason season, int delta)
+    {
+        var order = new[] { Season.Winter, Season.Spring, Season.Summer, Season.Fall };
+        var current = season ?? DefaultSeason();
+        var index = Array.IndexOf(order, current.Season);
+        if (index < 0)
+            index = 0;
+        var next = (index + delta + order.Length) % order.Length;
+        // Seasons run Winter -> Spring -> Summer -> Fall within a year, so stepping back from
+        // Winter lands on the previous year's Fall and stepping forward from Fall on the next
+        // year's Winter.
+        var year = current.Year;
+        if (delta < 0 && next > index)
+            year--;
+        else if (delta > 0 && next < index)
+            year++;
+        return new AnimeSeason { Year = year, Season = order[next] };
+    }
+
+    private static AnimeSeason DefaultSeason()
+    {
+        var now = DateTime.Now;
+        return new AnimeSeason
+        {
+            Year = now.Year,
+            Season = now.Month switch
+            {
+                >= 3 and <= 5 => Season.Spring,
+                >= 6 and <= 8 => Season.Summer,
+                >= 9 and <= 11 => Season.Fall,
+                _ => Season.Winter
+            }
+        };
+    }
+
+    private static string SeasonLabel(AnimeSeason season)
+    {
+        var name = season?.Season switch
+        {
+            Season.Winter => "Winter",
+            Season.Spring => "Spring",
+            Season.Summer => "Summer",
+            _ => "Fall"
+        };
+        return $"{name} {season?.Year}";
+    }
+
+    private void UpdateSeasonBar()
+    {
+        var season = Vm?.CurrentSeason ?? DefaultSeason();
+        SeasonPicker.Text = SeasonLabel(season);
+    }
+
+    private async void OnSeasonStepTapped(int delta)
+    {
+        try
+        {
+            var season = SeasonStep(Vm?.CurrentSeason ?? DefaultSeason(), delta);
+            await LoadSeasonAsync(season);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS season step failed: " + ex.Message);
+        }
+    }
+
+    private void OnSeasonPreviousTapped(object sender, EventArgs e) => OnSeasonStepTapped(-1);
+
+    private void OnSeasonNextTapped(object sender, EventArgs e) => OnSeasonStepTapped(1);
+
+    private async void OnSeasonPickerTapped(object sender, EventArgs e)
+    {
+        try
+        {
+            // The VM already loads this list from Tenrai when the mode initialises, so the picker
+            // costs nothing extra: it only decides when that happens.
+            if (Vm.SeasonSelection.Count == 0)
+                await Vm.PopulateSeasonSelectionAsync();
+            if (Vm.SeasonSelection.Count == 0)
+                return;
+
+            var current = SeasonLabel(Vm.CurrentSeason ?? DefaultSeason());
+            var labels = Vm.SeasonSelection.Select(season => SeasonLabel(season)).ToArray();
+            var choice = await DisplayActionSheet("Season", "Cancel", null,
+                labels.Append(current).Distinct().ToArray());
+            if (string.IsNullOrEmpty(choice) || choice == "Cancel" || choice == current)
+                return;
+
+            var picked = Vm.SeasonSelection.FirstOrDefault(season => SeasonLabel(season) == choice);
+            if (picked != null)
+                await LoadSeasonAsync(picked);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS season picker failed: " + ex.Message);
+        }
+    }
+
+    private async Task LoadSeasonAsync(AnimeSeason season)
+    {
+        if (season == null)
+            return;
+        var args = BuildArgs((int)AnimeListWorkModes.SeasonalAnime, _lastStatus);
+        args.CurrSeason = season;
+        _lastMode = (int)AnimeListWorkModes.SeasonalAnime;
+        await Vm.Init(args);
+        UpdateContextBars();
+    }
+
+    private async void OnStatusDropdownTapped(object sender, EventArgs e)
+    {
+        try
+        {
+            UpdateContextBars();
+            OpenStatusMenu(_lastMode);
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS status dropdown failed: " + ex.Message);
         }
     }
 
@@ -309,18 +494,117 @@ public partial class AnimeListPage : ContentPage
         }
     }
 
+    /// <summary>
+    ///     The status picker, as a panel under the bar instead of a native action sheet. The sheet
+    ///     was the last thing here still looking like the old app, and it also meant the choice could
+    ///     not show which one was active until it was dismissed.
+    /// </summary>
     private void OpenStatusMenu(int mode)
     {
-        var tabs = mode == (int)AnimeListWorkModes.Manga ? MangaStatusTabs : AnimeStatusTabs;
-        BottomNav.OpenStatusMenu(
-            mode == (int)AnimeListWorkModes.Manga,
-            tabs.Select(tab => (tab.Label, tab.StatusSelectorIndex)),
-            OnStatusTabClicked);
+        try
+        {
+            CloseStatusDropdown();
+            var manga = mode == (int)AnimeListWorkModes.Manga;
+            var tabs = manga ? MangaStatusTabs : AnimeStatusTabs;
+
+            StatusDropdownList.Clear();
+            var sheetColor = Color.FromArgb("#0A1F2E");
+            var accent = Color.FromArgb("#0066FF");
+            foreach (var tab in tabs)
+            {
+                var selected = tab.StatusSelectorIndex == _lastStatus;
+                var selectorIndex = tab.StatusSelectorIndex;
+
+                // A Grid carrying only a TapGestureRecognizer is not hit tested on Android unless it
+                // has a real background, so the row is painted in the panel's own colour: invisible
+                // against it, but tappable. A Button cannot be used here because it cannot host
+                // content in this MAUI version.
+                var row = new Grid
+                {
+                    BackgroundColor = sheetColor,
+                    HeightRequest = 44,
+                    Padding = new Thickness(12, 0),
+                    ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("Auto") },
+                    AutomationId = $"StatusRow{selectorIndex}"
+                };
+                var label = new Label
+                {
+                    Text = manga && tab.Label == "Watching" ? "Reading" : tab.Label,
+                    FontFamily = "InterSemiBold",
+                    FontSize = 15,
+                    TextColor = selected ? accent : Colors.White,
+                    VerticalOptions = LayoutOptions.Center
+                };
+                var check = new Image
+                {
+                    Source = "icon_check",
+                    WidthRequest = 18,
+                    HeightRequest = 18,
+                    IsVisible = selected,
+                    // The row is the tap target, so the glyph must not take it.
+                    InputTransparent = true,
+                    VerticalOptions = LayoutOptions.Center,
+                    HorizontalOptions = LayoutOptions.Center
+                };
+                Grid.SetColumn(check, 1);
+                row.Add(label);
+                row.Add(check);
+                var tap = new TapGestureRecognizer { CommandParameter = selectorIndex };
+                tap.Tapped += (_, args) => OnStatusRowTapped(Convert.ToInt32(args.Parameter));
+                row.GestureRecognizers.Add(tap);
+                StatusDropdownList.Add(row);
+            }
+
+            StatusDropdownOverlay.IsVisible = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS status dropdown build failed: " + ex.Message);
+        }
     }
 
-    private void OnBottomNavDotsClicked(string section)
+    private void OnStatusRowTapped(int statusSelectorIndex)
     {
-        OpenStatusMenu(section == "manga" ? (int)AnimeListWorkModes.Manga : (int)AnimeListWorkModes.Anime);
+        CloseStatusDropdown();
+        if (statusSelectorIndex == _lastStatus)
+            return;
+        OnStatusTabClicked(statusSelectorIndex);
+    }
+
+    private void CloseStatusDropdown()
+    {
+        try
+        {
+            if (StatusDropdownOverlay != null)
+                StatusDropdownOverlay.IsVisible = false;
+        }
+        catch { }
+    }
+
+    private void OnStatusDropdownDismissed(object sender, TappedEventArgs e)
+    {
+        CloseStatusDropdown();
+        Unfocus();
+    }
+
+    private void OnStatusDropdownTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            UpdateContextBars();
+            if (StatusDropdownOverlay.IsVisible)
+            {
+                CloseStatusDropdown();
+                Unfocus();
+                return;
+            }
+
+            OpenStatusMenu(_lastMode);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS status dropdown toggle failed: " + ex.Message);
+        }
     }
 
     private async void OnStatusTabClicked(int statusSelectorIndex)
@@ -333,6 +617,9 @@ public partial class AnimeListPage : ContentPage
             // against _appliedStatus: without this the list silently reopened on the default
             // tab instead of the one that was selected.
             _appliedStatus = statusSelectorIndex;
+            // This path does not go through ApplyRoute, so the bar would keep showing the old
+            // status until something else happened to refresh it.
+            UpdateContextBars();
             var args = BuildArgs(_lastMode, statusSelectorIndex);
             await Vm.Init(args);
         }
@@ -424,11 +711,11 @@ public partial class AnimeListPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        if (_dotsConnected)
+        if (_navConnected)
         {
-            BottomNav.DotsClicked -= OnBottomNavDotsClicked;
             BottomNav.SectionActivated -= OnSectionActivated;
-            _dotsConnected = false;
+            BottomNav.SectionChanging -= OnSectionChanging;
+            _navConnected = false;
         }
         // MAUI re-applies query attributes on re-navigation but never clears a
         // [QueryProperty] that the new route omits, which would leak the previous
