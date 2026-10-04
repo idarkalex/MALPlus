@@ -661,19 +661,23 @@ namespace MALClient.XShared.ViewModels
             => ParentAbstraction.LoadedVolatile && GlobalScore != 0 ? GlobalScore == 0 ? "N/A" : GlobalScore.ToString("N2") : "";
 
         /// <summary>
-        /// Mean score as a blue tag under the type tag, on the top charts only. The library list
-        /// shares this card and has no use for a score: there the counter pill already carries
-        /// the user's own status and episode count.
+        /// Mean score as the blue tag under the type.
+        /// <para>
+        /// This was gated to the top charts only, because the library list shares this card and
+        /// there the counter pill already carries the user's status and episode count. But the tag
+        /// is on the opposite side, under the type, so both fit without crowding anything, and
+        /// limiting it made the same card look different from view to view. Shown whenever a score
+        /// is known.
+        /// </para>
+        /// <para>
+        /// On the library that is only ever partial, and honestly so: a mean score arrives with the
+        /// volatile cache entry that opening the details page fills in, not with the library payload
+        /// itself, which does not include it. Cards fill in as their entry gets visited rather than
+        /// all at once. Backfilling every visible card would cost a request per card, so it is not
+        /// done silently.
+        /// </para>
         /// </summary>
-        public string CardScore
-        {
-            get
-            {
-                var mode = ViewModelLocator.AnimeList?.WorkMode;
-                var isTop = mode is AnimeListWorkModes.TopAnime or AnimeListWorkModes.TopManga;
-                return isTop ? GlobalScoreBind : string.Empty;
-            }
-        }
+        public string CardScore => GlobalScoreBind;
 
         public float GlobalScore
         {

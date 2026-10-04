@@ -20,6 +20,12 @@ namespace MALClient.XShared.ViewModels.Main
     public class SearchPageViewModel : ViewModelBase
     {
         private readonly HashSet<string> _filters = new HashSet<string>();
+
+        /// <summary>
+        ///     Normalised media types currently filtered on. A set, not a single string, because
+        ///     several chips can be marked at once and they combine as a union.
+        /// </summary>
+        private readonly HashSet<string> _selectedTypes = new HashSet<string>(StringComparer.Ordinal);
         public bool _animeSearch; // default to anime
         private string _currrentFilter;
         private bool _directQueryInputVisibility;
@@ -44,15 +50,21 @@ namespace MALClient.XShared.ViewModels.Main
 
                 if (args.ByGenre)
                     AvailableSelectionChoices = Enum.GetValues(typeof(AnimeGenreSearch)).Cast<Enum>()
-                        .OrderBy(val => val.ToString()).ToList();
+                        .OrderBy(val => val.ToString())
+                        .Select(val => new SearchChoiceItem(val, val.ToString())).ToList();
                 else
                     AvailableSelectionChoices = Enum.GetValues(typeof(AnimeStudios)).Cast<Enum>()
-                        .OrderBy(val => val.ToString()).ToList();
+                        .OrderBy(val => val.ToString())
+                        .Select(val => new SearchChoiceItem(val, val.GetDescription() ?? val.ToString())
+                        {
+                            MalId = Convert.ToInt32(val)
+                        }).ToList();
 
                 return;
             }
 
             GenreSelectionGridVisibility = false;
+            RebuildTypeFilterChips();
 
             if (_animeSearch != args.Anime || args.ForceQuery)
                 PrevQuery = null;
@@ -253,8 +265,13 @@ namespace MALClient.XShared.ViewModels.Main
             {
                 EmptyNoticeVisibility = false;
                 CurrentSearchItems.Clear();
-                _filters.Clear();
-                _allAnimeSearchItemViewModels = new List<AnimeSearchItemViewModel>();
+_filters.Clear();
+            // A new query starts unfiltered. Carrying the previous formats over would be
+            // confusing rather than helpful, since the marks on the bar would be inherited
+            // instead of chosen.
+            _selectedTypes.Clear();
+            RebuildTypeFilterChips();
+            _allAnimeSearchItemViewModels = new List<AnimeSearchItemViewModel>();
                 _allMangaSearchItemViewModels = new List<AnimeSearchItemViewModel>();
 
                 var cleanQuery = Utilities.CleanAnimeTitle(query);
@@ -302,25 +319,27 @@ namespace MALClient.XShared.ViewModels.Main
                 ? CatalogueResults
                 : _animeSearch ? AnimeSearchItemViewModels : MangaSearchItemViewModels;
 
+        /// <summary>
+        ///     Rebuilds both result lists from the full result sets, applying the type filters.
+        ///     <para>
+        ///     Selecting several chips is a union rather than an intersection, so OVA plus TV shows
+        ///     both. Nothing selected means everything, which is why the set being empty is the same
+        ///     case as no filter at all.
+        ///     </para>
+        /// </summary>
+        private bool MatchesTypeFilters(AnimeSearchItemViewModel item) =>
+            _selectedTypes.Count == 0 ||
+            (!string.IsNullOrWhiteSpace(item.Type) &&
+             _selectedTypes.Contains(MalTypeParser.NormalizeKey(item.Type)));
+
         private void PopulateItems()
         {
             _catalogueBrowseActive = false;
-            RebuildFilterChips();
             AnimeSearchItemViewModels.Clear();
             MangaSearchItemViewModels.Clear();
-            foreach (
-                var item in
-                _allAnimeSearchItemViewModels.Where(
-                    item =>
-                        string.IsNullOrWhiteSpace(_currrentFilter) ||
-                        string.Equals(_currrentFilter, item.Type, StringComparison.CurrentCultureIgnoreCase)))
+            foreach (var item in _allAnimeSearchItemViewModels.Where(MatchesTypeFilters))
                 AnimeSearchItemViewModels.Add(item);
-            foreach (
-                var item in
-                _allMangaSearchItemViewModels.Where(
-                    item =>
-                        string.IsNullOrWhiteSpace(_currrentFilter) ||
-                        string.Equals(_currrentFilter, item.Type, StringComparison.CurrentCultureIgnoreCase)))
+            foreach (var item in _allMangaSearchItemViewModels.Where(MatchesTypeFilters))
                 MangaSearchItemViewModels.Add(item);
             EmptyNoticeVisibility = CurrentSearchItems.Count == 0;
         }
@@ -328,6 +347,76 @@ namespace MALClient.XShared.ViewModels.Main
         private void ResetQuery()
         {
             PrevQuery = null;
+        }
+
+        /// <summary>
+        ///     The fixed per-mode format lists behind the filter bar. These are MAL's own display
+        ///     strings rather than invented labels, and they are complete on purpose: the previous
+        ///     chips were whatever formats happened to appear in the current result set, capped at
+        ///     five, which meant the row changed shape with every query and a format could only be
+        ///     filtered by searching for something that had it.
+        /// </summary>
+        private static readonly string[] AnimeTypeFilters =
+            { "TV", "ONA", "OVA", "Movie", "Special", "Music" };
+
+        private static readonly string[] MangaTypeFilters =
+            { "Manga", "Light Novel", "Novel", "One-shot", "Doujinshi", "Manhwa", "Manhua" };
+
+        public ObservableCollection<SearchTypeFilterChip> TypeFilters { get; } = new();
+
+        /// <summary>
+        ///     Swaps the filter list when the Anime/Manga toggle changes, and drops anything
+        ///     selected that does not exist in the new mode: carrying an OVA filter over to Manga
+        ///     would silently filter every result away with no chip showing why.
+        /// </summary>
+        private void RebuildTypeFilterChips()
+        {
+            var labels = _animeSearch ? AnimeTypeFilters : MangaTypeFilters;
+            var available = new HashSet<string>(labels.Select(MalTypeParser.NormalizeKey),
+                StringComparer.Ordinal);
+            _selectedTypes.RemoveWhere(key => !available.Contains(key));
+
+            TypeFilters.Clear();
+            TypeFilters.Add(new SearchTypeFilterChip("All") { Selected = _selectedTypes.Count == 0 });
+            foreach (var label in labels)
+                TypeFilters.Add(new SearchTypeFilterChip(label)
+                {
+                    Selected = _selectedTypes.Contains(MalTypeParser.NormalizeKey(label))
+                });
+        }
+
+        public void ToggleTypeFilter(SearchTypeFilterChip chip)
+        {
+            if (chip == null)
+                return;
+            if (chip.Label == "All")
+            {
+                _selectedTypes.Clear();
+            }
+            else
+            {
+                var key = MalTypeParser.NormalizeKey(chip.Label);
+                if (!_selectedTypes.Add(key))
+                    _selectedTypes.Remove(key);
+            }
+            RebuildTypeFilterChips();
+            PopulateItems();
+        }
+
+        /// <summary>
+        ///     Backs the clear button in the search bar: text, results and filters all go, leaving
+        ///     the page as it was before anything was typed.
+        /// </summary>
+        public void ClearSearch()
+        {
+            InternalQuery = "";
+            _lastLoadedQuery = null;
+            _allAnimeSearchItemViewModels = new List<AnimeSearchItemViewModel>();
+            _allMangaSearchItemViewModels = new List<AnimeSearchItemViewModel>();
+            _selectedTypes.Clear();
+            _currrentFilter = null;
+            RebuildTypeFilterChips();
+            PopulateItems();
         }
 
         public void SubmitFilter(string filter)
@@ -338,7 +427,13 @@ namespace MALClient.XShared.ViewModels.Main
 
         #region Properties
 
-        private List<AnimeSearchItemViewModel> _allAnimeSearchItemViewModels;
+        /// <summary>
+        ///     Both backing lists start empty rather than null. The Anime/Manga toggle rebuilds the
+        ///     filters and repopulates from these, and the toggle runs during Init, which is before
+        ///     any search has replaced them: leaving this null threw an ArgumentNullException out of
+        ///     Where and aborted the whole page initialisation.
+        /// </summary>
+        private List<AnimeSearchItemViewModel> _allAnimeSearchItemViewModels = new List<AnimeSearchItemViewModel>();
         private List<AnimeSearchItemViewModel> _allMangaSearchItemViewModels = new List<AnimeSearchItemViewModel>();
 
         public ObservableCollection<AnimeSearchItemViewModel> AnimeSearchItemViewModels { get; } =
@@ -371,19 +466,25 @@ namespace MALClient.XShared.ViewModels.Main
 
         private bool _emptyNoticeVisibility;
         private bool _genreSelectionGridVisibility;
-        private List<Enum> _availableSelectionChoices;
+        private List<SearchChoiceItem> _availableSelectionChoices;
         private string _internalQuery;
 
-        public bool AnimeSearch
-        {
-            get => _animeSearch;
-            set
-            {
-                _animeSearch = value;
-                RaisePropertyChanged(() => AnimeSearch);
-                RaisePropertyChanged(() => CurrentSearchItems);
-            }
-        }
+public bool AnimeSearch
+     {
+     get => _animeSearch;
+     set
+     {
+     _animeSearch = value;
+     RaisePropertyChanged(() => AnimeSearch);
+     RaisePropertyChanged(() => CurrentSearchItems);
+     // Each mode has its own formats, so the filter bar has to be rebuilt with the toggle.
+     // Anything marked that does not exist on the other side is dropped there, otherwise
+     // switching from Anime to Manga with OVA selected would filter every row away with no
+     // chip left showing why the grid is empty.
+     RebuildTypeFilterChips();
+     PopulateItems();
+     }
+     }
 
         public bool EmptyNoticeVisibility
         {
@@ -425,7 +526,7 @@ namespace MALClient.XShared.ViewModels.Main
             }
         }
 
-        public List<Enum> AvailableSelectionChoices
+        public List<SearchChoiceItem> AvailableSelectionChoices
         {
             get => _availableSelectionChoices;
             set
@@ -458,48 +559,6 @@ namespace MALClient.XShared.ViewModels.Main
         public ICommand LoadMoreCatalogueCommand => _loadMoreCatalogueCommand ?? (_loadMoreCatalogueCommand = new RelayCommand(async () => await LoadMoreCatalogue()));
         private ICommand _loadMoreCatalogueCommand;
 
-        private static readonly string[] _filterLabels = { "", "", "", "", "" };
-
-        /// <summary>
-        /// The chip row used to be five hardcoded anime formats, so in Manga every chip
-        /// filtered down to zero results. They now come from the formats actually present in
-        /// the current result set, which is also why they follow the Anime/Manga toggle.
-        /// </summary>
-        public string Filter1Label => _filterLabels[0];
-
-        public string Filter2Label => _filterLabels[1];
-
-        public string Filter3Label => _filterLabels[2];
-
-        public string Filter4Label => _filterLabels[3];
-
-        public string Filter5Label => _filterLabels[4];
-
-        private void RebuildFilterChips()
-        {
-            var source = _animeSearch ? _allAnimeSearchItemViewModels : _allMangaSearchItemViewModels;
-            var types = source
-                .Where(item => !string.IsNullOrWhiteSpace(item.Type))
-                .GroupBy(item => item.Type, StringComparer.CurrentCultureIgnoreCase)
-                .Select(group => new { Type = group.First().Type, Count = group.Count() })
-                .OrderByDescending(entry => entry.Count)
-                .ThenBy(entry => entry.Type, StringComparer.CurrentCultureIgnoreCase)
-                .Take(5)
-                .Select(entry => entry.Type)
-                .ToList();
-
-            for (var i = 0; i < _filterLabels.Length; i++)
-                _filterLabels[i] = i < types.Count ? types[i] : "";
-
-            if (!string.IsNullOrEmpty(_currrentFilter) && !types.Contains(_currrentFilter))
-                _currrentFilter = "";
-
-            RaisePropertyChanged(() => Filter1Label);
-            RaisePropertyChanged(() => Filter2Label);
-            RaisePropertyChanged(() => Filter3Label);
-            RaisePropertyChanged(() => Filter4Label);
-            RaisePropertyChanged(() => Filter5Label);
-        }
 
         private const int RecentSearchesMax = 5;
         public System.Collections.ObjectModel.ObservableCollection<string> RecentSearches { get; } =

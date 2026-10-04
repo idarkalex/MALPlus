@@ -6,6 +6,7 @@ using MALClient.XShared.NavArgs;
 using MALClient.XShared.ViewModels;
 using MALClient.XShared.ViewModels.Items;
 using MALClient.XShared.ViewModels.Main;
+using MALClient.XShared.Utils;
 using MALPlus.Services;
 
 namespace MALPlus.Views;
@@ -31,8 +32,16 @@ public partial class SearchPage : ContentPage
         {
             _searchTabIndex = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsMainTabVisible));
         }
     }
+
+    /// <summary>
+    ///     The search UI is hosted by two tabs, Anime and Manga, because they are the same screen
+    ///     with a different mode rather than two screens. Both indices light up the same content,
+    ///     which is why this exists instead of an index comparison in the XAML.
+    /// </summary>
+    public bool IsMainTabVisible => SearchTabIndex <= 1;
 
     private string _charQuery;
     public string CharQuery
@@ -56,6 +65,13 @@ InitializeComponent();
             ResultsGrid.Inner.SelectionChanged += OnResultSelected;
             ResultsGrid.Inner.RemainingItemsThreshold = 4;
             ResultsGrid.Inner.RemainingItemsThresholdReachedCommand = MainVm?.LoadMoreCatalogueCommand;
+            // Scrolling the results means the user has moved on from the dropdown, and there is
+            // no scrim to catch the tap any more, so the scroll itself has to dismiss it.
+            ResultsGrid.Inner.Scrolled += OnResultsScrolled;
+            // Studio logos arrive after the row that asked for one has already been bound, so the
+            // cache has to push them back in. One subscription for the whole list rather than
+            // one per studio.
+            StudioIconCache.IconResolved += OnStudioIconResolved;
         }
 
     protected override void OnDisappearing()
@@ -77,7 +93,7 @@ InitializeComponent();
             if (!string.IsNullOrWhiteSpace(InitialQuery))
             {
                 var anime = string.IsNullOrEmpty(InitialMode) || InitialMode == "anime";
-                SearchTabIndex = 0;
+                SearchTabIndex = anime ? 0 : 1;
                 MainVm.Init(new SearchPageNavigationArgs { Anime = anime, Query = InitialQuery, ForceQuery = true });
             }
             else
@@ -98,18 +114,48 @@ InitializeComponent();
 
     private void OnSearchTabTapped(object sender, TappedEventArgs e)
     {
-        if (e.Parameter is string s && int.TryParse(s, out int idx))
+        if (e.Parameter is not string s || !int.TryParse(s, out var idx))
+            return;
+
+        SearchTabIndex = idx;
+        CloseRecentSearches();
+        switch (idx)
         {
-            SearchTabIndex = idx;
-            if (idx == 2)
-            {
+            // Anime and Manga are the two halves of the same screen, so picking one is also what
+            // switches the mode. Setting it before anything else means the filter bar is rebuilt
+            // for the right format list by the time the tab paints.
+            case 0:
+                MainVm.AnimeSearch = true;
+                break;
+            case 1:
+                MainVm.AnimeSearch = false;
+                break;
+            case 3:
                 _catalogueModeIsGenre = true;
                 MainVm.Init(new SearchPageNavigationArgs { ByGenre = true, Anime = true, IsCatalogue = true });
-            }
-            else if (idx == 3)
-            {
+                break;
+            case 4:
                 _catalogueModeIsGenre = false;
                 MainVm.Init(new SearchPageNavigationArgs { ByStudio = true, Anime = true, IsCatalogue = true });
+                break;
+        }
+    }
+
+    /// <summary>
+    ///     A studio's logo arrived after the row that asked for it had already been bound, so it
+    ///     gets pushed back in. One subscription for the whole list rather than one per studio.
+    /// </summary>
+    private void OnStudioIconResolved(int malId, string url)
+    {
+        var choices = MainVm.AvailableSelectionChoices;
+        if (choices == null || string.IsNullOrEmpty(url))
+            return;
+        foreach (var choice in choices)
+        {
+            if (choice.MalId == malId)
+            {
+                choice.IconUrl = url;
+                return;
             }
         }
     }
@@ -136,7 +182,6 @@ InitializeComponent();
         {
             if (MainVm?.RecentSearches == null || MainVm.RecentSearches.Count == 0)
                 return;
-            RecentSearchesScrim.IsVisible = true;
             RecentSearchesDrop.IsVisible = true;
         }
         catch (Exception ex)
@@ -152,8 +197,6 @@ InitializeComponent();
             if (!IsRecentSearchesOpen)
                 return;
 
-            RecentSearchesScrim.IsVisible = false;
-
             RecentSearchesDrop.IsVisible = false;
             // Release the bar as well. While it keeps the focus, a tap on it raises no Focused
             // event, which is why the list used to open only every other time.
@@ -162,7 +205,12 @@ InitializeComponent();
         catch { }
     }
 
-    private bool IsRecentSearchesOpen => RecentSearchesScrim.IsVisible;
+    /// <summary>
+    ///     Tracked off the dropdown itself. It used to read a scrim that no longer exists, because
+    ///     the scrim was what broke scrolling: it covered the results grid and Android gave it the
+    ///     touch first.
+    /// </summary>
+    private bool IsRecentSearchesOpen => RecentSearchesDrop?.IsVisible == true;
 
     private void OnRecentSearchRemoveTapped(object sender, TappedEventArgs e)
     {
@@ -180,6 +228,16 @@ InitializeComponent();
     // The container below the search bar carries this. It used to be a full screen scrim, but
     // a transparent overlay that overlaps the bar is always above it on Android, and it
     // swallowed every tap meant for the rows, so the list only ever closed.
+    /// <summary>
+    ///     Scrolling the results dismisses the recent searches. With no scrim above the grid this is
+    ///     what stops a leftover dropdown from hovering over the list the user is trying to read.
+    /// </summary>
+    private void OnResultsScrolled(object sender, ItemsViewScrolledEventArgs e)
+    {
+        if (IsRecentSearchesOpen)
+            CloseRecentSearches();
+    }
+
     private void OnRecentSearchesDismissed(object sender, TappedEventArgs e)
         => CloseRecentSearches();
 
@@ -254,6 +312,7 @@ InitializeComponent();
 
     private async Task NavigateToResultAsync(AnimeSearchItemViewModel item)
     {
+        CloseRecentSearches();
         SearchEntry.Unfocus();
         HideKeyboard();
         var titleQs = Uri.EscapeDataString(item.Title ?? string.Empty);
@@ -276,34 +335,73 @@ InitializeComponent();
         await Shell.Current.GoToAsync(route);
     }
 
-    private async void OnGenreStudioSelected(object sender, SelectionChangedEventArgs e)
+private async void OnGenreStudioSelected(object sender, SelectionChangedEventArgs e)
     {
         try
         {
-            if (e.CurrentSelection.FirstOrDefault() is Enum choice)
+            if (e.CurrentSelection.FirstOrDefault() is SearchChoiceItem choice)
             {
                 ((CollectionView)sender).SelectedItem = null;
-                var isGenre = SearchTabIndex == 2 || (SearchTabIndex == 0 && _catalogueModeIsGenre);
+                var isGenre = SearchTabIndex == 3 || (IsMainTabVisible && _catalogueModeIsGenre);
                 var args = new SearchPageNavigationArgs
                 {
                     Anime = true,
                     IsCatalogue = true,
-                    CatalogueTitle = choice.ToString(),
+                    CatalogueTitle = choice.Name,
                     ByGenre = isGenre,
                     ByStudio = !isGenre
                 };
                 if (isGenre)
-                    args.Genre = (AnimeGenreSearch)choice;
+                    args.Genre = (AnimeGenreSearch)choice.Value;
                 else
-                    args.Studio = (AnimeStudios)choice;
-                await MainVm.LoadCatalogue(args);
-                // Switch to Main tab (index 0) to show results
+                    args.Studio = (AnimeStudios)choice.Value;
+
+                // Mode and tab first, catalogue second, and the order matters. Setting AnimeSearch
+                // repopulates from the search lists, and setting the tab does not; doing either of
+                // them after the catalogue load would reset the browse and leave the empty state
+                // showing on top of the results that had just loaded.
                 SearchTabIndex = 0;
+                MainVm.AnimeSearch = true;
+
+                await MainVm.LoadCatalogue(args);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("MALPLUS SearchPage genre/studio failed: " + ex.Message);
+            Console.WriteLine("MALPLUS SearchPage genre/studio failed: " + ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    ///     Tapping a format chip in the bottom bar toggles it. Several can be marked at once and
+    ///     they combine as a union, so OVA plus TV shows both.
+    /// </summary>
+    private void OnTypeFilterTapped(object sender, TappedEventArgs e)
+    {
+        if (e?.Parameter is not SearchTypeFilterChip chip)
+            return;
+        CloseRecentSearches();
+        MainVm.ToggleTypeFilter(chip);
+    }
+
+    /// <summary>
+    ///     The clear button: text, results and filters all go, so the page is left as it was before
+    ///     anything was typed. The dropdown is closed too, and the bar unfocused, otherwise the
+    ///     keyboard stays up over an empty page.
+    /// </summary>
+    private void OnClearQueryClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            CloseRecentSearches();
+            SearchEntry.Text = "";
+            MainVm.ClearSearch();
+            SearchEntry.Unfocus();
+            HideKeyboard();
+        }
+catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS SearchPage clear failed: " + ex.GetType().Name);
         }
     }
 

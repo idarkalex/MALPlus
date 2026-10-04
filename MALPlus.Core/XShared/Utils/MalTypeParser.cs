@@ -49,7 +49,18 @@ namespace MALClient.XShared.Utils
             }
         }
 
-        private static string Normalize(string input) =>
+        /// <summary>
+        ///     Collapses a MAL media type to a comparable key: lowercased with spaces, hyphens and
+        ///     underscores removed, so "Light Novel", "light_novel" and "lightnovel" are one thing.
+        ///     <para>
+        ///     Public because the search filters compare raw type strings coming back from the API
+        ///     against a fixed list of labels, and they must agree with how the parser reads those
+        ///     strings. Having one normalizer is the point; a second one in the filter would drift.
+        ///     </para>
+        /// </summary>
+        public static string NormalizeKey(string input) =>
             (input ?? "").Trim().ToLowerInvariant().Replace("_", "").Replace("-", "").Replace(" ", "");
+
+        private static string Normalize(string input) => NormalizeKey(input);
     }
 }

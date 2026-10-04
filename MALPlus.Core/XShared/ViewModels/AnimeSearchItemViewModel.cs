@@ -81,11 +81,16 @@ namespace MALClient.XShared.ViewModels
         public string CardBadgeMain => IsAuth ? MyEpisodesBindShort : string.Empty;
 
         /// <summary>
-        /// Mean score, only when signed out: signed in the counter pill carries the real progress
-        /// (status and episodes watched) and there is no room for both. It is a tag under the type
-        /// now, not a word inside the pill.
+        /// Mean score as the tag under the type.
+        /// <para>
+        /// This used to be hidden whenever the entry was on the user's list, on the grounds that
+        /// the counter pill on the right already carries their status and progress. That left the
+        /// score missing from exactly the cards where the right side is busiest, which read as an
+        /// inconsistency rather than a decision. The tag sits under the type on the left, so both
+        /// fit, and it now shows whenever there is a score to show.
+        /// </para>
         /// </summary>
-        public string CardScore => IsAuth || GlobalScore <= 0 ? string.Empty : GlobalScoreBind;
+        public string CardScore => GlobalScore <= 0 ? string.Empty : GlobalScoreBind;
 
         public ICommand NavigateDetailsCommand => new RelayCommand(NavigateDetails);
 

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
@@ -12,6 +12,7 @@
         <converters:IntEqualityConverter x:Key="IntEq" />
         <converters:BoolTabColorConverter x:Key="BoolTab" />
         <converters:TabColorConverter x:Key="TabColorConverter" />
+
         <!-- One row of the recent searches dropdown. A Border with a tap rather than a
              CollectionView cell, because the results grid below is already a CollectionView
              and two of them overlapping fight over the touch on Android. -->
@@ -32,7 +33,7 @@
                     </HorizontalStackLayout>
                     <!-- Tapping the X must not run the search, so it carries its own recognizer
                          and stops the row from seeing the touch. -->
-                    <Label Grid.Column="1" Text="✕" FontSize="15" VerticalOptions="Center"
+                    <Label Grid.Column="1" Text="âœ•" FontSize="15" VerticalOptions="Center"
                            TextColor="#80FFFFFF"
                            HorizontalOptions="Center" VerticalTextAlignment="Center"
                            WidthRequest="32" HeightRequest="32">
@@ -44,49 +45,97 @@
                 </Grid>
             </Border>
         </DataTemplate>
+
+        <!-- A filter chip, styled like the blue tags the poster cards use so the two read as the same
+             control. Marked means the accent fill, unmarked means no fill at all.
+             The unmarked background is the page colour rather than a transparent one on purpose: a
+             Border with a transparent background is not hit tested on Android, so the chip would
+             swallow nothing and the bar would be dead to the touch. Painting it the page colour
+             looks identical to no background and still takes the tap. -->
+        <DataTemplate x:Key="TypeFilterChip">
+            <Border Margin="0,0,8,0" Padding="14,7" StrokeThickness="0"
+                    StrokeShape="RoundRectangle 8" BackgroundColor="{StaticResource EmBackground}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTypeFilterTapped" CommandParameter="{Binding .}" />
+                </Border.GestureRecognizers>
+                <Border.Triggers>
+                    <DataTrigger TargetType="Border" Binding="{Binding .Selected}" Value="True">
+                        <Setter Property="BackgroundColor" Value="#0066FF" />
+                    </DataTrigger>
+                </Border.Triggers>
+                <Label Text="{Binding .Label}" FontFamily="InterBold" FontSize="11">
+                    <Label.Triggers>
+                        <DataTrigger TargetType="Label" Binding="{Binding .Selected}" Value="True">
+                            <Setter Property="TextColor" Value="White" />
+                        </DataTrigger>
+                        <DataTrigger TargetType="Label" Binding="{Binding .Selected}" Value="False">
+                            <Setter Property="TextColor" Value="{StaticResource BrushText}" />
+                        </DataTrigger>
+                    </Label.Triggers>
+                </Label>
+            </Border>
+        </DataTemplate>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,Auto,*">
+    <!-- Two rows only. The tab strip sits above and every tab fills what is left, which is what
+         lets the Main tab put a filter bar at the bottom without the layout having to reserve
+         space for it up here. -->
+    <Grid RowDefinitions="Auto,*">
         <!-- Top tab strip: Main / Characters / Genres / Studios -->
         <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                     Padding="12,12,12,0" BackgroundColor="{StaticResource EmBackground}">
             <HorizontalStackLayout Spacing="6">
-                <Label Text="Main" FontFamily="InterSemiBold" FontSize="13"
+                <!-- Anime and Manga are entries of this same row, not a separate one below it. Both
+                     host the search UI, so the strip is the only place the mode is chosen and there
+                     is nothing else competing for the space under the tab strip. -->
+                <Label Text="Anime" FontFamily="InterSemiBold" FontSize="13"
                        Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=0}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="0" />
                     </Label.GestureRecognizers>
                 </Label>
-                <Label Text="Characters" FontFamily="InterSemiBold" FontSize="13"
+                <Label Text="Manga" FontFamily="InterSemiBold" FontSize="13"
                        Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=1}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="1" />
                     </Label.GestureRecognizers>
                 </Label>
-                <Label Text="Genres" FontFamily="InterSemiBold" FontSize="13"
+                <Label Text="Characters" FontFamily="InterSemiBold" FontSize="13"
                        Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=2}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="2" />
                     </Label.GestureRecognizers>
                 </Label>
-                <Label Text="Studios" FontFamily="InterSemiBold" FontSize="13"
+                <Label Text="Genres" FontFamily="InterSemiBold" FontSize="13"
                        Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=3}">
                     <Label.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="3" />
+                    </Label.GestureRecognizers>
+                </Label>
+                <Label Text="Studios" FontFamily="InterSemiBold" FontSize="13"
+                       Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=4}">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="4" />
                     </Label.GestureRecognizers>
                 </Label>
             </HorizontalStackLayout>
         </ScrollView>
 
         <!-- ============ Main tab (0) ============ -->
-        <Grid Grid.Row="1" Grid.RowSpan="2"
-              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=0}">
-            <Grid RowDefinitions="64,Auto">
-                <!-- Search bar (hidden in catalogue mode). Its row is a fixed 64 (8 padding +
-                     48 entry + 8) so the recent searches list can overflow it as an overlay:
-                     the list is temporary and must not push the rest of the page down. -->
-                <Grid Grid.Row="0" IsVisible="{Binding DirectQueryInputVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
-                      Padding="16,8" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+        <!-- Header, content, filter bar. The content row is the star row, and the recent searches
+             dropdown lives inside it as a Start-aligned overlay: a star row cannot be grown by a
+             child, so nothing shifts, which is what the old version did when both lived in an
+             Auto row and pushed the whole page down. -->
+<Grid Grid.Row="1"
+              RowDefinitions="Auto,*"
+              IsVisible="{Binding IsMainTabVisible, Source={x:Reference Page}}">
+
+            <!-- Search bar, then the format chips directly under it.
+                 AdjustNothing on the activity keeps the keyboard from resizing the window, so
+                 putting them here means they stay put while typing instead of sliding away. -->
+            <VerticalStackLayout Grid.Row="0" Spacing="8" Padding="16,12,16,10"
+                                 IsVisible="{Binding DirectQueryInputVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                     <Entry x:Name="SearchEntry" Placeholder="Search anime, manga..."
                            Text="{Binding InternalQuery, Mode=TwoWay}"
                            FontFamily="Inter" FontSize="14"
@@ -96,77 +145,33 @@
                            PlaceholderColor="#80FFFFFF"
                            ReturnType="Search"
                            Completed="OnSearchCompleted" />
-                    <ImageButton Grid.Column="1" Source="search.svg"
+                    <!-- Clear. A real Button beside the Entry and never a recognizer on the Entry
+                         itself: a TapGestureRecognizer on an Entry consumes the touch, the field
+                         never takes focus and the keyboard never opens.
+                         No FontFamily on purpose: InterBold has no glyph for the multiplication X
+                         and it came out as mojibake, while the default face renders the same
+                         character fine on the recent-search rows. -->
+                    <Button Grid.Column="1" Text="✕" Clicked="OnClearQueryClicked"
+                            FontSize="16" TextColor="#B3FFFFFF"
+                            BackgroundColor="{StaticResource EmSheet}"
+                            CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="0"
+                            IsVisible="{Binding InternalQuery, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
+                    <ImageButton Grid.Column="2" Source="search.svg"
                                  Command="{Binding SearchCommand}"
                                  BackgroundColor="#0066FF"
                                  CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="12" />
                 </Grid>
-
-                <!-- Everything below the search bar lives in its own container. A tap anywhere in
-                     here closes the list; the list itself is declared after this container, so it
-                     paints above it and the two never fight over the same touch. -->
-                <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto,*">
-                    <Grid.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnRecentSearchesDismissed" />
-                    </Grid.GestureRecognizers>
-                <!-- Filter chips (visible during search results) -->
-                <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
-                            IsVisible="{Binding DirectQueryInputVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
-                            Padding="16,0,16,8" Margin="0,0,0,4">
-                    <HorizontalStackLayout Spacing="8">
-                        <Button Text="All" FontFamily="InterSemiBold" FontSize="12"
-                                BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                                BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                                Padding="12,6" HeightRequest="32"
-                                Command="{Binding SubmitFilterCommand}" CommandParameter="" />
-                        <Button Text="{Binding Filter1Label}" FontFamily="InterSemiBold" FontSize="12"
-                                IsVisible="{Binding Filter1Label, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
-                                BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                                BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                                Padding="12,6" HeightRequest="32"
-                                Command="{Binding SubmitFilterCommand}" CommandParameter="{Binding Filter1Label}" />
-                        <Button Text="{Binding Filter2Label}" FontFamily="InterSemiBold" FontSize="12"
-                                IsVisible="{Binding Filter2Label, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
-                                BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                                BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                                Padding="12,6" HeightRequest="32"
-                                Command="{Binding SubmitFilterCommand}" CommandParameter="{Binding Filter2Label}" />
-                        <Button Text="{Binding Filter3Label}" FontFamily="InterSemiBold" FontSize="12"
-                                IsVisible="{Binding Filter3Label, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
-                                BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                                BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                                Padding="12,6" HeightRequest="32"
-                                Command="{Binding SubmitFilterCommand}" CommandParameter="{Binding Filter3Label}" />
-                        <Button Text="{Binding Filter4Label}" FontFamily="InterSemiBold" FontSize="12"
-                                IsVisible="{Binding Filter4Label, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
-                                BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                                BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                                Padding="12,6" HeightRequest="32"
-                                Command="{Binding SubmitFilterCommand}" CommandParameter="{Binding Filter4Label}" />
-                        <Button Text="{Binding Filter5Label}" FontFamily="InterSemiBold" FontSize="12"
-                                IsVisible="{Binding Filter5Label, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
-                                BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                                BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                                Padding="12,6" HeightRequest="32"
-                                Command="{Binding SubmitFilterCommand}" CommandParameter="{Binding Filter5Label}" />
-                    </HorizontalStackLayout>
+                <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+                    <HorizontalStackLayout BindableLayout.ItemsSource="{Binding TypeFilters}"
+                                             BindableLayout.ItemTemplate="{StaticResource TypeFilterChip}"
+                                             Spacing="0" />
                 </ScrollView>
+            </VerticalStackLayout>
 
-                <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="16,4,16,4"
-                      IsVisible="{Binding DirectQueryInputVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
-                    <Button Grid.Column="0" Text="Anime" FontFamily="InterSemiBold" FontSize="14"
-                            TextColor="{Binding AnimeSearch, Converter={StaticResource BoolTab}, ConverterParameter=true}"
-                            BackgroundColor="Transparent"
-                            Command="{Binding ToggleSearchModeCommand}" CommandParameter="true" />
-                    <Button Grid.Column="1" Text="Manga" FontFamily="InterSemiBold" FontSize="14"
-                            TextColor="{Binding AnimeSearch, Converter={StaticResource BoolTab}, ConverterParameter=false}"
-                            BackgroundColor="Transparent"
-                            Command="{Binding ToggleSearchModeCommand}" CommandParameter="false" />
-                </Grid>
-
+            <!-- Content: either the genre/studio picker or the results. -->
+            <Grid Grid.Row="1">
                 <!-- Genre/Studio Selection Grid -->
-                <Grid Grid.Row="2"
-                      IsVisible="{Binding GenreSelectionGridVisibility}">
+                <Grid IsVisible="{Binding GenreSelectionGridVisibility}">
                     <Grid RowDefinitions="Auto,*" Padding="16,8" RowSpacing="8">
                         <Label Text="{Binding ActiveCatalogueTitle}"
                                FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}" />
@@ -180,9 +185,17 @@
                                     <Border BackgroundColor="{StaticResource EmSheet}"
                                             Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                             StrokeShape="RoundRectangle 8" Padding="16,12">
-                                        <Label Text="{Binding .}" FontFamily="InterBold" FontSize="16"
-                                               TextColor="{StaticResource BrushText}"
-                                               HorizontalOptions="Center" VerticalOptions="Center" />
+                                        <Grid ColumnDefinitions="44,*" ColumnSpacing="10">
+                                            <!-- Studio logo, loaded on demand. MAL does not return
+                                                 these; Tenrai does, at /v1/producers/{id}, and the
+                                                 enum already carries every studio's MAL id. -->
+                                            <Image Grid.Column="0" Aspect="AspectFit"
+                                                   IsVisible="{Binding IconUrl, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
+                                                   Source="{Binding IconUrl, Converter={StaticResource ImageConverter}}" />
+                                            <Label Grid.Column="1" Text="{Binding Name}" FontFamily="InterBold" FontSize="16"
+                                                   TextColor="{StaticResource BrushText}"
+                                                   VerticalOptions="Center" />
+                                        </Grid>
                                     </Border>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
@@ -191,8 +204,7 @@
                 </Grid>
 
                 <!-- Search Results / Catalogue Results -->
-                <Grid Grid.Row="3"
-                      IsVisible="{Binding GenreSelectionGridVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                <Grid IsVisible="{Binding GenreSelectionGridVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -248,24 +260,16 @@
                     </Grid>
                 </Grid>
 
-<!-- Tap catcher for the recent searches list. It lives inside this container, so it can
-                     only ever cover what is below the search bar, and it is declared just
-                     before the list, which therefore paints above it and keeps the taps meant
-                     for its own rows. It cannot be a full screen scrim: that one reached over
-                     the bar and swallowed every tap on a row. -->
-                <Grid Grid.Row="0" Grid.RowSpan="4" BackgroundColor="Transparent"
-                      IsVisible="False" x:Name="RecentSearchesScrim">
-                    <Grid.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnRecentSearchesDismissed" />
-                    </Grid.GestureRecognizers>
-                </Grid>
+                <!-- Recent searches. It lives in the content row and is Start-aligned, and because that row is
+                     a star row a Start-aligned child cannot change its height: the dropdown is an
+                     overlay that leaves the page exactly where it was. Declared last so it paints
+                     above the results.
 
-<!-- Recent searches list. Last child of this container, so it starts exactly where the
-                     search bar ends and paints above everything below it. It is temporary and
-                     must not push the page down, so it overflows its row instead of growing
-                     it, and being declared last it also keeps the taps meant for its own
-                     rows. There is deliberately no scrim: a transparent overlay above the bar
-                     used to swallow every one of them. -->
+                     There is deliberately NO scrim behind it. A transparent overlay over the grid is
+                     always above it on Android, so it swallowed the scroll as well as every tap on
+                     a row, which is what made the list feel like it broke scrolling. The list now
+                     closes on the gestures that mean "I am done with it": scrolling the results,
+                     picking a result, switching tab or tapping a filter chip. Back also closes it. -->
                 <Border VerticalOptions="Start" Margin="16,0,16,8"
                         IsVisible="False" x:Name="RecentSearchesDrop"
                         BackgroundColor="{StaticResource EmSheet}"
@@ -276,14 +280,13 @@
                     <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecentSearches}"
                                          BindableLayout.ItemTemplate="{StaticResource RecentSearchRow}"
                                          Spacing="0" />
-</Border>
-                </Grid>
+                </Border>
             </Grid>
-            </Grid>
+        </Grid>
 
-        <!-- ============ Characters tab (1) ============ -->
-        <Grid Grid.Row="1" Grid.RowSpan="2"
-              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=1}">
+        <!-- ============ Characters tab (2) ============ -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=2}">
             <Grid RowDefinitions="Auto,*" Padding="16,8">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <Entry x:Name="CharSearchEntry" Placeholder="Search characters..."
@@ -335,9 +338,9 @@
             </Grid>
         </Grid>
 
-        <!-- ============ Genres tab (2) â€” reuses Main tab's catalogue by setting mode=Genres ============ -->
-        <Grid Grid.Row="1" Grid.RowSpan="2"
-              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=2}">
+        <!-- ============ Genres tab (3) â€” reuses Main tab's catalogue by setting mode=Genres ============ -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=3}">
             <Grid RowDefinitions="Auto,*" Padding="16,8">
                 <Label Grid.Row="0" Text="Pick a genre"
                        FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}" />
@@ -351,7 +354,7 @@
                             <Border BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="16,12">
-                                <Label Text="{Binding .}" FontFamily="InterBold" FontSize="16"
+                                <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="16"
                                        TextColor="{StaticResource BrushText}"
                                        HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
@@ -361,9 +364,9 @@
             </Grid>
         </Grid>
 
-        <!-- ============ Studios tab (3) ============ -->
-        <Grid Grid.Row="1" Grid.RowSpan="2"
-              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=3}">
+        <!-- ============ Studios tab (4) ============ -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=4}">
             <Grid RowDefinitions="Auto,*" Padding="16,8">
                 <Label Grid.Row="0" Text="Pick a studio"
                        FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}" />
@@ -376,10 +379,16 @@
                         <DataTemplate>
                             <Border BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="16,12">
-                                <Label Text="{Binding .}" FontFamily="InterBold" FontSize="16"
-                                       TextColor="{StaticResource BrushText}"
-                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                                    StrokeShape="RoundRectangle 8" Padding="12,10">
+                                <Grid ColumnDefinitions="44,*" ColumnSpacing="10">
+                                    <Image Grid.Column="0" Aspect="AspectFit"
+                                           IsVisible="{Binding IconUrl, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}"
+                                           Source="{Binding IconUrl, Converter={StaticResource ImageConverter}}" />
+                                    <Label Grid.Column="1" Text="{Binding Name}" FontFamily="InterBold" FontSize="15"
+                                           TextColor="{StaticResource BrushText}"
+                                           VerticalOptions="Center" MaxLines="2"
+                                           LineBreakMode="TailTruncation" />
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
@@ -389,7 +398,7 @@
 
         <!-- Loading overlay -->
         <Grid IsVisible="{Binding Loading}" BackgroundColor="#80000000"
-              Grid.RowSpan="3" VerticalOptions="Fill" HorizontalOptions="Fill" ZIndex="99">
+              Grid.Row="1" VerticalOptions="Fill" HorizontalOptions="Fill" ZIndex="99">
             <ActivityIndicator IsRunning="True" Color="{StaticResource EmAccent}"
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
