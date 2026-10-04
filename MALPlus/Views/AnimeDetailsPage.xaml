@@ -931,6 +931,7 @@
                    and MAUI builds handlers for the whole tree when the page attaches, so declaring
                    it stalled EVERY details open for a video nobody played. -->
               <controls:NativeVideoView x:Name="DirectVideoPlayer" Grid.Row="1" IsVisible="False"
+                                         VerticalOptions="Fill" HorizontalOptions="Fill"
                                          PlayFailed="OnDirectVideoFailed" />
           </Grid>
     </Grid>

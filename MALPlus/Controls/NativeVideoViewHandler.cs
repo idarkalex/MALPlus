@@ -57,15 +57,52 @@ public class NativeVideoViewHandler : ViewHandler<NativeVideoView, FrameLayout>
     {
     }
 
-    protected override FrameLayout CreatePlatformView() =>
+protected override FrameLayout CreatePlatformView() =>
         // A FrameLayout rather than the PlayerView itself: the PlayerView is created and released
         // together with the player, so it cannot be the view the handler hands back for the whole
         // lifetime of the page.
         new(Context)
         {
-            LayoutParameters = new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MatchParent,
-                ViewGroup.LayoutParams.MatchParent),
+            LayoutParameters = MatchParent(),
+        };
+
+    /// <summary>
+    ///     Fills whatever the layout gives us, in both axes.
+    ///     <para>
+    ///     This is what makes the video centred. Measured on the device without it, the overlay's
+    ///     row is 2445px tall while the PlayerView came out 686px, which is exactly the width times
+    ///     nine sixteenths, so it had sized itself to the video's own height and sat pinned to the
+    ///     top with black under it. PlayerView's Fit mode then letterboxes inside whatever box it
+    ///     is given, so the only thing that has to be right is the box: give it the whole row and
+    ///     the video centres itself, both axes.
+    ///     </para>
+    /// </summary>
+    protected override void ConnectHandler(FrameLayout platformView)
+    {
+        base.ConnectHandler(platformView);
+        // Re-asserted after connecting because MAUI rewrites the platform view's layout params when
+        // it applies the cross-platform frame, which is what dropped it back to the video's height.
+        platformView.LayoutParameters = MatchParent();
+    }
+
+    private static ViewGroup.LayoutParams MatchParent() =>
+        new(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent);
+
+    /// <summary>
+    ///     Wrap to the video's own size and sit centred in whatever box the layout gives us.
+    ///     <para>
+    ///     Measured on the device: the overlay's row is 2445px tall while the PlayerView came out
+    ///     686px, which is exactly 1220 times nine sixteenths, so it was sizing itself to the video
+    ///     and pinning to the top of the row with black underneath. MATCH_PARENT did not change
+    ///     that, so rather than keep guessing at PlayerView's measure, the child is asked to wrap
+    ///     and given gravity instead. In a FrameLayout the gravity lives on the child's layout
+    ///     params, not on the parent, which is why this is a FrameLayout.LayoutParams.
+    ///     </para>
+    /// </summary>
+    private static FrameLayout.LayoutParams WrapCentred() =>
+        new(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent)
+        {
+            Gravity = GravityFlags.Center,
         };
 
     public void UpdateSource(string url)
@@ -158,15 +195,23 @@ public class NativeVideoViewHandler : ViewHandler<NativeVideoView, FrameLayout>
         // The binding flattens Java's nested classes, so ExoPlayer.Builder arrives as
         // ExoPlayerBuilder. Looking for a type literally called ExoPlayer finds nothing.
         _player = new ExoPlayerBuilder(Context).Build();
-        _playerView = new PlayerView(Context)
+_playerView = new PlayerView(Context)
         {
             UseController = true,
             // The page draws its own chrome; the platform controller only has to be there.
             ControllerShowTimeoutMs = 2500,
             ContentDescription = "Video player",
+// ResizeMode is deliberately not set: Fit is already Media3's default for PlayerView.
+            // What centres the video is WrapCentred below, not the resize mode.
+            LayoutParameters = WrapCentred(),
         };
         _playerView.Player = _player;
         PlatformView.AddView(_playerView);
+        // Re-asserted after the attach because FrameLayout converts the params into its own on add,
+        // and PlayerView re-measures itself against the video as soon as it has a player attached.
+        _playerView.LayoutParameters = WrapCentred();
+        _playerView.RequestLayout();
+        PlatformView.RequestLayout();
     }
 
     /// <summary>
