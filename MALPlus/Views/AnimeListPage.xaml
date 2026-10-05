@@ -33,8 +33,10 @@
              into two stacked framed boxes and fought the grid underneath it. The fill alone is enough
              to separate them from EmBackground. -->
         <Border x:Name="StatusBar" Grid.Row="0" IsVisible="False"
-                BackgroundColor="{StaticResource EmSheet}" Padding="14,0">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="6">
+                BackgroundColor="{StaticResource EmSheet}" Padding="14,0" HeightRequest="52">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <!-- Left aligned, chevron tucked against the word so the pair reads as one control
+                     instead of two things fighting for opposite ends of the bar. -->
                 <HorizontalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
                     <Label x:Name="StatusLabel" Text="Watching"
                            FontFamily="InterSemiBold" FontSize="16" TextColor="{StaticResource BrushText}"
@@ -51,31 +53,35 @@
                     </Border>
                 </HorizontalStackLayout>
 
-                <!-- Hidden while empty so it does not sit there offering a keyboard for nothing. -->
-                <Grid Grid.Column="1" x:Name="PanelFilterBox" ColumnDefinitions="*,Auto"
-                      ColumnSpacing="4" IsVisible="False" VerticalOptions="Center">
-                    <Border Grid.Column="0" StrokeShape="RoundRectangle 16" Stroke="#24405A"
-                            StrokeThickness="1" BackgroundColor="#0F2536" Padding="10,0">
-                        <Entry x:Name="PanelFilterEntry" Placeholder="Filter" PlaceholderColor="#8FA8C0"
+                <!-- Fills what the magnifier leaves behind, so it reaches the right edge of the bar
+                     instead of floating in the middle with dead space beside it. It used to sit in an
+                     Auto column at a fixed 200dp, which is what left that gap. -->
+                <Border Grid.Column="1" x:Name="PanelFilterBox" IsVisible="False"
+                        StrokeShape="RoundRectangle 18" Stroke="#24405A" StrokeThickness="1"
+                        BackgroundColor="#0F2536" Padding="12,0,4,0" HeightRequest="36"
+                        VerticalOptions="Center" HorizontalOptions="Fill">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <!-- No placeholder: the field sits next to the panel it filters, so the word
+                             "Filter" only repeated what the magnifier already said. The underline
+                             and the theme's vertical padding are both stripped in code, because
+                             neither is reachable from XAML and both belong to the themed background. -->
+                        <Entry x:Name="PanelFilterEntry" Grid.Column="0"
                                FontFamily="Inter" FontSize="14" TextColor="{StaticResource BrushText}"
-                               BackgroundColor="Transparent" HeightRequest="34" WidthRequest="150"
+                               HeightRequest="34" VerticalOptions="Center"
                                Text="{Binding PanelFilter}" />
-                    </Border>
-                    <Border Grid.Column="1" WidthRequest="32" HeightRequest="32"
-                            StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0">
-                        <Image Source="icon_close" WidthRequest="20" HeightRequest="20"
-                               HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.GestureRecognizers>
+                        <Border Grid.Column="1" WidthRequest="28" HeightRequest="28"
+                                StrokeShape="RoundRectangle 14" BackgroundColor="#14FFFFFF" Padding="0"
+                                VerticalOptions="Center">
+                            <Image Source="icon_close" WidthRequest="16" HeightRequest="16"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                            <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnClearPanelFilter" />
-                            </Image.GestureRecognizers>
-                        </Image>
-                    </Border>
-                </Grid>
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </Grid>
+                </Border>
 
-                <!-- Tapping the glass opens the field. It is a separate target from the entry on
-                     purpose: one control cannot be both "show the keyboard" and "clear", and the
-                     clear mark has to stay reachable once there is text. -->
-                <Border Grid.Column="3" WidthRequest="32" HeightRequest="32"
+                <Border Grid.Column="2" x:Name="PanelFilterButton" WidthRequest="32" HeightRequest="32"
                         StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
                         VerticalOptions="Center">
                     <Image Source="icon_search" WidthRequest="22" HeightRequest="22"
@@ -156,14 +162,18 @@
             </Grid>
         </Border>
 
-        <!-- Status dropdown, anchored under the bar it belongs to and right aligned with the
-             chevron. Rows live in a VerticalStackLayout, not a CollectionView: two collections
-             fighting over the same touch is a known way to lose the tap entirely, and there are
-             only six rows.
+        <!-- The dropdown hangs off the bar it belongs to, anchored to the START so it lines up with the word
+             in the bar rather than floating on the opposite side.
 
-             The scrim deliberately covers the grid and the season bar but stops short of the
-             navigation, so switching tabs stays possible while it is open. It has to carry an
-             explicit Transparent background or it is not hit tested at all and nothing closes. -->
+             Two measured details are worth keeping. It has no left margin: with one, the poster grid
+             showed through in a vertical strip beside the panel, which read as a notch rather than as
+             a panel hanging off a bar. The 14dp that lines the rows up with the label moved into the
+             padding instead, where it costs nothing visually.
+
+             And it overlaps the bar by 3dp. Measured on the device, the bar ended at y=266 and the
+             panel began at y=269: a real 2px slit with the grid showing through, which is exactly
+             the pixel gap this is here to remove. Overlapping cannot leave a gap between two fills of
+             the same colour no matter what rounding the shape applies. -->
         <Grid x:Name="StatusDropdownOverlay" Grid.Row="1" Grid.RowSpan="2" IsVisible="False"
               InputTransparent="False">
             <Grid BackgroundColor="Transparent">
@@ -171,8 +181,8 @@
                     <TapGestureRecognizer Tapped="OnStatusDropdownDismissed" />
                 </Grid.GestureRecognizers>
             </Grid>
-            <Border HorizontalOptions="End" VerticalOptions="Start" WidthRequest="252"
-                    Margin="0,0,14,0" Padding="6"
+            <Border HorizontalOptions="Start" VerticalOptions="Start" WidthRequest="266"
+                    Margin="0,-3,0,0" Padding="14,8"
                     BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 0 0 16 16">
                 <VerticalStackLayout x:Name="StatusDropdownList" Spacing="0" />
             </Border>

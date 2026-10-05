@@ -204,6 +204,11 @@ if (openStatusMenu)
             _appliedType = type;
             _lastMode = mode;
             _lastStatus = status;
+            // The magnifier scopes itself to whatever the panel is showing, so text left over from
+            // the previous one would silently filter the new panel by a term the user never typed
+            // here. Closing it also puts the magnifier back where they expect it.
+            _panelFilterOpen = false;
+            Vm.PanelFilter = "";
             UpdateContextBars();
 
             _ = InitAndObserveAsync(mode, status, openStatusMenu);
@@ -290,7 +295,8 @@ if (openStatusMenu)
                 StatusLabel.Text = manga && label == "Watching" ? "Reading" : label ?? tabs[1].Label;
             }
 
-            PanelFilterBox.IsVisible = StatusBar.IsVisible;
+            PanelFilterBox.IsVisible = StatusBar.IsVisible && _panelFilterOpen;
+            PanelFilterButton.IsVisible = StatusBar.IsVisible && !_panelFilterOpen;
 
             var seasonal = _lastMode == (int)AnimeListWorkModes.SeasonalAnime;
             SeasonBar.IsVisible = seasonal;
@@ -304,20 +310,58 @@ if (openStatusMenu)
     }
 
     /// <summary>
-    ///     Reveals the magnifier field and puts the keyboard up. The field stays open until it is
-    ///     cleared or the panel changes, because dismissing it on every focus loss left the text in
-    ///     place with no way to reach the clear mark.
+    ///     Opens the magnifier field and hides the button that opened it, so there is one thing to
+    ///     act on while typing. The field stays until it is cleared or the panel changes: closing it
+    ///     on focus loss left the text on screen with no reachable way to clear it.
     /// </summary>
     private void OnPanelFilterTapped(object sender, TappedEventArgs e)
     {
         try
         {
-            PanelFilterBox.IsVisible = true;
+            _panelFilterOpen = true;
+            UpdateContextBars();
             PanelFilterEntry.Focus();
+            StripEntryUnderline();
+            // The field starts hidden, so its platform view only exists once the box is shown. The
+            // immediate pass can therefore land before the handler exists, and this one after.
+            _ = Task.Delay(200).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(StripEntryUnderline));
         }
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS panel filter open failed: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Fixes the two things the Android theme does to an EditText that XAML cannot reach.
+    ///     <para>
+    ///     The underline is drawn as part of the themed background, so it is not a separate view and
+    ///     no BackgroundColor removes it: the field carried a bright blue rule inside a bar that has
+    ///     no other rules, where it read as a progress bar. The same style also carries top and bottom
+    ///     padding, which pushed the text against the top of a 36dp pill. Entry exposes no Padding to
+    ///     set, so both are done on the platform view.
+    ///     </para>
+    ///     <para>
+    ///     Done here rather than in a custom handler because MAUI 11 changed the shape of the Entry
+    ///     handler's connect hook, and this does not depend on that signature.
+    ///     </para>
+    /// </summary>
+    private void StripEntryUnderline()
+    {
+        try
+        {
+            if (PanelFilterEntry?.Handler?.PlatformView is not global::Android.Widget.EditText edit)
+                return;
+            edit.Background = null;
+            edit.SetPadding(0, 0, 0, 0);
+            // The default gravity is top aligned, which is why the text still rode high once the
+            // padding was gone.
+            edit.Gravity = global::Android.Views.GravityFlags.CenterVertical |
+                           global::Android.Views.GravityFlags.Start;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS entry fixups failed: " + ex.GetType().Name);
         }
     }
 
@@ -326,6 +370,8 @@ if (openStatusMenu)
         try
         {
             Vm.PanelFilter = "";
+            // Kept open on purpose. Closing it here would put the magnifier back while the keyboard
+            // is still up, and the next tap would land on a control that had just moved.
             PanelFilterEntry.Focus();
         }
         catch (Exception ex)
@@ -925,6 +971,7 @@ if (openStatusMenu)
 
     private bool _navigatingToDetails;
     private bool _pushedAsFilter;
+    private bool _panelFilterOpen;
     private int _tabMode = (int)AnimeListWorkModes.Anime;
     private int _tabStatus = DefaultStatusIndex;
 
