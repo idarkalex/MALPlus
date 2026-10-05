@@ -86,7 +86,13 @@ namespace MALClient.XShared.ViewModels.Main
             get { return _animeItems; }
             set
             {
+                if (_animeItems != null)
+                    _animeItems.CollectionChanged -= OnSourceItemsChanged;
                 _animeItems = value;
+                // Rebuilt here because this is where the instance is swapped, and the hook has to
+                // follow it. Without it the panel filter kept matching against the detached
+                // collection and the grid came back empty after a refresh.
+                _animeItems.CollectionChanged += OnSourceItemsChanged;
                 // The list binds AnimeItems directly, not the display-mode aliases below, so
                 // swapping the instance without notifying it left the CollectionView pointing
                 // at the old, detached collection: coming back from any pushed page showed an
@@ -95,6 +101,73 @@ namespace MALClient.XShared.ViewModels.Main
                 RaisePropertyChanged(() => AnimeListItems);
                 RaisePropertyChanged(() => AnimeCompactItems);
                 RaisePropertyChanged(() => AnimeGridItems);
+                RebuildDisplayedItems();
+            }
+        }
+
+        /// <summary>
+        ///     What the grid actually binds. Identical to <see cref="AnimeItems" /> until a panel
+        ///     filter is typed, at which point it holds the matches only.
+        ///     <para>
+        ///     This exists rather than filtering in place because the grid's infinite scroll appends
+        ///     to AnimeItems from six different places, and a filtered view over the live collection
+        ///     would have to be kept in step with all of them. A separate collection that is rebuilt
+        ///     from the source means those six sites need no changes at all.
+        ///     </para>
+        /// </summary>
+        public SmartObservableCollection<AnimeItemViewModel> DisplayedItems { get; } =
+            new SmartObservableCollection<AnimeItemViewModel>();
+
+        private string _panelFilter = "";
+
+        /// <summary>
+        ///     Free text typed in the magnifier of the top bar. Filters what is already on screen and
+        ///     never goes to the network, so the scope is whatever the panel is showing: inside
+        ///     Watching it only matches Watching, inside a genre it only matches that genre.
+        /// </summary>
+        public string PanelFilter
+        {
+            get => _panelFilter;
+            set
+            {
+                var next = value ?? "";
+                if (string.Equals(_panelFilter, next, StringComparison.Ordinal))
+                    return;
+                _panelFilter = next;
+                RebuildDisplayedItems();
+                RaisePropertyChanged(() => PanelFilterActive);
+                RaisePropertyChanged(() => PanelFilterEmpty);
+            }
+        }
+
+        public bool PanelFilterActive => !string.IsNullOrWhiteSpace(_panelFilter);
+
+        /// <summary>True when a filter is on and it matched nothing, so the notice can be shown.</summary>
+        public bool PanelFilterEmpty => PanelFilterActive && DisplayedItems.Count == 0;
+
+        private void OnSourceItemsChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+            => RebuildDisplayedItems();
+
+        private void RebuildDisplayedItems()
+        {
+            try
+            {
+                var source = _animeItems;
+                var filter = _panelFilter?.Trim() ?? "";
+                IEnumerable<AnimeItemViewModel> matches = source;
+                if (!string.IsNullOrEmpty(filter))
+                    matches = source.Where(item => item != null &&
+                                                  (item.Title ?? "").IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+                        .ToList();
+
+                DisplayedItems.Clear();
+                if (matches != null)
+                    DisplayedItems.AddRange(matches);
+                RaisePropertyChanged(() => PanelFilterEmpty);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS panel filter failed: " + ex.Message);
             }
         }
 

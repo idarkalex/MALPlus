@@ -1409,10 +1409,13 @@ public partial class AnimeDetailsPage : ContentPage
     /// <summary>
     ///     Opens the list filtered by the genre or studio of the chip that was tapped.
     ///     <para>
-    ///     The value travels as a query parameter because the list page rebuilds its own
-    ///     AnimeListPageNavigationArgs from the route, so args handed over by the caller are dropped
-    ///     on the way in. Themes such as "Ensemble Cast" have no genre id and therefore no list to
-    ///     open, which is why they are not navigable and never reach this handler.
+    ///     It goes to the "animelist" route rather than the "///anime" section on purpose. A section
+    ///     route pops back down to the section root, so Back had nothing to return to and closed the
+    ///     app; a registered route is pushed, and Back lands on this entry again.
+    ///     </para>
+    ///     <para>
+    ///     Themes such as "Ensemble Cast" have no genre id and therefore no list to open, which is
+    ///     why they are not navigable and never reach this handler.
     ///     </para>
     /// </summary>
     private async void OnChipTapped(object sender, TappedEventArgs e)
@@ -1429,11 +1432,8 @@ public partial class AnimeDetailsPage : ContentPage
                 ? chip.Genre.Value.ToString()
                 : chip.Studio?.ToString() ?? string.Empty;
 
-            // Registered so Back from the filtered list lands back on this entry, the same shape the
-            // page already uses for its own pushes.
-            ViewModelLocator.NavMgr.RegisterBackNav(PageIndex.PageAnimeDetails, null);
-
-            await Shell.Current.GoToAsync($"anime?mode={mode}&status=0&type={Uri.EscapeDataString(type)}");
+            await Shell.Current.GoToAsync(
+                $"animelist?mode={mode}&type={Uri.EscapeDataString(type)}");
         }
         catch (Exception ex)
         {

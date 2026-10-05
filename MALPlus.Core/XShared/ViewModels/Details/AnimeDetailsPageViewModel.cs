@@ -781,7 +781,26 @@ private static string FormatCompact(int value)
         private static string Normalize(string value)
             => new string((value ?? "").Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
 
-        private static readonly Dictionary<string, AnimeGenreSearch> GenresByName = BuildNameMap<AnimeGenreSearch>();
+        /// <summary>
+    ///     MAL renamed several genres without renaming their ids, and the enum kept the original
+    ///     spellings, so five names that come back from the API have no entry to match on their own:
+    ///     Avant Garde against AvanteGarde, Shoujo Ai against GirlsLove, Shounen Ai against
+    ///     BoysLove, Thriller against Suspense, and Erotica which the enum calls Erotica under a
+    ///     different member. Left out they were showing as untappable chips while the search page,
+    ///     which lists the enum, offered them.
+    /// </summary>
+    private static readonly Dictionary<string, string> GenreAliases = new(StringComparer.Ordinal)
+    {
+        ["avantgarde"] = nameof(AnimeGenreSearch.AvanteGarde),
+        ["shoujoai"] = nameof(AnimeGenreSearch.GirlsLove),
+        ["shounenai"] = nameof(AnimeGenreSearch.BoysLove),
+        ["thriller"] = nameof(AnimeGenreSearch.Suspense),
+        ["gourmet"] = nameof(AnimeGenreSearch.Gourmet),
+        ["awardwinning"] = nameof(AnimeGenreSearch.AwardWinning),
+        ["worklife"] = nameof(AnimeGenreSearch.WorkLife),
+    };
+
+    private static readonly Dictionary<string, AnimeGenreSearch> GenresByName = BuildNameMap<AnimeGenreSearch>();
 
         private static readonly Dictionary<string, AnimeStudios> StudiosByName = BuildNameMap<AnimeStudios>();
 
@@ -794,7 +813,18 @@ private static string FormatCompact(int value)
         }
 
         private static AnimeGenreSearch? ResolveGenre(string name)
-            => GenresByName.TryGetValue(Normalize(name), out var genre) ? genre : (AnimeGenreSearch?)null;
+        {
+            var key = Normalize(name);
+            if (GenresByName.TryGetValue(key, out var genre))
+                return genre;
+            // An alias is an api name, so it points at a member by name rather than being looked up
+            // itself: both go through the same map afterwards, which also keeps an alias that has
+            // gone stale from resolving to nothing rather than throwing.
+            if (GenreAliases.TryGetValue(key, out var member) &&
+                GenresByName.TryGetValue(Normalize(member), out var aliased))
+                return aliased;
+            return null;
+        }
 
         private static AnimeStudios? ResolveStudio(string name)
             => StudiosByName.TryGetValue(Normalize(name), out var studio) ? studio : (AnimeStudios?)null;

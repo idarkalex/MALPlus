@@ -151,6 +151,22 @@ public partial class AnimeListPage : ContentPage
             var type = ResolveType(query, modeFromQuery);
             ParseTypeQuery(mode, type);
 
+            // A genre or studio filter arrives on the pushed "animelist" route. Remembering what the
+            // anime tab was showing is what lets RestoreTabAfterFilterPut it back on the way out.
+            if (IsFilterMode(mode))
+            {
+                if (!_pushedAsFilter)
+                {
+                    _pushedAsFilter = true;
+                    _tabMode = IsMangaLocation() ? (int)AnimeListWorkModes.Manga : (int)AnimeListWorkModes.Anime;
+                    _tabStatus = DefaultStatusIndex;
+                }
+            }
+            else
+            {
+                _pushedAsFilter = false;
+            }
+
             var openStatusMenu = string.Equals(QueryValue(query, "menu", Menu), "status", StringComparison.OrdinalIgnoreCase);
             var forceReset = string.Equals(QueryValue(query, "reset", Reset), "1", StringComparison.Ordinal);
             Menu = null;
@@ -253,16 +269,28 @@ if (openStatusMenu)
         try
         {
             var manga = _lastMode == (int)AnimeListWorkModes.Manga;
+            var byGenre = _lastMode == (int)AnimeListWorkModes.AnimeByGenre;
+            var byStudio = _lastMode == (int)AnimeListWorkModes.AnimeByStudio;
             var isList = _lastMode == (int)AnimeListWorkModes.Anime || manga;
 
-            StatusBar.IsVisible = isList;
-            if (isList)
+            // A genre or studio panel keeps the same bar, but it names the filter instead of a
+            // status. Otherwise the bar said "Watching" over a grid of Drama, which is the one thing
+            // it exists to prevent.
+            StatusBar.IsVisible = isList || byGenre || byStudio;
+            if (byGenre || byStudio)
+            {
+                StatusLabel.Text = byGenre
+                    ? _genreFilter?.ToString() ?? "Genre"
+                    : _studioFilter?.ToString() ?? "Studio";
+            }
+            else if (isList)
             {
                 var tabs = manga ? MangaStatusTabs : AnimeStatusTabs;
                 var label = tabs.FirstOrDefault(tab => tab.StatusSelectorIndex == _lastStatus).Label;
-                StatusLabel.Text = label ?? tabs[1].Label;
-                StatusLabel.Text = manga && label == "Watching" ? "Reading" : label ?? StatusLabel.Text;
+                StatusLabel.Text = manga && label == "Watching" ? "Reading" : label ?? tabs[1].Label;
             }
+
+            PanelFilterBox.IsVisible = StatusBar.IsVisible;
 
             var seasonal = _lastMode == (int)AnimeListWorkModes.SeasonalAnime;
             SeasonBar.IsVisible = seasonal;
@@ -272,6 +300,37 @@ if (openStatusMenu)
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS context bars failed: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Reveals the magnifier field and puts the keyboard up. The field stays open until it is
+    ///     cleared or the panel changes, because dismissing it on every focus loss left the text in
+    ///     place with no way to reach the clear mark.
+    /// </summary>
+    private void OnPanelFilterTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            PanelFilterBox.IsVisible = true;
+            PanelFilterEntry.Focus();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS panel filter open failed: " + ex.Message);
+        }
+    }
+
+    private void OnClearPanelFilter(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            Vm.PanelFilter = "";
+            PanelFilterEntry.Focus();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS panel filter clear failed: " + ex.Message);
         }
     }
 
@@ -502,12 +561,23 @@ if (openStatusMenu)
         // exactly one of the three and the page already had a slot for it. Both are enum names, so
         // Enum.Parse resolves them; an unknown one leaves the filter null and the query falls back
         // to its default rather than throwing.
-        if ((AnimeListWorkModes)mode == AnimeListWorkModes.AnimeByGenre &&
-            System.Enum.TryParse<AnimeGenreSearch>(type, true, out var genre))
-            _genreFilter = genre;
-        if ((AnimeListWorkModes)mode == AnimeListWorkModes.AnimeByStudio &&
-            System.Enum.TryParse<AnimeStudios>(type, true, out var studio))
-            _studioFilter = studio;
+        //
+        // The parse is NOT case insensitive here. Enum.TryParse would accept "gourmet" for
+        // Gourmet, but it also accepts any casing, which is not the problem. The problem is the
+        // reverse: a value that does not exist resolves to nothing and the page then silently shows
+        // the default genre's results, so a bad chip looks like a broken chip. Comparing against the
+        // real member names keeps that honest, and the caller sends exactly what it read off
+        // ToString().
+        if ((AnimeListWorkModes)mode == AnimeListWorkModes.AnimeByGenre)
+            _genreFilter = System.Enum.GetNames(typeof(AnimeGenreSearch))
+                .FirstOrDefault(name => string.Equals(name, type, StringComparison.Ordinal)) is { } genreName
+                ? (AnimeGenreSearch)System.Enum.Parse(typeof(AnimeGenreSearch), genreName)
+                : null;
+        if ((AnimeListWorkModes)mode == AnimeListWorkModes.AnimeByStudio)
+            _studioFilter = System.Enum.GetNames(typeof(AnimeStudios))
+                .FirstOrDefault(name => string.Equals(name, type, StringComparison.Ordinal)) is { } studioName
+                ? (AnimeStudios)System.Enum.Parse(typeof(AnimeStudios), studioName)
+                : null;
     }
 
     /// <summary>
@@ -520,55 +590,48 @@ if (openStatusMenu)
         try
         {
             CloseStatusDropdown();
+            var byGenre = mode == (int)AnimeListWorkModes.AnimeByGenre;
+            var byStudio = mode == (int)AnimeListWorkModes.AnimeByStudio;
+            StatusDropdownList.Clear();
+
+            if (byGenre || byStudio)
+            {
+                // A filtered panel offers the way back first, then every genre or every studio, so
+                // the filter can be changed or dropped without walking back through the details page.
+                AddDropdownRow("Back to my list", _lastStatus == DefaultStatusIndex,
+                    () => LoadPanelAsync((int)AnimeListWorkModes.Anime, null));
+
+                if (byGenre)
+                {
+                    foreach (var genre in System.Enum.GetValues(typeof(AnimeGenreSearch)).Cast<AnimeGenreSearch>())
+                    {
+                        var picked = genre;
+                        AddDropdownRow(genre.ToString(), picked == _genreFilter,
+                            () => LoadPanelAsync((int)AnimeListWorkModes.AnimeByGenre, picked.ToString()));
+                    }
+                }
+                else
+                {
+                    foreach (var studio in System.Enum.GetValues(typeof(AnimeStudios)).Cast<AnimeStudios>())
+                    {
+                        var picked = studio;
+                        AddDropdownRow(picked.ToString(), picked == _studioFilter,
+                            () => LoadPanelAsync((int)AnimeListWorkModes.AnimeByStudio, picked.ToString()));
+                    }
+                }
+
+                StatusDropdownOverlay.IsVisible = true;
+                return;
+            }
+
             var manga = mode == (int)AnimeListWorkModes.Manga;
             var tabs = manga ? MangaStatusTabs : AnimeStatusTabs;
-
-            StatusDropdownList.Clear();
-            var sheetColor = Color.FromArgb("#0A1F2E");
-            var accent = Color.FromArgb("#0066FF");
             foreach (var tab in tabs)
             {
                 var selected = tab.StatusSelectorIndex == _lastStatus;
                 var selectorIndex = tab.StatusSelectorIndex;
-
-                // A Grid carrying only a TapGestureRecognizer is not hit tested on Android unless it
-                // has a real background, so the row is painted in the panel's own colour: invisible
-                // against it, but tappable. A Button cannot be used here because it cannot host
-                // content in this MAUI version.
-                var row = new Grid
-                {
-                    BackgroundColor = sheetColor,
-                    HeightRequest = 44,
-                    Padding = new Thickness(12, 0),
-                    ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("Auto") },
-                    AutomationId = $"StatusRow{selectorIndex}"
-                };
-                var label = new Label
-                {
-                    Text = manga && tab.Label == "Watching" ? "Reading" : tab.Label,
-                    FontFamily = "InterSemiBold",
-                    FontSize = 15,
-                    TextColor = selected ? accent : Colors.White,
-                    VerticalOptions = LayoutOptions.Center
-                };
-                var check = new Image
-                {
-                    Source = "icon_check",
-                    WidthRequest = 18,
-                    HeightRequest = 18,
-                    IsVisible = selected,
-                    // The row is the tap target, so the glyph must not take it.
-                    InputTransparent = true,
-                    VerticalOptions = LayoutOptions.Center,
-                    HorizontalOptions = LayoutOptions.Center
-                };
-                Grid.SetColumn(check, 1);
-                row.Add(label);
-                row.Add(check);
-                var tap = new TapGestureRecognizer { CommandParameter = selectorIndex };
-                tap.Tapped += (_, args) => OnStatusRowTapped(Convert.ToInt32(args.Parameter));
-                row.GestureRecognizers.Add(tap);
-                StatusDropdownList.Add(row);
+                AddDropdownRow(manga && tab.Label == "Watching" ? "Reading" : tab.Label, selected,
+                    () => OnStatusRowTapped(selectorIndex));
             }
 
             StatusDropdownOverlay.IsVisible = true;
@@ -576,6 +639,74 @@ if (openStatusMenu)
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS status dropdown build failed: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    ///     One dropdown row.
+    ///     <para>
+    ///     A Grid carrying only a TapGestureRecognizer is not hit tested on Android unless it has a
+    ///     real background, so the row is painted in the panel's own colour: invisible against it,
+    ///     but tappable. A Button cannot be used here because it cannot host content in this MAUI
+    ///     version.
+    ///     </para>
+    /// </summary>
+    private void AddDropdownRow(string label, bool selected, Action onTapped)
+    {
+        var sheetColor = Color.FromArgb("#0A1F2E");
+        var accent = Color.FromArgb("#0066FF");
+        var row = new Grid
+        {
+            BackgroundColor = sheetColor,
+            HeightRequest = 44,
+            Padding = new Thickness(12, 0),
+            ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("Auto") }
+        };
+        row.Add(new Label
+        {
+            Text = label,
+            FontFamily = "InterSemiBold",
+            FontSize = 15,
+            TextColor = selected ? accent : Colors.White,
+            VerticalOptions = LayoutOptions.Center
+        });
+        var check = new Image
+        {
+            Source = "icon_check",
+            WidthRequest = 18,
+            HeightRequest = 18,
+            IsVisible = selected,
+            // The row is the tap target, so the glyph must not take it.
+            InputTransparent = true,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.Center
+        };
+        Grid.SetColumn(check, 1);
+        row.Add(check);
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += (_, _) => onTapped();
+        row.GestureRecognizers.Add(tap);
+        StatusDropdownList.Add(row);
+    }
+
+    /// <summary>
+    ///     Switches the pushed panel to another work mode, or back to the plain list. Navigating the
+    ///     "animelist" route again keeps this page on the Shell stack, so Back still returns to the
+    ///     entry it was opened from.
+    /// </summary>
+    private async Task LoadPanelAsync(int mode, string type)
+    {
+        try
+        {
+            CloseStatusDropdown();
+            Unfocus();
+            var query = $"animelist?mode={mode}&status={_lastStatus}" +
+                        (string.IsNullOrEmpty(type) ? "" : $"&type={Uri.EscapeDataString(type)}");
+            await Shell.Current.GoToAsync(query);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS panel switch failed: " + ex.Message);
         }
     }
 
@@ -671,9 +802,17 @@ if (openStatusMenu)
                 // Reached from a genre chip on the details page. The value travels as a query
                 // parameter because this page rebuilds its own args from the route, so anything the
                 // caller put in AnimeListPageNavigationArgs would be dropped on the way in.
-                return new AnimeListPageNavigationArgs(_genreFilter ?? AnimeGenreSearch.Action);
+                //
+                // No fallback: a genre mode with no parsed filter is a routing mistake, and quietly
+                // standing in Action's results would hide it. Dropping to plain Anime is the honest
+                // outcome, because that is the mode the query would otherwise be lying about.
+                return _genreFilter.HasValue
+                    ? new AnimeListPageNavigationArgs(_genreFilter.Value)
+                    : new AnimeListPageNavigationArgs(0, AnimeListWorkModes.Anime);
             case AnimeListWorkModes.AnimeByStudio:
-                return new AnimeListPageNavigationArgs(_studioFilter ?? AnimeStudios.Madhouse);
+                return _studioFilter.HasValue
+                    ? new AnimeListPageNavigationArgs(_studioFilter.Value)
+                    : new AnimeListPageNavigationArgs(0, AnimeListWorkModes.Anime);
             default:
                 return AnimeListPageNavigationArgs.TopAnime(_topType);
         }
@@ -734,6 +873,7 @@ if (openStatusMenu)
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        RestoreTabAfterFilterPush();
         if (_navConnected)
         {
             BottomNav.SectionActivated -= OnSectionActivated;
@@ -751,7 +891,45 @@ if (openStatusMenu)
         _applied = false;
     }
 
+    /// <summary>
+    ///     Puts the anime tab back the way it was after a pushed genre or studio filter is popped.
+    ///     <para>
+    ///     Going back to the tab re-runs its own ApplyRoute, which resolves the same mode and status
+    ///     it had before and then hits the alreadyShowing guard, so it skipped the reload and left
+    ///     the filtered list on screen: the tab came back showing Drama under a Watching heading and
+    ///     looked broken until a manual refresh. The guard is right in general and wrong here, so the
+    ///     reload is forced explicitly.
+    ///     </para>
+    ///     <para>
+    ///     Only done when the view model really is still on a filter. If the list view model turns
+    ///     out to be per page instance then the tab was never touched and re-initialising it would
+    ///     cost a request for nothing.
+    ///     </para>
+    /// </summary>
+    private void RestoreTabAfterFilterPush()
+    {
+        if (!_pushedAsFilter)
+            return;
+        _pushedAsFilter = false;
+        try
+        {
+            if (Vm == null || (int)Vm.WorkMode == _tabMode)
+                return;
+            _ = Vm.Init(BuildArgs(_tabMode, _tabStatus));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS tab restore failed: " + ex.Message);
+        }
+    }
+
     private bool _navigatingToDetails;
+    private bool _pushedAsFilter;
+    private int _tabMode = (int)AnimeListWorkModes.Anime;
+    private int _tabStatus = DefaultStatusIndex;
+
+    private static bool IsFilterMode(int mode)
+        => mode == (int)AnimeListWorkModes.AnimeByGenre || mode == (int)AnimeListWorkModes.AnimeByStudio;
 
     /// <summary>
     ///     Infinite scroll is a list-level feature, so it is wired on the grid's inner collection

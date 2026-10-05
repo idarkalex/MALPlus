@@ -11,6 +11,11 @@ public partial class AppShell : Shell
 
         // Push routes
         Routing.RegisterRoute("animedetails", typeof(AnimeDetailsPage));
+        // A second entry point for the same page, so a genre or studio filter can be PUSHED on top
+        // of the details page. Navigating to the "///anime" section instead pops back down to the
+        // section root, which is why pressing Back after filtering by genre used to close the app:
+        // there was nothing left on the Shell stack to go back to.
+        Routing.RegisterRoute("animelist", typeof(AnimeListPage));
         Routing.RegisterRoute("login", typeof(LogInPage));
         Routing.RegisterRoute("search", typeof(SearchPage));
         Routing.RegisterRoute("calendar", typeof(CalendarPage));

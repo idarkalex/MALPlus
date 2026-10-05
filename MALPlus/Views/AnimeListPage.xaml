@@ -24,23 +24,66 @@
          into two stacked framed boxes and fought the grid underneath it. The fill alone is enough
          to separate them from EmBackground. -->
     <Grid RowDefinitions="Auto,*,Auto,Auto">
+        <!-- The top bar states what the panel is showing: the list status in the normal list, or the
+             genre/studio that was tapped on a details page. The chevron sits next to that word rather
+             than at the far edge, so the pair reads as one control, and the magnifier on the right
+             filters whatever the panel is currently showing.
+
+             Neither bar draws a Stroke, not even a hairline: a rule above and below turned the block
+             into two stacked framed boxes and fought the grid underneath it. The fill alone is enough
+             to separate them from EmBackground. -->
         <Border x:Name="StatusBar" Grid.Row="0" IsVisible="False"
                 BackgroundColor="{StaticResource EmSheet}" Padding="14,0">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <Label x:Name="StatusLabel" Grid.Column="0" Text="Watching"
-                       FontFamily="InterSemiBold" FontSize="16" TextColor="{StaticResource BrushText}"
-                       VerticalOptions="Center" LineBreakMode="TailTruncation" />
-                <!-- A solid 28dp chevron inside a soft circle. It used to be the "▾" glyph at 14sp
-                     in #A0FFFFFF, which read as a dim smudge next to a 16sp label. -->
-                <Border Grid.Column="1" WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
-                        BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
-                    <Image x:Name="StatusDropdownIcon" Source="icon_arrow_down_solid"
-                           WidthRequest="28" HeightRequest="28"
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="6">
+                <HorizontalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                    <Label x:Name="StatusLabel" Text="Watching"
+                           FontFamily="InterSemiBold" FontSize="16" TextColor="{StaticResource BrushText}"
+                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                    <!-- A solid 28dp chevron inside a soft circle. It used to be the "▾" glyph at
+                         14sp in #A0FFFFFF, which read as a dim smudge next to a 16sp label. -->
+                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
+                            BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                        <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnStatusDropdownTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                </HorizontalStackLayout>
+
+                <!-- Hidden while empty so it does not sit there offering a keyboard for nothing. -->
+                <Grid Grid.Column="1" x:Name="PanelFilterBox" ColumnDefinitions="*,Auto"
+                      ColumnSpacing="4" IsVisible="False" VerticalOptions="Center">
+                    <Border Grid.Column="0" StrokeShape="RoundRectangle 16" Stroke="#24405A"
+                            StrokeThickness="1" BackgroundColor="#0F2536" Padding="10,0">
+                        <Entry x:Name="PanelFilterEntry" Placeholder="Filter" PlaceholderColor="#8FA8C0"
+                               FontFamily="Inter" FontSize="14" TextColor="{StaticResource BrushText}"
+                               BackgroundColor="Transparent" HeightRequest="34" WidthRequest="150"
+                               Text="{Binding PanelFilter}" />
+                    </Border>
+                    <Border Grid.Column="1" WidthRequest="32" HeightRequest="32"
+                            StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0">
+                        <Image Source="icon_close" WidthRequest="20" HeightRequest="20"
+                               HorizontalOptions="Center" VerticalOptions="Center">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnClearPanelFilter" />
+                            </Image.GestureRecognizers>
+                        </Image>
+                    </Border>
+                </Grid>
+
+                <!-- Tapping the glass opens the field. It is a separate target from the entry on
+                     purpose: one control cannot be both "show the keyboard" and "clear", and the
+                     clear mark has to stay reachable once there is text. -->
+                <Border Grid.Column="3" WidthRequest="32" HeightRequest="32"
+                        StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                        VerticalOptions="Center">
+                    <Image Source="icon_search" WidthRequest="22" HeightRequest="22"
                            HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnPanelFilterTapped" />
+                    </Border.GestureRecognizers>
                 </Border>
-                <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnStatusDropdownTapped" />
-                </Grid.GestureRecognizers>
             </Grid>
         </Border>
 
@@ -50,8 +93,10 @@
              items, and the arrow up top spun forever. -->
         <RefreshView x:Name="ListRefresh" Grid.Row="1" Refreshing="OnRefreshing">
             <!-- One component for every poster grid in the app: the list, Related, Search and
-                 Discover all get their span, cell size and spacing from AnimePosterGrid. -->
-            <controls:AnimePosterGrid x:Name="AnimeGrid" ItemsSource="{Binding AnimeItems}" />
+                 Discover all get their span, cell size and spacing from AnimePosterGrid.
+                 It binds DisplayedItems rather than AnimeItems so the magnifier can narrow the
+                 panel without touching the collection the infinite scroll appends to. -->
+            <controls:AnimePosterGrid x:Name="AnimeGrid" ItemsSource="{Binding DisplayedItems}" />
         </RefreshView>
 
         <Label Text="{Binding EmptyNoticeContent}" IsVisible="{Binding EmptyNoticeVisibility}"
@@ -65,6 +110,18 @@
                    TextColor="{StaticResource EmAccent}" HorizontalOptions="Center" />
             <Label Text="Pull down to retry" FontFamily="Inter" FontSize="12"
                    TextColor="#B3FFFFFF" HorizontalOptions="Center" />
+        </VerticalStackLayout>
+
+        <!-- Separate from the empty-list notice on purpose: this one means the panel has content and
+             the magnifier matched none of it, which is a different thing to say and a different way
+             out. -->
+        <VerticalStackLayout Grid.Row="1" IsVisible="{Binding PanelFilterEmpty}"
+                             HorizontalOptions="Center" VerticalOptions="Center" Spacing="10"
+                             InputTransparent="True">
+            <Label Text="Nothing matches that here" FontFamily="InterSemiBold" FontSize="15"
+                   TextColor="{StaticResource BrushText}" HorizontalOptions="Center" />
+            <Label Text="The magnifier only looks inside this panel" FontFamily="Inter" FontSize="12"
+                   TextColor="#8FA8C0" HorizontalOptions="Center" />
         </VerticalStackLayout>
 
         <!-- Seasonal only: which season is on screen, and the two seasons next to it. The selector
@@ -115,8 +172,8 @@
                 </Grid.GestureRecognizers>
             </Grid>
             <Border HorizontalOptions="End" VerticalOptions="Start" WidthRequest="252"
-                    Margin="0,8,14,0" Padding="6"
-                    BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 16">
+                    Margin="0,0,14,0" Padding="6"
+                    BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 0 0 16 16">
                 <VerticalStackLayout x:Name="StatusDropdownList" Spacing="0" />
             </Border>
         </Grid>
