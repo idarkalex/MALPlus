@@ -505,7 +505,13 @@ namespace MALClient.XShared.ViewModels.Details
         public ObservableCollection<Tuple<string, string>> DetailsRows { get; } =
             new ObservableCollection<Tuple<string, string>>();
 
-        public ObservableCollection<string> GenreChips { get; } = new ObservableCollection<string>();
+        public ObservableCollection<DetailChipViewModel> GenreChips { get; } =
+            new ObservableCollection<DetailChipViewModel>();
+
+        public ObservableCollection<DetailChipViewModel> StudioChips { get; } =
+            new ObservableCollection<DetailChipViewModel>();
+
+        public bool StudiosVisible => StudioChips.Count > 0;
 
         public ObservableCollection<AnimeExternalLink> LinkChips { get; } =
             new ObservableCollection<AnimeExternalLink>();
@@ -742,7 +748,7 @@ private static string FormatCompact(int value)
                     var value = Utils.Utilities.FirstCharToUpper(raw?.Trim() ?? "");
                     if (string.IsNullOrWhiteSpace(value) || !seen.Add(value))
                         continue;
-                    GenreChips.Add(value);
+                    GenreChips.Add(new DetailChipViewModel(value, ResolveGenre(value)));
                 }
             }
 
@@ -750,7 +756,48 @@ private static string FormatCompact(int value)
             Add(data.Genres);
             Add(data.Demographics);
             Add(data.ExplicitGenres);
+            FillStudioChips(data);
         }
+
+        private void FillStudioChips(AnimeGeneralDetailsData data)
+        {
+            StudioChips.Clear();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var raw in data.Studios ?? Enumerable.Empty<string>())
+            {
+                var value = Utils.Utilities.FirstCharToUpper(raw?.Trim() ?? "");
+                if (string.IsNullOrWhiteSpace(value) || !seen.Add(value))
+                    continue;
+                StudioChips.Add(new DetailChipViewModel(value, studio: ResolveStudio(value)));
+            }
+        }
+
+        /// <summary>
+        ///     Both enums spell their members without spaces or punctuation while MAL writes them
+        ///     with, so "Martial Arts" has to meet <c>MartialArts</c> and "Sci-Fi" has to meet
+        ///     <c>SciFi</c>. Comparing with the non letters dropped makes that a lookup instead of a
+        ///     table of aliases, and a name that matches nothing simply stays a plain chip.
+        /// </summary>
+        private static string Normalize(string value)
+            => new string((value ?? "").Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+
+        private static readonly Dictionary<string, AnimeGenreSearch> GenresByName = BuildNameMap<AnimeGenreSearch>();
+
+        private static readonly Dictionary<string, AnimeStudios> StudiosByName = BuildNameMap<AnimeStudios>();
+
+        private static Dictionary<string, T> BuildNameMap<T>() where T : struct, Enum
+        {
+            var map = new Dictionary<string, T>(StringComparer.Ordinal);
+            foreach (var value in System.Enum.GetValues(typeof(T)).Cast<T>())
+                map[Normalize(value.ToString())] = value;
+            return map;
+        }
+
+        private static AnimeGenreSearch? ResolveGenre(string name)
+            => GenresByName.TryGetValue(Normalize(name), out var genre) ? genre : (AnimeGenreSearch?)null;
+
+        private static AnimeStudios? ResolveStudio(string name)
+            => StudiosByName.TryGetValue(Normalize(name), out var studio) ? studio : (AnimeStudios?)null;
 
         private void FillLinkChips(AnimeGeneralDetailsData data)
         {
@@ -867,6 +914,7 @@ private static string FormatCompact(int value)
                 MoreInfoFullText = "";
                 _moreInfoExpandedFlag = false;
                 GenreChips.Clear();
+                StudioChips.Clear();
                 LinkChips.Clear();
                 AltTitleRows.Clear();
                 DetailsRows.Clear();
@@ -1871,6 +1919,7 @@ RaisePropertyChanged(() => GeneralSeason);
             // re-reads the view model when somebody says so, so every one of them stayed false
             // with content sitting in the collection behind it and the section never appeared.
             RaisePropertyChanged(() => GenresVisible);
+            RaisePropertyChanged(() => StudiosVisible);
             RaisePropertyChanged(() => LinksVisible);
             RaisePropertyChanged(() => AltTitlesVisible);
             RaisePropertyChanged(() => MoreInfoVisible);

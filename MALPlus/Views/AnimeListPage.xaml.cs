@@ -30,6 +30,8 @@ public partial class AnimeListPage : ContentPage
     private TopAnimeType _topType = TopAnimeType.General;
     private MangaTopType _mangaTopType = MangaTopType.All;
     private MangaAdaptedType _adaptedType = MangaAdaptedType.AiringNow;
+    private AnimeGenreSearch? _genreFilter;
+    private AnimeStudios? _studioFilter;
 
     private const int DefaultStatusIndex = 0;
     private const int MaxStatusIndex = 5;
@@ -471,27 +473,41 @@ if (openStatusMenu)
         _topType = TopAnimeType.General;
         _mangaTopType = MangaTopType.All;
         _adaptedType = MangaAdaptedType.AiringNow;
-        if (string.IsNullOrWhiteSpace(type))
-            return;
-        try
+        _genreFilter = null;
+        _studioFilter = null;
+        if (!string.IsNullOrWhiteSpace(type))
         {
-            switch ((AnimeListWorkModes)mode)
+            try
             {
-                case AnimeListWorkModes.TopAnime:
-                    _topType = (TopAnimeType)System.Enum.Parse(typeof(TopAnimeType), type);
-                    break;
-                case AnimeListWorkModes.TopManga:
-                    _mangaTopType = (MangaTopType)System.Enum.Parse(typeof(MangaTopType), type);
-                    break;
-                case AnimeListWorkModes.MangaAdapted:
-                    _adaptedType = (MangaAdaptedType)System.Enum.Parse(typeof(MangaAdaptedType), type);
-                    break;
+                switch ((AnimeListWorkModes)mode)
+                {
+                    case AnimeListWorkModes.TopAnime:
+                        _topType = (TopAnimeType)System.Enum.Parse(typeof(TopAnimeType), type);
+                        break;
+                    case AnimeListWorkModes.TopManga:
+                        _mangaTopType = (MangaTopType)System.Enum.Parse(typeof(MangaTopType), type);
+                        break;
+                    case AnimeListWorkModes.MangaAdapted:
+                        _adaptedType = (MangaAdaptedType)System.Enum.Parse(typeof(MangaAdaptedType), type);
+                        break;
+                }
+            }
+            catch
+            {
+                // fall back to defaults
             }
         }
-        catch
-        {
-            // fall back to defaults
-        }
+
+        // The genre and the studio ride along in the same "type" parameter, because a mode has
+        // exactly one of the three and the page already had a slot for it. Both are enum names, so
+        // Enum.Parse resolves them; an unknown one leaves the filter null and the query falls back
+        // to its default rather than throwing.
+        if ((AnimeListWorkModes)mode == AnimeListWorkModes.AnimeByGenre &&
+            System.Enum.TryParse<AnimeGenreSearch>(type, true, out var genre))
+            _genreFilter = genre;
+        if ((AnimeListWorkModes)mode == AnimeListWorkModes.AnimeByStudio &&
+            System.Enum.TryParse<AnimeStudios>(type, true, out var studio))
+            _studioFilter = studio;
     }
 
     /// <summary>
@@ -651,6 +667,13 @@ if (openStatusMenu)
                 return AnimeListPageNavigationArgs.TopMangaCategory(_mangaTopType);
             case AnimeListWorkModes.MangaAdapted:
                 return AnimeListPageNavigationArgs.MangaAdapted(_adaptedType);
+            case AnimeListWorkModes.AnimeByGenre:
+                // Reached from a genre chip on the details page. The value travels as a query
+                // parameter because this page rebuilds its own args from the route, so anything the
+                // caller put in AnimeListPageNavigationArgs would be dropped on the way in.
+                return new AnimeListPageNavigationArgs(_genreFilter ?? AnimeGenreSearch.Action);
+            case AnimeListWorkModes.AnimeByStudio:
+                return new AnimeListPageNavigationArgs(_studioFilter ?? AnimeStudios.Madhouse);
             default:
                 return AnimeListPageNavigationArgs.TopAnime(_topType);
         }

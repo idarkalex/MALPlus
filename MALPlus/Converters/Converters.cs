@@ -101,6 +101,25 @@ public class StringToImageSourceConverter : IValueConverter
     }
 }
 
+/// <summary>
+///     Picks between two colours with a bool, so a chip can look tappable without a second template.
+///     The parameter is the colour to use when the value is true.
+/// </summary>
+public class BoolToColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var on = value is bool b && b;
+        var onColor = parameter as string;
+        return on ? onColor : Colors.Transparent;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
 public class TabColorConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
