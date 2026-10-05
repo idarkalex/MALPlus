@@ -946,10 +946,23 @@
         </Grid>
 
         <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="110">
+
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
+            <!-- Same two round buttons on every page that plays video: full screen on the left, close
+                 on the right. They share one size and colour so the three overlays look the same. -->
+            <Border Grid.Row="0" HorizontalOptions="Start" VerticalOptions="Center"
+                    Margin="10,10,0,0" WidthRequest="40" HeightRequest="40"
+                    BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
+                    StrokeShape="RoundRectangle 20">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnToggleFullscreen" />
+                </Border.GestureRecognizers>
+                <Image x:Name="FullscreenIcon" Source="icon_fullscreen" WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
             <Border Grid.Row="0" HorizontalOptions="End" VerticalOptions="Center"
                     Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
@@ -966,9 +979,15 @@
                    WebView spawns a Chromium child process and costs 100-400ms plus tens of MB,
                    and MAUI builds handlers for the whole tree when the page attaches, so declaring
                    it stalled EVERY details open for a video nobody played. -->
-              <controls:NativeVideoView x:Name="DirectVideoPlayer" Grid.Row="1" IsVisible="False"
-                                         VerticalOptions="Fill" HorizontalOptions="Fill"
-                                         PlayFailed="OnDirectVideoFailed" />
-          </Grid>
-    </Grid>
-</ContentPage>
+                <controls:NativeVideoView x:Name="DirectVideoPlayer" Grid.Row="1" IsVisible="False"
+                                           VerticalOptions="Fill" HorizontalOptions="Fill"
+                                           PlayFailed="OnDirectVideoFailed" />
+            </Grid>
+
+            <!-- The overflow menu. Inside this Grid on purpose: a ContentPage holds one child, so
+                 declaring this as a second child of the page made it the page's content and the whole
+                 entry rendered as nothing at all. -->
+            <controls:OptionsSheet x:Name="DetailsSheet" ZIndex="300" />
+        </Grid>
+  </ContentPage>
+

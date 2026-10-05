@@ -2,6 +2,7 @@ using MALClient.Models.Models.AnimeScrapped;
 using MALClient.XShared.ViewModels;
 using MALClient.XShared.ViewModels.Main;
 using Microsoft.Maui.ApplicationModel;
+using MALPlus.Services;
 
 namespace MALPlus.Views;
 
@@ -123,10 +124,13 @@ MALPlus.Services.VideoWebViewHelper.BackHandler = OnVideoBackPressed;
         }
     }
 
-    private void OnCloseVideo(object sender, EventArgs e)
+private void OnCloseVideo(object sender, EventArgs e)
     {
         try
         {
+            // Leaving full screen belongs to closing: an overlay that went away while the activity
+            // was still landscape left the whole app sideways.
+            FullscreenVideo.Exit();
 MALPlus.Services.VideoWebViewHelper.BackHandler = null;
               MainActivity.DisarmVideoBackCallback();
               VideoWebView.Source = null;
@@ -137,6 +141,27 @@ MALPlus.Services.VideoWebViewHelper.BackHandler = null;
         }
         catch { }
     }
+
+    /// <summary>
+    ///     Toggles full screen and swaps the glyph so the button says what it will do next.
+    /// </summary>
+    private void OnToggleFullscreen(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (FullscreenVideo.IsActive)
+                FullscreenVideo.Exit();
+            else
+                FullscreenVideo.Enter();
+            if (FullscreenIcon != null)
+                FullscreenIcon.Source = FullscreenVideo.IsActive ? "icon_exit_fullscreen" : "icon_fullscreen";
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "Fullscreen toggle failed: " + ex.GetType().Name);
+        }
+    }
+
 
     /// <summary>
     ///     Back gesture while the player is up drops it and stays on the promo list instead of

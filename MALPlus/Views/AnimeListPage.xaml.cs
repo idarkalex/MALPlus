@@ -70,6 +70,9 @@ public partial class AnimeListPage : ContentPage
     {
         InitializeComponent();
         BindingContext = ViewModelLocator.AnimeList;
+        // A panel dismissed by a tap leaves the back callback armed, and the next Back press would
+        // then be eaten by a panel that is no longer on screen.
+        PosterSheet.Closed += OnPosterSheetClosed;
         // MAUI's CollectionView virtualizes rendering, so we load the ENTIRE user list
         // into AnimeItems (negative dimensions => GetGridItemsToLoad returns int.MaxValue).
         // Otherwise UpdatePageSetup only ever exposes ~27 items and never drains the rest.
@@ -264,7 +267,7 @@ if (openStatusMenu)
 
     /// <summary>
     ///     Both context bars read from the applied route, never from the VM, so they always say what
-    ///     the grid is actually showing. The status bar replaces the "⋮" glyph that used to sit inside
+    ///     the grid is actually showing. The status bar replaces the "â‹®" glyph that used to sit inside
     ///     the Anime and Manga cells of the navigation bar: the four tabs were already centred, but
     ///     those two cells carried an extra element and the row read as off centre. The season bar is
     ///     Seasonal only and sits directly above the navigation so the grid never moves.
@@ -990,9 +993,228 @@ if (openStatusMenu)
         _grid.RemainingItemsThreshold = 4;
         _grid.RemainingItemsThresholdReachedCommand = Vm?.LoadMoreCommand;
         AnimeGrid.ItemTapped += OnGridItemTapped;
+        AnimeGrid.ItemLongPressed += OnGridItemLongPressed;
     }
 
     private CollectionView _grid;
+
+    /// <summary>
+    ///     Long press on a poster: a small floating card, no title, because on a grid the entry is
+    ///     right there under it and naming it again was the biggest thing on the panel.
+    ///     <para>
+    ///     Set status, Set score and Priority open a second level rather than acting straight away.
+    ///     They used to be dead rows, because they carried neither a command nor a submenu.
+    ///     </para>
+    /// </summary>
+    private void OnGridItemLongPressed(object sender, object item)
+    {
+        try
+        {
+            if (item is not MALClient.XShared.ViewModels.AnimeItemViewModel viewModel)
+                return;
+
+            var manga = _lastMode == (int)AnimeListWorkModes.Manga;
+            var rows = new List<MALPlus.Controls.OptionsSheetItem>
+            {
+                new("Copy title", "icon_copy", viewModel.CopyTitleToClipboardCommand),
+                new("Copy link", "icon_list", viewModel.CopyLinkToClipboardCommand),
+                new("Open in browser", "icon_search", viewModel.OpenInMALCommand)
+            };
+
+            // Only for an entry on the list, same as the original: a status or a score on something
+            // that is not in the list has nothing to write to.
+            if (viewModel.Auth)
+            {
+                rows.Add(BuildStatusSubmenu(viewModel, manga));
+                rows.Add(BuildScoreSubmenu(viewModel));
+                rows.Add(BuildPrioritySubmenu(viewModel));
+                rows.Add(BuildWatchedSubmenu(viewModel, manga));
+            }
+
+            _sheetTarget = viewModel;
+            PosterSheet.OpenCompact(rows);
+            MainActivity.ArmMenuBackCallback(() => PosterSheet.Dismiss());
+            global::Android.Util.Log.Info("MALPlus",
+                $"MALPLUS poster menu opened for {viewModel.Id} '{viewModel.Title}' auth={viewModel.Auth} rows={rows.Count}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS poster options failed: " + ex.Message);
+        }
+    }
+
+    private MALClient.XShared.ViewModels.AnimeItemViewModel _sheetTarget;
+
+    /// <summary>
+    ///     The status list, with the entry's own status marked.
+    ///     <para>
+    ///     Reopened in place rather than as a second sheet, so Back inside the panel goes back a level
+    ///     instead of closing it. The mark matters: without it there is nothing on screen to tell
+    ///     whether the change landed, and an update that fails reverts itself silently.
+    ///     </para>
+    /// </summary>
+    private MALPlus.Controls.OptionsSheetItem BuildStatusSubmenu(
+        MALClient.XShared.ViewModels.AnimeItemViewModel vm, bool manga)
+    {
+        var options = new List<MALPlus.Controls.OptionsSheetItem>();
+        foreach (AnimeStatus status in System.Enum.GetValues(typeof(AnimeStatus)))
+        {
+            // AllOrAiring is a query filter, not something a list entry can be set to.
+            if (status == AnimeStatus.AllOrAiring)
+                continue;
+            var picked = status;
+            options.Add(new MALPlus.Controls.OptionsSheetItem(
+                MALClient.XShared.Utils.Utilities.StatusToString((int)status, manga),
+                "icon_status",
+                action: () =>
+                {
+                    global::Android.Util.Log.Info("MALPlus",
+                        $"MALPLUS menu status -> {(int)status} for {vm.Id} (was {(int)vm.MyStatus})");
+                    vm.ChangeStatus(status);
+                },
+                value: vm.MyStatus == status ? "Current" : null));
+        }
+
+
+        return new MALPlus.Controls.OptionsSheetItem("Set status", "icon_status",
+            value: MALClient.XShared.Utils.Utilities.StatusToString((int)vm.MyStatus, manga),
+            submenu: sheet =>
+            {
+                sheet.OpenSubmenu("Status", options, () => ReopenPosterSheet(sheet));
+                return true;
+            });
+    }
+
+    private MALPlus.Controls.OptionsSheetItem BuildScoreSubmenu(
+        MALClient.XShared.ViewModels.AnimeItemViewModel vm)
+    {
+        var options = new List<MALPlus.Controls.OptionsSheetItem>
+        {
+            new("None", "icon_score",
+                action: () => vm.ChangeScore("0"),
+                value: vm.MyScore == 0 ? "Current" : null)
+        };
+        for (var score = 10; score >= 1; score--)
+        {
+            var picked = score;
+            options.Add(new MALPlus.Controls.OptionsSheetItem(picked.ToString(), "icon_score",
+                // A string, not an int: ChangeScore casts with "score as string", and an int there
+                // becomes a null cast, which Convert.ToInt32 turns into 0. The score silently became
+                // "unranked" instead of the number that was tapped.
+                action: () =>
+                {
+                    global::Android.Util.Log.Info("MALPlus",
+                        $"MALPLUS menu score -> {picked} for {vm.Id} (was {vm.MyScore})");
+                    vm.ChangeScore(picked.ToString());
+                },
+                value: vm.MyScore == picked ? "Current" : null));
+        }
+
+        return new MALPlus.Controls.OptionsSheetItem("Set score", "icon_score",
+            value: vm.MyScore == 0 ? "Unranked" : vm.MyScore.ToString("0"),
+            submenu: sheet =>
+            {
+                sheet.OpenSubmenu("Score", options, () => ReopenPosterSheet(sheet));
+                return true;
+            });
+    }
+
+    private MALPlus.Controls.OptionsSheetItem BuildPrioritySubmenu(
+        MALClient.XShared.ViewModels.AnimeItemViewModel vm)
+    {
+        var options = new List<MALPlus.Controls.OptionsSheetItem>
+        {
+            new("Low", "icon_priority",
+                action: () => vm.ChangePriority(AnimePriority.Low),
+                value: vm.Priority == AnimePriority.Low ? "Current" : null),
+            new("Medium", "icon_priority",
+                action: () => vm.ChangePriority(AnimePriority.Medium),
+                value: vm.Priority == AnimePriority.Medium ? "Current" : null),
+            new("High", "icon_priority",
+                action: () => vm.ChangePriority(AnimePriority.High),
+                value: vm.Priority == AnimePriority.High ? "Current" : null)
+        };
+
+        return new MALPlus.Controls.OptionsSheetItem("Priority", "icon_priority",
+            value: vm.Priority.ToString(),
+            submenu: sheet =>
+            {
+                sheet.OpenSubmenu("Priority", options, () => ReopenPosterSheet(sheet));
+                return true;
+            });
+    }
+
+    private MALPlus.Controls.OptionsSheetItem BuildWatchedSubmenu(
+        MALClient.XShared.ViewModels.AnimeItemViewModel vm, bool manga)
+    {
+        // Whatever this entry actually counts in. For a manga with volumes in focus, "chapters" is the
+        // wrong word AND the wrong field, and the entry would have been written to the other one.
+        var byVolumes = manga && Settings.MangaFocusVolumes;
+        var current = vm.MyEpisodesFocused;
+        var total = vm.AllEpisodesFocused;
+
+        var options = new List<MALPlus.Controls.OptionsSheetItem>
+        {
+            new("None", "icon_episodes",
+                action: () => SetWatched(vm, 0),
+                value: current == 0 ? "Current" : null)
+        };
+        // Up to the entry's own length where it is known, so the list is not a wall of numbers that
+        // cannot be chosen anyway.
+        var highest = total > 0 ? Math.Min(total, 30) : 12;
+        for (var count = 1; count <= highest; count++)
+        {
+            var picked = count;
+            options.Add(new MALPlus.Controls.OptionsSheetItem(picked.ToString(), "icon_episodes",
+                action: () => SetWatched(vm, picked),
+                value: current == picked ? "Current" : null));
+        }
+
+        // "Set episodes", not "Set episodes watched": the row is 264dp wide and the longer label ran
+        // into the value on the right. The submenu title carries the full wording if it is needed.
+        return new MALPlus.Controls.OptionsSheetItem(
+            byVolumes ? "Set volumes" : manga ? "Set chapters" : "Set episodes",
+            "icon_episodes",
+            value: $"{current}/{(total == 0 ? "?" : total.ToString())}",
+            submenu: sheet =>
+            {
+                sheet.OpenSubmenu(
+                    byVolumes ? "Volumes read" : manga ? "Chapters read" : "Episodes watched", options,
+                    () => ReopenPosterSheet(sheet));
+                return true;
+            });
+    }
+
+    /// <summary>
+    ///     Sets the progress through the input property the entry already owns, rather than writing the
+    ///     abstraction directly: the update query reads the item, not the parent, so a direct write
+    ///     would send the old number.
+    /// </summary>
+    private static void SetWatched(MALClient.XShared.ViewModels.AnimeItemViewModel vm, int count)
+    {
+        global::Android.Util.Log.Info("MALPlus",
+            $"MALPLUS menu watched -> {count} for {vm.Id} (was {vm.MyEpisodesFocused})");
+        vm.WatchedEpsInput = count.ToString();
+        vm.ChangeWatchedEps();
+    }
+
+    /// <summary>Rebuilds the first level, so Back out of a submenu lands on the menu, not on nothing.</summary>
+    private bool ReopenPosterSheet(MALPlus.Controls.OptionsSheet sheet)
+    {
+        var vm = _sheetTarget;
+        if (vm == null)
+        {
+            sheet.Dismiss();
+            return false;
+        }
+        OnGridItemLongPressed(this, vm);
+        return true;
+    }
+
+    private void OnPosterSheetClosed(object sender, EventArgs e)
+    {
+        MainActivity.DisarmMenuBackCallback();
+    }
 
     private async void OnGridItemTapped(object sender, object item)
     {

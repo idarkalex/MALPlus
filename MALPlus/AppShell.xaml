@@ -3,7 +3,8 @@
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
        x:Class="MALPlus.AppShell"
        Shell.NavBarIsVisible="False"
-       Shell.TabBarIsVisible="False">
+       Shell.TabBarIsVisible="False"
+       Shell.FlyoutBehavior="Disabled">
     <!--
       The item / section / content tree is built in AppShell.xaml.cs, not here.
 

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- One Discover button: the capsule exactly as it comes out of the artwork, icon, title, subtitle
+     and all, with the blue canvas around it already erased in the exported file.
+
+     There is no surface behind the image and no caption in front of it. The artwork carries its own
+     rounded corners, composited onto the page colour, so anything drawn underneath would only be a
+     second edge competing with the one the artwork already has.
+
+     Height comes from <see cref="Aspect" /> rather than a number in the page, because the button is
+     the full width of its column: hard coding 68dp would stretch the capsules on any other screen or
+     in landscape. -->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MALPlus.Controls.DiscoverTileButton"
+             x:Name="Root">
+    <Grid BackgroundColor="Transparent">
+        <Image x:Name="Art"
+               Aspect="AspectFill"
+               HorizontalOptions="Fill" VerticalOptions="Fill" />
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnTapped" />
+        </Grid.GestureRecognizers>
+    </Grid>
+</ContentView>

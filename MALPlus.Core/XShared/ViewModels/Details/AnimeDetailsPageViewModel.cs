@@ -1520,6 +1520,18 @@ RaisePropertyChanged(() => GeneralSeason);
             LoadingUpdate = false;
         }
 
+        /// <summary>
+        ///     Sets the rewatch, or reread, count from the options panel.
+        ///     <para>
+        ///     Public because the overflow menu offers it as a submenu. The work itself was already
+        ///     here and private, reachable only from a stepper nobody had rebuilt.
+        ///     </para>
+        /// </summary>
+        public void SetRewatchCount(int count)
+        {
+            ChangeRewatchingCount(count);
+        }
+
         private async void ChangeRewatchingCount(int count)
         {
             var query = GetAppropriateUpdateQuery(count);

@@ -43,7 +43,7 @@
                         SemanticProperties.Hint="Navigate to the Discover section" />
                 <VerticalStackLayout InputTransparent="True" Spacing="2"
                                      HorizontalOptions="Fill" VerticalOptions="Center">
-                    <Image x:Name="DiscoverIcon" Source="discover_home.svg"
+                    <Image x:Name="DiscoverIcon" Source="discover_compass.svg"
                            WidthRequest="24" HeightRequest="24" Aspect="AspectFit"
                            HorizontalOptions="Center" />
                     <Label x:Name="DiscoverLabel" Text="Discover" FontFamily="InterSemiBold" FontSize="10"

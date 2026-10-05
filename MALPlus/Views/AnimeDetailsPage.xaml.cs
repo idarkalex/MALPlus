@@ -223,6 +223,7 @@ public partial class AnimeDetailsPage : ContentPage
     {
         InitializeComponent();
         BindingContext = ViewModelLocator.AnimeDetails;
+        DetailsSheet.Closed += OnDetailsSheetClosed;
         if (RelatedGrid?.Inner != null)
             RelatedGrid.Inner.SelectionChanged += OnRelatedSelectionChanged;
         ApplyTabActiveState();
@@ -325,33 +326,114 @@ public partial class AnimeDetailsPage : ContentPage
     private static void SetSystemBars(bool video) { }
 #endif
 
-    private async void OnShowMoreRequested()
+    /// <summary>
+    ///     The overflow menu, as the shared options sheet rather than a native action sheet.
+    ///     <para>
+    ///     It is the original's nine options in the original's order. The sheet it used to be was three
+    ///     of them, and one of those three opened a URL hardcoded to /anime/, which is not a page on
+    ///     MAL for a manga. OpenInMalCommand already knows the difference.
+    ///     </para>
+    /// </summary>
+    private void OnShowMoreRequested()
     {
         try
         {
-            var choice = await DisplayActionSheet("More",
-                "Cancel", null,
-                "Open trailer", "Refresh", "Open in MAL");
-            if (string.IsNullOrEmpty(choice) || choice == "Cancel")
+            var vm = Vm;
+            if (vm == null)
                 return;
-            if (choice == "Open trailer")
-                ShowVideoOverlay(Vm.TrailerUrl);
-            else if (choice == "Refresh")
+
+            var onList = !vm.AddAnimeVisibility;
+            var rows = new List<MALPlus.Controls.OptionsSheetItem>
             {
-                try { await Vm.RefreshDataAsync(); }
-                catch (Exception ex) { Console.WriteLine("Refresh failed: " + ex.Message); }
-            }
-            else if (choice == "Open in MAL")
-            {
-                try
-                {
-                    var url = $"https://myanimelist.net/anime/{Vm.Id}";
-                    Microsoft.Maui.ApplicationModel.Launcher.OpenAsync(new Uri(url));
-                }
-                catch (Exception ex) { Console.WriteLine("OpenInMal failed: " + ex.Message); }
-            }
+                new("Forum board", "icon_forum",
+                    action: () => OpenForumBoard(vm))
+            };
+
+            if (vm.AnimeMode)
+                rows.Add(new MALPlus.Controls.OptionsSheetItem("Promotional videos", "icon_video",
+                    action: () => ShowVideoOverlay(vm.TrailerUrl)));
+
+            // Only offered while the entry can actually be rewatching, same as the original.
+            if (vm.IsRewatchingButtonVisibility)
+                rows.Add(new MALPlus.Controls.OptionsSheetItem(
+                    vm.AnimeMode ? "Rewatching" : "Rereading", "icon_history",
+                    submenu: sheet => OpenRewatchSubmenu(sheet, vm)));
+
+            if (onList)
+                rows.Add(new MALPlus.Controls.OptionsSheetItem(
+                    vm.AnimeMode ? "Set rewatch count" : "Set reread count", "icon_episodes",
+                    submenu: sheet => OpenRewatchSubmenu(sheet, vm)));
+
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy title", "icon_copy",
+                vm.CopyTitleToClipboardCommand));
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy link", "icon_list",
+                vm.CopyToClipboardCommand));
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Open in browser", "icon_search",
+                vm.OpenInMalCommand));
+
+            if (onList)
+                rows.Add(new MALPlus.Controls.OptionsSheetItem("Remove from my list", "icon_list",
+                    vm.RemoveAnimeCommand, destructive: true));
+
+            DetailsSheet.Open("More", vm.Title, rows);
+            MainActivity.ArmMenuBackCallback(() => DetailsSheet.Dismiss());
         }
-        catch (Exception ex) { Console.WriteLine("MALPLUS OnShowMoreRequested failed: " + ex.GetType().Name); }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnShowMoreRequested failed: " + ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    ///     Rewatch count, 1 to 5 plus none, which is the range the original offered. A submenu rather
+    ///     than a picker dialog because it belongs to the panel the user is already in, and a dialog on
+    ///     top of a sheet is two dismissible surfaces stacked.
+    /// </summary>
+    /// <summary>
+    ///     This entry's own discussion board.
+    ///     <para>
+    ///     Straight to the route rather than through <c>NavigateForumBoardCommand</c>: that command goes
+    ///     out to the platform's PageForumIndex, which in MAUI is the global forum index with no id, so
+    ///     it opened the boards list instead of the entry's board.
+    ///     </para>
+    /// </summary>
+    private static async void OpenForumBoard(
+        MALClient.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
+    {
+        try
+        {
+            var title = Uri.EscapeDataString(vm.Title ?? "");
+            var manga = vm.AnimeMode ? "0" : "1";
+            await Shell.Current.GoToAsync($"forumboard?anime={vm.Id}&title={title}&manga={manga}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS forum board navigation failed: " + ex.Message);
+        }
+    }
+
+    private bool OpenRewatchSubmenu(MALPlus.Controls.OptionsSheet sheet,
+        MALClient.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
+    {
+        var rows = new List<MALPlus.Controls.OptionsSheetItem>
+        {
+            new("None", "icon_episodes",
+                action: () => vm.SetRewatchCount(0))
+        };
+        for (var count = 1; count <= 5; count++)
+        {
+            var picked = count;
+            rows.Add(new MALPlus.Controls.OptionsSheetItem(picked.ToString(), "icon_episodes",
+                action: () => vm.SetRewatchCount(picked)));
+        }
+
+        sheet.OpenSubmenu(vm.AnimeMode ? "Rewatching" : "Rereading", rows, () => OnShowMoreRequested());
+        return true;
+    }
+
+    private void OnDetailsSheetClosed(object sender, EventArgs e)
+    {
+        MainActivity.DisarmMenuBackCallback();
     }
 
     protected override void OnAppearing()
@@ -1381,12 +1463,16 @@ public partial class AnimeDetailsPage : ContentPage
     ///     tears the document down rather than just navigating it. The native side is paused and
     ///     stopped too, so either player goes quiet.
     /// </summary>
-    private void HideVideoLoading()
+private void HideVideoLoading()
+    {
+        try
         {
-            try
-            {
-                if (VideoOverlay != null && VideoOverlay.IsVisible)
-                    VideoWebViewHelper.BackHandler = null;
+            // Leaving full screen is part of closing, not something to remember: an overlay that went
+            // away while the activity was still landscape left the whole app sideways.
+            FullscreenVideo.Exit();
+            if (VideoOverlay != null && VideoOverlay.IsVisible)
+                VideoWebViewHelper.BackHandler = null;
+
                 MainActivity.DisarmVideoBackCallback();
                 StopDirectMedia();
                 if (_videoWebView != null)
@@ -1404,6 +1490,27 @@ public partial class AnimeDetailsPage : ContentPage
     private void CloseVideoOverlay(object sender, EventArgs e)
     {
         HideVideoLoading();
+    }
+
+    /// <summary>
+    ///     Toggles full screen and swaps the glyph so the button says what it will do next rather
+    ///     than what it just did.
+    /// </summary>
+    private void OnToggleFullscreen(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (FullscreenVideo.IsActive)
+                FullscreenVideo.Exit();
+            else
+                FullscreenVideo.Enter();
+            if (FullscreenIcon != null)
+                FullscreenIcon.Source = FullscreenVideo.IsActive ? "icon_exit_fullscreen" : "icon_fullscreen";
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "Fullscreen toggle failed: " + ex.GetType().Name);
+        }
     }
 
     /// <summary>

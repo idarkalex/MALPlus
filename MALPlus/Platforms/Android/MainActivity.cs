@@ -115,10 +115,72 @@ public override void HandleOnBackPressed()
             }
         }
 
-        /// <summary>
-        ///     Kept only as a fallback for platforms and manifest settings where the dispatcher is
-        ///     not in charge and the system still calls this. On Android 13+ with predictive back it
-        ///     never runs, and <see cref="VideoOverlayBackCallback"/> is what actually gets the
+    /// <summary>
+    ///     Puts a dismissing panel in front of the back gesture, for as long as one is open.
+    ///     <remarks>
+    ///     Same mechanism as the video overlay, and for the same reason: the dispatcher runs the most
+    ///     recently added callback first, so a callback registered while the panel is opening is the
+    ///     only one guaranteed to be ahead of the Shell's. Registering on page load does not work.
+    ///     </remarks>
+    /// </summary>
+    public static void ArmMenuBackCallback(Action onBack)
+    {
+        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity as MainActivity;
+        if (activity == null || onBack == null)
+            return;
+        DisarmMenuBackCallback();
+        _menuBackCallback = new MenuBackCallback(activity, onBack);
+        activity.OnBackPressedDispatcher.AddCallback(activity, _menuBackCallback);
+    }
+
+    public static void DisarmMenuBackCallback()
+    {
+        if (_menuBackCallback == null)
+            return;
+        // Disabled rather than removed: this binding of AndroidX.Activity exposes addCallback but not
+        // removeCallback, and the dispatcher skips disabled callbacks, so this is equivalent apart from
+        // the dead entry.
+        _menuBackCallback.Enabled = false;
+        _menuBackCallback = null;
+    }
+
+    private static MenuBackCallback _menuBackCallback;
+
+    private sealed class MenuBackCallback : AndroidX.Activity.OnBackPressedCallback
+    {
+        private readonly MainActivity _owner;
+        private readonly Action _onBack;
+
+        public MenuBackCallback(MainActivity owner, Action onBack) : base(enabled: true)
+        {
+            _owner = owner;
+            _onBack = onBack;
+        }
+
+        public override void HandleOnBackPressed()
+        {
+            try
+            {
+                _onBack();
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("MALPLUS", "Menu back callback failed: " + ex.GetType().Name);
+            }
+
+            // Deliberately NOT forwarding to the dispatcher afterwards, unlike the video overlay: a
+            // forwarded press is handled by the Shell as well, so closing the panel also popped the
+            // page under it. The press that opened the panel belongs to the panel.
+            Enabled = false;
+            _menuBackCallback = null;
+        }
+    }
+
+    /// <summary>
+    ///     Kept only as a fallback for platforms and manifest settings where the dispatcher is
+    ///     not in charge and the system still calls this. On Android 13+ with predictive back it
+    ///     never runs, and <see cref="VideoOverlayBackCallback"/> is what actually gets the
+
         ///     gesture.
         /// </summary>
         public override void OnBackPressed()

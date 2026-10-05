@@ -6,11 +6,26 @@ using MALClient.XShared.ViewModels.Forums.Items;
 
 namespace MALPlus.Views;
 
+/// <summary>
+///     One board, or one entry's own board.
+///     <para>
+///     The three extra query properties are why "Forum board" on an entry lands on that entry's
+///     discussion instead of the global index: the view model already knows how to read an anime or
+///     manga board (ForumBoardTopicsQuery takes the id), but the page only ever rebuilt a ForumBoards
+///     enum out of one int, so the id was thrown away on arrival.
+///     </para>
+/// </summary>
 [QueryProperty(nameof(BoardId), "board")]
+[QueryProperty(nameof(AnimeId), "anime")]
+[QueryProperty(nameof(AnimeTitle), "title")]
+[QueryProperty(nameof(IsManga), "manga")]
 public partial class ForumsBoardPage : ContentPage
 {
     private bool _initialized;
     public string BoardId { get; set; }
+    public string AnimeId { get; set; }
+    public string AnimeTitle { get; set; }
+    public string IsManga { get; set; }
 
     private ForumBoardViewModel Vm => (ForumBoardViewModel)BindingContext;
 
@@ -20,6 +35,20 @@ public partial class ForumsBoardPage : ContentPage
         BindingContext = ViewModelLocator.ForumsBoard;
     }
 
+    /// <summary>
+    ///     The args for whichever kind of board this is. An entry id wins over a board number, because
+    ///     that is the case the global index cannot serve.
+    /// </summary>
+    private ForumsBoardNavigationArgs BuildArgs()
+    {
+        if (int.TryParse(AnimeId, out var id) && id > 0)
+            return new ForumsBoardNavigationArgs(id,
+                string.IsNullOrWhiteSpace(AnimeTitle) ? "Forum" : Uri.UnescapeDataString(AnimeTitle),
+                !string.Equals(IsManga, "true", StringComparison.OrdinalIgnoreCase));
+        int.TryParse(BoardId, out var board);
+        return new ForumsBoardNavigationArgs((ForumBoards)board);
+    }
+
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -27,9 +56,7 @@ public partial class ForumsBoardPage : ContentPage
         _initialized = true;
         try
         {
-            int board = 0;
-            int.TryParse(BoardId, out board);
-            Vm.Init(new ForumsBoardNavigationArgs((ForumBoards)board));
+            Vm.Init(BuildArgs());
             for (int i = 0; i < 60; i++)
             {
                 await Task.Delay(200);
@@ -46,9 +73,7 @@ public partial class ForumsBoardPage : ContentPage
     {
         try
         {
-            int board = 0;
-            int.TryParse(BoardId, out board);
-            Vm.Init(new ForumsBoardNavigationArgs((ForumBoards)board), true);
+            Vm.Init(BuildArgs(), true);
         }
         catch { }
     }

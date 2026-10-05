@@ -96,4 +96,12 @@
                Margin="6,0,6,4" InputTransparent="True"
                IsVisible="{Binding TitleOverlay, Source={x:Reference PosterCard}}" />
     </Grid>
+
+    <!-- The long press lives here, on the shared card, rather than in each grid's template: every
+         poster in the app is an AnimePosterCard, so putting it in the templates would have meant
+         adding it five times and would still have missed any grid added later. Tap and long press
+         coexist on the same element, so a normal tap still opens the entry. -->
+    <ContentView.GestureRecognizers>
+        <LongPressGestureRecognizer LongPressed="OnLongPressed" />
+    </ContentView.GestureRecognizers>
 </ContentView>

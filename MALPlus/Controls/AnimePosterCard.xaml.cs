@@ -89,6 +89,45 @@ public partial class AnimePosterCard : ContentView
         InitializeComponent();
     }
 
+    /// <summary>
+    ///     Raised when a poster is held down. The grid re-raises it as
+    ///     <see cref="AnimePosterGrid.ItemLongPressed" />, which is what hosts actually subscribe to.
+    /// </summary>
+    public event EventHandler<object> LongPressed;
+
+    private void OnLongPressed(object sender, EventArgs e)
+    {
+        try
+        {
+            // The BindingContext is the view model, not the card: the card is recycled by the grid and
+            // by this binding, while the model behind it is what an action has to act on.
+            var context = BindingContext;
+            if (context == null)
+                return;
+
+            LongPressed?.Invoke(this, context);
+
+            // Also handed to the enclosing grid directly. A card lives inside a DataTemplate, so the
+            // grid cannot subscribe to it from XAML, and five grids each passing their own cell
+            // template is exactly the duplication this is meant to remove. Walking up to the grid is
+            // what makes one recognizer cover the default template and every custom one.
+            var parent = Parent;
+            while (parent != null)
+            {
+                if (parent is AnimePosterGrid grid)
+                {
+                    grid.RaiseItemLongPressed(context);
+                    return;
+                }
+                parent = parent.Parent;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS poster long press failed: " + ex.GetType().Name);
+        }
+    }
+
     public string PosterUrl
     {
         get => (string)GetValue(PosterUrlProperty);

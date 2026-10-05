@@ -37,29 +37,29 @@ public partial class DiscoverPage : ContentPage
 
     // ---------- simple destinations ----------
 
-    private async void OnSearchTapped(object sender, TappedEventArgs e)
+    private async void OnSearchTapped(object sender, EventArgs e)
     {
         try { await Shell.Current.GoToAsync("search"); } catch { }
     }
 
-    private async void OnNewsTapped(object sender, TappedEventArgs e)
+    private async void OnNewsTapped(object sender, EventArgs e)
     {
         try { await Shell.Current.GoToAsync("articles?mode=News"); } catch { }
     }
 
-    private async void OnUpcomingAllTapped(object sender, TappedEventArgs e)
+    private async void OnUpcomingAllTapped(object sender, EventArgs e)
     {
         try { await Shell.Current.GoToAsync("calendar?mode=global"); } catch { }
     }
 
-    private async void OnUpcomingMineTapped(object sender, TappedEventArgs e)
+    private async void OnUpcomingMineTapped(object sender, EventArgs e)
     {
         try { await Shell.Current.GoToAsync("calendar?mode=mine"); } catch { }
     }
 
     // ---------- multi result sheets ----------
 
-    private async void OnTrendingTapped(object sender, TappedEventArgs e)
+    private async void OnTrendingTapped(object sender, EventArgs e)
     {
         if (!await GuardAsync()) return;
         try
@@ -82,7 +82,7 @@ public partial class DiscoverPage : ContentPage
         finally { Release(); }
     }
 
-    private async void OnBecauseYouLikedTapped(object sender, TappedEventArgs e)
+    private async void OnBecauseYouLikedTapped(object sender, EventArgs e)
     {
         if (!await GuardAsync()) return;
         try
@@ -115,7 +115,7 @@ public partial class DiscoverPage : ContentPage
         finally { Release(); }
     }
 
-    private async void OnSeasonThemesTapped(object sender, TappedEventArgs e)
+    private async void OnSeasonThemesTapped(object sender, EventArgs e)
     {
         if (!await GuardAsync()) return;
         try
@@ -130,7 +130,7 @@ public partial class DiscoverPage : ContentPage
         finally { Release(); }
     }
 
-    private async void OnGemTapped(object sender, TappedEventArgs e)
+    private async void OnGemTapped(object sender, EventArgs e)
     {
         if (!await GuardAsync()) return;
         try
@@ -150,17 +150,43 @@ public partial class DiscoverPage : ContentPage
 
     // ---------- single item jumps ----------
 
-    private async void OnRandomAnimeTapped(object sender, TappedEventArgs e)
-    {
-        if (!await GuardAsync()) return;
-        try { await JumpToRandomAsync(false); }
-        finally { Release(); }
-    }
+    /// <summary>
+    ///     A random entry's icon leads to a popup rather than straight to a result: the artwork's gear
+    ///     is not part of the pill, so the filters need somewhere to live, and this is where the user
+    ///     expects to find them. The current filter summary is the popup's title, which is also the
+    ///     one piece of feedback the old inline caption used to give.
+    /// </summary>
+    private async void OnRandomAnimeTapped(object sender, EventArgs e)
+        => await PickRandomAsync(false);
 
-    private async void OnRandomMangaTapped(object sender, TappedEventArgs e)
+    private async void OnRandomMangaTapped(object sender, EventArgs e)
+        => await PickRandomAsync(true);
+
+    private async Task PickRandomAsync(bool manga)
     {
+        var what = manga ? "Random manga" : "Random anime";
+        var filter = await LoadFilterAsync(manga);
+        var choice = await DisplayActionSheet(what + "\n" + Summarize(filter), "Cancel", null,
+            "Go", "Adjust filters", "Clear filters");
+
+        if (string.IsNullOrEmpty(choice) || choice == "Cancel")
+            return;
+
+        if (choice == "Adjust filters")
+        {
+            await EditFilterAsync(manga);
+            return;
+        }
+
+        if (choice == "Clear filters")
+        {
+            await SaveFilterAsync(manga, new RandomFilter());
+            await Alert(manga ? "Manga filters cleared." : "Anime filters cleared.");
+            return;
+        }
+
         if (!await GuardAsync()) return;
-        try { await JumpToRandomAsync(true); }
+        try { await JumpToRandomAsync(manga); }
         finally { Release(); }
     }
 
@@ -177,7 +203,7 @@ public partial class DiscoverPage : ContentPage
         await Shell.Current.GoToAsync($"animedetails?id={items[0].Id}&title={Uri.EscapeDataString(items[0].Title ?? "")}{qs}");
     }
 
-    private async void OnRandomThemeTapped(object sender, TappedEventArgs e)
+    private async void OnRandomThemeTapped(object sender, EventArgs e)
     {
         if (!await GuardAsync()) return;
         try
@@ -202,12 +228,6 @@ public partial class DiscoverPage : ContentPage
     }
 
     // ---------- random filters ----------
-
-    private async void OnRandomAnimeSettingsTapped(object sender, EventArgs e)
-        => await EditFilterAsync(false);
-
-    private async void OnRandomMangaSettingsTapped(object sender, EventArgs e)
-        => await EditFilterAsync(true);
 
     private async Task EditFilterAsync(bool manga)
     {
@@ -280,7 +300,6 @@ public partial class DiscoverPage : ContentPage
                 await SaveFilterAsync(manga, filter);
             }
         }
-        await RefreshFilterSummaries();
     }
 
     private static string YearLabel(RandomFilter filter) =>
@@ -364,13 +383,6 @@ public partial class DiscoverPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await RefreshFilterSummaries();
-    }
-
-    private async Task RefreshFilterSummaries()
-    {
-        RandomAnimeSummary.Text = Summarize(await LoadFilterAsync(false));
-        RandomMangaSummary.Text = Summarize(await LoadFilterAsync(true));
     }
 
     private static string Summarize(RandomFilter filter)

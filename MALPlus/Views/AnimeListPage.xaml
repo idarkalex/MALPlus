@@ -189,5 +189,11 @@
         </Grid>
 
         <controls:BottomNavBar x:Name="BottomNav" Grid.Row="3" />
+
+        <!-- Poster options. Long press on any card raises the grid's ItemLongPressed, which lands
+             here. Last in the tree so it draws over everything, including the navigation bar. -->
+        <!-- RowSpan on purpose: with no row it lands in row 0, which is the grid, so the panel was
+             clipped to the list area and could not centre itself on the page. -->
+        <controls:OptionsSheet x:Name="PosterSheet" Grid.RowSpan="4" ZIndex="200" />
     </Grid>
 </ContentPage>

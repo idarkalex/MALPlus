@@ -132,7 +132,7 @@ public partial class BottomNavBar : ContentView
 
     private void SetSelectedSection(string section)
     {
-        SetSelected(DiscoverButton, DiscoverIcon, DiscoverLabel, "discover_home",
+        SetSelected(DiscoverButton, DiscoverIcon, DiscoverLabel, "discover_compass",
             string.Equals(section, "discover", StringComparison.OrdinalIgnoreCase));
         SetSelected(AnimeButton, AnimeIcon, AnimeLabel, "anime_list",
             string.Equals(section, "anime", StringComparison.OrdinalIgnoreCase));

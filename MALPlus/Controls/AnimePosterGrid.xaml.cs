@@ -180,10 +180,15 @@ public partial class AnimePosterGrid : ContentView
     public event EventHandler<object> ItemTapped;
 
     /// <summary>
-    ///     Raised with the bound item on a long press. Nothing in the app subscribes by default, so
-    ///     this is inert unless a host wants it: the shared cell template deliberately carries no
-    ///     long-press recognizer, because adding one would change the gesture behaviour of every
-    ///     poster grid in the app. Hosts that want it pass a CellTemplate with the recognizer.
+    ///     Raised with the bound item on a long press.
+    ///     <para>
+    ///     This used to be inert by design, on the grounds that a recognizer in the shared cell
+    ///     template would change the gesture behaviour of every poster grid in the app. It now lives
+    ///     in AnimePosterCard instead of the template, which is where it belongs: every poster in the
+    ///     app is that control, so one place covers the list, search, calendar, Discover and Related,
+    ///     and any grid added later gets it for free. Tap and long press coexist, so opening an entry
+    ///     is unchanged.
+    ///     </para>
     /// </summary>
     public event EventHandler<object> ItemLongPressed;
 
@@ -333,7 +338,11 @@ public partial class AnimePosterGrid : ContentView
             ItemTapped?.Invoke(this, view.BindingContext);
     }
 
-    /// <summary>Same contract as <see cref="OnCellTapped" /> for hosts with their own cell template.</summary>
+    /// <summary>
+    ///     Same contract as <see cref="OnCellTapped" />. Called by the card itself, which walks up to
+    ///     its enclosing grid, so this covers the default cell template and every custom one built
+    ///     from AnimePosterCard without any host having to wire anything.
+    /// </summary>
     public void RaiseItemLongPressed(object item)
     {
         if (item != null)

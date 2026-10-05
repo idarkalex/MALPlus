@@ -138,10 +138,13 @@ VideoWebViewHelper.BackHandler = OnVideoBackPressed;
         return _videoWebView;
     }
 
-    private void OnCloseVideo(object sender, EventArgs e)
+private void OnCloseVideo(object sender, EventArgs e)
     {
         try
         {
+            // Leaving full screen belongs to closing: an overlay that went away while the activity
+            // was still landscape left the whole app sideways.
+            FullscreenVideo.Exit();
 VideoWebViewHelper.BackHandler = null;
               MainActivity.DisarmVideoBackCallback();
               if (_videoWebView != null)
@@ -152,6 +155,27 @@ VideoWebViewHelper.BackHandler = null;
         {
         }
     }
+
+    /// <summary>
+    ///     Toggles full screen and swaps the glyph so the button says what it will do next.
+    /// </summary>
+    private void OnToggleFullscreen(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (FullscreenVideo.IsActive)
+                FullscreenVideo.Exit();
+            else
+                FullscreenVideo.Enter();
+            if (FullscreenIcon != null)
+                FullscreenIcon.Source = FullscreenVideo.IsActive ? "icon_exit_fullscreen" : "icon_fullscreen";
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "Fullscreen toggle failed: " + ex.GetType().Name);
+        }
+    }
+
 
     private bool OnVideoBackPressed()
     {

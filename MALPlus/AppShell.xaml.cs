@@ -7,7 +7,24 @@ public partial class AppShell : Shell
     public AppShell()
     {
         InitializeComponent();
+
+        // The flyout is declared disabled in AppShell.xaml, next to NavBarIsVisible, and not here.
+        //
+        // Hiding the nav bar only removes the hamburger button: the gesture that opens the flyout by
+        // dragging from the left edge belongs to Android's DrawerLayout, which MAUI inflates for the
+        // flyout, and it stayed armed the whole time. That is why a sidebar kept reappearing long
+        // after it was meant to be gone.
+        //
+        // It used to be off for free. While the root item was a TabBar the Shell worked out that a
+        // flyout could not apply and disabled it by itself; building the sections in code, which the
+        // tabs need so they stop drawing side by side, makes the root items ShellItems, that shortcut
+        // stops applying and the default Flyout came back.
+        //
+        // It has to be an attribute rather than an assignment in this constructor. Setting the property
+        // here, before the platform view exists, made every pushed page initialise and then draw
+        // nothing at all: the page view model ran and its tabs were built, but the entry came up black.
         BuildSections();
+
 
         // Push routes
         Routing.RegisterRoute("animedetails", typeof(AnimeDetailsPage));

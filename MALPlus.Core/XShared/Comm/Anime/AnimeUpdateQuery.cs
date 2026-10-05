@@ -109,9 +109,13 @@ namespace MALClient.XShared.Comm.Anime
                     if (response.IsSuccessStatusCode)
                         result = "Updated";
 
+                    Console.WriteLine($"MALPLUS MAL update id={_item.Id} -> {(int)response.StatusCode}");
                 }
                 catch (Exception e)
                 {
+                    // The snackbar is a no-op on MAUI, so without this an update that never reached
+                    // MAL is indistinguishable from a menu row that was never wired.
+                    Console.WriteLine($"MALPLUS list update failed for {_item.Id}: {e.GetType().Name}: {e.Message}");
                     ResourceLocator.SnackbarProvider.ShowText("Failed to send update to MAL. Please try signing in again if problem persists.");
                 }
 

@@ -507,6 +507,10 @@ namespace MALClient.XShared.ViewModels
                 RaisePropertyChanged(() => MyStatusBind);
                 RaisePropertyChanged(() => MyStatusBindShort);
                 RaisePropertyChanged(() => MyStatus);
+                // The card badge is bound to the derived names, not to MyStatusBind: raising only the
+                // ones above left every poster on screen showing the old status until it was recycled.
+                RaisePropertyChanged(() => LibraryBadgeAccent);
+                RaisePropertyChanged(() => LibraryBadgeMain);
             }
         }
 
@@ -559,6 +563,7 @@ namespace MALClient.XShared.ViewModels
                 ParentAbstraction.MyEpisodes = value;
                 RaisePropertyChanged(() => MyEpisodesBind);
                 RaisePropertyChanged(() => MyEpisodesBindShort);
+                RaisePropertyChanged(() => LibraryBadgeMain);
                 ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
                 ChangedWatched?.Invoke(this,value);
             }
@@ -586,6 +591,8 @@ namespace MALClient.XShared.ViewModels
                 }
                 RaisePropertyChanged(() => MyEpisodesBind);
                 RaisePropertyChanged(() => MyEpisodesBindShort);
+                // Same reason as the status setter: the poster's badge binds the derived name.
+                RaisePropertyChanged(() => LibraryBadgeMain);
                 AdjustIncrementButtonsVisibility();
                 ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
             }
@@ -688,6 +695,9 @@ namespace MALClient.XShared.ViewModels
                     return;
                 ParentAbstraction.GlobalScore = value;
                 RaisePropertyChanged(() => GlobalScoreBind);
+                // CardScore is what the poster's blue tag binds to; without this the mean kept the
+                // value it had when the cell was first bound.
+                RaisePropertyChanged(() => CardScore);
             }
         }
 
@@ -1365,6 +1375,7 @@ namespace MALClient.XShared.ViewModels
 
                 MyEpisodesFocused = watched;
                 var response = await GetAppropriateUpdateQuery().GetRequestResponse();
+                Console.WriteLine($"MALPLUS ChangeWatchedEps id={Id} watched={watched} total={_allEpisodes} input='{WatchedEpsInput}' response={response} api={Settings.SelectedApiType}");
                 if (response != "Updated" && Settings.SelectedApiType == ApiType.Mal)
                     MyEpisodesFocused = prevWatched;
                 else
@@ -1452,6 +1463,7 @@ namespace MALClient.XShared.ViewModels
             ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
 
             var response = await GetAppropriateUpdateQuery().GetRequestResponse();
+            Console.WriteLine($"MALPLUS ChangeStatus id={Id} status={MyStatus} prev={myPrevStatus} response={response} api={Settings.SelectedApiType}");
             if (response != "Updated" && Settings.SelectedApiType == ApiType.Mal)
                 MyStatus = myPrevStatus;
             else
@@ -1488,6 +1500,7 @@ namespace MALClient.XShared.ViewModels
                 MyScore = Convert.ToInt32(score as string);
             }
             var response = await GetAppropriateUpdateQuery().GetRequestResponse();
+            Console.WriteLine($"MALPLUS ChangeScore id={Id} score={MyScore} prev={myPrevScore} response={response} api={Settings.SelectedApiType}");
             if (response != "Updated" && Settings.SelectedApiType == ApiType.Mal)
                 MyScore = myPrevScore;
             else
