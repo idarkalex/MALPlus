@@ -6,21 +6,21 @@ using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
 using GalaSoft.MvvmLight.Ioc;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Interfaces;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Comm.MagicalRawQueries;
-using MALClient.XShared.Comm.Manga;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.Utils.Managers;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Interfaces;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Comm.Manga;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.Utils.Managers;
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     public enum AnimeItemDisplayContext
     {
@@ -516,6 +516,45 @@ namespace MALClient.XShared.ViewModels
 
         public string MyScoreBind
             => MyScore == 0 ? "Unranked" : $"{MyScore}/{(Settings.SelectedApiType == ApiType.Mal ? "10" : "5")}";
+
+        /// <summary>
+        ///     Position in a ranked list, as "#20". Empty everywhere else.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///     Read off the abstraction's own Index rather than off the list, because the abstraction is
+        ///     what survives a page change: Top paginates, and each page is numbered from its own
+        ///     offset, so the row already knows where it sits in the whole ranking.
+        ///     </para>
+        ///     <para>
+        ///     Gated on a flag instead of asking the shared list view model which panel is showing.
+        ///     That view model is a singleton and answering "is this Top" from inside a cell would tie
+        ///     every poster's content to whatever panel happens to be mounted, so a card reused in the
+        ///     library would still claim a rank. The flag is set when the row is created for a ranked
+        ///     list and travels with the card.
+        ///     </para>
+        /// </remarks>
+        public string RankBind
+            => ShowRank && ParentAbstraction != null && ParentAbstraction.Index > 0
+                ? "#" + ParentAbstraction.Index
+                : "";
+
+        /// <summary>
+        ///     Whether this card belongs to a ranked panel. Set once, by the code that builds the row.
+        /// </summary>
+        public bool ShowRank { get; private set; }
+
+        /// <summary>
+        ///     Marks the card as belonging to a ranked list, and refreshes the chip.
+        /// </summary>
+        public void EnableRank()
+        {
+            if (ShowRank)
+                return;
+            ShowRank = true;
+            RaisePropertyChanged(() => ShowRank);
+            RaisePropertyChanged(() => RankBind);
+        }
 
         public string MyScoreBindShort
             => MyScore == 0 ? "N/A" : $"{MyScore}/{(Settings.SelectedApiType == ApiType.Mal ? "10" : "5")}";
@@ -1080,7 +1119,7 @@ namespace MALClient.XShared.ViewModels
         public async Task<DateTime?> GetTimeTillNextAirAsync()
         {
             var malIdLog = ParentAbstraction?.MalId ?? Id;
-            var res = await MALClient.XShared.BL.AiringDatumRepository.GetNextAirUtcAsync(malIdLog);
+            var res = await MALPlus.XShared.BL.AiringDatumRepository.GetNextAirUtcAsync(malIdLog);
             return res;
         }
 
@@ -1091,7 +1130,7 @@ namespace MALClient.XShared.ViewModels
                 var malId = ParentAbstraction?.MalId ?? Id;
                 var data = await DataCache.RetrieveAnimeSearchResultsDataStale(malId.ToString(), true);
                 if (data == null || string.IsNullOrEmpty(data.Status))
-                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(true, malId.ToString(), "", true);
+                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(false, malId.ToString(), "", true);
 
                 if (data == null)
                     return false;
@@ -1134,7 +1173,7 @@ namespace MALClient.XShared.ViewModels
                 var malId = ParentAbstraction?.MalId ?? Id;
                 var data = await DataCache.RetrieveAnimeSearchResultsDataStale(malId.ToString(), true);
                 if (data == null || string.IsNullOrEmpty(data.Broadcast))
-                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(true, malId.ToString(), "", true);
+                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(false, malId.ToString(), "", true);
 
                 if (data?.Broadcast == null)
                     return null;
@@ -1588,10 +1627,48 @@ namespace MALClient.XShared.ViewModels
                 await new MangaUpdateQuery(this).GetRequestResponse();
         }
 
+        /// <summary>
+        ///     Applies a Top or Seasonal payload to a card that already exists.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///     This runs when the card is REUSED, which is the whole point of the reuse: the card
+        ///     already carries the user's progress, score and notes, and throwing that away to rebuild
+        ///     it is what Seasonal had to give up to get correct data. The cost of reusing is that
+        ///     anything this does not touch keeps its old value, so everything the incoming payload
+        ///     actually carries has to be written here.
+        ///     </para>
+        ///     <para>
+        ///     It only refreshed the score. Title, poster and episode count came from whichever list
+        ///     created the view, so an anime that appears in two lists kept the first one's title and
+        ///     image, and the grid showed the wrong poster under a title that no longer matched. The
+        ///     user's own fields (MyScore, MyStatus, MyEpisodes, Notes) are deliberately not written:
+        ///     those are theirs, not the panel's.
+        ///     </para>
+        /// </remarks>
         public void UpdateWithSeasonData(SeasonalAnimeData data, bool updateScore)
         {
             if (updateScore)
                 GlobalScore = data.Score;
+
+            // From the payload, so a card that arrives through a different list shows that list's own
+            // data. Title and image only, when they actually differ, so a bind is not raised per cell on
+            // a list where nothing moved.
+            if (!string.IsNullOrWhiteSpace(data.Title) && data.Title != Title)
+                Title = data.Title;
+            if (!string.IsNullOrWhiteSpace(data.ImgUrl) && data.ImgUrl != ImgUrl)
+                ImgUrl = data.ImgUrl;
+
+            // Episode count lives on the abstraction, which is what the card reads through, and it is
+            // the number the new list arrived with rather than the one the old list had.
+            if (int.TryParse(data.Episodes, out var episodes) &&
+                episodes != ParentAbstraction.AllEpisodes)
+            {
+                ParentAbstraction.SetEpisodesForPanel(episodes);
+                RaisePropertyChanged(() => AllEpisodes);
+                RaisePropertyChanged(() => AllEpisodesFocused);
+            }
+
             if (!Auth)
             {
                 UpdateButtonsVisibility = false;

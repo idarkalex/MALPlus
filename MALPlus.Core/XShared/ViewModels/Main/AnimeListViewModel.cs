@@ -1,39 +1,40 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.BL;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Comm.Manga;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels.Interfaces;
-using AnimeType = MALClient.Models.Enums.AnimeType;
-using MangaType = MALClient.Models.Enums.MangaType;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.BL;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Comm.Manga;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels.Interfaces;
+using AnimeType = MALPlus.Models.Enums.AnimeType;
+using MangaType = MALPlus.Models.Enums.MangaType;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public partial class AnimeListViewModel : ViewModelBase
     {
         private readonly IAnimeLibraryDataStorage _animeLibraryDataStorage;
         private const int ItemPrefferedWidth = 385;
         private const int LastIndexPositionOnRefresh = -10; //just a constant
-        private const int ItemsPerPage = 50; //just a constant
+        private const int ItemsPerPage = 25; //matches what one fetch really adds per page
         private const int ItemsPerGenereStudioPage = 25; //just a constant
 
         private SmartObservableCollection<AnimeItemViewModel> _animeItems =
@@ -154,21 +155,101 @@ namespace MALClient.XShared.ViewModels.Main
             {
                 var source = _animeItems;
                 var filter = _panelFilter?.Trim() ?? "";
-                IEnumerable<AnimeItemViewModel> matches = source;
-                if (!string.IsNullOrEmpty(filter))
-                    matches = source.Where(item => item != null &&
-                                                  (item.Title ?? "").IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
-                        .ToList();
+                // Materialised, because the prefix check below needs to compare entry by entry and
+                // because a lazily filtered sequence cannot be walked twice.
+                var matches = new List<AnimeItemViewModel>();
+                if (source != null)
+                {
+                    if (string.IsNullOrEmpty(filter))
+                        matches.AddRange(source);
+                    else
+                        matches.AddRange(source.Where(item => item != null &&
+                                                            (item.Title ?? "").IndexOf(filter,
+                                                                StringComparison.OrdinalIgnoreCase) >= 0));
+                }
+
+                // When the list has only GREW, the rows on screen are exactly the head of what is
+                // wanted, and the tail is all that is new. Clearing and re-adding the whole thing in
+                // that case is what the grid read as a reload: it drops its adapter and rebuilds
+                // every visible cell, which is the flash at the end of the panel.
+                //
+                // The check is made against what is actually there rather than against a flag, so it
+                // cannot be wrong about the list state: a removal, a re-order, a different filter or
+                // a different panel all fail the comparison and take the full rebuild below, exactly
+                // as before.
+                if (IsUnchangedPrefixOf(matches))
+                {
+                    // One batch, never a loop. Appending row by row raises a collection change per
+                    // row, and the grid re-lays out and re-warms on every one of them: three hundred
+                    // forced layouts for a single page, which is enough to stop the UI answering and
+                    // leave the grid blank. AddRange raises it once.
+                    var tail = matches.Count - DisplayedItems.Count;
+                    if (tail > 0)
+                        DisplayedItems.AddRange(matches.Skip(DisplayedItems.Count).ToList());
+                    RaisePropertyChanged(() => PanelFilterEmpty);
+                    return;
+                }
 
                 DisplayedItems.Clear();
-                if (matches != null)
-                    DisplayedItems.AddRange(matches);
+                DisplayedItems.AddRange(matches);
                 RaisePropertyChanged(() => PanelFilterEmpty);
             }
             catch (Exception ex)
             {
                 Console.WriteLine("MALPLUS panel filter failed: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        ///     True when what is already shown is the same run of entries the list now starts with.
+        /// </summary>
+        /// <remarks>
+        ///     Compared on the Mal id, NOT on object identity. The rows are rebuilt on every page:
+        ///     the fetch replaces the storage list with a new one and the row builder creates a fresh
+        ///     abstraction and a fresh view model for each entry, so the same anime is a different
+        ///     object on every page. Comparing references therefore never matched, the list was always
+        ///     judged as changed, and the grid was cleared and rebuilt on every page that arrived,
+        ///     which is the flash over posters that had not changed. The id is the one thing that
+        ///     survives being rebuilt.
+        ///     <para>
+        ///     Anything that is a genuine change still fails this and takes the full rebuild: a
+        ///     different order, a missing entry, a re-filtered list or a different panel.
+        ///     </para>
+        /// </remarks>
+        private bool IsUnchangedPrefixOf(List<AnimeItemViewModel> wanted)
+        {
+            if (DisplayedItems.Count > wanted.Count)
+                return false;
+            for (var i = 0; i < DisplayedItems.Count; i++)
+            {
+                if (DisplayedItems[i] == null || wanted[i] == null)
+                    return false;
+                if (DisplayedItems[i].Id != wanted[i].Id)
+                    return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        ///     Same test, against the bound collection, for the queue about to be drained.
+        /// </summary>
+        /// <remarks>
+        ///     The rows on screen and the rows queued come from the same rebuild, so their view models
+        ///     are as different from each other as they are from the previous page. Same reason as
+        ///     above: the Mal id is what identifies the entry.
+        /// </remarks>
+        private bool AreDrawnRowsTheHeadOf(List<AnimeItemViewModel> queued)
+        {
+            if (AnimeItems.Count > queued.Count)
+                return false;
+            for (var i = 0; i < AnimeItems.Count; i++)
+            {
+                if (AnimeItems[i] == null || queued[i] == null)
+                    return false;
+                if (AnimeItems[i].Id != queued[i].Id)
+                    return false;
+            }
+            return true;
         }
 
         public SmartObservableCollection<AnimeItemViewModel> AnimeListItems
@@ -322,6 +403,9 @@ namespace MALClient.XShared.ViewModels.Main
 
                 //depending on args
                 var gotArgs = false;
+                // A different panel is a different set of rows, so the one-shot seeding of the top of
+                // the grid has to be armed again or the new panel's first rows never get a date.
+                _airTimesPrefetched = false;
                 if (args != null) //Save current mode
                 {
                     ResetedNavBack = args.ResetBackNav;
@@ -329,11 +413,16 @@ namespace MALClient.XShared.ViewModels.Main
                     if (WorkMode == AnimeListWorkModes.TopAnime)
                     {
                         TopAnimeWorkMode = args.TopWorkMode;
+                        // Read after the work mode and subcategory above, because a band is only
+                        // meaningful on the tabs that ARE the ranking and this setter compares the
+                        // two to decide whether to raise CanLoadMore.
+                        TopRangeIndex = ResolveRangeIndex(args.TopRangeIndex);
                         ViewModelLocator.GeneralHamburger.SetActiveButton(args.TopWorkMode); //we have to have it
                     }
                     else if (WorkMode == AnimeListWorkModes.TopManga)
                     {
                         MangaTopWorkMode = args.MangaTopWorkMode;
+                        TopRangeIndex = ResolveRangeIndex(args.TopRangeIndex);
                     }
                     else if (WorkMode == AnimeListWorkModes.MangaAdapted)
                     {
@@ -346,6 +435,14 @@ namespace MALClient.XShared.ViewModels.Main
                     else if (WorkMode == AnimeListWorkModes.AnimeByStudio)
                     {
                         Studio = args.Studio;
+                    }
+                    else
+                    {
+                        // Not a top panel at all. The band is cleared rather than left standing so
+                        // that coming back to a top panel cannot inherit one chosen for a different
+                        // list: HasBandRange would refuse it anyway, but the field would keep saying
+                        // otherwise to whatever read it next.
+                        TopRangeIndex = -1;
                     }
 
                     if (!string.IsNullOrEmpty(args.ListSource))
@@ -689,7 +786,12 @@ namespace MALClient.XShared.ViewModels.Main
 
             }
             if (WorkMode == AnimeListWorkModes.TopAnime || WorkMode == AnimeListWorkModes.TopManga)
-                items = items.OrderBy(item => item.Index);
+                // Items that carry no rank (some rows in the API come back without one, notably a lot
+                // of the Music type) keep their Index at zero instead of being told the list put them
+                // top. OrderBy alone would send those zeros to the very top of the panel, which is why
+                // Music entries were showing as numbers one and two on the Airing tab. Send them to
+                // the very end, where they belong when the source cannot rank them.
+                items = items.OrderBy(item => item.Index > 0 ? item.Index : int.MaxValue);
             else
                 switch (SortOption)
                 {
@@ -700,7 +802,14 @@ namespace MALClient.XShared.ViewModels.Main
                         if (WorkMode != AnimeListWorkModes.SeasonalAnime)
                             items = items.OrderBy(item => item.MyScore).ThenByDescending(item => item.Title);
                         else
-                            items = items.OrderBy(item => item.GlobalScore);
+                            // Index, not GlobalScore, and this is not a preference. Index is the row's
+                            // position in the season, which is fixed the moment the source answers, so
+                            // the grid does not move when the rest of the pages land. GlobalScore was
+                            // the alternative and it shuffled the list under the finger: the first
+                            // page painted with whatever scores the shared cache already had, and the
+                            // full result then re-sorted by the real ones. The score is still shown on
+                            // the card, so nothing is lost by ordering on the stable key.
+                            items = items.OrderBy(item => item.Index);
                         break;
                     case SortOptions.SortWatched:
                         if (WorkMode == AnimeListWorkModes.SeasonalAnime || WorkMode == AnimeListWorkModes.AnimeByStudio || WorkMode == AnimeListWorkModes.AnimeByGenre)
@@ -798,7 +907,11 @@ namespace MALClient.XShared.ViewModels.Main
                         throw new ArgumentOutOfRangeException(nameof(SortOption), SortOption, null);
                 }
             //If we are descending then reverse order
-            if (SortDescending && SortOption != SortOptions.SortAirDay && SortOption != SortOptions.SortSeason)
+            // Seasonal is excluded, along with the two it always was. Its descending default exists to
+            // mean "best score first", but the order now comes from the season's own ranking, and
+            // reversing it would put the last entry of the season at the top of the grid.
+            if (SortDescending && SortOption != SortOptions.SortAirDay && SortOption != SortOptions.SortSeason
+                && WorkMode != AnimeListWorkModes.SeasonalAnime)
                 items = items.Reverse();
             //Add all abstractions to current set (spread across pages)
             // RefreshList always rebuilds the whole list (init, entry change, sort order, a
@@ -888,6 +1001,33 @@ namespace MALClient.XShared.ViewModels.Main
 
         private async void LoadMore()
         {
+            // Single flight. This is async void driven by scroll events, so several copies run at once
+            // and each one advances the page counter on its own: the log showed the panel walking
+            // 1, 2, 6, 10, 12 within milliseconds while the fetches themselves were all refused by the
+            // in-progress guard further down. The pages were burned without a single row arriving,
+            // which is what the "stops at fifty" and "stops at seventy five" reports were.
+            //
+            // Re-entrant calls are dropped rather than queued: the one already running will bring in
+            // everything it was asked for, and the scroll fires again the moment it lands.
+            if (_loadingMore)
+                return;
+            _loadingMore = true;
+            try
+            {
+                await LoadMoreCore();
+            }
+            finally
+            {
+                _loadingMore = false;
+            }
+        }
+
+        private bool _loadingMore;
+
+        private async Task LoadMoreCore()
+        {
+            Console.WriteLine(
+                $"MALPLUS LoadMore in page={CurrentPage} can={CanLoadMore} queued={_animeItemsSet.Count} shown={AnimeItems.Count} max={MaxPage}");
             if (_animeItemsSet.Count > 0)
             {
                 var count = Math.Max(10, GetGridItemsToLoad());
@@ -898,24 +1038,49 @@ namespace MALClient.XShared.ViewModels.Main
                 return;
             }
 
-            if (CurrentPage > 10 || !CanLoadMore)
+            if (!CanLoadMore || CurrentPage >= MaxPage)
             {
                 CanLoadMore = false;
                 return;
             }
             var prevCount = AnimeItems.Count + _animeItemsSet.Count;
 
-            CurrentPage++;
-            await FetchSeasonalData(true, CurrentPage);
-            if (prevCount == AnimeItems.Count + _animeItemsSet.Count)
+            // Pull a screenful at a time rather than a page at a time. A page of the top lists is
+            // twenty-five rows, and requesting them one by made the panel feel jerky because the load
+            // finished before the scroll stopped. Loading several pages per threshold meant the grid
+            // had content to show while the next request was still being decided.
+            var added = 0;
+            var iterations = 0;
+            const int FullPage = 25;
+            while (CanLoadMore && CurrentPage < MaxPage && added < FullPage * 2 && iterations < 4)
             {
-                CanLoadMore = false;
+                CurrentPage++;
+                await FetchSeasonalData(true, CurrentPage);
+                var nowCount = AnimeItems.Count + _animeItemsSet.Count;
+                added += Math.Max(0, nowCount - prevCount);
+                prevCount = nowCount;
+                iterations++;
             }
-            else
-            {
-                CanLoadMore = CurrentPage <= 4 && WorkMode.GetAttribute<EnumUtilities.AnimeListWorkModeEnumMember>().AllowLoadingMore;
-            }
+            CanLoadMore = CurrentPage < MaxPage &&
+                          WorkMode.GetAttribute<EnumUtilities.AnimeListWorkModeEnumMember>().AllowLoadingMore;
+            Console.WriteLine(
+                $"MALPLUS LoadMore out page={CurrentPage} iters={iterations} added={added} shown={AnimeItems.Count} can={CanLoadMore}");
         }
+
+        /// <summary>
+        ///     How deep the paginated panels may go.
+        /// </summary>
+        /// <remarks>
+        ///     Twelve pages, roughly three hundred rows against a source that answers twenty five to
+        ///     a page. Past that the append made the grid grow too tall and it started blocking. The
+        ///     General ranking alone has a thousand one hundred and nine pages, so this is a chosen
+        ///     stopping point rather than the end of the data.
+        ///     <para>
+        ///     Pages are only read as the user scrolls, so this bounds how far they can scroll and not
+        ///     what gets downloaded: nothing is fetched until the list asks for the next page.
+        ///     </para>
+        /// </remarks>
+        internal const int MaxPage = 12;
 
         public void UpdateGridItemWidth(Tuple<Tuple<double,double>, Tuple<double, double>> args)
         {
@@ -949,15 +1114,31 @@ namespace MALClient.XShared.ViewModels.Main
             // new one. Replacing ItemsSource tears down and rebuilds every cell, and while a
             // refresh was doing that a stray card with no poster appeared at the end of the
             // grid and then vanished when the rebuild finished.
+            // Only clear when what is already on screen is NOT the head of the queue about to be drained.
+            // A paginated panel hands over the whole list every time a page lands, so the rows already
+            // drawn sit at the head of the queue. Clearing and re-draining them is what the grid read
+            // as a full reload: the adapter is dropped and every visible cell is rebuilt, which is the
+            // flash over posters that had not changed. Skipping them appends only the new rows.
+            //
+            // Verified against the queue rather than a flag, so it cannot be wrong about the list
+            // state: a refresh, a different panel or a different filter all fail the comparison and
+            // take the original clear-and-rebuild path exactly as before.
+            var queued = _animeItemsSet;
+            var skip = 0;
             if (AnimeItems == null)
                 AnimeItems = new SmartObservableCollection<AnimeItemViewModel>();
+            else if (AreDrawnRowsTheHeadOf(queued.Select(abstraction => abstraction.ViewModel).ToList()))
+                skip = AnimeItems.Count;
             else
                 AnimeItems.Clear();
             _lastOffset = 0;
             RaisePropertyChanged(() => DisplayMode);
             var minItems = GetGridItemsToLoad();
             if (CurrentIndexPosition == LastIndexPositionOnRefresh)
-                CurrentIndexPosition = _animeItemsSet.Count + AnimeItems.Count - 1;
+                // Counted before the drain, and only for a rebuild. While extending, the arithmetic
+                // included the rows already on screen and pointed past the end of the list, so the
+                // grid was asked to scroll into a row that does not exist and lost its position.
+                CurrentIndexPosition = skip > 0 ? -1 : _animeItemsSet.Count + AnimeItems.Count - 1;
             minItems = minItems < 10 ? 10 : minItems;
             var minimumIndex = CurrentIndexPosition == -1
                 ? minItems
@@ -967,21 +1148,21 @@ namespace MALClient.XShared.ViewModels.Main
             // last card into view for a moment on every pull to refresh.
             if (_drainWholeList)
                 minimumIndex = _animeItemsSet.Count;
+            // While extending, the rows already drawn are skipped rather than taken again, and
+            // everything the page brought is drained at once so the next page can start fetching.
+            if (skip > 0)
+                minimumIndex = _animeItemsSet.Count;
             var allItems = _animeItemsSet.Count;
+            var toTake = skip > 0 ? queued.Skip(skip) : queued.Take(minimumIndex);
             switch (DisplayMode)
             {
                 case AnimeListDisplayModes.IndefiniteCompactList:
-                    AnimeItems.AddRange(_animeItemsSet.Take(minimumIndex).Select(abstraction => abstraction.ViewModel));
-                    _animeItemsSet = _animeItemsSet.Skip(minimumIndex).ToList();
-                    break;
                 case AnimeListDisplayModes.IndefiniteList:
-                    AnimeItems.AddRange(_animeItemsSet.Take(minimumIndex).Select(abstraction => abstraction.ViewModel));
-                    _animeItemsSet = _animeItemsSet.Skip(minimumIndex).ToList();
-                    break;
                 case AnimeListDisplayModes.IndefiniteGrid:
-                    AnimeItems.AddRange(_animeItemsSet.Take(minimumIndex)
-                        .Select(abstraction => abstraction.ViewModel));
-                    _animeItemsSet = _animeItemsSet.Skip(minimumIndex).ToList();
+                    AnimeItems.AddRange(toTake.Select(abstraction => abstraction.ViewModel).ToList());
+                    _animeItemsSet = skip > 0
+                        ? new List<AnimeItemAbstraction>()
+                        : queued.Skip(minimumIndex).ToList();
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -1002,18 +1183,39 @@ namespace MALClient.XShared.ViewModels.Main
                 CurrentIndexPosition = -1;
             }
             ViewModelLocator.GeneralMain.ScrollToTopButtonVisibility = CurrentIndexPosition > minItems;
-            CurrentPage = (int) Math.Ceiling((double) allItems /
-                                             (WorkMode == AnimeListWorkModes.AnimeByGenre ||
-                                              WorkMode == AnimeListWorkModes.AnimeByStudio
-                                                 ? ItemsPerGenereStudioPage
-                                                 : ItemsPerPage));
+            // While the list is only growing, CurrentPage belongs to LoadMore and must not be
+            // recomputed here. It was derived from the size of the queue, which while extending no
+            // longer grows the way the formula assumes: the counter kept reading back the page it had
+            // already fetched, LoadMore asked for that same page again, got the rows it already had,
+            // and the list stopped where it was (observed at two hundred rows, eight pages).
+            if (skip == 0)
+                CurrentPage = (int) Math.Ceiling((double) allItems /
+                                                 (WorkMode == AnimeListWorkModes.AnimeByGenre ||
+                                                  WorkMode == AnimeListWorkModes.AnimeByStudio
+                                                     ? ItemsPerGenereStudioPage
+                                                     : ItemsPerPage));
             Loading = false;
             _randomedIds = new List<int>();
             _drainWholeList = false;
         }
 
+        /// <summary>
+        ///     Asks for the air time of the first rows, so they carry a date before they are scrolled to.
+        /// </summary>
+        /// <remarks>
+        ///     It used to walk the first twelve rows on EVERY page that landed, which meant the same
+        ///     dozen titles were re-asked twelve times over while the list grew, and each miss went out
+        ///     to the network. That is the stutter: the requests pile up on the same rows while the
+        ///     grid is trying to draw. The grid's own warm window already walks the rows as they are
+        ///     scrolled, so this only has to seed the very top, and only once per list.
+        /// </remarks>
+        private bool _airTimesPrefetched;
+
         private void PrefetchAirTimesAsync()
         {
+            if (_airTimesPrefetched)
+                return;
+            _airTimesPrefetched = true;
             foreach (var item in AnimeItems.Take(12))
             {
                 if (item.ParentAbstraction.RepresentsAnime && string.IsNullOrEmpty(item.TimeTillNextAirCache))
@@ -1146,19 +1348,37 @@ catch (Exception)
         /// <param name="force"></param>
         /// <returns></returns>
         private bool _fetchingSeasonal;
-        private async Task FetchSeasonalData(bool force = false, int page = 0)
+
+        /// <summary>
+        ///     Fetches the seasonal panels.
+        /// </summary>
+        /// <remarks>
+        ///     The concurrent guard used to be an unconditional early return, which quietly threw away
+        ///     the request that arrived while one was running: switching season fast enough left the
+        ///     grid holding whichever fetch happened to be in progress rather than the one asked for.
+        ///     A caller that can be superseded passes a token and is cancelled instead; only a caller
+        ///     with no such token still defers.
+        /// </remarks>
+        private async Task FetchSeasonalData(bool force = false, int page = 0,
+            CancellationToken cancellationToken = default)
         {
-            if(_fetchingSeasonal)
+            if (_fetchingSeasonal && !cancellationToken.CanBeCanceled)
                 return;
             _fetchingSeasonal = true;
             try
             {
-                await FetchSeasonalDataCore(force, page);
+                await FetchSeasonalDataCore(force, page, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Superseded by a newer season. Nothing to report: the season that cancelled this one
+                // is already loading, and an error here would be reported on top of it.
             }
             catch (Exception ex)
             {
                 LoadError = "Could not load this list. Pull down to try again.";
                 LoadErrorVisibility = true;
+                Console.WriteLine("MALPLUS season error: " + ex);
             }
             finally
             {
@@ -1170,8 +1390,77 @@ catch (Exception)
             }
         }
 
-        private async Task FetchSeasonalDataCore(bool force, int page)
+        /// <summary>
+        ///     Puts an exact season on the Seasonal panel and reloads it.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///     Init cannot be used to change the season. Every mode whose args do not carry the full
+        ///     navigation set goes through the branch that resets the season to null, and the fetch
+        ///     that follows then falls back to whatever is airing now, so a season chosen inside the
+        ///     panel was silently discarded and the grid never changed.
+        ///     </para>
+        ///     <para>
+        ///     Setting the season before asking for the data is what makes it stick: the fetch takes
+        ///     the season as it finds it, and the index load underneath is a no-op once the list is
+        ///     populated, which is the case for every season change after the first open.
+        ///     </para>
+        /// </remarks>
+        public async Task ShowSeasonAsync(AnimeSeason season)
         {
+            if (season == null || WorkMode != AnimeListWorkModes.SeasonalAnime)
+                return;
+
+            Console.WriteLine(
+                $"MALPLUS season: asked for {season.Name} ({season.Season} {season.Year}) was {CurrentSeason?.Name}");
+
+            CurrentSeason = season;
+            if (SeasonSelection.Count == 0)
+                await LoadSeasonSelection(false);
+
+            // Whatever season was still loading is now the wrong answer, and its pages are sitting in
+            // the client's queue ahead of the new ones. That is what piled up: a season is eight or
+            // nine requests, so flipping through several leaves dozens queued and the season you end
+            // on waits for all of them. Cancelling the previous one drops them immediately and lets
+            // this season start now.
+            _seasonRequest?.Cancel();
+            _seasonRequest?.Dispose();
+            _seasonRequest = new CancellationTokenSource();
+            var token = _seasonRequest.Token;
+
+            // The wipe cannot go through ResetForInit. That decides by comparing ListSource, work
+            // mode and status, and none of the three change when only the season does, so it took the
+            // "nothing to redo" branch and left the queue alone. Items reach the grid through
+            // _animeItemsSet, which UpdatePageSetup drains, so the new season's items were appended
+            // behind the previous season's and the grid never visibly changed.
+            //
+            // Wiped directly, and the request guard is reset with it: that guard is what made Top
+            // Anime stop answering too, because the page keeps one view model and a season left
+            // loaded in it counted as "already fetched this" for whatever came next.
+            _pendingWipe = false;
+            _animeItemsSet = new List<AnimeItemAbstraction>();
+            AnimeItems = new SmartObservableCollection<AnimeItemViewModel>();
+            _prevWorkMode = (AnimeListWorkModes)(-1);
+            _prevListSource = null;
+            _prevStatus = -1;
+            // Cleared so a cancelled fetch never paints over the season that replaced it.
+            _seasonFirstPageShown = false;
+            _seasonGeneration++;
+
+            await FetchSeasonalData(false, 0, token);
+        }
+
+        private CancellationTokenSource _seasonRequest;
+
+        /// <summary>
+        ///     Bumped on every season change. A fetch that was still running compares it before it
+        ///     touches anything, so a slow season cannot paint over a newer one.
+        /// </summary>
+        private int _seasonGeneration;
+
+        private async Task FetchSeasonalDataCore(bool force, int page, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             LoadError = null;
             LoadErrorVisibility = false;
 
@@ -1186,22 +1475,40 @@ catch (Exception)
             await LoadSeasonSelection(setDefaultSeason);
             //get top or seasonal anime
             var data = new List<ISeasonalAnimeBaseData>();
+            // Which season this fetch belongs to. Taken before anything is awaited, because the
+            // point is to compare against whatever the panel is showing when the fetch comes back.
+            var generation = _seasonGeneration;
             page = page == 0 ? 1 : page;
             switch (WorkMode)
             {
                 case AnimeListWorkModes.SeasonalAnime:
                     List<SeasonalAnimeData> tResponse = null;
-                    await Task.Run(async () => tResponse =
-                        await new AnimeSeasonalQuery(CurrentSeason).GetSeasonalAnime(force));
+                    // Paints the first page while the rest of the season is still on its way. A season
+                    // is eight or nine requests, and holding the grid until the last one landed was
+                    // the entire wait: the first page already holds the entries worth showing, since
+                    // the source returns them ordered. Whatever arrives late is added after, so a
+                    // stalled page costs a shorter list rather than an empty screen.
+                    var seasonQuery = new AnimeSeasonalQuery(CurrentSeason);
+                    seasonQuery.FirstPageReady = batch =>
+                        ShowFirstSeasonPageAsync(batch, generation, cancellationToken);
+                    seasonQuery.RequestCancelled = () => cancellationToken.IsCancellationRequested;
+                    await Task.Run(async () => tResponse = await seasonQuery.GetSeasonalAnime(force));
+                    cancellationToken.ThrowIfCancellationRequested();
                     data.AddRange(tResponse ?? new List<SeasonalAnimeData>());
                     break;
                 case AnimeListWorkModes.TopAnime:
                 case AnimeListWorkModes.TopManga:
                     List<TopAnimeData> topResponse = null;
+                    // A band is asked for on page one only and brings the whole range back. Handing it
+                    // any other page number would ask for a slice of pages that the band reader ignores
+                    // anyway, but passing the real page keeps the filtered tabs below it working off
+                    // exactly the same call.
+                    var topPage = HasBandRange ? 1 : page - 1;
+                    var topRange = HasBandRange ? TopRangeIndex : -1;
                     await Task.Run(async () =>
                         topResponse = WorkMode == AnimeListWorkModes.TopAnime
-                            ? await new AnimeTopQuery(TopAnimeWorkMode, page - 1).GetTopAnimeData(force)
-                            : await new AnimeTopQuery(MangaTopWorkMode, page - 1).GetTopAnimeData(force));
+                            ? await new AnimeTopQuery(TopAnimeWorkMode, topPage, topRange).GetTopAnimeData(force)
+                            : await new AnimeTopQuery(MangaTopWorkMode, topPage, topRange).GetTopAnimeData(force));
                     data.AddRange(topResponse ?? new List<TopAnimeData>());
                     break;
                 case AnimeListWorkModes.MangaAdapted:
@@ -1234,12 +1541,37 @@ catch (Exception)
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-            //if we don't have any we cannot do anything I guess...
-            if (data.Count == 0)
-            {
-                RefreshList();
-                return;
-            }
+            Console.WriteLine(
+                $"MALPLUS panel: fetched {data.Count} rows for {PanelName()} ({WorkMode})");
+                //if we don't have any we cannot do anything I guess...
+                if (data.Count == 0)
+                {
+                    // Names the panel that actually failed. It used to say CurrentSeason?.Name, which
+                    // on a Top panel is the placeholder the seasonal path leaves behind, so every Top
+                    // filter reported "Could not load Airing" no matter which one was tapped.
+                    bool hasItems = WorkMode == AnimeListWorkModes.TopAnime || WorkMode == AnimeListWorkModes.TopManga
+                        ? _animeLibraryDataStorage.AllLoadedSeasonalAnimeItems.Count > 0
+                        : WorkMode == AnimeListWorkModes.MangaAdapted || WorkMode == AnimeListWorkModes.Manga
+                            ? _animeLibraryDataStorage.AllLoadedSeasonalMangaItems.Count > 0
+                            : _animeItems.Count > 0;
+                    if (hasItems && page > 1)
+                    {
+                        // One of the pages came back empty after we had already populated the list.
+                        // Do not blank the whole panel and do not show the error overlay: just stop
+                        // asking for more. The user still sees everything we already had.
+                        Console.WriteLine($"MALPLUS could-not-extend {PanelName()} ({WorkMode}) requested page={page} current={CurrentPage} after existing={_animeItems.Count} items");
+                        CanLoadMore = false;
+                        return;
+                    }
+                    LoadError = $"Could not load {PanelName()}. Pull down to try again.";
+                    LoadErrorVisibility = true;
+                    RefreshList();
+                    Console.WriteLine(
+                        $"MALPLUS could-not-load {PanelName()} ({WorkMode}) requested page={page} (CurrentPage={CurrentPage}) after {AnimeItems.Count} items from {WorkMode} cache");
+                    return;
+                }
+                LoadError = null;
+                LoadErrorVisibility = false;
             List<AnimeItemAbstraction> source;
             List<AnimeItemAbstraction> target;
             if (WorkMode == AnimeListWorkModes.TopManga || WorkMode == AnimeListWorkModes.MangaAdapted)
@@ -1264,11 +1596,78 @@ catch (Exception)
                 {
                     target = _animeLibraryDataStorage.AllLoadedSeasonalAnimeItems = new List<AnimeItemAbstraction>();
                 }
+                // The first page was already put on screen by the progressive render, so the full
+                // result continues that list instead of starting a fresh one and blanking the grid
+                // for a moment before repainting the same cards.
+                if (_seasonFirstPageShown && WorkMode == AnimeListWorkModes.SeasonalAnime)
+                {
+                    target = _animeLibraryDataStorage.AllLoadedSeasonalAnimeItems;
+                    _seasonFirstPageShown = false;
+                }
                 source = _animeLibraryDataStorage.AllLoadedAuthAnimeItems.Count > 0 ? _animeLibraryDataStorage.AllLoadedAuthAnimeItems : new List<AnimeItemAbstraction>();
 
             }
 
-            var updateScore = Settings.SelectedApiType == ApiType.Mal;
+            AppendSeasonRows(data, source, target, Settings.SelectedApiType == ApiType.Mal);
+
+            _fetchingSeasonal = false;
+            RefreshList();
+            LoadError = null;
+            LoadErrorVisibility = false;
+        }
+
+        private bool _seasonFirstPageShown;
+
+        /// <summary>
+        ///     Paints the first page of a season before the rest of it has arrived.
+        /// </summary>
+        /// <remarks>
+        ///     Runs on a worker, so everything that touches a collection the grid binds to has to be
+        ///     marshalled back. It deliberately uses the same row mounting as the full path: two
+        ///     builders would drift, and the symptom of that drift is a list that changes its mind when
+        ///     the remaining pages land.
+        /// </remarks>
+        private Task ShowFirstSeasonPageAsync(List<SeasonalAnimeData> firstPage, int generation,
+            CancellationToken cancellationToken)
+        {
+            if (firstPage == null || firstPage.Count == 0)
+                return Task.CompletedTask;
+
+            try
+            {
+                ResourceLocator.DispatcherAdapter.Run(() =>
+                {
+                    // The season that asked for this page is no longer the one on screen, so painting
+                    // it would overwrite the newer list with a superseded one.
+                    if (WorkMode != AnimeListWorkModes.SeasonalAnime ||
+                        generation != _seasonGeneration ||
+                        cancellationToken.IsCancellationRequested)
+                        return;
+                    var target = _animeLibraryDataStorage.AllLoadedSeasonalAnimeItems =
+                        new List<AnimeItemAbstraction>();
+                    AppendSeasonRows(firstPage, null, target, Settings.SelectedApiType == ApiType.Mal);
+                    _seasonFirstPageShown = true;
+                    Loading = false;
+                    RefreshList();
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS season first page failed: " + ex.Message);
+            }
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        ///     Turns fetched rows into the abstractions the grid binds to, in place.
+        /// </summary>
+        /// <remarks>
+        ///     Shared by the full fetch and by the progressive first page so both produce the same
+        ///     cards. A null source is the first-page case, where nothing may be reused.
+        /// </remarks>
+        private void AppendSeasonRows(IEnumerable<ISeasonalAnimeBaseData> data,
+            List<AnimeItemAbstraction> source, List<AnimeItemAbstraction> target, bool updateScore)
+        {
             foreach (var animeData in data)
             {
                 try
@@ -1279,11 +1678,38 @@ catch (Exception)
                         {
                             DayOfAiring = animeData.AirDay, GlobalScore = animeData.Score, Genres = animeData.Genres, AirStartDate = animeData.AirStartDate == AnimeItemViewModel.InvalidStartEndDate ? null : animeData.AirStartDate
                         });
+                    // Seasonal always builds its own view. Every other mode here reuses the one already
+                    // in the user's library so the card keeps the local progress and notes, and that
+                    // reuse is what broke Seasonal:
+                    //
+                    //  - the reused AnimeItemViewModel is the SAME instance the grid already holds, so
+                    //    clearing and re-adding the collection handed the recycled cell back its own
+                    //    stale data. Only the anime that were new looked right, which is what made it
+                    //    read as "some of them do not update".
+                    //  - UpdateWithSeasonData only refreshes the score and the episode label. Title,
+                    //    poster and episode count came from whichever season first created the view,
+                    //    so an anime airing in two seasons kept the older one's title and image.
+                    //
+                    // Cost: the card shows that season's numbers and the local progress is not shown on
+                    // this panel. The library itself is untouched, and Top Anime is left alone because
+                    // its cards never move between panels while Seasonal does.
+                    if (WorkMode == AnimeListWorkModes.SeasonalAnime || source == null)
+                    {
+                        target.Add(new AnimeItemAbstraction(animeData as SeasonalAnimeData, true));
+                        continue;
+                    }
+
                     AnimeItemAbstraction abstraction = null;
                     if (Settings.SelectedApiType == ApiType.Mal)
                         abstraction = source.FirstOrDefault(item => item.Id == animeData.Id);
                     else
                         abstraction = source.FirstOrDefault(item => item.MalId == animeData.Id);
+                    // The same entry can arrive on a later page, and re-adding it is what
+                    // multiplied the cards two-, three-, even four-fold. Top manga/anime merge
+                    // every already loaded page into whatever comes back, so the panel has to
+                    // hold each id once.
+                    if (target.Any(a => a.Id == animeData.Id || (a.MalId != 0 && a.MalId == animeData.Id)))
+                        continue;
                     if (abstraction == null)
                         target.Add(new AnimeItemAbstraction(animeData as SeasonalAnimeData, WorkMode != AnimeListWorkModes.TopManga && WorkMode != AnimeListWorkModes.MangaAdapted));
                     else
@@ -1297,18 +1723,43 @@ catch (Exception)
                         abstraction.ViewModel.UpdateWithSeasonData(animeData as SeasonalAnimeData, updateScore);
                         target.Add(abstraction);
                     }
+
+                    // The rank chip is for Top Anime alone. Set here, on the abstraction that was just
+                    // added, rather than from the grid: the view model is created lazily the first time
+                    // something reads it, so enabling it later would be too late for a cell that had
+                    // already bound an empty rank.
+                    if (WorkMode == AnimeListWorkModes.TopAnime || WorkMode == AnimeListWorkModes.TopManga)
+                        target[target.Count - 1].ViewModel.EnableRank();
                 }
                 catch (Exception e)
                 {
                     // wat
                 }
             }
-
-            _fetchingSeasonal = false;
-            RefreshList();
-            LoadError = null;
-            LoadErrorVisibility = false;
         }
+
+        /// <summary>
+        ///     What to call this panel in a message, which is not always a season.
+        /// </summary>
+        /// <remarks>
+        ///     The empty-list message is shown by every one of these panels and only Seasonal has a
+        ///     season to name. Naming the others after CurrentSeason meant every Top filter reported
+        ///     the same placeholder word, which is how "Could not load Airing" came up for all of them.
+        /// </remarks>
+        private string PanelName()
+            => WorkMode switch
+            {
+                AnimeListWorkModes.SeasonalAnime => CurrentSeason?.Name ?? "this season",
+                AnimeListWorkModes.TopAnime => TopAnimeWorkMode.ToString(),
+                AnimeListWorkModes.TopManga => MangaTopWorkMode.ToString(),
+                // Read straight off the enum rather than through the query's display helper: naming
+                // the failure does not need the prose label, and reaching for that type here does not
+                // compile from inside this file.
+                AnimeListWorkModes.MangaAdapted => MangaAdaptedWorkMode.ToString(),
+                AnimeListWorkModes.AnimeByGenre => Genre.ToString(),
+                AnimeListWorkModes.AnimeByStudio => Studio.ToString(),
+                _ => "this list"
+            };
 
         /// <summary>
         ///     Fills <see cref="SeasonSelection" /> from the Tenrai seasons index, once. It already ran
@@ -1443,6 +1894,48 @@ catch (Exception)
         }
 
         /// <summary>
+        ///     Re-reads the panel from the first page after the band under the cursor changed.
+        /// </summary>
+        /// <remarks>
+        ///     Not the same as a refresh, and the difference matters. A refresh forces the read past
+        ///     the file cache, which is right when the reader pulled the list down wanting the current
+        ///     answer. Switching band is not that: the band being asked for has its own file, and on
+        ///     the first visit it simply does not exist yet. Forcing would be harmless there, but it
+        ///     also skips the live read on a band that has been read before, which is exactly where the
+        ///     cached answer is worth replacing.
+        /// </remarks>
+        public async Task RefetchForRangeChange()
+        {
+            CurrentPage = 1;
+            await FetchSeasonalData(false);
+        }
+
+        /// <summary>
+        ///     The band this panel should show, given what the caller asked for and what the panel is.
+        /// </summary>
+        /// <remarks>
+        ///     The two lists that ARE MAL's ranking always answer with a band, and they fall back to the
+        ///     first one when the caller named none. That is the whole fix for the top lists crawling:
+        ///     nothing used to ask for a band at all when a panel was opened from the menu, so these two
+        ///     fell through to paging twenty five rows at a time behind an infinite scroll, forever, and
+        ///     the bar meanwhile named a band the grid had never been asked for.
+        ///     <para>
+        ///     The filtered tabs get -1 whatever the caller said. They read a slice (Airing, TV,
+        ///     Upcoming) whose rows keep their own global rank but have no place of their own to page
+        ///     through, so there is no band to show and the selector stays hidden.
+        ///     </para>
+        /// </remarks>
+        private int ResolveRangeIndex(int requested)
+        {
+            var isWholeRanking =
+                WorkMode == AnimeListWorkModes.TopAnime && TopAnimeWorkMode == TopAnimeType.General ||
+                WorkMode == AnimeListWorkModes.TopManga && MangaTopWorkMode == MangaTopType.All;
+            if (!isWholeRanking)
+                return -1;
+            return requested >= 0 && requested < AnimeTopQuery.RangeCount ? requested : 0;
+        }
+
+        /// <summary>
         /// The pull to refresh gesture needs to know when the reload is over so it can put its
         /// spinner away. Going through RefreshCommand lost that: the command wraps an async void,
         /// so the caller had nothing to await and IsRefreshing stayed true for good, which is
@@ -1508,7 +2001,7 @@ catch (Exception)
         {
             var requestedMode = modeOverride ?? WorkMode;
 
-            global::System.Diagnostics.Debug.WriteLine($"MALPLUS fetch: source={ListSource} mode={requestedMode} force={force} auth={Credentials.Authenticated}");
+            Console.WriteLine($"MALPLUS fetch: source={ListSource} mode={requestedMode} force={force} auth={Credentials.Authenticated}");
 
             // The status filter is part of the request, not just the source: ListSource only holds
             // the user name, so without it here every status change looked like the request that

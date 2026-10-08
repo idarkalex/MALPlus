@@ -6,12 +6,12 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public partial class AnimeListViewModel
     {
@@ -213,13 +213,57 @@ namespace MALClient.XShared.ViewModels.Main
             set
             {
                 _currentPage = value;
-                CanLoadMore = value <= 10 && WorkMode.GetAttribute<EnumUtilities.AnimeListWorkModeEnumMember>().AllowLoadingMore; ;
+                // Read from the same ceiling LoadMore checks. This said "ten" and LoadMore said
+                // "four" and they disagreed: incrementing the page ran this setter, which reset the
+                // flag the caller had just decided, so whichever guard LoadMore applied was undone
+                // the moment it was reached. That is why Top stopped at three pages no matter which
+                // number LoadMore was given.
+                CanLoadMore = value < MaxPage && WorkMode.GetAttribute<EnumUtilities.AnimeListWorkModeEnumMember>().AllowLoadingMore;
             }
         }
 
+        /// <summary>True on panels that actually expose a per-status filter, so the lock below can stay off
+///     on Top / Seasonal / MangaAdapted, where the default selector would otherwise pin
+///     <see cref="CanLoadMore"/> to false. Those panels load on page count alone.</summary>
+        private bool HasStatusFilter =>
+            WorkMode == AnimeListWorkModes.Anime ||
+            WorkMode == AnimeListWorkModes.Manga;
+
+        private int _topRangeIndex = -1;
+
+        /// <summary>
+        ///     Which band of MAL's ranking this panel is showing, or -1 when it is paging a slice.
+        /// </summary>
+        public int TopRangeIndex
+        {
+            get { return _topRangeIndex; }
+            set
+            {
+                if (_topRangeIndex == value)
+                    return;
+                _topRangeIndex = value;
+                RaisePropertyChanged(() => TopRangeIndex);
+                RaisePropertyChanged(() => CanLoadMore);
+            }
+        }
+
+        /// <summary>
+        ///     True when the grid is showing one band, which arrives whole and so has nothing to load.
+        /// </summary>
+        /// <remarks>
+        ///     A band is two hundred and fifty ranks read in one go, and it is the whole of what the
+        ///     reader asked for. The infinite scroll that pages a filtered tab deeper is exactly wrong
+        ///     here: it would fetch pages that belong to the next band and append rows whose chip
+        ///     contradicts the band the bar is naming.
+        /// </remarks>
+        private bool HasBandRange =>
+            _topRangeIndex >= 0 &&
+            (WorkMode == AnimeListWorkModes.TopAnime && TopAnimeWorkMode == TopAnimeType.General ||
+             WorkMode == AnimeListWorkModes.TopManga && MangaTopWorkMode == MangaTopType.All);
+
         public bool CanLoadMore
         {
-            get { return _canLoadMore && !_canLoadMoreFilterLock && !WasPreviousQuery; }
+            get { return _canLoadMore && !_canLoadMoreFilterLock && !WasPreviousQuery && !HasBandRange; }
             set
             {
                 _canLoadMore = value;
@@ -251,7 +295,7 @@ namespace MALClient.XShared.ViewModels.Main
                 _statusSelectorSelectedIndex = value;
                 RaisePropertyChanged(() => StatusSelectorSelectedIndex);
                 ViewModelLocator.GeneralHamburger.UpdateAnimeFiltersSelectedIndex();
-                _canLoadMoreFilterLock = GetDesiredStatus() != AnimeStatus.AllOrAiring;//we cannot laod more when filters are active
+                _canLoadMoreFilterLock = HasStatusFilter && GetDesiredStatus() != AnimeStatus.AllOrAiring;//we cannot laod more when filters are active
                 RaisePropertyChanged(() => CanLoadMore);
                 SetDisplayMode((AnimeStatus)GetDesiredStatus());
                 if (!Initializing)

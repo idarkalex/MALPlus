@@ -6,17 +6,26 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace MALClient.XShared.Comm.Discovery
+namespace MALPlus.XShared.Comm.Discovery
 {
-    public class DiscoveryItem
-    {
-        public int Id { get; set; }
-        public string Title { get; set; }
-        public string ImgUrl { get; set; }
-        public string Type { get; set; }
-        public string Subtitle { get; set; }
-        public bool IsManga { get; set; }
-        public int PopularityRank { get; set; }
+public class DiscoveryItem
+        {
+            public int Id { get; set; }
+            public string Title { get; set; }
+            public string ImgUrl { get; set; }
+            public string Type { get; set; }
+            public string Subtitle { get; set; }
+            public bool IsManga { get; set; }
+            public int PopularityRank { get; set; }
+
+            /// <summary>Community score, 0 when the source omits it. Drives the gem's minimum.</summary>
+            public double Score { get; set; }
+
+            /// <summary>Members on the library list, 0 when unknown. Drives the gem's ceiling.</summary>
+            public int Members { get; set; }
+
+            /// <summary>Year the entry started airing/publishing, 0 when unknown.</summary>
+            public int Year { get; set; }
         /// <summary>Direct media url, only set for the OP/ED discovery entries.</summary>
         public string ThemeUrl { get; set; }
     }
@@ -145,7 +154,7 @@ namespace MALClient.XShared.Comm.Discovery
             try
             {
                 var raw = await TenraiClient.GetRawJsonAsync(
-                    "anime?status=airing&sfw&order_by=favorites&sort=desc&page=1&limit=" + limit);
+                    ContentFilter.Query("anime?status=airing&order_by=favorites&sort=desc&page=1&limit=" + limit));
                 if (string.IsNullOrEmpty(raw))
                     return output;
                 using var doc = JsonDocument.Parse(raw);
@@ -185,7 +194,12 @@ namespace MALClient.XShared.Comm.Discovery
             {
                 var media = manga ? "manga" : "anime";
                 var effectiveMinScore = minScore > 0 ? minScore : filter?.MinScore ?? 0;
-                var parts = new List<string> { "sfw" };
+                var parts = new List<string>
+                {
+                    // Always written, one way or the other. A list with no parts at all would build the
+                    // bare endpoint "anime?", and the filter is decided in one place for a reason.
+                    ContentFilter.UsesSourceFilter ? "sfw" : "sfw=false"
+                };
                 if (filter != null)
                 {
                     if (filter.GenreIds.Count > 0)
@@ -271,20 +285,33 @@ namespace MALClient.XShared.Comm.Discovery
                 int popularity = 0;
                 if (entry.TryGetProperty("popularity", out var pop) && pop.ValueKind == JsonValueKind.Number)
                     popularity = pop.GetInt32();
-                double score = 0;
-                if (entry.TryGetProperty("score", out var sc) && sc.ValueKind == JsonValueKind.Number)
-                    score = sc.GetDouble();
+double score = 0;
+                  if (entry.TryGetProperty("score", out var sc) && sc.ValueKind == JsonValueKind.Number)
+                      score = sc.GetDouble();
+                  // Tenrai names it num_list_users; members is the same figure MAL shows as "Members".
+                  int members = 0;
+                  if (entry.TryGetProperty("members", out var mem) && mem.ValueKind == JsonValueKind.Number)
+                      members = mem.GetInt32();
+                  else if (entry.TryGetProperty("num_list_users", out var mem2) &&
+                           mem2.ValueKind == JsonValueKind.Number)
+                      members = mem2.GetInt32();
+                  int year = 0;
+                  if (entry.TryGetProperty("year", out var yr) && yr.ValueKind == JsonValueKind.Number)
+                      year = yr.GetInt32();
 
-                return new DiscoveryItem
-                {
-                    Id = id,
-                    Title = title,
-                    ImgUrl = img,
-                    Type = type,
-                    IsManga = manga,
-                    PopularityRank = popularity,
-                    Subtitle = BuildSubtitle(type, score, popularity)
-                };
+                  return new DiscoveryItem
+                  {
+                      Id = id,
+                      Title = title,
+                      ImgUrl = img,
+                      Type = type,
+                      IsManga = manga,
+                      PopularityRank = popularity,
+                      Score = score,
+                      Members = members,
+                      Year = year,
+                      Subtitle = BuildSubtitle(type, score, popularity)
+                  };
             }
             catch
             {
@@ -302,6 +329,174 @@ namespace MALClient.XShared.Comm.Discovery
             if (popularity > 0)
                 parts.Add($"#{popularity}");
             return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>
+    ///     One hidden gem per week: highly rated, genuinely underseen, and not something the user
+    ///     already has on their list.
+    ///
+    ///     Tenrai ignores min_members/max_members and has no "not in my list" filter, so both are
+    ///     applied here against a pooled sample. The pick is stored by id with the ISO week it was
+    ///     made in, so the tile shows the same title all week instead of reshuffling on every tap.
+    /// </summary>
+    public static class DiscoveryGemQuery
+    {
+        private const double MinScore = 7.5;
+        private const int MinPopularityRank = 1500;
+        private const int MaxPopularityRank = 15000;
+        private const int MaxMembers = 60000;
+        private const int MinYear = 2010;
+
+        private const string IdKey = "GemOfTheWeek_Id";
+        private const string WeekKey = "GemOfTheWeek_Week";
+        private const string TitleKey = "GemOfTheWeek_Title";
+        private const string ImgKey = "GemOfTheWeek_Img";
+        private const string TypeKey = "GemOfTheWeek_Type";
+        private const string ScoreKey = "GemOfTheWeek_Score";
+        private const string YearKey = "GemOfTheWeek_Year";
+
+        private const int PageSize = 25;
+        private const int MaxOffset = 20000;
+        private const int PoolPages = 8;
+
+        private static readonly Random Rng = new();
+
+        /// <summary>Monday-based ISO-ish week key, so the pick rolls over on the same day worldwide.</summary>
+        private static string CurrentWeek()
+        {
+            var today = DateTime.UtcNow.Date;
+            var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+            return monday.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        public static DiscoveryItem GetCachedGem()
+        {
+            var store = ViewModels.ResourceLocator.ApplicationDataService;
+            if ((string)store[WeekKey] != CurrentWeek())
+                return null;
+            var id = (int)(store[IdKey] ?? 0);
+            if (id <= 0)
+                return null;
+            return new DiscoveryItem
+            {
+                Id = id,
+                Title = (string)store[TitleKey] ?? "",
+                ImgUrl = (string)store[ImgKey] ?? "",
+                Type = (string)store[TypeKey] ?? "",
+                Score = (int)(store[ScoreKey] ?? 0) / 10.0,
+                Year = (int)(store[YearKey] ?? 0),
+                Subtitle = BuildGemSubtitle((string)store[TypeKey], (int)(store[ScoreKey] ?? 0) / 10.0,
+                    (int)(store[YearKey] ?? 0))
+            };
+        }
+
+        private static string BuildGemSubtitle(string type, double score, int year)
+        {
+            var parts = new List<string>();
+            if (score > 0)
+                parts.Add("★ " + score.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+            if (!string.IsNullOrEmpty(type))
+                parts.Add(type);
+            if (year > 0)
+                parts.Add(year.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            return string.Join(" · ", parts);
+        }
+
+        /// <summary>
+        ///     Returns the stored gem when it is still this week's, otherwise draws a new one and
+        ///     persists it. Returns null when nothing in the sampled pool qualifies.
+        /// </summary>
+        public static async Task<DiscoveryItem> GetAsync(HashSet<int> alreadyInLibrary)
+        {
+            var cached = GetCachedGem();
+            if (cached != null)
+                return cached;
+
+            var pool = new List<DiscoveryItem>();
+
+            var lastPage = await ResolveLastPageAsync("anime", ContentFilter.Query("anime?min_score=" +
+                MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)), PageSize);
+            var maxPage = Math.Max(1, Math.Min(lastPage, MaxOffset / PageSize));
+
+            for (var attempt = 0; attempt < PoolPages && pool.Count < 40; attempt++)
+            {
+                var page = maxPage == 1 ? 1 : Rng.Next(1, maxPage + 1);
+                var raw = await TenraiClient.GetRawJsonAsync(
+                    ContentFilter.Query("anime?min_score=" + MinScore.ToString("0.0",
+                        System.Globalization.CultureInfo.InvariantCulture) + $"&page={page}&limit={PageSize}"));
+                if (string.IsNullOrEmpty(raw))
+                    continue;
+                List<DiscoveryItem> batch;
+                try
+                {
+                    using var doc = JsonDocument.Parse(raw);
+                    batch = new List<DiscoveryItem>();
+                    if (!doc.RootElement.TryGetProperty("data", out var data) ||
+                        data.ValueKind != JsonValueKind.Array)
+                        continue;
+                    foreach (var entry in data.EnumerateArray())
+                    {
+                        var item = DiscoveryRandomQuery.ParseCatalogEntry(entry, false);
+                        if (item != null)
+                            batch.Add(item);
+                    }
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var item in batch)
+                {
+                    if (item.Score < MinScore)
+                        continue;
+                    if (item.PopularityRank < MinPopularityRank || item.PopularityRank > MaxPopularityRank)
+                        continue;
+                    if (item.Members <= 0 || item.Members > MaxMembers)
+                        continue;
+                    if (item.Year > 0 && item.Year < MinYear)
+                        continue;
+
+                    if (alreadyInLibrary != null && alreadyInLibrary.Contains(item.Id))
+                        continue;
+
+                    pool.Add(item);
+                }
+            }
+
+            if (pool.Count == 0)
+                return null;
+
+            var gem = pool[Rng.Next(0, pool.Count)];
+            var store = ViewModels.ResourceLocator.ApplicationDataService;
+            store[IdKey] = gem.Id;
+            store[TitleKey] = gem.Title;
+            store[ImgKey] = gem.ImgUrl;
+            store[TypeKey] = gem.Type;
+            store[ScoreKey] = (int)Math.Round(gem.Score * 10);
+            store[YearKey] = gem.Year;
+            store[WeekKey] = CurrentWeek();
+            return gem;
+        }
+
+        private static async Task<int> ResolveLastPageAsync(string media, string query, int pageSize)
+        {
+            try
+            {
+                var raw = await TenraiClient.GetRawJsonAsync($"{query}&limit={pageSize}");
+                if (string.IsNullOrEmpty(raw))
+                    return 0;
+                using var doc = JsonDocument.Parse(raw);
+                if (doc.RootElement.TryGetProperty("pagination", out var pagination) &&
+                    pagination.TryGetProperty("last_visible_page", out var last) &&
+                    last.ValueKind == JsonValueKind.Number)
+                    return last.GetInt32();
+            }
+            catch
+            {
+            }
+            return 0;
         }
     }
 }

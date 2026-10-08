@@ -5,14 +5,14 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.ApiResponses;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.ApiResponses;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Comm
+namespace MALPlus.XShared.Comm
 {
     public class LibraryListQuery : Query
     {
@@ -117,7 +117,7 @@ namespace MALClient.XShared.Comm
                                                 $"priority," +
                                                 $"num_episodes_rewatched," +
                                                 $"num_watched_times," +
-                                                $"list_updated_at}}&limit=1000&offset={offset}&nsfw=true", cts.Token);
+                                                $"list_updated_at}}&limit=1000&offset={offset}&nsfw={ContentFilter.NsfwFlag}", cts.Token);
 
                                             rawAnime = await animeResponse.Content.ReadAsStringAsync();
 
@@ -218,7 +218,7 @@ namespace MALClient.XShared.Comm
                                                 $"priority," +
                                                 $"num_episodes_rewatched," +
                                                 $"num_watched_times," +
-                                                $"list_updated_at}}&limit=1000&offset={offset}&nsfw=true", cts.Token);
+                                                $"list_updated_at}}&limit=1000&offset={offset}&nsfw={ContentFilter.NsfwFlag}", cts.Token);
 
                                             var rawManga = await mangaResponse.Content.ReadAsStringAsync();
 
@@ -263,6 +263,7 @@ namespace MALClient.XShared.Comm
                                                         MalId = item.id,
                                                         Type = (int) GetMangaMediaType(),
                                                         MyScore = node.list_status.score,
+                                                        GlobalScore = item.mean,
                                                         Notes = string.Join(",", node.list_status.tags),
                                                         IsRewatching = node.list_status.is_rereading,
                                                         MyStatus = ParseMangaStatus(node.list_status.status),
@@ -596,7 +597,7 @@ namespace MALClient.XShared.Comm
         ///     perfectly valid session look broken.
         /// </summary>
         private static bool LooksLikeAuthFailure(Exception error)
-            => MALClient.XShared.Utils.AuthFailure.LooksLikeAuthFailure(error);
+            => MALPlus.XShared.Utils.AuthFailure.LooksLikeAuthFailure(error);
 
         private string FixDate(string date)
         {

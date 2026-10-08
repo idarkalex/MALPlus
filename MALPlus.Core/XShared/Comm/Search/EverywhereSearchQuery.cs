@@ -4,11 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MALClient.Models.Models.ApiResponses;
-using MALClient.XShared.Comm;
+using MALPlus.Models.Models.ApiResponses;
+using MALPlus.XShared.Comm;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Comm.Search
+namespace MALPlus.XShared.Comm.Search
 {
     public class EverywhereSearchQuery : Query
     {
@@ -63,7 +63,7 @@ namespace MALClient.XShared.Comm.Search
             try
             {
                 var pop = endpoint == "characters" ? "" : "&order_by=popularity&sort=asc";
-                var (items, _) = await TenraiClient.GetPaginatedAsync($"{endpoint}?q={Uri.EscapeDataString(MALClient.XShared.Utils.Utilities.CleanAnimeTitle(query))}&sfw{pop}");
+                var (items, _) = await TenraiClient.GetPaginatedAsync(ContentFilter.Query($"{endpoint}?q={Uri.EscapeDataString(MALPlus.XShared.Utils.Utilities.CleanAnimeTitle(query))}{pop}"));
                 return items.Take(5).Select(el =>
                 {
                     var id = el.TryGetProperty("mal_id", out var p) && p.ValueKind == System.Text.Json.JsonValueKind.Number ? p.GetInt32() : 0;

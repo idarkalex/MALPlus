@@ -46,6 +46,27 @@
                         <Switch Grid.Column="1" IsToggled="{Binding EnableSwipeToIncDec}"
                                 OnColor="{StaticResource EmAccent}" />
                     </Grid>
+
+                    <!-- Content is a three-way choice and not a switch, because a switch cannot
+                         express the middle option that is the point of this setting. Measured over one
+                         band of the top anime ranking: the source's own filter removes every entry rated
+                         "R+ - Mild Nudity" (twelve, among them Tokyo Godfathers, Evangelion Movie 2 and
+                         Berserk III) while letting through fifty nine rated "R - 17+". So it is keyed on
+                         the content rating and cuts the mild tier, not the explicit one. Three states
+                         drawn from that rating are answerable; on/off is not, because switching it off
+                         only ever means "including hentai".
+
+                         One picker rather than two switches for the same reason: two toggles for one
+                         three-valued decision can be set in a combination that means nothing. -->
+                    <Label Text="CONTENT" FontFamily="InterBold" FontSize="11"
+                           TextColor="#A0FFFFFF" Margin="0,10,0,0" />
+                    <Picker x:Name="ContentFilterPicker" Title="Content"
+                            FontFamily="Inter" FontSize="14"
+                            TextColor="{StaticResource BrushText}"
+                            SelectedIndex="{Binding ContentFilterIndex, Mode=TwoWay}" />
+                    <Label Text="Safe hides mild nudity. Mature keeps it and drops the explicit tier.
+Allow adult content removes the filter from the catalogue, your library and search."
+                          FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
                 </VerticalStackLayout>
             </Border>
 
@@ -71,8 +92,13 @@
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="Start page" FontFamily="Inter" FontSize="14"
                                TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Picker Grid.Column="1" Title="Start page" WidthRequest="110"
-                               TextColor="{StaticResource BrushText}" />
+                        <!-- The picker had no ItemsSource and no SelectedItem, so the setting was
+                             unreachable from the UI even though App.xaml.cs honoured it: the
+                             stored value could only ever be the "anime" default. -->
+                        <Picker Grid.Column="1" Title="Start page" WidthRequest="130"
+                                ItemsSource="{Binding StartPageOptions}"
+                                SelectedItem="{Binding StartPageOption, Mode=TwoWay}"
+                                TextColor="{StaticResource BrushText}" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>
@@ -252,12 +278,12 @@
                 <VerticalStackLayout Spacing="8">
                     <Label Text="ABOUT" FontFamily="InterBold" FontSize="11"
                            TextColor="#A0FFFFFF" />
-                    <Label Text="MAL+ MAUI Migration build" FontFamily="InterBold" FontSize="14"
-                           TextColor="{StaticResource BrushText}" />
-                    <Label Text="MALClient fork by idarkalex, ported to .NET MAUI"
-                           FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
-                    <Label Text="Built with .NET MAUI"
-                            FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
+<Label Text="MAL+ MAUI" FontFamily="InterBold" FontSize="14"
+                             TextColor="{StaticResource BrushText}" />
+                      <Label Text="A .NET MAUI port of MALClient by Drutol, forked by idarkalex"
+                             FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
+                      <Label Text="Released under the GNU GPL v3"
+                              FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
                 </VerticalStackLayout>
             </Border>
 

@@ -3,8 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
              xmlns:controls="clr-namespace:MALPlus.Controls"
-             xmlns:vm="clr-namespace:MALClient.XShared.ViewModels.Main;assembly=MALPlus.Core"
-             xmlns:itemvm="clr-namespace:MALClient.XShared.ViewModels;assembly=MALPlus.Core"
+             xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
+             xmlns:itemvm="clr-namespace:MALPlus.XShared.ViewModels;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.AnimeListPage"
              x:DataType="vm:AnimeListViewModel"
              BackgroundColor="{StaticResource EmBackground}">
@@ -37,7 +37,8 @@
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                 <!-- Left aligned, chevron tucked against the word so the pair reads as one control
                      instead of two things fighting for opposite ends of the bar. -->
-                <HorizontalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                <HorizontalStackLayout x:Name="StatusWordGroup" Grid.Column="0" Spacing="2"
+                                       VerticalOptions="Center">
                     <Label x:Name="StatusLabel" Text="Watching"
                            FontFamily="InterSemiBold" FontSize="16" TextColor="{StaticResource BrushText}"
                            VerticalOptions="Center" LineBreakMode="TailTruncation" />
@@ -51,6 +52,104 @@
                             <TapGestureRecognizer Tapped="OnStatusDropdownTapped" />
                         </Border.GestureRecognizers>
                     </Border>
+                </HorizontalStackLayout>
+
+                <!-- Top Anime, Top Manga and Adapted: the subcategory dropdown and, on the two tabs that
+                     ARE the whole ranking, the band of it being read. They sit in one stack in the same
+                     place the season and year selectors sit, so those panels name what they are showing
+                     instead of arriving as an unnamed grid.
+
+                     They are a stack rather than two things in the grid because they were both given
+                     column zero when they were separate, and column zero is sized to its content: two
+                     children in one Auto cell draw on top of each other instead of beside. One row of
+                     two is the shape the bar already had, so nothing else in it had to move. -->
+                <HorizontalStackLayout x:Name="TopSelectorGroup" Grid.Column="0" Spacing="16"
+                                       VerticalOptions="Center">
+
+                    <!-- One subcategory dropdown, same group shape as the status word and the season
+                         pair, deliberately: it is the same bar with one control swapped out. -->
+                    <HorizontalStackLayout x:Name="TypeSelector" Spacing="2"
+                                           VerticalOptions="Center" IsVisible="False">
+                        <Label x:Name="TypeLabel" Text="All time"
+                               FontFamily="InterSemiBold" FontSize="16"
+                               TextColor="{StaticResource BrushText}"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                        <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
+                                BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                            <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnTypeMenuTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </HorizontalStackLayout>
+
+                    <!-- The unfiltered top lists are the whole of MAL's ranking, which is far longer
+                         than anyone scrolls, so they are read one band at a time behind this control.
+                         It reads as part of the same control as the subcategory word: the word says
+                         which ranking, the number says how far into it. The sixteen between them is
+                         the same sixteen that separates the season from the year, so the bar has one
+                         spacing rule rather than two.
+
+                         Hidden on every other tab, because on a filtered one there is no single
+                         ranking to take a band of. -->
+                    <HorizontalStackLayout x:Name="RangeSelector" Spacing="2"
+                                           VerticalOptions="Center" IsVisible="False">
+                        <Label x:Name="RangeLabel" Text="1-250"
+                               FontFamily="InterSemiBold" FontSize="16"
+                               TextColor="{StaticResource BrushText}"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                        <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
+                                BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                            <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnRangeMenuTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </HorizontalStackLayout>
+                </HorizontalStackLayout>
+
+                <!-- Seasonal only, and it takes the place of the status word rather than sitting in
+                     a second bar of its own. A season is chosen from two independent parts (which
+                     season, which year), so it needs two controls, and they are grouped on the left
+                     where the status word lives so the bar reads as one thing with one magnifier.
+
+                     Each group is the status pair verbatim: a 16sp label with its chevron touching
+                     it, so switching between a status and a season is not a visual change. The extra
+                     8dp before the year is what separates the two groups without a rule or a gap
+                     that would only matter when both are visible. -->
+                <HorizontalStackLayout x:Name="SeasonSelectors" Grid.Column="0" Spacing="16"
+                                       VerticalOptions="Center" IsVisible="False">
+                    <HorizontalStackLayout Spacing="2" VerticalOptions="Center">
+                        <Label x:Name="SeasonLabel" Text="Fall"
+                               FontFamily="InterSemiBold" FontSize="16"
+                               TextColor="{StaticResource BrushText}"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                        <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
+                                BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                            <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSeasonMenuTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout Spacing="2" VerticalOptions="Center">
+                        <Label x:Name="YearLabel" Text="2026"
+                               FontFamily="InterSemiBold" FontSize="16"
+                               TextColor="{StaticResource BrushText}"
+                               VerticalOptions="Center" />
+                        <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
+                                BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                            <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnYearMenuTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </HorizontalStackLayout>
                 </HorizontalStackLayout>
 
                 <!-- Fills what the magnifier leaves behind, so it reaches the right edge of the bar
@@ -130,37 +229,12 @@
                    TextColor="#8FA8C0" HorizontalOptions="Center" />
         </VerticalStackLayout>
 
-        <!-- Seasonal only: which season is on screen, and the two seasons next to it. The selector
-             itself is filled from the same Tenrai seasons list the query uses, so it costs nothing
-             extra. It sits directly above the navigation bar so it never moves the grid. -->
-        <Border x:Name="SeasonBar" Grid.Row="2" IsVisible="False"
-                BackgroundColor="{StaticResource EmSheet}" Padding="10,0">
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
-                <Border Grid.Column="0" WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17"
-                        BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
-                    <Image Source="icon_chevron_left" WidthRequest="26" HeightRequest="26"
-                           HorizontalOptions="Center" VerticalOptions="Center">
-                        <Image.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnSeasonPreviousTapped" />
-                        </Image.GestureRecognizers>
-                    </Image>
-                </Border>
-                <Button x:Name="SeasonPicker" Grid.Column="1" Text="Season" Clicked="OnSeasonPickerTapped"
-                        FontFamily="InterSemiBold" FontSize="15"
-                        TextColor="{StaticResource BrushText}" BackgroundColor="Transparent"
-                        BorderColor="Transparent" BorderWidth="0" Padding="0" HeightRequest="44"
-                        AutomationId="SeasonPicker" />
-                <Border Grid.Column="2" WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17"
-                        BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
-                    <Image Source="icon_chevron_right" WidthRequest="26" HeightRequest="26"
-                           HorizontalOptions="Center" VerticalOptions="Center">
-                        <Image.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnSeasonNextTapped" />
-                        </Image.GestureRecognizers>
-                    </Image>
-                </Border>
-            </Grid>
-        </Border>
+        <!-- Seasonal used to own a second bar here, above the navigation: a pair of chevrons around
+             one "Fall 2026" button. Two bars for one panel, and the thing being chosen was pushed
+             to the bottom of the screen away from the grid it labels. The season and the year are
+             two independent parts, so they live as two selectors in the single top bar instead and
+             this row collapses to nothing. Left in place rather than removed so the row indices
+             under it (the dropdown overlay and the poster sheet both span rows) stay put. -->
 
         <!-- The dropdown hangs off the bar it belongs to, anchored to the START so it lines up with the word
              in the bar rather than floating on the opposite side.

@@ -4,10 +4,10 @@ using System.Linq;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Manga
+namespace MALPlus.XShared.Comm.Manga
 {
     public class MangaSearchQuery : Query
     {
@@ -24,7 +24,7 @@ namespace MALClient.XShared.Comm.Manga
 
             try
             {
-                var (items, _) = await TenraiClient.GetPaginatedAsync($"manga?q={Uri.EscapeDataString(Utilities.CleanAnimeTitle(_query))}&sfw&order_by=popularity&sort=asc");
+                var (items, _) = await TenraiClient.GetPaginatedAsync(ContentFilter.Query($"manga?q={Uri.EscapeDataString(Utilities.CleanAnimeTitle(_query))}&order_by=popularity&sort=asc"));
 
                 foreach (var result in items)
                 {

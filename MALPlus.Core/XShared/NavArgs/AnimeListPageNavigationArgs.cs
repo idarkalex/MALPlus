@@ -1,8 +1,8 @@
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Comm.Anime;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Comm.Anime;
 
-namespace MALClient.XShared.NavArgs
+namespace MALPlus.XShared.NavArgs
 {
     public class AnimeListPageNavigationArgs
     {
@@ -24,6 +24,15 @@ namespace MALClient.XShared.NavArgs
         public AnimeListWorkModes WorkMode = AnimeListWorkModes.Anime;
         public AnimeGenreSearch Genre;
         public AnimeStudios Studio;
+
+        /// <summary>
+        ///     Which band of MAL's ranking an unfiltered top list is showing, or -1 for the whole list.
+        /// </summary>
+        /// <remarks>
+        ///     Only the tabs that ARE the ranking read it. The filtered ones (Airing, TV, Upcoming and
+        ///     the rest) page through their own slice and have no band to speak of.
+        /// </remarks>
+        public int TopRangeIndex = -1;
 
         public AnimeListPageNavigationArgs(SortOptions sort, int status, bool desc,
             AnimeListWorkModes seasonal, string source, AnimeSeason season, AnimeListDisplayModes dispMode)
@@ -62,6 +71,22 @@ namespace MALClient.XShared.NavArgs
 
         public static AnimeListPageNavigationArgs Seasonal
             => new AnimeListPageNavigationArgs { WorkMode = AnimeListWorkModes.SeasonalAnime };
+
+        /// <summary>
+        ///     Seasonal with the season named outright.
+        /// </summary>
+        /// <remarks>
+        ///     Coming back from an anime re-enters Seasonal through the args the details page
+        ///     registered as its back navigation, and a bare <see cref="Seasonal" /> carries no
+        ///     season, so the view model would put the current one on screen instead of the one the
+        ///     user was looking at.
+        /// </remarks>
+        public static AnimeListPageNavigationArgs SeasonalFor(AnimeSeason season)
+            => new AnimeListPageNavigationArgs
+            {
+                WorkMode = AnimeListWorkModes.SeasonalAnime,
+                CurrSeason = season
+            };
 
         public static AnimeListPageNavigationArgs Manga
             => new AnimeListPageNavigationArgs { WorkMode = AnimeListWorkModes.Manga };

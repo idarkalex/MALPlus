@@ -7,18 +7,18 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.Misc;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Comm.Profile;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Utils;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.Misc;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Comm.Profile;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Utils;
 using Newtonsoft.Json;
-using Settings = MALClient.XShared.Utils.Settings;
+using Settings = MALPlus.XShared.Utils.Settings;
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     public class SettingsPageEntry
     {
@@ -33,9 +33,8 @@ namespace MALClient.XShared.ViewModels
     {
         public abstract event SettingsNavigationRequest NavigationRequest;
 
-        protected bool _cachedItemsLoaded;
-        private bool _newsLoaded;
-        protected ICommand _requestNavigationCommand;
+protected bool _cachedItemsLoaded;
+protected ICommand _requestNavigationCommand;
         protected ICommand _reviewCommand;
         private ICommand _syncFavsCommand;
 
@@ -183,6 +182,33 @@ namespace MALClient.XShared.ViewModels
         {
             get => Settings.LockDisplayMode;
             set => Settings.LockDisplayMode = value;
+        }
+
+        /// <summary>
+        ///     Options for the "Start page" picker. The three values are the ones already
+        ///     understood by App.xaml.cs and LogInViewModel.NavigateToStartPage, so a stored
+        ///     value can never drift out of the set the navigation understands.
+        /// </summary>
+        public string[] StartPageOptions { get; } = { "Anime list", "Manga list", "Discover" };
+
+        private static readonly string[] StartPageValues = { "anime", "manga", "discover" };
+
+        public string StartPageOption
+        {
+            get
+            {
+                var stored = Settings.DefaultMenuTab ?? "anime";
+                var index = Array.IndexOf(StartPageValues, stored);
+                return StartPageOptions[index < 0 ? 0 : index];
+            }
+            set
+            {
+                var index = StartPageOptions.IndexOf(value);
+                if (index < 0)
+                    return;
+                Settings.DefaultMenuTab = StartPageValues[index];
+                RaisePropertyChanged(() => StartPageOption);
+            }
         }
 
         public bool DisplaySeasonWithType
@@ -526,6 +552,38 @@ namespace MALClient.XShared.ViewModels
             set => Settings.PreferEnglishTitles = value;
         }
 
+        /// <summary>
+        ///     Which content tiers the app is allowed to show. Defaults to the strictest, which is what
+        ///     the app has always done, so nothing appears that did not appear before the setting.
+        /// </summary>
+        public ContentFilterMode ContentFilter
+        {
+            get => Settings.ContentFilter;
+            set => Settings.ContentFilter = value;
+        }
+
+        /// <summary>
+        ///     The same three choices as an index, because a picker binds to a number and not to an
+        ///     enum name.
+        /// </summary>
+        /// <remarks>
+        ///     The enum order IS the order the picker shows, and the two have to stay in step: Safe is
+        ///     the first entry in the picker and also the value the app falls back to, so a bad index
+        ///     lands on the strict one rather than on something the reader did not choose.
+        /// </remarks>
+        public int ContentFilterIndex
+        {
+            get => (int)Settings.ContentFilter;
+            set
+            {
+                if (value < (int)ContentFilterMode.Safe || value > (int)ContentFilterMode.Unfiltered)
+                    value = (int)ContentFilterMode.Safe;
+                Settings.ContentFilter = (ContentFilterMode)value;
+                RaisePropertyChanged(() => ContentFilterIndex);
+                RaisePropertyChanged(() => ContentFilter);
+            }
+        }
+
         public bool MakeGridItemsSmaller
         {
             get => Settings.MakeGridItemsSmaller;
@@ -658,51 +716,11 @@ namespace MALClient.XShared.ViewModels
             }
         }
 
-        private List<NewsData> _currentNews { get; set; } = new List<NewsData>();
-
-        public List<NewsData> CurrentNews
-        {
-            get
-            {
-                LoadNews();
-                return _currentNews;
-            }
-            set
-            {
-                _currentNews = value;
-                RaisePropertyChanged(() => CurrentNews);
-            }
-        }
-
         public bool MalApiDependatedntSectionsVisibility
             => Settings.SelectedApiType == ApiType.Mal;
 
         public bool HumApiDependatedntSectionsEnabled
             => Settings.SelectedApiType != ApiType.Mal;
-
-        private async void LoadNews()
-        {
-            if (_newsLoaded)
-                return;
-            _newsLoaded = true;
-            ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.FetchedNews);
-            var data = new List<NewsData>();
-            try
-            {
-                await
-                    Task.Run(
-                        async () =>
-                            data =
-                                JsonConvert.DeserializeObject<List<NewsData>>(
-                                    await new NewsQuery().GetRequestResponse()));
-            }
-            catch (Exception)
-            {
-                return;
-            }
-
-            CurrentNews = data;
-        }
 
         public abstract void LoadCachedEntries();
 

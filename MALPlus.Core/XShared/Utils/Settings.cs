@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Comm;
-using MALClient.XShared.ViewModels;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     public static class Settings
     {
@@ -815,5 +815,20 @@ namespace MALClient.XShared.Utils
         }
 
         #endregion Android
+
+        #region Content
+
+        /// <summary>
+        ///     How much of MAL's catalogue may be shown. Defaults to the source's own filter, which is
+        ///     what the app has always done, so nothing appears that did not appear before.
+        /// </summary>
+        public static ContentFilterMode ContentFilter
+        {
+            get => (ContentFilterMode)(int)(ApplicationDataService[nameof(ContentFilter)] ??
+                                            (int)ContentFilterMode.Safe);
+            set => ApplicationDataService[nameof(ContentFilter)] = (int)value;
+        }
+
+        #endregion Content
     }
 }

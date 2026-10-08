@@ -3,21 +3,21 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.Models.Models.Library;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.Models.Models.Misc;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.ViewModels;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.Models.Models.Library;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.Models.Models.Misc;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 
 //Okay it's big copy paste... feel free to laugh
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     /// <summary>
     ///     Contains stuff like GlobalScore and air date
@@ -184,16 +184,19 @@ namespace MALClient.XShared.Utils
 
         #region SeasonData
 
-        public static async void SaveSeasonalData(List<SeasonalAnimeData> data, string tag)
+        /// <summary>
+        ///     Persists one season's rows.
+        /// </summary>
+        /// <remarks>
+        ///     Awaited, where this was <c>async void</c> and nobody waited. The season cache is the
+        ///     one that decides whether a season costs eight requests or none, so a write that had
+        ///     not landed by the next read simply meant paying for the season again.
+        /// </remarks>
+        public static async Task SaveSeasonalData(List<SeasonalAnimeData> data, string tag)
         {
             try
             {
-                await Task.Run(async () =>
-                {
-                    await
-                        DataCacheService.SaveData(data,
-                            $"seasonal_data{tag}_v2.json", "");
-                });
+                await DataCacheService.SaveData(data, $"seasonal_data{tag}_v2.json", "");
             }
             catch (Exception)
             {
@@ -215,6 +218,29 @@ namespace MALClient.XShared.Utils
                 //No file
             }
             return null;
+        }
+
+        /// <summary>
+        ///     Reads a season's rows even when the entry has expired.
+        /// </summary>
+        /// <remarks>
+        ///     For seasons that have already finished, where the contents cannot change: an old file
+        ///     is not stale data there, it IS the data. Needed because the normal read returns nothing
+        ///     once the seven days are up, which is what made a finished season disappear every week
+        ///     and re-download in full on the next visit. An expiry of zero rather than a second read
+        ///     of the file, so the deserialiser stays the one the normal path uses.
+        /// </remarks>
+        public static async Task<List<SeasonalAnimeData>> RetrieveSeasonalDataIgnoringExpiry(string tag)
+        {
+            try
+            {
+                return await DataCacheService.RetrieveData<List<SeasonalAnimeData>>(
+                    $"seasonal_data{tag}_v2.json", "", 0);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         #endregion
@@ -711,8 +737,14 @@ namespace MALClient.XShared.Utils
 
         public static async Task SaveGeneralDetailsByStatus(string id, AnimeGeneralDetailsData data, bool anime)
         {
-            if (string.Equals(data.Status, "Finished Airing", StringComparison.CurrentCultureIgnoreCase))
-                await SaveAnimeSearchResultsDataFinal(id, data, anime);
+// Manga is never "Airing": the API says "Finished Publishing"/"Publishing"/"On Hiatus"/"Discontinued",
+// so comparing against the anime-only string sent every manga to the 14-day key. That looked fine
+// until an entry was cached while publishing and then finished: the permanent final file was never
+// written and every later open re-fetched. It also made the finished TTL unreachable for manga.
+var finished = !string.IsNullOrEmpty(data.Status) &&
+                        data.Status.StartsWith("Finished", StringComparison.CurrentCultureIgnoreCase);
+            if (finished)
+            await SaveAnimeSearchResultsDataFinal(id, data, anime);
             else
                 await SaveAnimeSearchResultsData(id, data, anime);
         }
@@ -766,14 +798,26 @@ namespace MALClient.XShared.Utils
 
         #region TopAnime
 
-        public static async void SaveTopAnimeData(List<TopAnimeData> data, TopAnimeType type)
+        /// <summary>
+        ///     Persists one of the Top anime lists.
+        /// </summary>
+        /// <remarks>
+        ///     Returns a Task and is awaited by the caller, which it previously was not: this was
+        ///     <c>async void</c>, so the write raced every read. Switching subcategories quickly could
+        ///     land the write for the list you left AFTER the write for the one you are on, and the
+        ///     file would hold the wrong list under the right name. The in-memory cache then handed
+        ///     that out for the rest of the session.
+        /// </remarks>
+        public static async Task SaveTopAnimeData(List<TopAnimeData> data, TopAnimeType type, int rangeIndex = -1)
         {
             try
             {
-                await Task.Run(async () =>
-                {
-                    await DataCacheService.SaveData(data, $"top_{type}_data_v2.json", "");
-                });
+                // v4 suffix bump: the cache used to store each row's local tab position in its
+                // Index, which is wrong now that the chip reads the global rank. Old files get a
+                // fresh name, so they are ignored automatically instead of poisoning every chip.
+                // The range lands in the name because a range IS a different answer to the same
+                // question: without it every range would overwrite the last one read.
+                await DataCacheService.SaveData(data, TopAnimeFileName(type, rangeIndex), "");
             }
             catch (Exception)
             {
@@ -781,11 +825,13 @@ namespace MALClient.XShared.Utils
             }
         }
 
-        public static async Task<List<TopAnimeData>> RetrieveTopAnimeData(TopAnimeType type)
+        public static async Task<List<TopAnimeData>> RetrieveTopAnimeData(TopAnimeType type, int rangeIndex = -1)
         {
             try
             {
-                return await DataCacheService.RetrieveData<List<TopAnimeData>>($"top_{type}_data_v2.json", "", 14);
+                // See SaveTopAnimeData for why this moved off v2: position-in-tab was not the
+                // global ranking, and old files with that baked in are invisible now.
+                return await DataCacheService.RetrieveData<List<TopAnimeData>>(TopAnimeFileName(type, rangeIndex), "", 14);
             }
             catch (Exception)
             {
@@ -794,14 +840,27 @@ namespace MALClient.XShared.Utils
             return null;
         }
 
-        public static async void SaveTopMangaData(List<TopAnimeData> data, MangaTopType type)
+        private static string TopAnimeFileName(TopAnimeType type, int rangeIndex) =>
+            rangeIndex >= 0
+                ? $"top_{type}_r{rangeIndex}_{Comm.ContentFilter.CacheTag}_v4.json"
+                : $"top_{type}_{Comm.ContentFilter.CacheTag}_v4.json";
+
+        private static string TopMangaFileName(MangaTopType type, int rangeIndex) =>
+            rangeIndex >= 0
+                ? $"topmanga_{type}_r{rangeIndex}_{Comm.ContentFilter.CacheTag}_v5.json"
+                : $"topmanga_{type}_{Comm.ContentFilter.CacheTag}_v5.json";
+
+        /// <summary>
+        ///     Persists one of the Top manga lists. Awaited for the same reason as the anime one: a
+        ///     fire and forget write lands whenever it lands.
+        /// </summary>
+        public static async Task SaveTopMangaData(List<TopAnimeData> data, MangaTopType type, int rangeIndex = -1)
         {
             try
             {
-                await Task.Run(async () =>
-                {
-                    await DataCacheService.SaveData(data, $"topmanga_{type}_data_v3.json", "");
-                });
+                // Same global-rank semantics change as Top anime: bumped off the file name that was
+                // saved under the old, local-tab-position meaning.
+                await DataCacheService.SaveData(data, TopMangaFileName(type, rangeIndex), "");
             }
             catch (Exception)
             {
@@ -809,11 +868,11 @@ namespace MALClient.XShared.Utils
             }
         }
 
-        public static async Task<List<TopAnimeData>> RetrieveTopMangaData(MangaTopType type)
+        public static async Task<List<TopAnimeData>> RetrieveTopMangaData(MangaTopType type, int rangeIndex = -1)
         {
             try
             {
-                return await DataCacheService.RetrieveData<List<TopAnimeData>>($"topmanga_{type}_data_v3.json", "", 14);
+                return await DataCacheService.RetrieveData<List<TopAnimeData>>(TopMangaFileName(type, rangeIndex), "", 14);
             }
             catch (Exception)
             {
@@ -822,14 +881,14 @@ namespace MALClient.XShared.Utils
             return null;
         }
 
-        public static async void SaveAdaptedToAnimeData(List<TopAnimeData> data, MangaAdaptedType type)
+        /// <summary>
+        ///     Persists the Adapted to anime list. Awaited for the same reason as the Top ones.
+        /// </summary>
+        public static async Task SaveAdaptedToAnimeData(List<TopAnimeData> data, MangaAdaptedType type)
         {
             try
             {
-                await Task.Run(async () =>
-                {
-                    await DataCacheService.SaveData(data, $"adapted_{type}_data.json", "");
-                });
+                await DataCacheService.SaveData(data, $"adapted_{type}_data.json", "");
             }
             catch (Exception)
             {

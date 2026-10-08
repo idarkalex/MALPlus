@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MALClient.XShared.BL;
-using MALClient.XShared.Utils;
+using MALPlus.XShared.BL;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeSchedulesQuery
     {
@@ -17,7 +17,7 @@ namespace MALClient.XShared.Comm.Anime
             var output = new List<AiringInfoProvider.AiringData>();
             try
             {
-                var items = await TenraiClient.GetAllPagesAsync(p => $"schedules?page={p}&sfw", 12);
+                var items = await TenraiClient.GetAllPagesAsync(p => ContentFilter.Query($"schedules?page={p}"), 12);
                 var nowUtc = DateTime.UtcNow;
 
                 foreach (var entry in items)

@@ -1,13 +1,14 @@
-using MALClient.Models.Enums;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Comm.Profile;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Comm.Profile;
 
 using System.Collections.Generic;
 using System.Linq;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 using Microsoft.Maui.Controls;
 
 namespace MALPlus.Views;
@@ -43,8 +44,12 @@ public partial class MorePage : ContentPage
         PopulateStatusPanel(AnimeListPanel, false);
         PopulateTypePanel(TopAnimePanel, 
             Enum.GetValues(typeof(TopAnimeType)).Cast<TopAnimeType>().Select(t => (t.ToString(), (Action)(() => NavigateTo(PageIndex.PageTopAnime, AnimeListPageNavigationArgs.TopAnime(t))))).ToList());
-        PopulateTypePanel(TopMangaPanel, 
-            Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>().Select(t => (t.ToString(), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
+        PopulateTypePanel(TopMangaPanel,
+    // Doujinshi is offered only with the content filter off entirely, and it is the same predicate
+    // the dropdown on the top page uses, so the two cannot offer different sets.
+    Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>()
+        .Where(ContentFilter.AllowsMangaSubcategory)
+        .Select(t => (t.ToString(), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
         PopulateTypePanel(AdaptedPanel, 
             Enum.GetValues(typeof(MangaAdaptedType)).Cast<MangaAdaptedType>().Select(t => (AnimeAdaptedToAnimeQuery.ToDisplayName(t), (Action)(() => NavigateTo(PageIndex.PageMangaAdapted, AnimeListPageNavigationArgs.MangaAdapted(t))))).ToList());
         PopulateStatusPanel(MangaListPanel, true);
@@ -257,7 +262,7 @@ public partial class MorePage : ContentPage
         try
         {
             // Fire-and-forget log out (mirrors v2 LogOutCommand flow).
-            MALClient.XShared.Utils.Credentials.Reset();
+            MALPlus.XShared.Utils.Credentials.Reset();
             _initialized = false;
             await NavigateToLoginAsync();
         }
@@ -372,7 +377,7 @@ public partial class MorePage : ContentPage
         {
             var status = statusValues[i];
             var index = i;
-            var label = MALClient.XShared.Utils.Utilities.StatusToString((int)status, manga);
+            var label = MALPlus.XShared.Utils.Utilities.StatusToString((int)status, manga);
             items.Add((label, (Action)(() => NavigateTo(PageIndex.PageAnimeList, new AnimeListPageNavigationArgs(index, workMode)))));
         }
 
@@ -448,7 +453,7 @@ public partial class MorePage : ContentPage
     {
         try
         {
-            var ui = MALClient.XShared.ViewModels.Main.FragmentUiState.More;
+            var ui = MALPlus.XShared.ViewModels.Main.FragmentUiState.More;
             if (ui == null)
                 return;
 
@@ -482,7 +487,7 @@ public partial class MorePage : ContentPage
     {
         try
         {
-            var ui = MALClient.XShared.ViewModels.Main.FragmentUiState.More;
+            var ui = MALPlus.XShared.ViewModels.Main.FragmentUiState.More;
             if (ui != null)
             {
                 ui["AnimeList"] = _animeListPanelExpanded;

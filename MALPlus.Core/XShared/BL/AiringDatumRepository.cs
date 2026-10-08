@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
     public static class AiringDatumRepository
     {
@@ -160,7 +160,7 @@ namespace MALClient.XShared.BL
             {
                 var data = await DataCache.RetrieveAnimeSearchResultsDataStale(malId.ToString(), true);
                 if (data == null || string.IsNullOrEmpty(data.Status))
-                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(true, malId.ToString(), "", true);
+                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(false, malId.ToString(), "", true);
                 if (data == null) return false;
                 if (!string.IsNullOrEmpty(data.Status))
                     DataCache.UpdateVolatileStatus(malId, data.Status);
@@ -175,7 +175,7 @@ namespace MALClient.XShared.BL
             {
                 var data = await DataCache.RetrieveAnimeSearchResultsDataStale(malId.ToString(), true);
                 if (data == null || string.IsNullOrEmpty(data.Broadcast))
-                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(true, malId.ToString(), "", true);
+                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(false, malId.ToString(), "", true);
                 if (data?.Broadcast == null) return null;
                 if (!string.IsNullOrEmpty(data.Status))
                     DataCache.UpdateVolatileStatus(malId, data.Status);
@@ -213,8 +213,17 @@ namespace MALClient.XShared.BL
             try
             {
                 var data = await DataCache.RetrieveAnimeSearchResultsDataStale(malId.ToString(), true);
+                // NOT forced. Every one of the three reads below asks the search cache first and then,
+                // when that misses, used to ask the source with force: true, which skips the fourteen
+                // day details cache sitting right there. An entry whose status had been resolved days
+                // ago was therefore re-read from the network once per card, on a grid handed two
+                // hundred and fifty cards at once: up to four requests each, all queued behind a
+                // throttle that only releases one every 300ms. That queue is what the source's own
+                // pages were stuck behind, which is why reading a fresh band of the ranking took
+                // twenty seconds when its seven requests measure three. Reading the cache turns almost
+                // all of them into nothing.
                 if (data == null || string.IsNullOrEmpty(data.Status))
-                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(true, malId.ToString(), "", true);
+                    data = await new AnimeGeneralDetailsQuery().GetAnimeDetails(false, malId.ToString(), "", true);
                 if (data == null || string.IsNullOrEmpty(data.Status))
                     return null;
                 DataCache.UpdateVolatileStatus(malId, data.Status);

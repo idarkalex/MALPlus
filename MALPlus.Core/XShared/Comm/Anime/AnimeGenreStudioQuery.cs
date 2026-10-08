@@ -4,12 +4,12 @@ using System.Linq;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeGenreStudioQuery : Query
     {
@@ -46,8 +46,8 @@ namespace MALClient.XShared.Comm.Anime
             try
             {
                 var endpoint = _genreMode
-                    ? $"anime?genres={(int)_genre}&page={_page}&order_by=score&sort=desc&sfw&limit=25"
-                    : $"anime?producers={(int)_studio}&page={_page}&order_by=score&sort=desc&sfw&limit=25";
+? ContentFilter.Query($"anime?genres={(int)_genre}&page={_page}&order_by=score&sort=desc&limit=25")
+        : ContentFilter.Query($"anime?producers={(int)_studio}&page={_page}&order_by=score&sort=desc&limit=25");
 
                 var (items, hasNext) = await TenraiClient.GetPaginatedAsync(endpoint);
                 HasNextPage = hasNext;
