@@ -42,8 +42,118 @@ public partial class OptionsSheet : ContentView
     public void OpenSubmenu(string title, IEnumerable<OptionsSheetItem> items, Action onBack)
         => Present(title, null, items, compact: true, onBack: onBack);
 
+    /// <summary>
+    ///     The compact card carrying a line of explanation above the rows.
+    /// </summary>
+    /// <remarks>
+    ///     Wanted by the random picker, whose one useful piece of feedback is the filter it is about to
+    ///     apply: "Random anime" and the summary of what is being searched. The compact card had no
+    ///     subtitle of its own even though the label to draw one already exists, because a poster long
+    ///     press does not need it: the entry is right there under the panel.
+    /// </remarks>
+public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<OptionsSheetItem> items,
+        string cancelLabel = "Cancel")
+    {
+        var list = items?.ToList() ?? new List<OptionsSheetItem>();
+        if (!string.IsNullOrWhiteSpace(cancelLabel) &&
+            !list.Any(item => string.Equals(item.Label, cancelLabel, StringComparison.Ordinal)))
+            list.Add(new OptionsSheetItem(cancelLabel, "icon_close"));
+        Present(title, subtitle, list, compact: true, onBack: null, withClose: true);
+    }
+
+    /// <summary>
+    ///     The compact card with a line of explanation, for a list of options that needs one.
+    /// </summary>
+    /// <remarks>
+    ///     The same card as everything else, with the rows replaced by a field and a commit row. An empty
+    ///     field is a real answer and is handed over as such, which is why this takes two callbacks
+    ///     rather than coming back through <see cref="Closed"/>: that one cannot tell a commit from a
+    ///     cancellation.
+    /// </remarks>
+    public void OpenPrompt(string title, string subtitle, string initial, string hint, int maxLength,
+        bool withClose, Action<string> onSave, Action onCancel)
+    {
+        try
+        {
+            ApplyCompactShape();
+
+            var hasHeader = !string.IsNullOrWhiteSpace(title) ||
+                            !string.IsNullOrWhiteSpace(subtitle) ||
+                            withClose;
+            Header.IsVisible = hasHeader;
+            CloseButton.IsVisible = withClose;
+            TitleLabel.Text = title ?? "";
+            TitleLabel.FontSize = string.IsNullOrWhiteSpace(subtitle) ? 16 : 15;
+
+            if (string.IsNullOrWhiteSpace(subtitle))
+            {
+                SubtitleLabel.Text = "";
+                SubtitleLabel.IsVisible = false;
+            }
+            else
+            {
+                SubtitleLabel.Text = subtitle;
+                SubtitleLabel.IsVisible = true;
+            }
+
+            var entry = new Border
+            {
+                BackgroundColor = Color.FromArgb("#0A1F2E"),
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+                Padding = new Thickness(12, 0),
+                HeightRequest = 48,
+                Stroke = Color.FromArgb("#1F94A3B8"),
+                StrokeThickness = 1
+            };
+            var field = new Entry
+            {
+                Text = initial ?? string.Empty,
+                Keyboard = Keyboard.Numeric,
+                MaxLength = maxLength,
+                FontFamily = "InterMedium",
+                FontSize = 15,
+                TextColor = Colors.White,
+                Placeholder = hint ?? string.Empty,
+                PlaceholderColor = Color.FromArgb("#66FFFFFF"),
+                BackgroundColor = Colors.Transparent,
+                ClearButtonVisibility = ClearButtonVisibility.Never
+            };
+            entry.Content = field;
+
+            ItemsHost.Clear();
+            ItemsHost.Add(entry);
+
+            var capturedField = field;
+            var capturedSave = onSave;
+            var capturedCancel = onCancel;
+            // Ordinary rows, and deliberately so: the panel closes the same way it does for a choice
+            // and the answer is whatever was in the field when the row was tapped. An empty field is a
+            // real answer and is handed over as such, which is why this does not come back through
+            // Closed: that one cannot tell a commit from an abandonment.
+            ItemsHost.Add(BuildRow(new OptionsSheetItem("Save", "icon_check",
+                action: () => capturedSave(capturedField.Text))));
+
+            IsVisible = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS options sheet prompt failed: " + ex.Message);
+        }
+    }
+
+    private void ApplyCompactShape()
+    {
+        Panel.HorizontalOptions = LayoutOptions.Center;
+        Panel.VerticalOptions = LayoutOptions.Center;
+        Panel.WidthRequest = 264;
+        Panel.Margin = new Thickness(0);
+        Panel.StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(20) };
+        RowsScroll.MaximumHeightRequest = 520;
+        Handle.IsVisible = false;
+    }
+
     private void Present(string title, string subtitle, IEnumerable<OptionsSheetItem> items, bool compact,
-        Action onBack)
+        Action onBack, bool withClose = false)
     {
         try
         {
@@ -70,8 +180,18 @@ public partial class OptionsSheet : ContentView
                 Handle.IsVisible = true;
             }
 
-            var hasHeader = !string.IsNullOrWhiteSpace(title) || onBack != null;
+            // The subtitle lives inside the header's own grid, so a panel carrying one has to show the header
+            // even when there is no title to put in it. A confirm with only a message is exactly that,
+            // and hiding the header there hid the message and left a panel of two buttons saying
+            // nothing about what it was confirming. The close button is the third reason: it is the only
+            // way out of a panel that carries no Cancel row, and it lives in the header too, so a panel
+            // relying on it has to have one.
+            var hasHeader = !string.IsNullOrWhiteSpace(title) ||
+                            !string.IsNullOrWhiteSpace(subtitle) ||
+                            onBack != null ||
+                            withClose;
             Header.IsVisible = hasHeader;
+            CloseButton.IsVisible = withClose;
             if (hasHeader)
             {
                 // No chevron in the title: there is a real Back row right underneath, and a title
@@ -236,7 +356,10 @@ public partial class OptionsSheet : ContentView
             Grid.SetColumn(value, 1);
             grid.Add(value);
         }
-        else if (item.ShowChevron || item.Submenu != null)
+        // A submenu normally means there is a deeper level, which is what the arrow is for. A row
+        // that commits where it stands says so with HideChevron, and one of those pointing at a
+        // sub panel was the Discover format tick boxes promising a list that never opened.
+        else if (item.ShowChevron || (item.Submenu != null && !item.HideChevron))
         {
             var chevron = new Image
             {
@@ -314,7 +437,14 @@ public partial class OptionsSheet : ContentView
             }
         }
 
+        // Marked before the panel closes, because Dismiss raises Closed and a host listening to both has to be
+        // able to tell this close apart from one that came from the scrim or the back gesture. Without it
+        // the dismissal looks like a cancellation and answers the caller before the row gets to run: every
+        // prompt's commit row lost to its own cancel path, which is why typing a value and pressing Save
+        // did nothing at all.
+        ClosingByChoice = true;
         Dismiss();
+        ClosingByChoice = false;
         try
         {
             if (item.Action != null)
@@ -333,6 +463,16 @@ public partial class OptionsSheet : ContentView
         }
         ItemChosen?.Invoke(this, item);
     }
+
+    /// <summary>
+    ///     True while the panel is closing because a row was chosen, rather than by scrim or back.
+    /// </summary>
+    /// <remarks>
+    ///     Set only around the close that a row causes, and read from inside Closed, which fires before the
+    ///     row's action does. A host treats a close with this set as answered and one without it as a
+    ///     cancellation.
+    /// </remarks>
+    public bool ClosingByChoice { get; private set; }
 
     private void OnScrimTapped(object sender, TappedEventArgs e)
     {

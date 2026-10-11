@@ -1,6 +1,6 @@
 using System;
 
-namespace MALClient.BBCode
+namespace MALPlus.BBCode
 {
     public class BBTag
     {

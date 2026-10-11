@@ -1,4 +1,4 @@
-namespace MALClient.Models.Models.Search
+namespace MALPlus.Models.Models.Search
 {
     public class SearchEverywhereSeparator : ISearchEverywhereItem
     {

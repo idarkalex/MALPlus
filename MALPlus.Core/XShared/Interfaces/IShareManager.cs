@@ -1,8 +1,8 @@
 ﻿using System;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
 
-namespace MALClient.XShared.Interfaces
+namespace MALPlus.XShared.Interfaces
 {
     public interface IShareManager
     {

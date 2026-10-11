@@ -9,8 +9,8 @@
     <SingleProject>true</SingleProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
-    <ApplicationTitle>MAL+ MAUI</ApplicationTitle>
-    <ApplicationId>com.idarkalex.malplus.maui11</ApplicationId>
+    <ApplicationTitle>MAL+</ApplicationTitle>
+    <ApplicationId>com.idarkalex.malplus</ApplicationId>
     <ApplicationDisplayVersion>2.0.0</ApplicationDisplayVersion>
     <ApplicationVersion>200</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
@@ -50,8 +50,13 @@
 
   <ItemGroup>
     <!-- Splash + launcher icon: original MAL brand (navy #000D1A + white MAL+), ported as LIGHTWEIGHT SVGs. -->
-    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000D1A" BaseSize="256,256" />
-    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#000D1A" />
+<!-- No MauiIcon on purpose. It generates a mipmap-anydpi-v26 adaptive icon, and that qualifier
+     wins over every density qualified mipmap on API 26 and up, so the launcher kept drawing the
+     old artwork no matter which PNG sat in Resources/AppIcon. The round artwork is therefore
+     shipped as plain PNGs under Platforms/Android/Resources/mipmap-*/ic_launcher_malplus.png,
+     which carry no anydpi variant, and AndroidManifest.xml points android:icon and android:roundIcon
+     at that name. -->
+<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000D1A" BaseSize="256,256" />
   </ItemGroup>
 
   <ItemGroup>

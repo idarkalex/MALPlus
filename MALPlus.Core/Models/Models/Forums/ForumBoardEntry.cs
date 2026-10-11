@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace MALClient.Models.Models.Forums
+namespace MALPlus.Models.Models.Forums
 {
     //staticly defined boards
     public class ForumBoardEntry

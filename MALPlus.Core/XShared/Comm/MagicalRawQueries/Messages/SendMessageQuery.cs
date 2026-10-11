@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using MALClient.XShared.ViewModels;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm.MagicalRawQueries.Messages
+namespace MALPlus.XShared.Comm.MagicalRawQueries.Messages
 {
     public class SendMessageQuery
     {

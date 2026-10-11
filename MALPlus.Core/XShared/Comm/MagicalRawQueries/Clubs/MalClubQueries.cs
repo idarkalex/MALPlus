@@ -6,14 +6,14 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Comm.MagicalRawQueries.Forums;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Comm.MagicalRawQueries.Forums;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Comm.MagicalRawQueries.Clubs
+namespace MALPlus.XShared.Comm.MagicalRawQueries.Clubs
 {
     public static class MalClubQueries
     {

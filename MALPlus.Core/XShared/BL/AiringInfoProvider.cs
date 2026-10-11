@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Adapters;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.Utils;
+using MALPlus.Adapters;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.Utils;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
     public class AiringInfoProvider : IAiringInfoProvider
     {

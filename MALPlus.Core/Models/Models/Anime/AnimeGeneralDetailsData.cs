@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
-namespace MALClient.Models.Models.Anime
+namespace MALPlus.Models.Models.Anime
 {
     /// <summary>
     ///     An off-site reference for an entry, kept as name plus url so the UI can decide what to

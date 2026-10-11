@@ -7,15 +7,15 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Forums;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Forums.Items;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Forums;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Forums.Items;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Comm.MagicalRawQueries.Forums
+namespace MALPlus.XShared.Comm.MagicalRawQueries.Forums
 {
     public static class ForumTopicQueries
     {

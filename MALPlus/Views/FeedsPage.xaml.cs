@@ -1,5 +1,5 @@
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Views;
 

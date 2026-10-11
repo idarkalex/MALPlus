@@ -1,8 +1,8 @@
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Notifications;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Notifications;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Views;
 

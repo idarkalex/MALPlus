@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     /// <summary>
     ///     One chip in the search filter bar.

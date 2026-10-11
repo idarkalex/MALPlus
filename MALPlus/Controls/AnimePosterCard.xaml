@@ -84,6 +84,23 @@
             </Border.Background>
         </Border>
 
+        <!-- Ranking, for the Top panels only. Sits above the title strip rather than inside it: the
+             title is 32dp tall and runs the full width, so a chip sharing that space either
+             overlaps long titles or the grid grows for one panel. 40dp of bottom margin clears it
+             with a hair of gap, and the title stays at full width underneath.
+
+             Same blue as the type and score tags on the same card, so it reads as part of that
+             family instead of a fourth kind of badge. -->
+        <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+                BackgroundColor="#0066FF" Stroke="Transparent"
+                HorizontalOptions="End" VerticalOptions="End"
+                Margin="0,0,6,40"
+                InputTransparent="True"
+                IsVisible="{Binding HasRank, Source={x:Reference PosterCard}}">
+            <Label Text="{Binding RankTag, Source={x:Reference PosterCard}}"
+                   FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+        </Border>
+
         <!-- The label box is two lines tall so long titles have room, which used to leave a one
              line hole under a short title. Anchoring the text to the bottom keeps every card's
              title sitting on the same baseline. -->

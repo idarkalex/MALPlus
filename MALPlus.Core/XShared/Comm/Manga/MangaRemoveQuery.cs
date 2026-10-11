@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Net.Http;
 using System.Threading.Tasks;
-using MALClient.XShared.ViewModels;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm.Manga
+namespace MALPlus.XShared.Comm.Manga
 {
     public class MangaRemoveQuery : Query
     {

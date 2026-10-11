@@ -1,7 +1,7 @@
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
-using MALClient.XShared.Utils;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
+using MALPlus.XShared.Utils;
 
 namespace MALPlus.Views;
 
@@ -24,7 +24,7 @@ public partial class FriendsPage : ContentPage
         _initialized = true;
         try
         {
-            Vm.NavigatedTo(new FriendsPageNavArgs { TargetUser = new MALClient.Models.Models.MalUser { Name = Credentials.UserName } });
+            Vm.NavigatedTo(new FriendsPageNavArgs { TargetUser = new MALPlus.Models.Models.MalUser { Name = Credentials.UserName } });
             for (int i = 0; i < 60; i++)
             {
                 await Task.Delay(200);
@@ -62,7 +62,7 @@ public partial class FriendsPage : ContentPage
     {
         try
         {
-            if (e.CurrentSelection.FirstOrDefault() is MALClient.Models.Models.MalSpecific.MalFriend f)
+            if (e.CurrentSelection.FirstOrDefault() is MALPlus.Models.Models.MalSpecific.MalFriend f)
             {
                 ((CollectionView)sender).SelectedItem = null;
                 await Shell.Current.GoToAsync($"profile?user={Uri.EscapeDataString(f.User.Name)}");

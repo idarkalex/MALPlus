@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Timers;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
     public class ShareManager : IShareManager
     {
@@ -65,7 +65,7 @@ namespace MALClient.XShared.BL
                     return null;
 
                 return $"{msg}\n\n" +
-                       "#MALClient";
+                       "#MalPlus";
             }
             catch (Exception)
             {

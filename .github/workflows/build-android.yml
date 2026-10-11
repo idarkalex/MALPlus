@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main, maui-migration, maui11]
+    branches: [main]
     tags: ['v*']
     paths-ignore:
       - '**/*.md'
@@ -273,7 +273,7 @@ $sdk = "C:\Program Files (x86)\Android\android-sdk"
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: MALClient ${{ github.ref_name }}
+          name: MAL+ ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
           files: |
             **/*.apk

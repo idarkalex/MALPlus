@@ -6,12 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
-using MALClient.Models.Models;
-using MALClient.Models.Models.MalSpecific;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.MalSpecific;
 
-using MALClient.XShared.Utils;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.MalSpecific
+namespace MALPlus.XShared.Comm.MalSpecific
 {
     public class MalFriendsFeedsQuery
     {

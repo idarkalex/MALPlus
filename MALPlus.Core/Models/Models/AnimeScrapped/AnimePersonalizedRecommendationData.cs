@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace MALClient.Models.Models.AnimeScrapped
+namespace MALPlus.Models.Models.AnimeScrapped
 {
     public class AnimePersonalizedRecommendationData
     {

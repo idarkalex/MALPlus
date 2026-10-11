@@ -5,13 +5,13 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.Comm.MagicalRawQueries;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimePersonalizedRecommendationsQuery : Query
     {

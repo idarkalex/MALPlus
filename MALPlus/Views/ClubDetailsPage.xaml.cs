@@ -1,6 +1,6 @@
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Clubs;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Clubs;
 
 namespace MALPlus.Views;
 

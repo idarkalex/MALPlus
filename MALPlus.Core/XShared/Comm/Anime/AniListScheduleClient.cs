@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     /// <summary>
     ///     One entry of an airing schedule: the episode number and the instant it aired.
@@ -171,7 +171,7 @@ namespace MALClient.XShared.Comm.Anime
         {
             try
             {
-                var cached = await MALClient.XShared.Utils.DataCache.RetrieveAiringSchedule(malId);
+                var cached = await MALPlus.XShared.Utils.DataCache.RetrieveAiringSchedule(malId);
                 if (cached != null)
                     return cached;
 
@@ -180,7 +180,7 @@ namespace MALClient.XShared.Comm.Anime
                 {
                     var fetched = await FetchCoreAsync(malId);
                     if (fetched != null)
-                        await MALClient.XShared.Utils.DataCache.SaveAiringSchedule(malId, fetched);
+                        await MALPlus.XShared.Utils.DataCache.SaveAiringSchedule(malId, fetched);
                     return fetched;
                 }
                 finally

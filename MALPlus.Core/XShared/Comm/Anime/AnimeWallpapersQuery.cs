@@ -5,13 +5,13 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Misc;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Misc;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeWallpapersQuery : Query
     {

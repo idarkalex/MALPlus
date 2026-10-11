@@ -5,10 +5,10 @@ using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeVideosQuery : Query
     {

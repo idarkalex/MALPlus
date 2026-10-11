@@ -4,7 +4,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
-namespace MALClient.Models.Models.ApiResponses
+namespace MALPlus.Models.Models.ApiResponses
 {
 
     public class SearchEverywhereResponse

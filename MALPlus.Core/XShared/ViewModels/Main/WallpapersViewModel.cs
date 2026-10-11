@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Models.Misc;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels.Items;
+using MALPlus.Models.Models.Misc;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels.Items;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public class WallpapersViewModel : ViewModelBase
     {

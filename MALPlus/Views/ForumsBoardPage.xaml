@@ -2,11 +2,12 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
-             xmlns:mforumsitems="clr-namespace:MALClient.XShared.ViewModels.Forums.Items;assembly=MALPlus.Core"
-             xmlns:mforums="clr-namespace:MALClient.XShared.ViewModels.Forums;assembly=MALPlus.Core"
-             x:Class="MALPlus.Views.ForumsBoardPage"
-             x:DataType="mforums:ForumBoardViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             xmlns:mforumsitems="clr-namespace:MALPlus.XShared.ViewModels.Forums.Items;assembly=MALPlus.Core"
+             xmlns:mforums="clr-namespace:MALPlus.XShared.ViewModels.Forums;assembly=MALPlus.Core"
+x:Class="MALPlus.Views.ForumsBoardPage"
+               x:Name="BoardPageRoot"
+               x:DataType="mforums:ForumBoardViewModel"
+               BackgroundColor="{StaticResource EmBackground}">
     <ContentPage.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
     </ContentPage.Resources>
@@ -17,11 +18,40 @@
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
 
-        <Grid RowDefinitions="Auto,*">
-            <Label Grid.Row="0" Text="{Binding Title}" FontFamily="InterBold" FontSize="22"
-                   TextColor="{StaticResource BrushText}" Padding="16,12" />
+<Grid RowDefinitions="Auto,Auto,*">
+              <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,10,12,4">
+                  <Label Grid.Column="0" Text="{Binding Title}" FontFamily="InterBold" FontSize="22"
+                         TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                  <!-- A Border rather than a Button: Button has no StrokeShape, and a Border
+                       carries a real background so it stays hit tested. -->
+                  <Border Grid.Column="1" Padding="14,7" StrokeThickness="1"
+                          StrokeShape="RoundRectangle 8"
+                          BackgroundColor="{StaticResource EmSheet}"
+                          Stroke="{StaticResource EmBorder}" VerticalOptions="Center">
+                      <Border.GestureRecognizers>
+                          <TapGestureRecognizer Tapped="OnNewTopicTapped" />
+                      </Border.GestureRecognizers>
+                      <Label Text="New topic" FontFamily="InterSemiBold" FontSize="13"
+                             TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                  </Border>
+              </Grid>
 
-            <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingTopics}" Refreshing="OnRefreshing">
+              <!-- Entry boards are MAL's own anime/manga discussion, where a topic can only be
+                   started against the media id. The global boards have no entry, so the button is
+                   hidden there rather than posting into an arbitrary board. -->
+              <Border Grid.Row="1" Margin="16,0,16,8" Padding="14,11" StrokeThickness="1"
+                      StrokeShape="RoundRectangle 8"
+                      BackgroundColor="{StaticResource EmSheet}"
+                      Stroke="{StaticResource EmBorder}"
+                      IsVisible="{Binding Source={x:Reference BoardPageRoot}, Path=CanStartTopicHere}">
+                  <Border.GestureRecognizers>
+                      <TapGestureRecognizer Tapped="OnNewTopicTapped" />
+                  </Border.GestureRecognizers>
+                  <Label Text="Start a topic in this discussion" FontFamily="InterSemiBold" FontSize="14"
+                         TextColor="{StaticResource EmAccent}" />
+              </Border>
+
+            <RefreshView Grid.Row="2" IsRefreshing="{Binding LoadingTopics}" Refreshing="OnRefreshing">
                 <CollectionView ItemsSource="{Binding Topics}">
                     <CollectionView.EmptyView>
                         <VerticalStackLayout Spacing="10" HorizontalOptions="Center">

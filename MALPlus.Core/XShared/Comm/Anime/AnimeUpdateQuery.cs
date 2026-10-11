@@ -8,16 +8,16 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Utils;
-using MALClient.XShared.Utils.Managers;
-using MALClient.XShared.ViewModels;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.Utils.Managers;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeUpdateQuery : Query
     {

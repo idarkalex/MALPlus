@@ -1,9 +1,9 @@
 using GalaSoft.MvvmLight.Ioc;
-using MALClient.Adapters;
-using MALClient.Adapters.Credentials;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Adapters;
+using MALPlus.Adapters.Credentials;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 
 namespace MALPlus.Services;
 
@@ -33,6 +33,7 @@ public static class MauiViewModelLocator
         SimpleIoc.Default.Register<ICssManager, MauiCssManager>();
         SimpleIoc.Default.Register<IChangeLogProvider, MauiChangeLogProvider>();
         SimpleIoc.Default.Register<IMalHttpContextProvider, MauiMalHttpContextProvider>();
+        SimpleIoc.Default.Register<IMalWebSessionCleaner, MalWebSessionCleaner>();
         SimpleIoc.Default.Register<ISnackbarProvider, MauiSnackbarProvider>();
         SimpleIoc.Default.Register<IConnectionInfoProvider, MauiConnectionInfoProvider>();
         SimpleIoc.Default.Register<IDispatcherAdapter, MauiDispatcherAdapter>();
@@ -43,7 +44,7 @@ public static class MauiViewModelLocator
         SimpleIoc.Default.Register<IPinTileService, MauiPinTileService>();
         SimpleIoc.Default.Register<ICalendarExportProvider, MauiCalendarExportProvider>();
         SimpleIoc.Default.Register<MauiSettingsViewModel>();
-        SimpleIoc.Default.Register<MALClient.XShared.ViewModels.SettingsViewModelBase>(
+        SimpleIoc.Default.Register<MALPlus.XShared.ViewModels.SettingsViewModelBase>(
             () => SimpleIoc.Default.GetInstance<MauiSettingsViewModel>());
     }
 }

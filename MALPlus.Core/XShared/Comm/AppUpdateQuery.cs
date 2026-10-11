@@ -2,9 +2,9 @@
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MALClient.XShared.ViewModels;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm
+namespace MALPlus.XShared.Comm
 {
     public class AppUpdateInfo
     {
@@ -20,13 +20,13 @@ namespace MALClient.XShared.Comm
 
         public AppUpdateQuery()
         {
-            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MALClient-Android/1.0");
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MalPlus-Android/1.0");
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/vnd.github+json");
         }
 
         public async Task<AppUpdateInfo> GetUpdateInfo()
         {
-            var json = await _httpClient.GetStringAsync("https://api.github.com/repos/idarkalex/MALClient/releases/latest");
+            var json = await _httpClient.GetStringAsync("https://api.github.com/repos/idarkalex/MalPlus/releases/latest");
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 

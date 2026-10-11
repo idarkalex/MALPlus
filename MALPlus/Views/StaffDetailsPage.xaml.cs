@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.ScrappedDetails;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Details;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.ScrappedDetails;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Details;
 using MALPlus.Services;
 using Microsoft.Maui.Graphics;
 

@@ -1,4 +1,4 @@
-namespace MALClient.Models.Models.Anime
+namespace MALPlus.Models.Models.Anime
 {
     public enum Season
     {

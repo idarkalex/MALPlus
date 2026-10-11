@@ -1,7 +1,7 @@
 using System;
 using System.Net.Http;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     /// <summary>
     ///     Tells a genuine credential rejection apart from a transient failure.

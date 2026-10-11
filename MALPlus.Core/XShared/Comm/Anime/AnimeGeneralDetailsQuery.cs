@@ -6,12 +6,12 @@ using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeGeneralDetailsQuery : Query
     {
@@ -411,6 +411,13 @@ namespace MALClient.XShared.Comm.Anime
                 "currently_airing" => "Currently Airing",
                 "finished_airing" => "Finished Airing",
                 "not_yet_aired" => "Not yet aired",
+                // Manga has its own vocabulary. Without these the raw snake_case leaked into the UI
+                // and, worse, "finished_publishing" never matched the "Finished Airing" test that
+                // decides whether a cache entry is permanent, so finished manga re-fetched forever.
+                "publishing" => "Currently Publishing",
+                "finished_publishing" => "Finished Publishing",
+                "on_hiatus" => "On Hiatus",
+                "discontinued" => "Discontinued",
                 _ => status
             };
 

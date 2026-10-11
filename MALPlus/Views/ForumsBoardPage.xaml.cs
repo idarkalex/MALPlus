@@ -1,8 +1,8 @@
-using MALClient.Models.Enums;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Forums;
-using MALClient.XShared.ViewModels.Forums.Items;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Forums;
+using MALPlus.XShared.ViewModels.Forums.Items;
 
 namespace MALPlus.Views;
 
@@ -19,8 +19,12 @@ namespace MALPlus.Views;
 [QueryProperty(nameof(AnimeId), "anime")]
 [QueryProperty(nameof(AnimeTitle), "title")]
 [QueryProperty(nameof(IsManga), "manga")]
-public partial class ForumsBoardPage : ContentPage
+public partial class ForumsBoardPage : ContentPage, System.ComponentModel.INotifyPropertyChanged
 {
+    private bool _canStartTopicHere;
+
+    public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+
     private bool _initialized;
     public string BoardId { get; set; }
     public string AnimeId { get; set; }
@@ -49,14 +53,20 @@ public partial class ForumsBoardPage : ContentPage
         return new ForumsBoardNavigationArgs((ForumBoards)board);
     }
 
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing();
-        if (_initialized) return;
-        _initialized = true;
-        try
-        {
-            Vm.Init(BuildArgs());
+protected override async void OnAppearing()
+  {
+      base.OnAppearing();
+      if (_initialized) return;
+      _initialized = true;
+      try
+      {
+          // AnimeId arrives as a Shell query property, so it is only populated after the route is
+          // applied; the button's visibility has to be recomputed here rather than in the ctor.
+          _canStartTopicHere = int.TryParse(AnimeId, out var mediaId) && mediaId > 0;
+          PropertyChanged?.Invoke(this,
+              new System.ComponentModel.PropertyChangedEventArgs(nameof(CanStartTopicHere)));
+
+          Vm.Init(BuildArgs());
             for (int i = 0; i < 60; i++)
             {
                 await Task.Delay(200);
@@ -90,8 +100,29 @@ public partial class ForumsBoardPage : ContentPage
         }
     }
 
-    private static async Task NavigateToTopicAsync(ForumTopicEntryViewModel item)
-    {
-        await Shell.Current.GoToAsync($"forumtopic?id={item.Data.Id}");
-    }
+private static async Task NavigateToTopicAsync(ForumTopicEntryViewModel item)
+  {
+      await Shell.Current.GoToAsync($"forumtopic?id={item.Data.Id}");
+  }
+
+  /// <summary>
+  ///     Only an entry's own board accepts a new topic. The global boards map to a ForumBoards
+  ///     value, and posting there needs the board number instead of a media id.
+  /// </summary>
+  public bool CanStartTopicHere => _canStartTopicHere;
+
+  private async void OnNewTopicTapped(object sender, TappedEventArgs e)
+  {
+      if (!int.TryParse(AnimeId, out var id) || id <= 0)
+      {
+          await DisplayAlert("New topic",
+              "Topics can only be started from an anime or manga discussion board.", "OK");
+          return;
+      }
+
+      var manga = string.Equals(IsManga, "true", StringComparison.OrdinalIgnoreCase);
+      var title = string.IsNullOrWhiteSpace(AnimeTitle) ? "" : Uri.EscapeDataString(AnimeTitle);
+      await Shell.Current.GoToAsync(
+          $"forumnewtopic?anime={id}&title={title}&manga={(manga ? "true" : "false")}");
+  }
 }

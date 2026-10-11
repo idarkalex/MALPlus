@@ -4,30 +4,38 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm.Profile
+namespace MALPlus.XShared.Comm.Profile
 {
     public class ProfileHistoryQuery : Query
     {
         private string _source;
 
-        public ProfileHistoryQuery(string source)
+        /// <summary>
+        ///     How many entries into the history to start, for reading the next page.
+        /// </summary>
+        private int _offset;
+
+        public ProfileHistoryQuery(string source, int offset = 0)
         {
             _source = source;
+            _offset = offset;
         }
 
         public async Task<Dictionary<string, List<MalProfileHistoryEntry>>> GetProfileHistory()
         {
-
             var output = new Dictionary<string, List<MalProfileHistoryEntry>>();
             try
             {
                 var client = await ResourceLocator.MalHttpContextProvider.GetHttpContextAsync();
+                // Offset is appended only when there is one, so the first request is byte for byte the
+                // request the page used to make and a reader who never scrolls sees no difference.
+                var offsetPart = _offset < 1 ? "" : "?offset=" + _offset;
                 var raw = await (await client.GetAsync(
-                    Uri.EscapeUriString($"https://myanimelist.net/history/{_source}"))).Content.ReadAsStringAsync();
+                    Uri.EscapeUriString($"https://myanimelist.net/history/{_source}{offsetPart}"))).Content.ReadAsStringAsync();
                 if (string.IsNullOrEmpty(raw))
                     return null;
                 var doc = new HtmlDocument();

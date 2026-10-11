@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
-using MALClient.Models.Models.Favourites;
+using MALPlus.Models.Models.Favourites;
 
-namespace MALClient.Models.Models.AnimeScrapped
+namespace MALPlus.Models.Models.AnimeScrapped
 {
     public class AnimeCharacterStaffModel
     {

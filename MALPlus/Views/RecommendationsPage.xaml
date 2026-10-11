@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
              xmlns:converters="clr-namespace:MALPlus.Converters"
              x:Class="MALPlus.Views.RecommendationsPage"
              BackgroundColor="{StaticResource EmBackground}">
     <ContentPage.Resources>
-        <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
     </ContentPage.Resources>
 
@@ -15,7 +15,7 @@
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
 
-        <Grid RowDefinitions="Auto,Auto,*">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" IsVisible="{Binding Loading, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
             <Label Grid.Row="0" Text="Recommendations" FontFamily="InterBold" FontSize="22"
                    TextColor="{StaticResource BrushText}" Padding="16,12" />
 
@@ -35,34 +35,115 @@
                 </HorizontalStackLayout>
             </ScrollView>
 
-            <RefreshView Grid.Row="2" IsRefreshing="{Binding Loading}" Refreshing="OnRefreshing">
-                <CollectionView x:Name="ItemsList" SelectionMode="None">
-                    <CollectionView.EmptyView>
-                        <Label Text="No recommendations" FontFamily="Inter" FontSize="13"
-                               TextColor="#80FFFFFF" HorizontalOptions="Center" VerticalOptions="Center" />
-                    </CollectionView.EmptyView>
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <Border Margin="16,6" BackgroundColor="{StaticResource EmSheet}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                    <Label Grid.Column="0" Text="{Binding Header}"
-                                           FontFamily="Inter" FontSize="13" TextColor="{StaticResource BrushText}"
-                                           MaxLines="3" LineBreakMode="TailTruncation"
-                                           VerticalOptions="Center" />
-                                    <Button Grid.Column="1" Text="Open" Clicked="OnOpenClicked"
-                                            CommandParameter="{Binding .}"
-                                            FontFamily="InterSemiBold" FontSize="12"
-                                            BackgroundColor="#0066FF" TextColor="White"
-                                            CornerRadius="8" HeightRequest="32" Padding="10,0"
-                                            VerticalOptions="Center" />
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-            </RefreshView>
+            <ScrollView Grid.Row="2">
+                <VerticalStackLayout Padding="16,8,16,16" Spacing="16">
+
+                    <!-- Three equal columns: the two covers and the gap between them. Because the
+                         columns divide the same width the poster grid divides, each cover lands on
+                         exactly the grid's own cell width, and the middle column comes out one cover
+                         wide, which is what leaves room for the connector. The height is read off the
+                         grid's constant instead of being written here, so the covers on this page can
+                         never drift from the ones in the library.
+
+                         Each cover sits in its own wrapper Grid carrying the tap, the same shape the
+                         calendar's cards use. The wrapper needs a real background colour: a Grid whose
+                         only gesture is a recognizer is not hit tested and the tap falls through. -->
+                    <Grid ColumnDefinitions="*,*,*" VerticalOptions="Start"
+                          IsVisible="{Binding HasAny}">
+                        <Grid Grid.Column="0" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDependentTapped" />
+                            </Grid.GestureRecognizers>
+                            <controls:AnimePosterCard
+                                HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
+                                PosterUrl="{Binding DependentItem.ImgUrl}"
+                                Title="{Binding DependentItem.Title}"
+                                TitleOverlay="True" />
+                        </Grid>
+
+                        <Image Grid.Column="1" Source="icon_arrow_right"
+                               WidthRequest="28" HeightRequest="28"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+
+                        <Grid Grid.Column="2" BackgroundColor="Transparent">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnRecommendedTapped" />
+                            </Grid.GestureRecognizers>
+                            <controls:AnimePosterCard
+                                HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
+                                PosterUrl="{Binding RecommendedItem.ImgUrl}"
+                                Title="{Binding RecommendedItem.Title}"
+                                TitleOverlay="True" />
+                        </Grid>
+                    </Grid>
+
+                    <Label Text="No recommendations" FontFamily="Inter" FontSize="13"
+                           TextColor="#80FFFFFF" HorizontalOptions="Center" Margin="0,48"
+                           IsVisible="{Binding HasAny, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
+
+                    <VerticalStackLayout Spacing="10" IsVisible="{Binding HasAny}">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="If you like" FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
+                            <Label Text="{Binding DependentItem.Title}" FontFamily="InterBold" FontSize="15"
+                                   TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
+                            <Label Text="you might like" FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF"
+                                   Margin="0,6,0,0" />
+                            <Label Text="{Binding RecommendedItem.Title}" FontFamily="InterBold" FontSize="15"
+                                   TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
+                        </VerticalStackLayout>
+
+                        <BoxView HeightRequest="1" Color="{StaticResource EmBorder}" />
+
+                        <Label Text="{Binding CurrentRecommendation.Description}" FontFamily="Inter" FontSize="13"
+                               TextColor="#C0FFFFFF" LineBreakMode="WordWrap" />
+
+                        <HorizontalStackLayout Spacing="4">
+                            <Label Text="by" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" />
+                            <Label Text="{Binding CurrentRecommendation.RecommendedBy}"
+                                   FontFamily="InterSemiBold" FontSize="11"
+                                   TextColor="{StaticResource EmAccent}" />
+                            <Label Text="{Binding CurrentRecommendation.RecommendedWhen}"
+                                   FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+
+            <!-- Arrows only, no swipe. The calendar's carousel sets IsSwipeEnabled off for the same
+                 reason: a horizontal drag on the pager is claimed from whatever the page is scrolling.
+                 Left off on purpose so it reads as a decision, not an oversight.
+
+                 Border plus Image rather than a Button because a MAUI Button takes no child content,
+                 and the spent state is carried by the icon's opacity since a Border has no IsEnabled. -->
+            <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Padding="16,4,16,16" ColumnSpacing="12"
+                  IsVisible="{Binding HasAny}">
+                <Border Grid.Column="0" WidthRequest="44" HeightRequest="44"
+                        BackgroundColor="Transparent" Stroke="#29FFFFFF" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 22" HorizontalOptions="Start"
+                        AutomationId="RecommendationPrevious"
+                        SemanticProperties.Description="Previous recommendation">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnPreviousClicked" />
+                    </Border.GestureRecognizers>
+                    <Image Source="icon_chevron_left" WidthRequest="22" HeightRequest="22"
+                           Opacity="{Binding PreviousOpacity}" />
+                </Border>
+
+                <Label Grid.Column="1" Text="{Binding CounterText}" FontFamily="Inter" FontSize="12"
+                       TextColor="#80FFFFFF" HorizontalOptions="Center" VerticalOptions="Center" />
+
+                <Border Grid.Column="2" WidthRequest="44" HeightRequest="44"
+                        BackgroundColor="Transparent" Stroke="#29FFFFFF" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 22" HorizontalOptions="End"
+                        AutomationId="RecommendationNext"
+                        SemanticProperties.Description="Next recommendation">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnNextClicked" />
+                    </Border.GestureRecognizers>
+                    <Image Source="icon_chevron_right" WidthRequest="22" HeightRequest="22"
+                           Opacity="{Binding NextOpacity}" />
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

@@ -4,10 +4,10 @@ using System.Linq;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeDetailsMalQuery : Query
     {
@@ -257,9 +257,13 @@ namespace MALClient.XShared.Comm.Anime
         {
             try
             {
-                var data = await DataCache.RetrieveAnimeSearchResultsData(_id.ToString(), true);
-                if (data == null || !string.Equals(data.Status, "Finished Airing", StringComparison.CurrentCultureIgnoreCase))
-                    return null;
+// This synthesised fallback is only for FINISHED entries, and it must read the manga cache
+              // folder too when the entry is a manga: it was hardcoded to animeMode:true, so an
+              // offline manga open found nothing and returned a null details tab.
+              var data = await DataCache.RetrieveAnimeSearchResultsData(_id.ToString(), _anime);
+              if (data == null || string.IsNullOrEmpty(data.Status) ||
+                  !data.Status.StartsWith("Finished", StringComparison.CurrentCultureIgnoreCase))
+                  return null;
 
                 var output = new AnimeScrappedDetails { Id = _id };
 

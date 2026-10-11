@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MALClient.XShared.Interfaces
+namespace MALPlus.XShared.Interfaces
 {
     public interface IAiringInfoProvider
     {
@@ -15,7 +15,7 @@ namespace MALClient.XShared.Interfaces
         bool TryGetAiringDay(int id,out DayOfWeek day);
         bool HasAiringEntry(int id);
         IEnumerable<int> GetAllAiringIds();
-        bool TryGetEntry(int id, out MALClient.XShared.BL.AiringInfoProvider.AiringData entry);
+        bool TryGetEntry(int id, out MALPlus.XShared.BL.AiringInfoProvider.AiringData entry);
 
         bool InitializationSuccess { get; }
         event Action AiringsUpdated;

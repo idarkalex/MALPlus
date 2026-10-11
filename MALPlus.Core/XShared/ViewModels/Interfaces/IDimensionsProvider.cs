@@ -1,4 +1,4 @@
-﻿namespace MALClient.XShared.ViewModels.Interfaces
+﻿namespace MALPlus.XShared.ViewModels.Interfaces
 {
     public interface IDimensionsProvider
     {

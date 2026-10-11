@@ -1,10 +1,10 @@
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Forums;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Forums;
 
-namespace MALClient.XShared.ViewModels.Forums.Items
+namespace MALPlus.XShared.ViewModels.Forums.Items
 {
     public class ForumTopicEntryViewModel : ViewModelBase
     {

@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Items
+namespace MALPlus.XShared.ViewModels.Items
 {
     public class ComparisonItemViewModel : ViewModelBase
     {

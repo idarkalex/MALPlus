@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using MALClient.Adapters;
-using MALClient.XShared.ViewModels;
+using MALPlus.Adapters;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     //Series that the source still advertises with a weekly broadcast slot but that actually
     //moved to a seasonal / batch release model. The source never publishes a next-air date for

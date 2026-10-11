@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
+             xmlns:converters="clr-namespace:MALPlus.Converters"
+             xmlns:local="clr-namespace:MALPlus.Views"
+             x:Class="MALPlus.Views.RandomThemePage"
+             x:Name="RandomThemePageRoot"
+             Shell.PresentationMode="NotAnimated"
+             BackgroundColor="{StaticResource EmBackground}">
+
+    <ContentPage.Resources>
+        <converters:StringToImageSourceConverter x:Key="ImageConverter" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <Border Grid.Row="0" BackgroundColor="{StaticResource EmSheet}" Padding="14,0"
+                HeightRequest="52">
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Grid.Column="0" Text="Random theme" FontFamily="InterBold" FontSize="16"
+                       TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                <Border Grid.Column="1" WidthRequest="32" HeightRequest="32"
+                        StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                        VerticalOptions="Center">
+                    <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCloseTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </Grid>
+        </Border>
+
+        <ScrollView Grid.Row="1">
+            <!-- ONE child, and that is not a style preference. A ScrollView takes a single content
+                 element, so the three blocks that used to sit directly inside it here were quietly
+                 discarded except the last: the hero and the video never appeared, and only the text at
+                 the bottom survived. A page that looks empty is what that reads as. -->
+            <VerticalStackLayout Spacing="0">
+
+                <!-- The details page's own hero, whole: blurred poster behind, the poster over it, the
+                     title, the type and year chips and the score. A theme with its own copy of the
+                     entry's header is the same thing the details page shows, and showing the entry is
+                     what makes it openable. -->
+                <Grid HeightRequest="460" IsClippedToBounds="True" BackgroundColor="Transparent">
+                    <controls:BlurHeroView ImageUrl="{Binding HeroImage}" />
+                    <Frame HorizontalOptions="Center" VerticalOptions="Center"
+                           WidthRequest="300" HeightRequest="340" Padding="0" HasShadow="False"
+                           BackgroundColor="Transparent" BorderColor="Transparent">
+                        <Image Source="{Binding HeroImage, Converter={StaticResource ImageConverter}}"
+                               Aspect="AspectFit" />
+                    </Frame>
+
+                    <BoxView InputTransparent="True">
+                        <BoxView.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#00051522" Offset="0.0" />
+                                <GradientStop Color="#00051522" Offset="0.5" />
+                                <GradientStop Color="#B3051522" Offset="1.0" />
+                            </LinearGradientBrush>
+                        </BoxView.Background>
+                    </BoxView>
+
+                    <VerticalStackLayout VerticalOptions="End" Padding="20,24,20,16" Spacing="0">
+
+                        <!-- Tapping the name opens the entry, which is where the rest of it lives: the
+                             synopsis, the themes, the rest of the chips. -->
+                        <Label Text="{Binding AnimeName}" FontFamily="InterBold" FontSize="26"
+                               TextColor="White" MaxLines="3" LineBreakMode="TailTruncation"
+                               Margin="0,0,0,6">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnAnimeTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+
+                        <HorizontalStackLayout Spacing="6" Margin="0,0,0,4">
+                            <Frame Padding="8,2" CornerRadius="6" HasShadow="False"
+                                   BackgroundColor="#0066FF" BorderColor="Transparent"
+                                   IsVisible="{Binding HasMediaFormat}">
+                                <Label Text="{Binding MediaFormat}" FontFamily="InterBold" FontSize="11"
+                                       TextColor="White" />
+                            </Frame>
+                            <Label Text="·" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF"
+                                   VerticalOptions="Center" Margin="6,0"
+                                   IsVisible="{Binding HasYear}" />
+                            <Label Text="{Binding AnimeYear}" FontFamily="Inter" FontSize="12"
+                                   TextColor="#CCFFFFFF" VerticalOptions="Center"
+                                   IsVisible="{Binding HasYear}" />
+                        </HorizontalStackLayout>
+
+                        <Label Text="{Binding AnimeSynopsis}" FontFamily="Inter" FontSize="12"
+                               TextColor="#A8C0D4" MaxLines="4" LineBreakMode="TailTruncation" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <!-- Full width, and tall enough that the video is the thing on the page rather than a
+                     thumbnail beside the theme. -->
+                <Grid x:Name="VideoFrame" HeightRequest="260" BackgroundColor="Black" IsVisible="False">
+                    <WebView x:Name="ThemeVideo" HorizontalOptions="Fill" VerticalOptions="Fill"
+                             BackgroundColor="Black" />
+                </Grid>
+
+                <VerticalStackLayout Padding="14" Spacing="10">
+                    <Label Text="THEME" FontFamily="InterBold" FontSize="11" TextColor="#A0FFFFFF" />
+                    <controls:OpEdRow Text="{Binding SongLine}" IsOpening="{Binding IsOpening}"
+                                      Command="{Binding Source={RelativeSource AncestorType={x:Type local:RandomThemePage}}, Path=ThemeRowCommand}" />
+
+                    <Label x:Name="VideoFailed" IsVisible="False"
+                           Text="AnimeThemes returned no video for this theme."
+                           FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

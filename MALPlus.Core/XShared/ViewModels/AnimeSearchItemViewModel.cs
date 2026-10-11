@@ -6,15 +6,15 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels.Main;
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     public class AnimeSearchItemViewModel : ViewModelBase , IAnimeData
     {

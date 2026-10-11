@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.XShared.Comm.MagicalRawQueries;
-using MALClient.XShared.Comm.Profile;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Comm.Profile;
 
-namespace MALClient.XShared.Utils.Managers
+namespace MALPlus.XShared.Utils.Managers
 {
     public static class FavouritesManager
     {

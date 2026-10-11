@@ -35,8 +35,8 @@
                          and stops the row from seeing the touch. A drawable again rather than a
                          character: as text the cross came out as mojibake, and a vector cannot
                          depend on the font carrying the glyph. -->
-                    <Image Grid.Column="1" Source="icon_close.png" WidthRequest="20" HeightRequest="20"
-                           VerticalOptions="Center">
+<Image Grid.Column="1" Source="icon_close.svg" WidthRequest="20" HeightRequest="20"
+                            VerticalOptions="Center">
                         <Image.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRecentSearchRemoveTapped"
                                                   CommandParameter="{Binding .}" />
@@ -149,7 +149,7 @@
                          which would consume the touch and stop the keyboard opening. The mark is a
                          drawable rather than a character: as text it came out as mojibake twice,
                          and a vector cannot depend on the font having the glyph. -->
-                    <ImageButton Grid.Column="1" Source="icon_close.png" Clicked="OnClearQueryClicked"
+                    <ImageButton Grid.Column="1" Source="icon_close.svg" Clicked="OnClearQueryClicked"
                                  BackgroundColor="{StaticResource EmSheet}"
                                  WidthRequest="48" HeightRequest="48" Padding="14"
                                  IsVisible="{Binding InternalQuery, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />

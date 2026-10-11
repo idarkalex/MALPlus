@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
+using MALPlus.Models.Enums;
 
-namespace MALClient.Models.Models.Misc
+namespace MALPlus.Models.Models.Misc
 {
     public class AnimeWallpaperData
     {

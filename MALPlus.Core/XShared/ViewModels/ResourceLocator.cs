@@ -4,14 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using GalaSoft.MvvmLight.Ioc;
-using MALClient.Adapters;
-using MALClient.Adapters.Credentials;
-using MALClient.Models.Interfaces;
-using MALClient.XShared.BL;
-using MALClient.XShared.Interfaces;
-using IHandyDataStorage = MALClient.XShared.ViewModels.Interfaces.IHandyDataStorage;
+using MALPlus.Adapters;
+using MALPlus.Adapters.Credentials;
+using MALPlus.Models.Interfaces;
+using MALPlus.XShared.BL;
+using MALPlus.XShared.Interfaces;
+using IHandyDataStorage = MALPlus.XShared.ViewModels.Interfaces.IHandyDataStorage;
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     public static class ResourceLocator
     {
@@ -60,6 +60,25 @@ namespace MALClient.XShared.ViewModels
 
         public static IEnglishTitlesProvider EnglishTitlesProvider => SimpleIoc.Default.GetInstance<IEnglishTitlesProvider>();
 
+        /// <summary>
+        ///     Null until a platform registers one, which is why every caller null-checks it: a
+        ///     sign-out has to work on platforms that have no cookie jar at all.
+        /// </summary>
+        public static IMalWebSessionCleaner MalWebSessionCleaner
+        {
+            get
+            {
+                try
+                {
+                    return SimpleIoc.Default.GetInstance<IMalWebSessionCleaner>();
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+            }
+        }
+
         // Purely shared interfaces
 
         public static IAnimeLibraryDataStorage AnimeLibraryDataStorage  => SimpleIoc.Default.GetInstance<IAnimeLibraryDataStorage>();
@@ -98,6 +117,16 @@ namespace MALClient.XShared.ViewModels
         public static void RegisterDataCacheAdapter(IDataCache dataCache)
         {
             SimpleIoc.Default.Register<IDataCache>(() => dataCache);
+        }
+
+        /// <summary>
+        ///     Destroys the MAL website session cookies on sign-out. Optional on purpose: the login
+        ///     page asks for it lazily, because a platform with no cookie jar (or a Core unit test)
+        ///     simply has nothing to clear and must not be forced to register a no-op.
+        /// </summary>
+        public static void RegisterMalWebSessionCleaner(IMalWebSessionCleaner cleaner)
+        {
+            SimpleIoc.Default.Register<IMalWebSessionCleaner>(() => cleaner);
         }
         #endregion
 

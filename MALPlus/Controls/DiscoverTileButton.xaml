@@ -20,5 +20,20 @@
         <Grid.GestureRecognizers>
             <TapGestureRecognizer Tapped="OnTapped" />
         </Grid.GestureRecognizers>
+
+        <!-- The gear strip on the right, over the picture. Sits on top and takes its own taps, so the
+             left of the capsule still opens the destination and only this slice opens the filters.
+             It needs a real background colour to be hit tested at all: a Grid whose only content is a
+             recognizer is transparent to touches and the taps fall through to the row underneath. -->
+        <Grid x:Name="GearZone"
+              HorizontalOptions="End"
+              WidthRequest="0"
+              BackgroundColor="Transparent"
+              VerticalOptions="Fill"
+              InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnGearTapped" />
+            </Grid.GestureRecognizers>
+        </Grid>
     </Grid>
 </ContentView>

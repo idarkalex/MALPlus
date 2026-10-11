@@ -8,10 +8,10 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeReviewsQuery : Query
     {
@@ -60,7 +60,7 @@ namespace MALClient.XShared.Comm.Anime
             for (var page = 0; page < MaxMalPages; page++)
             {
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.TryAddWithoutValidation("User-Agent", "MALClient/3.0");
+                request.Headers.TryAddWithoutValidation("User-Agent", "MalPlus/3.0");
 
                 string html;
                 using (var response = await _client.SendAsync(request))

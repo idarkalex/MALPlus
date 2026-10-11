@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     //Airing instants are absolute, so a countdown needs no time zone at all: "3H" is the same in
     //Madrid and in Tokyo. What does need one is the weekday column. MAL publishes the broadcast

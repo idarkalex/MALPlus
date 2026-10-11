@@ -7,18 +7,18 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Interfaces;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.Models.Models.Favourites;
-using MALClient.Models.Models.Notifications;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.Utils.Managers;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Interfaces;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.Models.Models.Notifications;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.Utils.Managers;
 
-namespace MALClient.XShared.ViewModels.Details
+namespace MALPlus.XShared.ViewModels.Details
 {
     public partial class AnimeDetailsPageViewModel
     {
@@ -26,14 +26,33 @@ namespace MALClient.XShared.ViewModels.Details
 
         public string MyEpisodesBind => $"{MyEpisodes}/{AllEpisodesBind}";
 
-        /// <summary>
-        /// Total of episodes or chapters, or "?" when MAL does not track one. AllEpisodes already
-        /// carries the official num_episodes/num_chapters (see ExtractData), and long running shows
-        /// like One Piece simply have none there, so guessing is not an option: the episode list
-        /// stores MAL database ids rather than episode numbers, and the schedule feed carries no
-        /// episode list at all for them.
+/// <summary>
+        ///     Total of episodes or chapters, or "?" when MAL does not track one. AllEpisodes already
+        ///     carries the official num_episodes/num_chapters (see ExtractData), and long running shows
+        ///     like One Piece simply have none there, so guessing is not an option: the episode list
+        ///     stores MAL database ids rather than episode numbers, and the schedule feed carries no
+        ///     episode list at all for them.
         /// </summary>
         public string AllEpisodesBind => AllEpisodes > 0 ? AllEpisodes.ToString() : "?";
+
+        /// <summary>
+        ///     The hero stepper is always on. It used to be bound to the inverse of
+        ///     <c>AddAnimeVisibility</c>, so an entry that was not on the list showed no counter at
+        ///     all and the only route to "watched 1" was adding the entry first. At zero it now reads
+        ///     "Not on list" and the plus button is what starts the entry.
+        /// </summary>
+        public bool IsEpisodeStepperVisible => true;
+
+        /// <summary>
+        ///     What the counter in the hero reads. Away from the list there is no count to show, so
+        ///     it says so rather than pretending the entry is at zero episodes watched.
+        /// </summary>
+        public string MyEpisodesStepperBind => AddAnimeVisibility ? "Not on list" : MyEpisodesBind;
+
+        /// <summary>
+        ///     The plus button doubles as "start this entry" while it is off the list.
+        /// </summary>
+        public bool IsStepperStartCommand => AddAnimeVisibility;
 
         public int MyEpisodes
         {
@@ -42,6 +61,11 @@ namespace MALClient.XShared.ViewModels.Details
             {
                 _animeItemReference.MyEpisodes = value;
                 RaisePropertyChanged(() => MyEpisodesBind);
+                // The hero stepper is bound to MyEpisodesStepperBind and not to MyEpisodesBind, so
+                // notifying only the latter left the pill frozen on whatever it was showing when the
+                // entry opened, which is the previous anime's count. It is computed from the same two
+                // things, so it has to be told about both of them changing.
+                RaisePropertyChanged(() => MyEpisodesStepperBind);
             }
         }
 
@@ -525,6 +549,10 @@ namespace MALClient.XShared.ViewModels.Details
             {
                 _addAnimeVisibility = value;
                 RaisePropertyChanged(() => AddAnimeVisibility);
+                // The stepper reads one of two strings depending on this flag, so it has to be told when
+                // the flag turns over: coming back from adding an entry to the list was the other half of
+                // the pill showing whatever the previous entry said.
+                RaisePropertyChanged(() => MyEpisodesStepperBind);
             }
         }
 

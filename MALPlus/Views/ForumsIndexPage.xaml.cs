@@ -1,6 +1,6 @@
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Forums;
-using MALClient.XShared.ViewModels.Forums.Items;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Forums;
+using MALPlus.XShared.ViewModels.Forums.Items;
 
 namespace MALPlus.Views;
 
@@ -106,7 +106,7 @@ public partial class ForumsIndexPage : ContentPage
     {
         try
         {
-            if (e.CurrentSelection.FirstOrDefault() is MALClient.Models.Models.Forums.ForumBoardEntryPeekPost post)
+            if (e.CurrentSelection.FirstOrDefault() is MALPlus.Models.Models.Forums.ForumBoardEntryPeekPost post)
             {
                 ((CollectionView)sender).SelectedItem = null;
                 await Shell.Current.GoToAsync(

@@ -7,12 +7,12 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.Utils;
-using MALClient.XShared.Comm.Anime;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.Comm.Anime;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeRelatedQuery : Query
     {
@@ -110,7 +110,7 @@ namespace MALClient.XShared.Comm.Anime
 
                                 var imgUrl = GetNestedImageUrl(ent);
                                 if (!string.IsNullOrEmpty(imgUrl))
-                                    current.ImgUrl = NormalizeImageUrl(imgUrl);
+                                    current.ImgUrl = MalImageUrl.Normalize(imgUrl);
 
                                 output.Add(current);
                             }
@@ -219,7 +219,7 @@ foreach (var content in tileContents)
                         {
                             if (imgSrc.StartsWith("//"))
                                 imgSrc = "https:" + imgSrc;
-                            current.ImgUrl = NormalizeImageUrl(imgSrc);
+                            current.ImgUrl = MalImageUrl.Normalize(imgSrc);
                         }
 
                         output.Add(current);
@@ -409,23 +409,6 @@ foreach (var content in tileContents)
             if (!jpg.TryGetProperty("image_url", out var url) || url.ValueKind != JsonValueKind.String)
                 return null;
             return url.GetString();
-        }
-
-        private static string NormalizeImageUrl(string url)
-        {
-            if (string.IsNullOrEmpty(url)) return url;
-            url = Regex.Replace(url, @"\/r\/\d+x\d+\/", "/");
-            var qPos = url.IndexOf('?');
-            if (qPos > 0) url = url.Substring(0, qPos);
-            var dotPos = url.LastIndexOf('.');
-            if (dotPos > 0)
-            {
-                var beforeDot = url.Substring(0, dotPos);
-                var lastChar = beforeDot[beforeDot.Length - 1];
-                if (lastChar != 'l' && lastChar != 'm' && lastChar != 's')
-                    url = beforeDot + "l" + url.Substring(dotPos);
-            }
-            return url;
         }
     }
 }

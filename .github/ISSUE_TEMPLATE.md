@@ -1,34 +1,35 @@
 <!--
 Asking a question?
 ------------------
-Please first make sure that your question hasn't already been answered on
-github or discord server.
+Please first check that your question hasn't already been answered on GitHub.
 
 Requesting a new feature?
 -------------------------
-Describe what do you need.
-
-If it's a question or feature, delete all the text and then write.
+Describe what you need.
 
 Reporting a bug?
 ----------------
-First, replace the values in quotes below:
+First, replace the values in quotes below.
 -->
 ### System
 
-* MALClient Version: `M.m.r.p` 
-* Platform: `Android`
+* MAL+ version: `M.m.r`
+* Platform: `Android <API level>`
+* Device: `<model>`
+
 <!--
 Example:
 
-* MALClient Version: `5.4.4.0`
-* Platform: `Android`
+* MAL+ version: `2.0.0`
+* Platform: `Android 14 (API 34)`
+* Device: `Pixel 7a`
 
 -->
 
 ### Description
 
-<!-- 
-    and then describe the issue with as much detail as possible and clear steps
-    to reproduce. Write it below this line. -->
-	
+<!--
+Describe the issue with as much detail as possible, and clear steps to reproduce.
+If the app closed itself while it happened, attach the contents of
+`crash_log.txt` from the app's cache directory.
+-->

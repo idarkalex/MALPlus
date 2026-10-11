@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+     One OP or ED line.
+
+     Lifted out of the details page, where it was a DataTemplate inline in a BindableLayout, because
+     the season themes page shows the same lines beside a poster and a second copy of the shape would
+     be a second copy of the geometry to keep in step. The details page points at this too.
+
+     Which colour it takes comes from IsOpening rather than from a colour somebody hands in, so no
+     host has to know that an opening is blue and an ending is orange. The bar is what tells them
+     apart at a glance, and it is the same pair the rest of the app uses.
+
+     The bar is inside the tap target, because a tap on it used to miss: the recogniser was on the
+     border alone and the strip sat outside it.
+-->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MALPlus.Controls.OpEdRow"
+             x:Name="Row">
+    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,7" ColumnSpacing="10"
+          BackgroundColor="Transparent">
+        <BoxView Grid.Column="0" WidthRequest="3" Margin="0,1"
+                 Color="{Binding Accent, Source={x:Reference Row}}" />
+        <Border Grid.Column="1" Stroke="#24405A" StrokeThickness="1"
+                StrokeShape="RoundRectangle 8" Padding="10,9"
+                BackgroundColor="#101D2A">
+            <Label Text="{Binding Text, Source={x:Reference Row}}" FontFamily="Inter" FontSize="13"
+                   TextColor="#DCE9F5" MaxLines="2" LineBreakMode="TailTruncation" />
+        </Border>
+    </Grid>
+</ContentView>

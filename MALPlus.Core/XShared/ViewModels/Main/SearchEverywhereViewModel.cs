@@ -6,13 +6,13 @@ using System.Text;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Search;
-using MALClient.XShared.Comm.Search;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Search;
+using MALPlus.XShared.Comm.Search;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public class SearchEverywhereViewModel : ViewModelBase
     {

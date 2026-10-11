@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace MALClient.Adapters
+namespace MALPlus.Adapters
 {
     public interface IShareProvider
     {

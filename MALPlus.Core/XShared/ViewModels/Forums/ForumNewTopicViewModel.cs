@@ -7,14 +7,14 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Forums;
-using MALClient.XShared.Comm.MagicalRawQueries.Forums;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels.Forums.Items;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Forums;
+using MALPlus.XShared.Comm.MagicalRawQueries.Forums;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels.Forums.Items;
 
-namespace MALClient.XShared.ViewModels.Forums
+namespace MALPlus.XShared.ViewModels.Forums
 {
     public class ForumNewTopicViewModel : ViewModelBase
     {

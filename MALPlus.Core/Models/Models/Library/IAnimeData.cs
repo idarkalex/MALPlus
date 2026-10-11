@@ -1,6 +1,6 @@
-using MALClient.Models.Enums;
+using MALPlus.Models.Enums;
 
-namespace MALClient.Models.Models.Library
+namespace MALPlus.Models.Models.Library
 {
     public interface IAnimeData
     {

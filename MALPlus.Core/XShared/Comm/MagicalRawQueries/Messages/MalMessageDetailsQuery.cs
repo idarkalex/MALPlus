@@ -4,11 +4,11 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm.MagicalRawQueries.Messages
+namespace MALPlus.XShared.Comm.MagicalRawQueries.Messages
 {
     public class MalMessageDetailsQuery
     {

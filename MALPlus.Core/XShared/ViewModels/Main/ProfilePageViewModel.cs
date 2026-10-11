@@ -6,19 +6,19 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Favourites;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Comm.MagicalRawQueries.Profile;
-using MALClient.XShared.Comm.Profile;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Comm.MagicalRawQueries.Profile;
+using MALPlus.XShared.Comm.Profile;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public sealed class ProfilePageViewModel : ViewModelBase
     {
@@ -34,6 +34,25 @@ namespace MALClient.XShared.ViewModels.Main
         public ProfilePageViewModel()
         {
             MaxWidth = AnimeItemViewModel.MaxWidth;
+        }
+
+        /// <summary>
+        ///     Which of the four profile tabs is showing: 0 General, 1 Favourites,
+        ///     2 Recent updates, 3 Stats. Reset to 0 when another profile is opened, otherwise you
+        ///     tap through a list on one user and land on the statistics of the next.
+        /// </summary>
+        private int _selectedTab;
+
+        public int SelectedTab
+        {
+            get => _selectedTab;
+            set
+            {
+                if (_selectedTab == value)
+                    return;
+                _selectedTab = value;
+                RaisePropertyChanged(() => SelectedTab);
+            }
         }
 
         public List<MalUser> MyFriends { get; set; }
@@ -89,10 +108,14 @@ namespace MALClient.XShared.ViewModels.Main
                 RaisePropertyChanged(() => CurrentPivotIndex);
 
 
-                if (_currUser == null || _currUser != args.TargetUser || force)
-                {
-                    LoadingVisibility = true;
-                    await
+if (_currUser == null || _currUser != args.TargetUser || force)
+    {
+        LoadingVisibility = true;
+        // A different profile starts on the first tab. Without this the tab you happened to leave
+        // on carries over, so browsing to another user lands on their statistics instead of
+        // their about section.
+        SelectedTab = 0;
+        await
                         Task.Run(
                             async () =>
                                 CurrentData =

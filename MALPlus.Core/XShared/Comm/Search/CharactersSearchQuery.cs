@@ -6,10 +6,10 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Models.Favourites;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Search
+namespace MALPlus.XShared.Comm.Search
 {
     public class CharactersSearchQuery : Query
     {

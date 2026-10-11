@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+     A dialog, hosted in a modal page so any page in the app can raise one.
+
+     The panel itself is OptionsSheet, which is the same control the poster long press and the details
+     overflow use, so a dialog opened from anywhere looks exactly like those two. It is a ContentView,
+     which means it has to live inside a page's layout, and the pages that already declare it do so
+     themselves: PosterSheet in AnimeListPage and DetailsSheet in AnimeDetailsPage. A dialog raised from
+     Discover, from Settings or from the shared layer has no such place to sit, so it gets a page of its
+     own.
+
+     Transparent, with the panel centred in it. The dimming comes from this page's background rather
+     than from the sheet's own scrim, which stays transparent on purpose: inside a page it is what makes
+     a tap outside land on the panel, and here the page is already covering everything underneath.
+
+     A modal page rather than an overlay inside the current one, because a modal is the only thing that
+     reliably covers every page without each of them having to reserve space for it, and because Android
+     already dismisses one on the back gesture: no back callback needs arming, which is the one thing the
+     two in-page instances do need.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
+             x:Class="MALPlus.Views.OptionsSheetPage"
+             BackgroundColor="#CC000510"
+             NavigationPage.HasNavigationBar="False">
+    <Grid>
+        <controls:OptionsSheet x:Name="SheetPanel" VerticalOptions="Fill" HorizontalOptions="Fill" />
+    </Grid>
+</ContentPage>

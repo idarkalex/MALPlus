@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MALClient.XShared.NavArgs
+namespace MALPlus.XShared.NavArgs
 {
     public class WallpaperPageNavigationArgs
     {

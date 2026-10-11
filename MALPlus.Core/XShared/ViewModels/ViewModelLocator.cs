@@ -2,17 +2,17 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight.Ioc;
-using MALClient.Models.Enums;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels.Clubs;
-using MALClient.XShared.ViewModels.Details;
-using MALClient.XShared.ViewModels.Forums;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels.Clubs;
+using MALPlus.XShared.ViewModels.Details;
+using MALPlus.XShared.ViewModels.Forums;
+using MALPlus.XShared.ViewModels.Main;
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     public class ViewModelLocator
     {

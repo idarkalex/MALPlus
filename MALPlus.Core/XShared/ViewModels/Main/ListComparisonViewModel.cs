@@ -7,14 +7,14 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels.Items;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels.Items;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public enum ComparisonFilter
     {

@@ -6,12 +6,12 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.Favourites;
-using MALClient.Models.Models.ScrappedDetails;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.Models.Models.ScrappedDetails;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Details
+namespace MALPlus.XShared.Comm.Details
 {
     public class CharacterDetailsQuery : Query
     {

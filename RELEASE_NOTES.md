@@ -1,19 +1,25 @@
-## What's new in 1.2.1
+# Release notes
 
-### Bug fixes
-- Fix: **Top novels** and **Top light novels** under Top manga showed the wrong ranking (the whole top list) because the MAL filter used the singular `type=novel`/`type=lightnovel`. Correct filters `type=novels`/`type=lightnovels` applied, and stale cached rankings are invalidated.
+Notes published with the GitHub Release for each `v*` tag. The workflow attaches
+`RELEASE_NOTES.md` verbatim as the release body, so keep the newest version at the top.
 
-## What's new in 1.2.0
+## What's new in 2.0.0
 
-### Manga browsing improvements
-- New "Adapted to anime" section in the side menu with three views: **All**, **Airing Now** (default) and **Upcoming Anime**, scraped directly from MyAnimeList.
-- Real MyAnimeList categories for **Top manga** (All, Manga, Novels, Light Novels, One Shots, Doujinshi, Manhwa, Manhua, Popular, Favourited), selectable from the ⋮ overflow menu or the top status bar.
-- Fix: manga covers (e.g. Bleach) are now loaded correctly in the adapted-to-anime lists.
-- Fix: adapted-to-anime results no longer come back empty, and empty results are never cached.
+### The MAUI port
 
-### Top anime / top manga polish
-- The top status bar on Top anime / Top manga now opens a dropdown to switch categories directly.
-- Alternate titles, About and the changelog sections reworked.
+This is the first release of the standalone **MAL+** app, an independent .NET MAUI rewrite.
 
-### Release workflow
-- Nightly APK is now published as a direct download (GitHub Release) instead of a zip artifact.
+* Rebuilt on .NET 11 / .NET MAUI (Android only), with a dark-first interface.
+* Discover home page: seasonal, top anime, top manga, adapted to anime, news, and your personal
+  watching / reading / completed rows.
+* Random anime and random manga with filters.
+* Airing countdowns computed from real episode timestamps and refreshed by magnitude, so a
+  weekly show is not re-fetched every minute.
+* In-app video overlay for trailers, openings and endings.
+* One shared poster-grid control, so every list renders the same 3-column layout.
+* Bottom navigation with launcher shortcuts and pull-to-refresh throughout.
+
+### Attribution
+
+MAL+ is a port of [MALClient by Drutol](https://github.com/Drutol/MALClient), forked by
+[idarkalex](https://github.com/idarkalex/MALClient). Released under the GNU GPL v3.

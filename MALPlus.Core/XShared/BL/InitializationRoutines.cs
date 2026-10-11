@@ -5,15 +5,15 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.Utils;
-using MALClient.XShared.Utils.Managers;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.Utils.Managers;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
     /// <summary>
     /// Platfrom independent init chain
@@ -35,6 +35,11 @@ namespace MALClient.XShared.BL
                 Credentials.TryRestoreWebSession();
             _ = FavouritesManager.LoadDataAsync();
             await AnimeImageQuery.Init();
+            // Pulls the finished seasons into the local cache while the app is settling, so opening
+            // Seasonal later is a cache read instead of eight or nine requests. Fire and forget on
+            // purpose: it is a nicety for later and must never sit in the startup path. It stops on
+            // its own as soon as the user opens Seasonal and wants the source for themselves.
+            SeasonCacheWarmer.WarmInBackground();
             ViewModelLocator.ForumsMain.LoadPinnedTopics();
 
             var tokenTask = Credentials.Authenticated

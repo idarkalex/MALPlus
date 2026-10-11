@@ -21,7 +21,26 @@
 
         <RefreshView IsRefreshing="{Binding LoadingVisibility}" Refreshing="OnRefreshing"
                      IsVisible="{Binding LoadingVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
-            <CollectionView x:Name="HistoryList" SelectionMode="None">
+            <Grid RowDefinitions="Auto,*" RowSpacing="0">
+                <!-- One page per type, as MAL itself splits it. The list used to be a single flat
+                     run of everything, which made it long and unmixable. -->
+                <HorizontalStackLayout Grid.Row="0" Padding="16,4,16,8" Spacing="8">
+                    <Button x:Name="TabAll" Text="All" FontFamily="InterSemiBold" FontSize="12"
+                            Padding="14,4" CornerRadius="14" BackgroundColor="{StaticResource EmAccent}"
+                            TextColor="White" BorderWidth="0" Clicked="OnTypeTabTapped" CommandParameter="All" />
+                    <Button x:Name="TabAnime" Text="Anime" FontFamily="InterSemiBold" FontSize="12"
+                            Padding="14,4" CornerRadius="14" BackgroundColor="#141d2b"
+                            TextColor="#9FB3C8" BorderWidth="0" Clicked="OnTypeTabTapped" CommandParameter="Anime" />
+                    <Button x:Name="TabManga" Text="Manga" FontFamily="InterSemiBold" FontSize="12"
+                            Padding="14,4" CornerRadius="14" BackgroundColor="#141d2b"
+                            TextColor="#9FB3C8" BorderWidth="0" Clicked="OnTypeTabTapped" CommandParameter="Manga" />
+                </HorizontalStackLayout>
+
+                <CollectionView x:Name="HistoryList" Grid.Row="1" SelectionMode="Single"
+                                SelectionChanged="OnHistoryEntrySelected"
+                                Scrolled="OnHistoryScrolled"
+                                RemainingItemsThreshold="8"
+                                RemainingItemsThresholdReachedCommand="{Binding LoadMoreCommand}">
                 <CollectionView.EmptyView>
                     <Label Text="No history yet" FontFamily="Inter" FontSize="13"
                            TextColor="#80FFFFFF" HorizontalOptions="Center" VerticalOptions="Center" />
@@ -31,6 +50,10 @@
                         <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                 StrokeShape="RoundRectangle 8" Padding="10">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnHistoryEntryTapped"
+                                                      CommandParameter="{Binding Value.Item1}" />
+                            </Border.GestureRecognizers>
                             <Grid ColumnDefinitions="40,*,Auto" ColumnSpacing="10">
                                 <Image Grid.Column="0" Source="{Binding Value.Item1.ImgUrl, Converter={StaticResource ImageConverter}}"
                                        WidthRequest="36" HeightRequest="50" Aspect="AspectFill" />
@@ -57,7 +80,18 @@
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+                <CollectionView.Footer>
+                    <!-- The page grew on its own as the reader approached the end, so there is no
+                         button to press. What is left is a small spinner at the very bottom, bound to
+                         the flag that only the extra page raises: reading more used to go through the
+                         flag behind the full page overlay, which put a black scrim over a list that
+                         was already readable. -->
+                    <ActivityIndicator IsRunning="{Binding LoadingMore}" Color="{StaticResource EmAccent}"
+                                       WidthRequest="24" HeightRequest="24" Margin="0,12,0,20"
+                                       IsVisible="{Binding LoadingMore}" />
+                </CollectionView.Footer>
             </CollectionView>
+            </Grid>
         </RefreshView>
     </Grid>
 </ContentPage>

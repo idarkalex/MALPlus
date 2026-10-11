@@ -37,6 +37,9 @@ public static class VideoWebViewHelper
             // YouTube needs third-party cookies to authenticate video streams (blocked by default on Android 13+)
             global::Android.Webkit.CookieManager.Instance.SetAcceptThirdPartyCookies(wv, true);
             wv.SetWebChromeClient(new LoggingWebChromeClient());
+            // A client of our own, so a media element's error reaches the app. The stock client swallows
+            // it and the overlay is left on a black splash with nothing able to answer, which is what made
+            // a refusal look like a broken player instead of a file worth asking for again.
             wv.SetWebViewClient(new InlineVideoWebViewClient());
         }
         catch (Exception ex)
@@ -114,6 +117,119 @@ public static class VideoWebViewHelper
         if (platformView is not global::Android.Webkit.WebView wv) return;
         try { wv.OnResume(); } catch { }
     }
+
+    /// <summary>
+    ///     The tag the player page reports a failed or started file under, on its way to the console.
+    /// </summary>
+    /// <remarks>
+    ///     The console is used rather than a JavaScript bridge because the chrome client that reads it is
+    ///     already installed on every video WebView in the app, while AddJavaScriptInterface is not
+    ///     surfaced by this binding at all. The line therefore reaches the app from whichever page is
+    ///     playing, with no per page wiring for a new overlay to forget.
+    /// </remarks>
+    private const string ReportPrefix = "ATVIDEO:";
+
+    /// <summary>
+    ///     Raised when a theme reported that it could not play its file.
+    /// </summary>
+    public static event Action<string> PlaybackError;
+
+    /// <summary>
+    ///     Raised when a theme reported that it is playing, which is what ends a wait.
+    /// </summary>
+    public static event Action<string> PlaybackStarted;
+
+    /// <summary>
+    ///     Reports a theme that refused, so whoever is showing it can ask again.
+    /// </summary>
+    /// <remarks>
+    ///     Raised by the watcher rather than by the event itself: a C# event can only be invoked from
+    ///     inside the type that declares it, and the watcher is deliberately a separate type so it can be
+    ///     shared by every overlay.
+    /// </remarks>
+    public static void ReportError(string url) => PlaybackError?.Invoke(url);
+
+    /// <summary>
+    ///     Reports a theme that is playing, which ends its retry accounting.
+    /// </summary>
+    public static void ReportStarted(string url) => PlaybackStarted?.Invoke(url);
+
+    internal static void Report(string line)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(line) || !line.StartsWith(ReportPrefix, StringComparison.Ordinal))
+                return;
+            var payload = line.Substring(ReportPrefix.Length);
+            var url = payload;
+            var kind = 0;
+            var dash = url.IndexOf('|');
+            if (dash > 0)
+            {
+                kind = url[0] == 'e' ? 1 : 0;
+                url = url.Substring(dash + 1);
+            }
+
+            if (kind == 1)
+                PlaybackError?.Invoke(url);
+            else
+                PlaybackStarted?.Invoke(url);
+        }
+        catch
+        {
+        }
+    }
+
+    /// <summary>
+    ///     When a theme was last asked for, used to spot one opened right after another.
+    /// </summary>
+    private static DateTime _lastRequestedUtc = DateTime.MinValue;
+
+    /// <summary>
+    ///     Smallest gap between two themes when they are being flipped through back to back.
+    /// </summary>
+    /// <remarks>
+    ///     The origin lets a handful of requests through per IP and then refuses the rest until it
+    ///     refills. Tapping down a list of themes spends them in a burst, because each one is a fresh
+    ///     transfer on top of the one still being torn down, and the player is asking again before the
+    ///     previous abort has finished landing.
+    /// </remarks>
+    private static readonly TimeSpan BurstGap = TimeSpan.FromMilliseconds(700);
+
+    /// <summary>
+    ///     The window in which a new theme counts as part of the same burst.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately short, so the wait only ever applies to someone who is actually flipping. Anyone
+    ///     who stops to watch, or who comes back minutes later, is never delayed by this.
+    /// </remarks>
+    private static readonly TimeSpan BurstWindow = TimeSpan.FromMilliseconds(900);
+
+    /// <summary>
+    ///     How long the caller must wait before asking for this theme, zero when it can go now.
+    /// </summary>
+    /// <remarks>
+    ///     Not a fixed delay on every video: a single theme opened from a cold page must start at once,
+    ///     and a delay there would be a delay on every entry into the app. This only returns a wait when
+    ///     the previous theme was requested within <see cref="BurstWindow"/>, which is the case where
+    ///     the origin is actually refusing.
+    /// </remarks>
+    public static TimeSpan BurstDelay()
+    {
+        var now = DateTime.UtcNow;
+        var since = now - _lastRequestedUtc;
+        _lastRequestedUtc = now;
+        if (since > BurstWindow)
+            return TimeSpan.Zero;
+        var remaining = BurstGap - since;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    /// <summary>
+    ///     Forgets the last request, so the next theme is never delayed by something from a previous
+    ///     page or a previous minute.
+    /// </summary>
+    public static void ResetBurst() => _lastRequestedUtc = DateTime.MinValue;
 
     public static string ExtractYouTubeId(string url)
     {
@@ -194,37 +310,55 @@ public static class VideoWebViewHelper
             "<script>window.addEventListener('message',function(e){try{var d=e.data||{};if(typeof d==='string'){console.log('YTRAW '+d);}else if(d.event){console.log('YTEVT '+d.event+(d.info?JSON.stringify(d.info):''));}}catch(x){}});</script>");
     }
 
+    /// <summary>
+    ///     A direct media file, played by Chromium's own controls.
+    /// </summary>
+    /// <remarks>
+    ///     This used to ship a hand written transport: a four pixel bar with no thumb, and a single
+    ///     onclick to seek. That is why the player looked broken and was replaced by ExoPlayer — a touch
+    ///     drag on a four pixel target either did nothing or jumped somewhere arbitrary, and the duration
+    ///     read 0:00 until the metadata arrived because it was only written once v.duration existed.
+    ///     <para>
+    ///     None of that was a limit of the WebView. Native controls give the real thing: a seek bar with
+    ///     a thumb that drags under the finger, the duration, volume and fullscreen, all handled by the
+    ///     same engine that decodes the file. So this is now one element and no script, where before it
+    ///     was an element plus two dozen lines that reimplemented it badly.
+    ///     </para>
+    /// </remarks>
     private static string BuildDirectMediaHtml(string url, bool autoplay)
     {
         var autoplayAttr = autoplay ? " autoplay" : "";
         return BuildPlayerShell(
             "<div id='splash'></div>" +
-            "<div id='stage'><video id='video' src='" + url + "'" + autoplayAttr + " preload='auto' playsinline webkit-playsinline></video></div>" +
-            "<div id='controls'>" +
-            "<button id='playBtn'>&#9208;</button>" +
-            "<div id='progressContainer'><div id='progressFill'></div></div>" +
-            "<span id='timeDisplay'>0:00 / 0:00</span></div>",
+            "<div id='stage'><video id='video' src='" + url + "'" + autoplayAttr +
+            " controls playsinline webkit-playsinline preload='auto'></video></div>",
             "<script>" +
-            "var v=document.getElementById('video'),splash=document.getElementById('splash')," +
-            "btn=document.getElementById('playBtn'),fill=document.getElementById('progressFill')," +
-            "container=document.getElementById('progressContainer'),time=document.getElementById('timeDisplay');" +
-            "function fmt(s){s=Math.floor(s||0);return Math.floor(s/60)+':'+('0'+s%60).slice(-2)}" +
-            "btn.onclick=function(e){e.stopPropagation();v.paused?v.play():v.pause()};" +
+            "var v=document.getElementById('video'),splash=document.getElementById('splash');" +
             "v.onplaying=function(){splash.style.opacity='0';};" +
-            "v.onplay=function(){btn.innerHTML='&#9208;';};" +
-            "v.onpause=function(){btn.innerHTML='&#9654;';};" +
-            "v.onerror=function(){splash.style.opacity='0';console.error('video-error code='+(v.error?v.error.code:-1)+' net='+v.networkState);};" +
-            "v.ontimeupdate=function(){if(v.duration){fill.style.width=((v.currentTime/v.duration)*100)+'%';time.textContent=fmt(v.currentTime)+' / '+fmt(v.duration)}};" +
-            "container.onclick=function(e){e.stopPropagation();var r=container.getBoundingClientRect();v.currentTime=((e.clientX-r.left)/r.width)*v.duration;};" +
-            "setTimeout(function(){if(splash.style.opacity!=='0'){splash.style.opacity='0';console.log('DBG: splash timeout');}},5000);" +
-            // Chromium will not start a media element on an attribute alone when the page was not
-            // opened by a gesture, and a rejected play() leaves the grey placeholder up forever.
-            // Kick the load and retry a few times so a slow CDN does not read as "broken".
-            "function kick(){v.load();var p=v.play();if(p&&p.catch){p.catch(function(e){console.log('play-rejected '+e.name);setTimeout(function(){v.play().catch(function(){});},900);});}}" +
+            // Watchdog. The element's own error event is not enough: the origin refuses with a 503 and
+            // an empty body, which Chromium does not always surface as an error on the element, so the
+            // page sat on the splash with the app never told. If it has not started playing by now,
+            // report it as failed so the app can ask again. A slow connection could trip this, which is
+            // why the wait is generous and why a successful play cancels it.
+            "var started=false,timer=setTimeout(function(){" +
+            "if(!started){splash.style.opacity='0';console.log('ATVIDEO:e|'+v.currentSrc);}},8000);" +
+            "v.addEventListener('playing',function(){started=true;clearTimeout(timer);},{once:true});" +
+            "v.addEventListener('loadeddata',function(){started=true;clearTimeout(timer);},{once:true});" +
+            // Chromium refuses to start a media element from an attribute alone when the document was
+            // not opened by a gesture, and a rejected play() leaves the black splash up over the player
+            // for good. Retrying gets it going without the reader having to tap twice.
+            "function kick(){var p=v.play();if(p&&p.catch){p.catch(function(e){console.log('play-rejected '+e.name);setTimeout(function(){v.play().catch(function(){});},900);});}}" +
             "v.addEventListener('canplay',function(){kick();},{once:true});" +
             "v.addEventListener('loadedmetadata',function(){kick();},{once:true});" +
-            "v.addEventListener('error',function(){console.error('video-error code='+(v.error?v.error.code:-1)+' net='+v.networkState);});" +
+            // The element error still reports too, for when Chromium does raise it.
+            "v.addEventListener('error',function(){splash.style.opacity='0';console.error('video-error code='+(v.error?v.error.code:-1)+' net='+v.networkState);" +
+            "console.log('ATVIDEO:e|'+v.currentSrc);});" +
+            "v.addEventListener('playing',function(){" +
+            "console.log('ATVIDEO:o|'+v.currentSrc);},{once:true});" +
             "kick();" +
+            // The splash is removed on a timer as well as on playback, so a file that never starts shows
+            // the native controls over black rather than an unexplained black rectangle.
+            "setTimeout(function(){splash.style.opacity='0';},6000);" +
             "</script>",
             directMedia: true);
     }
@@ -243,14 +377,12 @@ public static class VideoWebViewHelper
     private static string BuildPlayerShell(string body, string script = null, bool directMedia = false)
     {
         var videoStyle = directMedia
-            ? "#stage{position:absolute;top:0;left:0;right:0;bottom:48px;display:flex;align-items:center;justify-content:center;background:#000}" +
+            // The stage stops short of the bottom so Chromium's own control bar sits on its own strip
+            // instead of overlapping the picture. Native controls size themselves, so no height is
+            // hard coded here beyond leaving room for one.
+            ? "#stage{position:absolute;top:0;left:0;right:0;bottom:56px;display:flex;align-items:center;justify-content:center;background:#000}" +
               "#video{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;background:#000}" +
-              "#splash{position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:20;transition:opacity 0.3s;pointer-events:none}" +
-              "#controls{position:absolute;bottom:0;left:0;right:0;height:48px;background:rgba(5,21,34,0.92);display:flex;align-items:center;padding:0 12px;z-index:10}" +
-              "#playBtn{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:10px;padding:4px}" +
-              "#progressContainer{flex:1;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;cursor:pointer;position:relative}" +
-              "#progressFill{height:100%;background:#0066FF;border-radius:2px;width:0%;pointer-events:none}" +
-              "#timeDisplay{color:#d4e4f7;font-size:11px;margin-left:10px;white-space:nowrap}"
+              "#splash{position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:20;transition:opacity 0.3s;pointer-events:none}"
             : "iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none}";
 
         return "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'/>" +
@@ -319,8 +451,35 @@ public static class VideoWebViewHelper
         {
             var msg = consoleMessage?.Message();
             if (!string.IsNullOrWhiteSpace(msg))
+            {
                 global::Android.Util.Log.Info("MALPlus VideoOverlay", msg);
+                Report(msg);
+            }
+
             return base.OnConsoleMessage(consoleMessage);
+        }
+    }
+
+    /// <summary>
+    ///     The object the player page posts to. Exists so a media element's error or its first playback
+    ///     crosses into the app, which is the only way a refused file can be asked for again by itself.
+    /// </summary>
+    /// <remarks>
+    ///     Android.Java.Interop's annotation interface is required here and is not available in this
+    ///     assembly, so the members are plain public methods taking string. That is exactly the shape the
+    ///     WebView's JavaScript bridge expects, and it is why the page posts strings rather than an
+    ///     object: anything it cannot marshal is silently dropped.
+    /// </remarks>
+    private sealed class PlaybackBridge
+    {
+        /// <summary>
+        ///     Called from the page when its video element fails. The URL comes back with it so the
+        ///     caller knows which attempt failed rather than assuming the one it started with is still
+        ///     the one on screen.
+        /// </summary>
+        public void Post(string payload)
+        {
+            Report(payload);
         }
     }
 }

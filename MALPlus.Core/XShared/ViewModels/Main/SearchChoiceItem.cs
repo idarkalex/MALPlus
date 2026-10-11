@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using MALClient.XShared.Utils;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     /// <summary>
     ///     A row in the Genres or Studios picker.

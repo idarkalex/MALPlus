@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.XShared.Comm.Anime;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Comm.Anime;
 
-namespace MALClient.XShared.Interfaces
+namespace MALPlus.XShared.Interfaces
 {
     public interface IHamburgerViewModel
     {

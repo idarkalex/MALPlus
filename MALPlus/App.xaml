@@ -13,6 +13,17 @@
             <x:Double x:Key="EmTitleMd">18</x:Double>
             <x:Double x:Key="EmBodyMd">16</x:Double>
             <x:Double x:Key="EmLabelCaps">12</x:Double>
+
+            <!-- The panel every list row sits on. Global rather than declared per page, because three
+                 pages draw rows out of the same ItemTemplate and a resource declared inside one page is
+                 invisible to the others: a row asking for it throws when it inflates, which takes the
+                 whole page's content with it rather than leaving a single cell empty. -->
+            <Style x:Key="PanelStyle" TargetType="Border">
+                <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
+                <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
+                <Setter Property="StrokeThickness" Value="1" />
+                <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

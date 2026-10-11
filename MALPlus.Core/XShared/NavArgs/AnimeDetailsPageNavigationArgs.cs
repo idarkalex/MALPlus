@@ -1,11 +1,11 @@
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.NavArgs
+namespace MALPlus.XShared.NavArgs
 {
     public class AnimeDetailsPageNavigationArgs
     {

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MALClient.Models.Models.Forums
+namespace MALPlus.Models.Models.Forums
 {
     public class ForumTopicQestionModel
     {

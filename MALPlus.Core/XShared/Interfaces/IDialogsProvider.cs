@@ -1,6 +1,6 @@
-﻿using MALClient.XShared.ViewModels;
+﻿using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Interfaces
+namespace MALPlus.XShared.Interfaces
 {
     public interface IDialogsProvider
     {

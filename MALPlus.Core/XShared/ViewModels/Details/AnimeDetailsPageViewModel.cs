@@ -9,25 +9,25 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Interfaces;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.Models.Models.Favourites;
-using MALClient.Models.Models.Library;
-using MALClient.Models.Models.Misc;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Comm.MagicalRawQueries;
-using MALClient.XShared.Comm.Manga;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.Utils.Managers;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Interfaces;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.Models.Models.Library;
+using MALPlus.Models.Models.Misc;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Comm.Manga;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.Utils.Managers;
 
-namespace MALClient.XShared.ViewModels.Details
+namespace MALPlus.XShared.ViewModels.Details
 {
     public partial class AnimeDetailsPageViewModel : ViewModelBase
     {
@@ -889,6 +889,7 @@ private static string FormatCompact(int value)
                 RaisePropertyChanged(() => AllEpisodes);
                 RaisePropertyChanged(() => AllEpisodesBind);
                 RaisePropertyChanged(() => MyEpisodesBind);
+                RaisePropertyChanged(() => MyEpisodesStepperBind);
             }
         }
 
@@ -999,7 +1000,7 @@ RaisePropertyChanged(() => GeneralSeason);
             // Pre-populate hero from grid item for instant visual feedback (like v2)
             if (param.AnimeItem is AnimeItemViewModel heroVm && !string.IsNullOrEmpty(heroVm.ImgUrl))
             {
-                _imgUrl = NormalizeImageUrl(heroVm.ImgUrl);
+                _imgUrl = MalImageUrl.Normalize(heroVm.ImgUrl);
                 DetailImage = _imgUrl;
                 RaisePropertyChanged(() => DetailImage);
                 RaisePropertyChanged(() => Title);
@@ -1242,6 +1243,7 @@ RaisePropertyChanged(() => GeneralSeason);
             RaisePropertyChanged(() => StartDateTimeOffset);
             RaisePropertyChanged(() => EndDateTimeOffset);
             RaisePropertyChanged(() => MyEpisodesBind);
+            RaisePropertyChanged(() => MyEpisodesStepperBind);
             RaisePropertyChanged(() => MyVolumesBind);
             RaisePropertyChanged(() => MyStatusBind);
             RaisePropertyChanged(() => MyScoreBind);
@@ -1299,19 +1301,34 @@ RaisePropertyChanged(() => GeneralSeason);
         public bool IsDecrementButtonEnabled
             => (_animeItemReference as AnimeItemViewModel)?.DecrementEpsVisibility == true;
 
-        public ICommand IncrementEpsCommand => new RelayCommand(() =>
-        {
-            (_animeItemReference as AnimeItemViewModel)?.IncrementWatchedCommand.Execute(null);
-            RaisePropertyChanged(() => IsIncrementButtonEnabled);
-            RaisePropertyChanged(() => IsDecrementButtonEnabled);
-        });
+        private ICommand _incrementEpsCommand;
+        private ICommand _decrementEpsCommand;
 
-        public ICommand DecrementEpsCommand => new RelayCommand(() =>
-        {
-            (_animeItemReference as AnimeItemViewModel)?.DecrementWatchedCommand.Execute(null);
-            RaisePropertyChanged(() => IsIncrementButtonEnabled);
-            RaisePropertyChanged(() => IsDecrementButtonEnabled);
-        });
+        /// <summary>
+        ///     The stepper's plus, held in a field rather than built on each read.
+        /// </summary>
+        /// <remarks>
+        ///     RelayCommand keeps what it runs in a WeakAction, so a command built in a property getter and
+        ///     handed straight to the platform holds nothing: the collector takes the delegate and Execute
+        ///     becomes a silent no-op that still answers CanExecute true. The binding asks for the command
+        ///     whenever it re-evaluates, so this used to work and then stop, with nothing logged and
+        ///     nothing visibly wrong. That is why the plus and the minus sometimes did nothing at all.
+        /// </remarks>
+        public ICommand IncrementEpsCommand => _incrementEpsCommand ?? (_incrementEpsCommand =
+            new RelayCommand(() =>
+            {
+                (_animeItemReference as AnimeItemViewModel)?.IncrementWatchedCommand.Execute(null);
+                RaisePropertyChanged(() => IsIncrementButtonEnabled);
+                RaisePropertyChanged(() => IsDecrementButtonEnabled);
+            }));
+
+        public ICommand DecrementEpsCommand => _decrementEpsCommand ?? (_decrementEpsCommand =
+            new RelayCommand(() =>
+            {
+                (_animeItemReference as AnimeItemViewModel)?.DecrementWatchedCommand.Execute(null);
+                RaisePropertyChanged(() => IsIncrementButtonEnabled);
+                RaisePropertyChanged(() => IsDecrementButtonEnabled);
+            }));
 
         #endregion
 
@@ -1440,6 +1457,7 @@ RaisePropertyChanged(() => GeneralSeason);
                 {
                     vm.PromptForWatchedEpsChange(AnimeMode ? AllEpisodes : (Settings.MangaFocusVolumes ? AllVolumes : AllEpisodes));
                     RaisePropertyChanged(() => MyEpisodesBind);
+                    RaisePropertyChanged(() => MyEpisodesStepperBind);
                 }
 
                 if (MyStatus == AnimeStatus.Completed && Math.Abs(MyScore) < .0001 && Settings.DisplayScoreDialogAfterCompletion)
@@ -1918,6 +1936,19 @@ RaisePropertyChanged(() => GeneralSeason);
             }
         }
 
+        /// <summary>
+///     Whether a status string means the entry will not change again. Covers both vocabularies:
+///     anime says "Finished Airing", manga says "Finished Publishing", and older cache entries
+///     still carry the raw snake_case or the pre-MapStatus "Finished".
+/// </summary>
+        private static bool IsFinishedStatus(string status)
+        {
+            if (string.IsNullOrWhiteSpace(status))
+                return false;
+            return status.StartsWith("Finished", StringComparison.CurrentCultureIgnoreCase) ||
+                   status.Equals("Finished", StringComparison.CurrentCultureIgnoreCase);
+        }
+
         private void ExtractData(AnimeGeneralDetailsData data, bool clearEnrichment = true)
         {
             Title = _animeItemReference?.Title ?? data.Title;
@@ -1969,7 +2000,7 @@ RaisePropertyChanged(() => GeneralSeason);
             RaisePropertyChanged(() => MoreInfoToggleVisible);
             RaisePropertyChanged(() => MoreInfoMaxLines);
             RaisePropertyChanged(() => ProducersVisible);
-            _imgUrl = NormalizeImageUrl((_animeItemReference as AnimeItemViewModel)?.ImgUrl ?? data.ImgUrl);
+            _imgUrl = MalImageUrl.Normalize((_animeItemReference as AnimeItemViewModel)?.ImgUrl ?? data.ImgUrl);
             if (Settings.SelectedApiType == ApiType.Hummingbird)
                 MalId = data.MalId;
 
@@ -2241,9 +2272,10 @@ RaisePropertyChanged(() => GeneralSeason);
             var requestId = Id;
             var requestMalId = MalId;
             var requestAnimeMode = AnimeMode;
-            var isAiring = requestAnimeMode
-                ? !string.Equals(Status, "Finished Airing", StringComparison.CurrentCultureIgnoreCase)
-                : !string.Equals(Status, "Finished", StringComparison.CurrentCultureIgnoreCase);
+// Manga statuses come through as "Finished Publishing" (was a bare "Finished" before MapStatus
+// learned the manga vocabulary), so an equality test against "Finished" never matched and every
+// finished manga was treated as still airing: 1-day TTL re-fetches and no permanent cache entry.
+var isAiring = !IsFinishedStatus(Status);
             var data = await new AnimeDetailsMalQuery(requestMalId, requestAnimeMode).GetDetails(force, isAiring);
             if (data == null || requestId != Id || requestMalId != MalId || requestAnimeMode != AnimeMode)
                 return false;
@@ -2462,13 +2494,17 @@ RaisePropertyChanged(() => ProducersVisible);
 
             if ((openings.Count > 0 || endings.Count > 0) && !string.IsNullOrEmpty(Title))
             {
-                var atTitle = Title;
                 var atId = Id;
                 var atAnime = AnimeMode;
                 Task.Run(async () =>
                 {
-                    ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(atId, atAnime, out var english);
-                    var themes = await AnimeThemesHelper.SearchAsync(atTitle, english);
+                    // By MAL id, not by name. A name is what the two sources disagree about: AnimeThemes
+                    // calls Psyren "PSYЯEN", with a Cyrillic letter, so a search by the name this app
+                    // uses finds nothing at all and the tab had no video for it. The id is the same
+                    // number on both sides.
+                    var themes = await AnimeThemesHelper.GetThemesAsync(atId);
+                    System.Diagnostics.Debug.WriteLine(
+                        $"MALPlus Themes preload id={atId} themes={themes?.Count ?? 0}");
                     // Keep the result: tapping an OP/ED needs it to match against, and the
                     // in-memory AnimeThemes cache dies with the process.
                     OpEdThemes = themes;
@@ -2624,7 +2660,7 @@ Episodes.Clear();
                         var schedEps = sched.Episodes.Select(e => DateTimeOffset.FromUnixTimeSeconds(e.Timestamp).UtcDateTime).Where(d => d <= DateTime.UtcNow).OrderBy(d => d).ToList();
                         if (schedEps.Count > 0)
                         {
-                            var pseudo = schedEps.Select(d => new MALClient.Models.Models.Anime.AnimeEpisode { AiredDate = d }).ToList();
+                            var pseudo = schedEps.Select(d => new MALPlus.Models.Models.Anime.AnimeEpisode { AiredDate = d }).ToList();
                             nextAirUnified = AirTimeUtils.ComputeNextAirFromEpisodes(pseudo, DateTime.UtcNow);
                         }
                     }
@@ -2910,26 +2946,7 @@ Episodes.Clear();
             }
         }
 
-        private static string NormalizeImageUrl(string url)
-        {
-            if (string.IsNullOrEmpty(url)) return url;
 
-            url = Regex.Replace(url, @"\/r\/\d+x\d+\/", "/");
-
-            var qPos = url.IndexOf('?');
-            if (qPos > 0) url = url.Substring(0, qPos);
-
-            var dotPos = url.LastIndexOf('.');
-            if (dotPos > 0)
-            {
-                var beforeDot = url.Substring(0, dotPos);
-                var lastChar = beforeDot[beforeDot.Length - 1];
-                if (lastChar != 'l' && lastChar != 'm' && lastChar != 's')
-                    url = beforeDot + "l" + url.Substring(dotPos);
-            }
-
-            return url;
-        }
 
         private static string NormalizeMediaType(string type)
         {

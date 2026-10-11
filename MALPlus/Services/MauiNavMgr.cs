@@ -1,8 +1,8 @@
 using System.Windows.Input;
-using MALClient.Models.Enums;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
 
 namespace MALPlus.Services;
 

@@ -4,17 +4,17 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using AnimeEpisode = MALClient.Models.Models.Anime.AnimeEpisode;
+using AnimeEpisode = MALPlus.Models.Models.Anime.AnimeEpisode;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeEpisodesQuery : Query
     {
         private readonly Dictionary<int, (List<AnimeEpisode> data, DateTime fetchedAt, int lastPage)> _cache = new Dictionary<int, (List<AnimeEpisode>, DateTime, int)>();
         private static bool IsAiringForTtl(int animeId)
         {
-            if (MALClient.XShared.Utils.DataCache.TryRetrieveDataForId(animeId, out var vd) && !string.IsNullOrEmpty(vd.LastKnownStatus))
-                return MALClient.XShared.Utils.AirTimeUtils.IsCurrentlyAiringStatus(vd.LastKnownStatus);
+            if (MALPlus.XShared.Utils.DataCache.TryRetrieveDataForId(animeId, out var vd) && !string.IsNullOrEmpty(vd.LastKnownStatus))
+                return MALPlus.XShared.Utils.AirTimeUtils.IsCurrentlyAiringStatus(vd.LastKnownStatus);
             return false;
         }
 
@@ -173,13 +173,13 @@ namespace MALClient.XShared.Comm.Anime
             try
             {
                 if (episodes == null || episodes.Count == 0) return;
-                if (!MALClient.XShared.Utils.AiringOverrides.IsOverriddenAsNotAiring(animeId)) return;
+                if (!MALPlus.XShared.Utils.AiringOverrides.IsOverriddenAsNotAiring(animeId)) return;
                 var latest = episodes.Where(ep => ep.AiredDate.HasValue)
                     .Select(ep => ep.AiredDate.Value)
                     .OrderByDescending(d => d)
                     .FirstOrDefault();
                 if (latest == default) return;
-                MALClient.XShared.Utils.AiringOverrides.ResumeIfAiring(animeId, latest);
+                MALPlus.XShared.Utils.AiringOverrides.ResumeIfAiring(animeId, latest);
             }
             catch { }
         }

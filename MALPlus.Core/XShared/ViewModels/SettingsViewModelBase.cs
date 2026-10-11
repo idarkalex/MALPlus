@@ -546,11 +546,35 @@ protected ICommand _requestNavigationCommand;
             set => Settings.ArticlesDisplayScrollBar = value;
         }
 
-        public bool PreferEnglishTitles
+public bool PreferEnglishTitles
+    {
+        get => Settings.PreferEnglishTitles;
+        set
         {
-            get => Settings.PreferEnglishTitles;
-            set => Settings.PreferEnglishTitles = value;
-        }
+            if (Settings.PreferEnglishTitles == value)
+                return;
+
+            // The titles now resolve when a card searches Title, rather than when the library was
+            // fetched, so what has to be re-read is every card currently on screen. Without this the
+            // switch had no visible effect at all until the reader navigated somewhere and came back.
+Settings.PreferEnglishTitles = value;
+
+    // The titles now resolve when a card searches Title, rather than when the library was
+    // fetched, so what has to be re-read is every card currently on screen. Without this the
+    // switch had no visible effect at all until the reader navigated somewhere and came back.
+    //
+    // Walked live rather than through ToList: the copy of a full library is its own cost, and the
+    // list is not being mutated from here. RefreshEnglishTitle raises only for the cards whose
+    // text actually moves.
+    var items = ViewModelLocator.AnimeList?.AnimeItems;
+    if (items == null)
+    return;
+    foreach (var item in items)
+    {
+    item?.RefreshEnglishTitle();
+    }
+    }
+    }
 
         /// <summary>
         ///     Which content tiers the app is allowed to show. Defaults to the strictest, which is what

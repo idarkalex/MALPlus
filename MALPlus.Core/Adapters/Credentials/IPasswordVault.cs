@@ -1,7 +1,7 @@
 using System;
-using MALClient.Models.AdapterModels;
+using MALPlus.Models.AdapterModels;
 
-namespace MALClient.Adapters.Credentials
+namespace MALPlus.Adapters.Credentials
 {
     public interface IPasswordVault
     {

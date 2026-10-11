@@ -1,8 +1,13 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
-using MALClient.Models.Models.Misc;
-using MALClient.XShared.Comm.Discovery;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using System.Threading.Tasks;
+using MALPlus.Controls;
+using MALPlus.Models.Models.Misc;
+using MALPlus.XShared.Comm.Discovery;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using MALPlus.Services;
 
 namespace MALPlus.Views;
@@ -11,14 +16,18 @@ public partial class DiscoverPage : ContentPage
 {
     private const string FilterPrefsKey = "MALPlus_DiscoveryRandomFilter_v1";
 
+    /// <summary>
+    ///     The options sheet currently open for the random filters, so the submenu back row can redraw
+    ///     the filter list without being handed a sheet.
+    /// </summary>
+    private OptionsSheet _filterSheet;
+
     private bool _busy;
 
     public DiscoverPage()
     {
         InitializeComponent();
     }
-
-    
 
     private async Task<bool> GuardAsync()
     {
@@ -64,22 +73,66 @@ public partial class DiscoverPage : ContentPage
         if (!await GuardAsync()) return;
         try
         {
-            var items = await AniListTrendingQuery.GetAsync();
+            // AniList's own trending metric, restricted to what is currently airing.
+            // See AniListTrendingQuery for why that restriction is the whole trick.
+            var items = await AniListTrendingQuery.GetAsync(TrendingResultCount);
             if (items.Count == 0)
             {
                 global::Android.Util.Log.Warn("MALPlus Discover",
-                    "AniList trending failed: " + AniListTrendingQuery.LastError);
-                // AniList is the only real trending source; fall back to Tenrai's
-                // currently-airing-by-favourites ranking rather than showing nothing.
-                items = await DiscoveryRandomQuery.GetTopAiringAsync(20);
-            }
-            if (items.Count == 0)
+                    "trending failed: " + AniListTrendingQuery.LastError);
                 await Alert("Could not load trending.");
+            }
             else
-                await ShowResults("Trending", items);
+            {
+                await ShowResults("Trending now", items);
+            }
         }
         catch { }
         finally { Release(); }
+    }
+
+    /// <summary>Rows on the trending sheet. The old feed asked for twenty and the screen holds five.</summary>
+    private const int TrendingResultCount = 10;
+
+    /// <summary>
+    ///     The reader's own anime, as the app already holds it.
+    /// </summary>
+    /// <remarks>
+    ///     <c>AllLoadedAuthAnimeItems</c> used to be read here and it is the wrong collection: it only
+    ///     starts pointing at the real library once the anime list page has fetched it, because that is
+    ///     what hands the list over. Until then it is the empty list the storage was constructed with, so
+    ///     Discover saw nothing and the tile reported that the reader had no entry scored 8 or higher
+    ///     when their list was full of them.
+    /// </remarks>
+    private static List<AnimeItemAbstraction> MyAnimeLibrary()
+        => ResourceLocator.AnimeLibraryDataStorage?.AllLoadedAnimeItemAbstractions
+           ?? new List<AnimeItemAbstraction>();
+
+    /// <summary>
+    ///     Every id the reader already has, anime and manga alike, so recommendations leave it out.
+    /// </summary>
+    private static HashSet<int> MyAnimeLibraryIds()
+    {
+        var ids = new HashSet<int>();
+        var storage = ResourceLocator.AnimeLibraryDataStorage;
+        if (storage == null)
+            return ids;
+
+        foreach (var abstraction in storage.AllLoadedAnimeItemAbstractions
+                                          ?? new List<AnimeItemAbstraction>())
+        {
+            if (abstraction != null)
+                ids.Add(abstraction.MalId);
+        }
+
+        foreach (var abstraction in storage.AllLoadedMangaItemAbstractions
+                                          ?? new List<AnimeItemAbstraction>())
+        {
+            if (abstraction != null)
+                ids.Add(abstraction.MalId);
+        }
+
+        return ids;
     }
 
     private async void OnBecauseYouLikedTapped(object sender, EventArgs e)
@@ -88,28 +141,27 @@ public partial class DiscoverPage : ContentPage
         try
         {
             var anchors = new List<Tuple<int, string, int>>();
-            var inLibrary = new HashSet<int>();
-            var library = ResourceLocator.AnimeLibraryDataStorage?.AllLoadedAuthAnimeItems
-                          ?? new List<AnimeItemAbstraction>();
-            foreach (var abstraction in library)
+            var inLibrary = MyAnimeLibraryIds();
+            foreach (var abstraction in MyAnimeLibrary())
             {
-                if (abstraction?.EntryData is not MALClient.Models.Models.Library.AnimeLibraryItemData data)
+                if (abstraction?.EntryData is not MALPlus.Models.Models.Library.AnimeLibraryItemData data)
                     continue;
-                inLibrary.Add(abstraction.MalId);
-                if (data.MyStatus == MALClient.Models.Enums.AnimeStatus.Completed && data.MyScore >= 8)
+                if (data.MyStatus == MALPlus.Models.Enums.AnimeStatus.Completed && data.MyScore >= 8)
                     anchors.Add(Tuple.Create(abstraction.MalId, data.Title, (int)data.MyScore));
             }
             if (anchors.Count == 0)
             {
+                Console.WriteLine($"MALPLUS foryou: sin anclas (biblioteca={MyAnimeLibrary().Count} items)");
                 await Alert("You need at least one completed anime scored 8 or more in your list.");
                 return;
             }
 
             var result = await BecauseYouLikedQuery.GetAsync(anchors, inLibrary);
-            if (result.Item2.Count == 0)
+            Console.WriteLine($"MALPLUS foryou: anclas={anchors.Count} biblioteca={inLibrary.Count} resultado={result.Count}");
+            if (result.Count == 0)
                 await Alert("No recommendations found for your list.");
             else
-                await ShowResults("Because you liked " + result.Item1, result.Item2);
+                await ShowResults("For you", result);
         }
         catch { }
         finally { Release(); }
@@ -117,32 +169,47 @@ public partial class DiscoverPage : ContentPage
 
     private async void OnSeasonThemesTapped(object sender, EventArgs e)
     {
+        // Its own page rather than the shared results list: this one carries the season and year
+        // bar at the top and shows one anime per row with its themes beside it, which is a different
+        // shape from the single-item rows the results list draws.
         if (!await GuardAsync()) return;
         try
         {
-            var items = await SeasonThemesQuery.GetAsync();
-            if (items.Count == 0)
-                await Alert("No OP/ED found for the current season.");
-            else
-                await ShowResults("Season OP/ED", items);
+            var now = MALPlus.Controls.SeasonYearSelector.AiringSeasonNow();
+            await Shell.Current.GoToAsync(
+                $"seasonthemes?year={DateTime.UtcNow.Year}&season={MALPlus.Controls.SeasonYearSelector.SeasonName(now).ToLowerInvariant()}");
         }
-        catch { }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Discover", "season themes nav: " + ex.GetType().Name);
+        }
         finally { Release(); }
     }
 
+    /// <summary>
+    ///     One hidden gem per week rather than a reshuffle on every tap. The id is stored with the
+    ///     week it was drawn in, so the tile shows the same title all week; the draw itself is
+    ///     score >= 7.5, popularity between #1500 and #15000, under 60k members, from 2010 on, and
+    ///     not already on the user's list. Tenrai filters the score but ignores the member and
+    ///     popularity bounds, and has no "not in my list" filter, so both are applied here.
+    /// </summary>
     private async void OnGemTapped(object sender, EventArgs e)
     {
         if (!await GuardAsync()) return;
         try
         {
-            // The community thresholds (members/popularity) are ignored server side by
-            // Tenrai, so the ceiling is applied client side after a filtered page.
-            // minScore must stay 0: it is a 0-10 scale and anything above 10 is a 400.
-            var items = await DiscoveryRandomQuery.GetAsync(false, null, 0, 1500, 20);
-            if (items.Count == 0)
-                await Alert("No gems matched those filters.");
-            else
-                await ShowResults("Random gem", items);
+            // Same wrong collection as Because you liked: reading the auth list left the "not already
+            // on your list" filter matching nothing, so the gem was free to be something the reader
+            // already had.
+            var inLibrary = MyAnimeLibraryIds();
+
+            var gem = await DiscoveryGemQuery.GetAsync(inLibrary);
+            if (gem == null)
+            {
+                await Alert("No gems matched those filters this week.");
+                return;
+            }
+            await ShowResults("Gem of the week", new List<DiscoveryItem> {gem});
         }
         catch { }
         finally { Release(); }
@@ -151,44 +218,20 @@ public partial class DiscoverPage : ContentPage
     // ---------- single item jumps ----------
 
     /// <summary>
-    ///     A random entry's icon leads to a popup rather than straight to a result: the artwork's gear
-    ///     is not part of the pill, so the filters need somewhere to live, and this is where the user
-    ///     expects to find them. The current filter summary is the popup's title, which is also the
-    ///     one piece of feedback the old inline caption used to give.
+    ///     The picture of a random capsule: go straight to an entry.
     /// </summary>
-    private async void OnRandomAnimeTapped(object sender, EventArgs e)
-        => await PickRandomAsync(false);
+    /// <remarks>
+    ///     This used to open a sheet with Go / Adjust filters / Clear filters first, so picking a
+    ///     random one cost a dialog before anything happened. The gear on the right quarter of the same
+    ///     capsule now opens the filters, which leaves this side free to just do the thing.
+    /// </remarks>
+    private async void OnRandomAnimeTapped(object sender, EventArgs e) => await JumpToRandomAsync(false);
 
-    private async void OnRandomMangaTapped(object sender, EventArgs e)
-        => await PickRandomAsync(true);
+    private async void OnRandomMangaTapped(object sender, EventArgs e) => await JumpToRandomAsync(true);
 
-    private async Task PickRandomAsync(bool manga)
-    {
-        var what = manga ? "Random manga" : "Random anime";
-        var filter = await LoadFilterAsync(manga);
-        var choice = await DisplayActionSheet(what + "\n" + Summarize(filter), "Cancel", null,
-            "Go", "Adjust filters", "Clear filters");
+    private async void OnRandomAnimeFiltersTapped(object sender, EventArgs e) => await EditFilterAsync(false);
 
-        if (string.IsNullOrEmpty(choice) || choice == "Cancel")
-            return;
-
-        if (choice == "Adjust filters")
-        {
-            await EditFilterAsync(manga);
-            return;
-        }
-
-        if (choice == "Clear filters")
-        {
-            await SaveFilterAsync(manga, new RandomFilter());
-            await Alert(manga ? "Manga filters cleared." : "Anime filters cleared.");
-            return;
-        }
-
-        if (!await GuardAsync()) return;
-        try { await JumpToRandomAsync(manga); }
-        finally { Release(); }
-    }
+    private async void OnRandomMangaFiltersTapped(object sender, EventArgs e) => await EditFilterAsync(true);
 
     private async Task JumpToRandomAsync(bool manga)
     {
@@ -208,137 +251,326 @@ public partial class DiscoverPage : ContentPage
         if (!await GuardAsync()) return;
         try
         {
+            // AnimeThemes only, with no fallback anywhere. If it has nothing to offer the reader is
+            // told and that is the end of it: a YouTube search in its place would put a video of a
+            // different thing on screen under the name of a thing that was never drawn.
             var theme = await AnimeThemesHelper.GetRandomThemeAsync();
             if (string.IsNullOrEmpty(theme?.Url))
             {
                 await Alert("AnimeThemes returned no theme.");
                 return;
             }
-            var item = new DiscoveryItem
-            {
-                Id = 0,
-                Title = theme.SongTitle ?? "Theme",
-                Subtitle = theme.Type + " " + theme.Sequence,
-                ThemeUrl = theme.Url
-            };
-            await ShowResults("Random theme", new List<DiscoveryItem> { item });
+
+            // The anime's name came with the theme, so one lookup is enough to reach MAL, which is the
+            // only side of this that has a poster.
+            var animeName = await AnimeThemesHelper.GetAnimeNameAsync(theme.AnimeSlug);
+
+            await Shell.Current.GoToAsync(
+                $"randomtheme?slug={Uri.EscapeDataString(theme.AnimeSlug ?? "")}" +
+                $"&anime={Uri.EscapeDataString(animeName ?? "")}" +
+                $"&song={Uri.EscapeDataString(theme.SongTitle ?? "")}" +
+                $"&slot={Uri.EscapeDataString(theme.Type + " " + theme.Sequence)}" +
+                $"&url={Uri.EscapeDataString(theme.Url)}");
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS random theme nav failed: " + ex.GetType().Name);
+        }
         finally { Release(); }
     }
 
     // ---------- random filters ----------
 
+    /// <summary>
+    ///     The filter panel for a random capsule: one sheet that owns its own sub levels.
+    /// </summary>
+    /// <remarks>
+    ///     Each subfilter used to be a second sheet pushed from the first, and choosing one ended the
+    ///     flow: the panel closed and the reader was dropped back on Discover, so setting a second
+    ///     filter meant starting again from the tile. They are submenus now, so the panel stays and a
+    ///     pick comes back to this same list with the new value on it. The check marks and the summary
+    ///     are rebuilt on every redraw for that reason.
+    /// </remarks>
     private async Task EditFilterAsync(bool manga)
     {
         var filter = await LoadFilterAsync(manga);
         var title = manga ? "Manga filters" : "Anime filters";
 
-        var formats = manga
-            ? new[] { "", "manga", "novel", "lightnovel", "oneshot", "doujinshi", "manhwa", "manhua" }
-            : new[] { "", "tv", "movie", "ova", "special", "ona", "music" };
+        var formats = manga ? RandomFilter.MangaFormats : RandomFilter.AnimeFormats;
         var formatLabels = formats
             .Select(f => string.IsNullOrEmpty(f) ? "All" : char.ToUpperInvariant(f[0]) + f.Substring(1))
             .ToArray();
 
-        var score = await DisplayActionSheet(title, "Cancel", null,
-            formatLabels.Concat(new[]
-            {
-                "Min score: " + (filter.MinScore <= 0 ? "any" : filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)),
-                "Years: " + YearLabel(filter),
-                "Genres: " + (filter.GenreIds.Count == 0 ? "any" : filter.GenreIds.Count + "chosen"),
-                "Reset"
-            }).ToArray());
-        if (string.IsNullOrEmpty(score) || score == "Cancel")
-            return;
+        // "All" is a shortcut over the real formats, not one of them. It reads as marked when every
+        // format below it is, tapping it with anything cleared marks them all, and tapping it while
+        // everything is marked clears them all. Every row is therefore an independent toggle.
+        var chosen = new HashSet<string>(filter.Formats ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+        if (chosen.Count == 0 && !string.IsNullOrEmpty(filter.Format))
+            chosen.Add(filter.Format);
 
-        if (score == "Reset")
+        bool AllMarked()
         {
-            await SaveFilterAsync(manga, new RandomFilter());
+            var real = formats.Where(f => !string.IsNullOrEmpty(f)).ToList();
+            return real.Count > 0 && real.All(chosen.Contains);
         }
-        else if (score.StartsWith("Min score"))
-        {
-            var raw = await DisplayActionSheet("Minimum score", "Cancel", null,
-                "0 (any)", "6", "7", "7.5", "8", "8.5", "9");
-            if (!string.IsNullOrEmpty(raw) && raw != "Cancel")
-                filter.MinScore = raw.StartsWith("0") ? 0 : double.Parse(raw, System.Globalization.CultureInfo.InvariantCulture);
-            await SaveFilterAsync(manga, filter);
-        }
-        else if (score.StartsWith("Years"))
-        {
-            var raw = await DisplayActionSheet("Year range", "Cancel", null,
-                "Any", "2015+", "2010+", "2000+", "Before 2000");
-            if (!string.IsNullOrEmpty(raw) && raw != "Cancel")
+
+        // Committed by a submenu row and read when the parent list is drawn again. A row tapped here
+        // does not close anything: the submenu hook returns true, which is what tells the sheet it
+        // handled the row itself.
+        string pending = null;
+
+        // Redraws the filter rows over whatever sheet is up. The submenu back row is handed no sheet
+        // because it belongs to the level already on screen, so the reference kept from open time is
+        // what lets it come back up.
+        void BackToFilters() =>
+            _filterSheet?.OpenCompactWithSubtitle(title, Summarize(filter), BuildFilterRows(), null);
+
+        List<OptionsSheetItem> ScoreRows()
+            => new List<OptionsSheetItem>
             {
-                filter.MinYear = raw switch
+                new("0 (any)", null, submenu: s =>
                 {
-                    "2015+" => 2015,
-                    "2010+" => 2010,
-                    "2000+" => 2000,
-                    "Before 2000" => 1960,
-                    _ => 0
-                };
+                    filter.MinScore = 0;
+                    pending = "0";
+                    _ = SaveFilterAsync(manga, filter);
+                    BackToFilters();
+                    return true;
+                }),
+                new("6", null, submenu: s =>
+                {
+                    filter.MinScore = 6;
+                    pending = "6";
+                    _ = SaveFilterAsync(manga, filter);
+                    BackToFilters();
+                    return true;
+                }),
+                new("7", null, submenu: s =>
+                {
+                    filter.MinScore = 7;
+                    pending = "7";
+                    _ = SaveFilterAsync(manga, filter);
+                    BackToFilters();
+                    return true;
+                }),
+                new("7.5", null, submenu: s =>
+                {
+                    filter.MinScore = 7.5;
+                    pending = "7.5";
+                    _ = SaveFilterAsync(manga, filter);
+                    BackToFilters();
+                    return true;
+                }),
+                new("8", null, submenu: s =>
+                {
+                    filter.MinScore = 8;
+                    pending = "8";
+                    _ = SaveFilterAsync(manga, filter);
+                    BackToFilters();
+                    return true;
+                }),
+                new("8.5", null, submenu: s =>
+                {
+                    filter.MinScore = 8.5;
+                    pending = "8.5";
+                    _ = SaveFilterAsync(manga, filter);
+                    BackToFilters();
+                    return true;
+                }),
+                new("9", null, submenu: s =>
+                {
+                    filter.MinScore = 9;
+                    pending = "9";
+                    _ = SaveFilterAsync(manga, filter);
+                    BackToFilters();
+                    return true;
+                })
+            };
+
+        List<OptionsSheetItem> YearRows() => new List<OptionsSheetItem>
+        {
+            new("Any", null, submenu: s =>
+            {
+                filter.MinYear = 0;
                 filter.MaxYear = 0;
-            }
-            await SaveFilterAsync(manga, filter);
-        }
-        else if (score.StartsWith("Genres"))
-        {
-            var chosen = await PickGenresAsync(filter.GenreIds, manga);
-            if (chosen != null)
+                pending = "Any";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            }),
+            new("2015+", null, submenu: s =>
             {
-                filter.GenreIds = chosen;
-                await SaveFilterAsync(manga, filter);
-            }
-        }
-        else
-        {
-            var index = Array.IndexOf(formatLabels, score);
-            if (index >= 0)
+                filter.MinYear = 2015;
+                filter.MaxYear = 0;
+                pending = "2015+";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            }),
+            new("2010+", null, submenu: s =>
             {
-                filter.Format = formats[index];
-                await SaveFilterAsync(manga, filter);
+                filter.MinYear = 2010;
+                filter.MaxYear = 0;
+                pending = "2010+";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            }),
+            new("2000+", null, submenu: s =>
+            {
+                filter.MinYear = 2000;
+                filter.MaxYear = 0;
+                pending = "2000+";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            }),
+            new("Before 2000", null, submenu: s =>
+            {
+                filter.MinYear = 1960;
+                filter.MaxYear = 0;
+                pending = "Before 2000";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            })
+        };
+
+        List<OptionsSheetItem> GenreRows()
+        {
+            var all = Enum.GetValues(typeof(MALPlus.Models.Enums.AnimeGenreSearch)).Cast<int>().ToList();
+            var rows = new List<OptionsSheetItem>();
+            foreach (var id in all)
+            {
+                var captured = id;
+                var on = filter.GenreIds.Contains(id);
+                rows.Add(new OptionsSheetItem(captured == 0 ? "Any" : DescribeGenre(captured),
+                    on ? "icon_check" : null,
+                    submenu: s =>
+                    {
+                        // Marks rather than commits, and the panel is drawn again from the new
+                        // selection so the check marks follow the taps.
+                        if (captured == 0)
+                            filter.GenreIds.Clear();
+                        else if (!filter.GenreIds.Remove(captured))
+                            filter.GenreIds.Add(captured);
+                        _ = SaveFilterAsync(manga, filter);
+                        s.OpenSubmenu("Genres", GenreRows(), BackToFilters);
+                        return true;
+                    }));
             }
+
+            rows.Add(new OptionsSheetItem("Done", "icon_check", submenu: s =>
+            {
+                BackToFilters();
+                return true;
+            }));
+            return rows;
         }
+
+        List<OptionsSheetItem> BuildFilterRows()
+        {
+            var rows = new List<OptionsSheetItem>();
+            var allMarked = AllMarked();
+
+            rows.Add(new OptionsSheetItem("All", allMarked ? "icon_check" : null, hideChevron: true, submenu: s =>
+            {
+                if (allMarked)
+                    chosen.Clear();
+                else
+                    foreach (var f in formats.Where(f => !string.IsNullOrEmpty(f)))
+                        chosen.Add(f);
+                filter.Formats = chosen.ToList();
+                filter.Format = "";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            }));
+
+            for (var i = 0; i < formatLabels.Length; i++)
+            {
+                var value = formats[i];
+                if (string.IsNullOrEmpty(value))
+                    continue;
+                // No chevron: these rows commit on tap and stay on the same level, so an arrow would
+                // promise a sub panel that does not exist.
+                rows.Add(new OptionsSheetItem(formatLabels[i], chosen.Contains(value) ? "icon_check" : null,
+                    hideChevron: true,
+                    submenu: s =>
+                    {
+                        if (!chosen.Remove(value))
+                            chosen.Add(value);
+                        filter.Formats = chosen.ToList();
+                        filter.Format = "";
+                        _ = SaveFilterAsync(manga, filter);
+                        BackToFilters();
+                        return true;
+                    }));
+            }
+
+                        rows.Add(new OptionsSheetItem("Min score", null,
+                value: filter.MinScore <= 0
+                    ? "any"
+                    : filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+                showChevron: true,
+                submenu: s =>
+                {
+                    s.OpenSubmenu("Minimum score", ScoreRows(), BackToFilters);
+                    return true;
+                }));
+            rows.Add(new OptionsSheetItem("Years", null, value: YearLabel(filter), showChevron: true,
+                submenu: s =>
+                {
+                    s.OpenSubmenu("Year range", YearRows(), BackToFilters);
+                    return true;
+                }));
+            rows.Add(new OptionsSheetItem("Genres", null,
+                value: filter.GenreIds.Count == 0 ? "any" : filter.GenreIds.Count + " chosen",
+                showChevron: true,
+                submenu: s =>
+                {
+                    s.OpenSubmenu("Genres", GenreRows(), BackToFilters);
+                    return true;
+                }));
+            rows.Add(new OptionsSheetItem("Clear all", "icon_close", destructive: true,
+                hideChevron: true,
+                submenu: s =>
+                {
+                    chosen.Clear();
+                    filter.Format = "";
+                    filter.Formats = new List<string>();
+                    filter.MinScore = 0;
+                    filter.MinYear = 0;
+                    filter.MaxYear = 0;
+                    filter.GenreIds.Clear();
+                    _ = SaveFilterAsync(manga, filter);
+                    BackToFilters();
+                    return true;
+                }));
+            // No submenu, so choosing it is what finishes: PickAsync hands the label back and the panel closes.
+            // Without it the only way out was the close button, which reads as abandoning the panel
+            // rather than as being done with the filters.
+            rows.Add(new OptionsSheetItem("Done", "icon_check"));
+            return rows;
+        }
+
+        // The close button at the top is what abandoning the panel looks like; Done is what finishing
+        // it looks like, and both end up here.
+        _filterSheet = null;
+        await OptionsSheetHost.PickAsync(title, Summarize(filter), BuildFilterRows(), null,
+            sheet => _filterSheet = sheet);
     }
 
     private static string YearLabel(RandomFilter filter) =>
         filter.MinYear <= 0 ? "any" : filter.MinYear + "+";
 
-    private async Task<List<int>> PickGenresAsync(List<int> current, bool manga)
-    {
-        var all = System.Enum.GetValues(typeof(MALClient.Models.Enums.AnimeGenreSearch)).Cast<int>().ToList();
-        var selected = new List<int>(current);
-        // The chip row runs out of space fast, so this is a two-step picker.
-        while (true)
-        {
-            var labels = all
-                .Select(id => (id == 0 ? "Done" : DescribeGenre(id)) + (selected.Contains(id) ? " ✓" : ""))
-                .ToArray();
-            var pick = await DisplayActionSheet("Genres", "Cancel", null, labels);
-            if (string.IsNullOrEmpty(pick) || pick == "Cancel")
-                return null;
-            if (pick == "Done")
-                return selected;
-            var index = Array.IndexOf(labels, pick);
-            if (index < 0)
-                continue;
-            var id = all[index];
-            if (selected.Contains(id))
-                selected.Remove(id);
-            else
-                selected.Add(id);
-        }
-    }
-
     private static string DescribeGenre(int id)
     {
         try
         {
-            var info = System.Enum.GetName(typeof(MALClient.Models.Enums.AnimeGenreSearch), id);
+            var info = System.Enum.GetName(typeof(MALPlus.Models.Enums.AnimeGenreSearch), id);
             if (info == null)
                 return "Genre " + id;
-            var attr = typeof(MALClient.Models.Enums.AnimeGenreSearch)
+            var attr = typeof(MALPlus.Models.Enums.AnimeGenreSearch)
                 .GetField(info)?.GetCustomAttributes(typeof(System.ComponentModel.DescriptionAttribute), false);
             if (attr is { Length: > 0 } && attr[0] is System.ComponentModel.DescriptionAttribute d)
                 return d.Description;
@@ -388,8 +620,16 @@ public partial class DiscoverPage : ContentPage
     private static string Summarize(RandomFilter filter)
     {
         var parts = new List<string>();
-        if (!string.IsNullOrEmpty(filter.Format))
-            parts.Add(char.ToUpperInvariant(filter.Format[0]) + filter.Format.Substring(1));
+        var formats = filter.FormatsQuery();
+        if (!string.IsNullOrEmpty(formats))
+        {
+            var names = formats.Split(',')
+                .Where(f => !string.IsNullOrEmpty(f))
+                .Select(f => char.ToUpperInvariant(f[0]) + f.Substring(1))
+                .ToList();
+            if (names.Count > 0)
+                parts.Add(string.Join("/", names));
+        }
         if (filter.MinScore > 0)
             parts.Add("★" + filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         if (filter.MinYear > 0)
@@ -419,14 +659,15 @@ public partial class DiscoverPage : ContentPage
         }
     }
 
-    private async Task Alert(string message)
+    private Task Alert(string message)
     {
         try
         {
-            await DisplayAlert("", message, "OK");
+            return OptionsSheetHost.ConfirmAsync("", message, "OK");
         }
         catch
         {
+            return Task.CompletedTask;
         }
     }
 }

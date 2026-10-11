@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using MALClient.Adapters;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Adapters;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm.Manga
+namespace MALPlus.XShared.Comm.Manga
 {
     public class MangaUpdateQuery : Query
     {

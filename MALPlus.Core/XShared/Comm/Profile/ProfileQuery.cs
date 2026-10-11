@@ -6,17 +6,17 @@ using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.Models.Models.ApiResponses;
-using MALClient.Models.Models.Favourites;
-using MALClient.XShared.Comm.MagicalRawQueries;
-using MALClient.XShared.Utils;
-using MALClient.XShared.Utils.Managers;
-using MALClient.XShared.ViewModels;
-using AnimeCharacter = MALClient.Models.Models.Favourites.AnimeCharacter;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.ApiResponses;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.Utils.Managers;
+using MALPlus.XShared.ViewModels;
+using AnimeCharacter = MALPlus.Models.Models.Favourites.AnimeCharacter;
 
-namespace MALClient.XShared.Comm.Profile
+namespace MALPlus.XShared.Comm.Profile
 {
     public class ProfileQuery : Query
     {

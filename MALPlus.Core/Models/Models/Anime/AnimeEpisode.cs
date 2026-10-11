@@ -6,7 +6,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
-namespace MALClient.Models.Models.Anime
+namespace MALPlus.Models.Models.Anime
 {
 
     public class AnimeEpisode : INotifyPropertyChanged

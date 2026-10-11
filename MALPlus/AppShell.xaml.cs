@@ -1,3 +1,5 @@
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using MALPlus.Views;
 
 namespace MALPlus;
@@ -61,6 +63,32 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("character", typeof(CharacterDetailsPage));
         Routing.RegisterRoute("staff", typeof(StaffDetailsPage));
         Routing.RegisterRoute("discoveryresults", typeof(DiscoveryResultsPage));
+    Routing.RegisterRoute("seasonthemes", typeof(SeasonThemesPage));
+    Routing.RegisterRoute("randomtheme", typeof(RandomThemePage));
+
+        // Signing out from anywhere must land on the login page. The view model that drops the
+        // session cannot navigate itself, so it raises the request and this is the only place that
+        // can act on it. Registered once here, unsubscribed in OnNavigated when the login page
+        // takes over, so it cannot fire twice into a dead page.
+        ViewModelLocator.LogIn.LogOutRequested += OnLogOutRequested;
+    }
+
+    private async void OnLogOutRequested(object sender, EventArgs e)
+    {
+        try
+        {
+            if (Credentials.Authenticated)
+                return;
+
+            // Pushed as a route, not a section. The four signed-in sections are ShellItems, so
+            // there is no //login section to go to, and this is the same single-page route the
+            // startup check and the settings sign-out already use.
+            await Shell.Current?.GoToAsync("login");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS sign-out navigation failed: " + ex.Message);
+        }
     }
 
     // The Shell still switches sections through a ViewPager2, so the scroll itself is
@@ -240,6 +268,27 @@ public partial class AppShell : Shell
     protected override void OnNavigated(ShellNavigatedEventArgs args)
     {
         base.OnNavigated(args);
+
+        // Last line of defence: the whole app is behind a sign-in, so any navigation that lands
+        // anywhere else without a session is bounced back to the login page. The checks at
+        // startup and on the login page already do this, but they only cover the paths they know
+        // about: a deep link, a launcher shortcut or a restored navigation stack all arrive
+        // straight through OnNavigated. Without this the app could be used signed out.
+        if (!Credentials.Authenticated &&
+            (args?.Current?.Location?.OriginalString?.Contains("login") ?? false) != true)
+        {
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                try
+                {
+                    await GoToAsync("login");
+                }
+                catch (Exception)
+                {
+                }
+            });
+            return;
+        }
 
         // ShellItems are created lazily as they are first shown, so their pagers only
         // appear after a navigation.

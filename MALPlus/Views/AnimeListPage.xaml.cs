@@ -610,13 +610,7 @@ Season? routeSeason = null, int? routeYear = null)
     private int _shownYear;
 
     private static string SeasonName(Season season)
-        => season switch
-        {
-            Season.Winter => "Winter",
-            Season.Spring => "Spring",
-            Season.Summer => "Summer",
-            _ => "Fall"
-        };
+        => MALPlus.Controls.SeasonYearSelector.SeasonName(season);
 
     /// <summary>
     ///     Builds the season to ask for out of the two independent picks.
@@ -632,8 +626,10 @@ Season? routeSeason = null, int? routeYear = null)
 
     private void UpdateSeasonSelectors()
     {
-        SeasonLabel.Text = SeasonName(_shownSeason);
-        YearLabel.Text = _shownYear.ToString();
+        // The control owns the words now; this only tells it what the panel is showing. It paints
+        // itself, so there is no label to set here any more.
+        SeasonSelectors.Season = _shownSeason;
+        SeasonSelectors.Year = _shownYear;
     }
 
     /// <summary>
@@ -684,6 +680,15 @@ Season? routeSeason = null, int? routeYear = null)
     ///     of writing its rows into a panel that now belongs to a different menu.
     /// </summary>
     private int _menuGeneration;
+
+    /// <summary>
+    ///     The shared selector asks for its season menu. Opens this page's own dropdown, which is where
+    ///     a dropdown on a bar this short belongs: a panel inside the control would be clipped to the
+    ///     control's bounds on Android and drawn behind it.
+    /// </summary>
+    private void OnSeasonPickerRequested(object sender, EventArgs e) => ToggleContextMenu(ContextMenuKind.Season);
+
+    private void OnYearPickerRequested(object sender, EventArgs e) => ToggleContextMenu(ContextMenuKind.Year);
 
     private void OnSeasonMenuTapped(object sender, TappedEventArgs e)
         => ToggleContextMenu(ContextMenuKind.Season);
@@ -918,50 +923,36 @@ Season? routeSeason = null, int? routeYear = null)
     }
 
     /// <summary>
-    ///     Season dropdown. Current season first, then the calendar order.
+    ///     Season dropdown. Chosen season first, then the calendar order.
     /// </summary>
     /// <remarks>
-    ///     The list is a choice, not a history, so the season on screen opens at the top instead of
+    ///     The list is a choice and not a history, so the season on screen opens at the top instead of
     ///     being hunted for in the middle of four entries. It reorders itself when the calendar rolls
     ///     over, which is the price of that and the reason it is a deliberate choice.
+    ///     <para>
+    ///     The order and the marks come from the shared control, so this page and the season themes page
+    ///     cannot offer the seasons in a different order or disagree about which one is current.
+    ///     </para>
     /// </remarks>
     private void FillSeasonMenu()
     {
-        var airing = AiringSeasonNow();
-        var ordered = new List<Season> { _shownSeason };
-        foreach (var season in new[] { Season.Winter, Season.Spring, Season.Summer, Season.Fall })
-            if (!ordered.Contains(season))
-                ordered.Add(season);
-
-        foreach (var season in ordered)
+        foreach (var choice in MALPlus.Controls.SeasonYearSelector.SeasonChoices(_shownSeason))
         {
-            var picked = season;
-            // "(Current)" names the season that is airing now, which is NOT the one on screen once
-            // the user has walked away from it. Marking the selected one instead would call a season
-            // from three years ago the current one. Both marks can land on the same row, and that is
-            // correct: it is both what is showing and what is airing.
-            var label = SeasonName(picked) + (picked == airing ? " (Current)" : "");
-            AddDropdownRow(label, picked == _shownSeason,
-                () => OnSeasonRowTapped(picked));
+            var picked = choice.Season;
+            // "(Current)" names the season that is airing now, which is NOT the one on screen once the
+            // user has walked away from it. Marking the selected one instead would call a season from
+            // three years ago the current one. Both marks can land on the same row, and that is correct:
+            // it is both what is showing and what is airing.
+            var label = SeasonName(picked) + (choice.IsNow ? " (Current)" : "");
+            AddDropdownRow(label, choice.IsChosen, () => OnSeasonRowTapped(picked));
         }
     }
 
     /// <summary>
-    ///     The season that is airing right now.
+    ///     Which season is airing, taken from the shared control so the bar and the grid cannot name
+    ///     different ones.
     /// </summary>
-    /// <remarks>
-    ///     Deliberately the same rule the query and the view model use, and not the calendar months
-    ///     this page's own fallback uses. If the two ever disagree, the marker ends up calling a
-    ///     season current while the grid above it was filled with the other one.
-    /// </remarks>
-    private static Season AiringSeasonNow()
-        => DateTime.UtcNow.Month switch
-        {
-            <= 3 => Season.Winter,
-            <= 6 => Season.Spring,
-            <= 9 => Season.Summer,
-            _ => Season.Fall
-        };
+    private static Season AiringSeasonNow() => MALPlus.Controls.SeasonYearSelector.AiringSeasonNow();
 
     private async void OnSeasonRowTapped(Season season)
     {

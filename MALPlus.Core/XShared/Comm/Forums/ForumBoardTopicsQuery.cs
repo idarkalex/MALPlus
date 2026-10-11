@@ -4,11 +4,11 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Forums;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Forums;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Forums
+namespace MALPlus.XShared.Comm.Forums
 {
     public class ForumBoardTopicsQuery : Query
     {

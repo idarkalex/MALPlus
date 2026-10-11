@@ -8,15 +8,15 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Comm.MagicalRawQueries.Clubs;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Comm.MagicalRawQueries.Clubs;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Clubs
+namespace MALPlus.XShared.ViewModels.Clubs
 {
     public class ClubDetailsViewModel : ViewModelBase
     {

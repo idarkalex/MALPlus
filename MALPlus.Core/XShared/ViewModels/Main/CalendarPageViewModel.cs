@@ -8,16 +8,16 @@ using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
 using GalaSoft.MvvmLight.Ioc;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.Utils;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public class CalendarPivotPage
     {
@@ -172,6 +172,18 @@ namespace MALClient.XShared.ViewModels.Main
 
         private bool _initialized;
 
+        /// <summary>
+        ///     Which content of calendar was last built: true for everything airing, false for only the
+        ///     reader's own list.
+        /// </summary>
+        /// <remarks>
+        ///     The view model is a singleton that outlives the page, so this is the only way a newly
+        ///     created page can tell whether the data in front of it is the data that was asked for.
+        ///     It used to be inferred from the setting, and since the page writes that setting before it
+        ///     asks, the two agreed while the grid below them still held the other list.
+        /// </remarks>
+        public bool CalendarBuiltForAllAiring { get; private set; }
+
         public async Task Init(bool force = false)
         {
             if (_initialized && !force)
@@ -182,6 +194,10 @@ namespace MALClient.XShared.ViewModels.Main
             }
             InitPages();
             _initialized = true;
+            // Written before the read below, so it names what is being built and not what the setting
+            // said: the two are the same value but only this one is inside the build.
+            CalendarBuiltForAllAiring = Settings.CalendarShowAllAiring;
+            RaisePropertyChanged(() => CalendarBuiltForAllAiring);
             // The library can change between builds (the user just added something), so the
             // membership set backing IsOnMyList cannot be cached across them.
             _myListIds = null;

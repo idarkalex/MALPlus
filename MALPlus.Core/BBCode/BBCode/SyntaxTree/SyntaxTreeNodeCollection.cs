@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 
-namespace MALClient.BBCode.SyntaxTree
+namespace MALPlus.BBCode.SyntaxTree
 {
     public interface ISyntaxTreeNodeCollection : IList<SyntaxTreeNode>
     {

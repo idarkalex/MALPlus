@@ -2,8 +2,8 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
-             xmlns:tanimescrapped="clr-namespace:MALClient.Models.Models.AnimeScrapped;assembly=MALPlus.Core"
-             xmlns:vm="clr-namespace:MALClient.XShared.ViewModels.Main;assembly=MALPlus.Core"
+             xmlns:tanimescrapped="clr-namespace:MALPlus.Models.Models.AnimeScrapped;assembly=MALPlus.Core"
+             xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.VideosPage"
              x:DataType="vm:PopularVideosViewModel"
              BackgroundColor="{StaticResource EmBackground}">
@@ -26,9 +26,11 @@
             <Label Grid.Row="0" Text="Promotional Videos" FontFamily="InterBold" FontSize="22"
                    TextColor="{StaticResource BrushText}" Padding="16,12" />
 
-            <RefreshView Grid.Row="1" IsRefreshing="{Binding Loading}" Refreshing="OnRefreshing">
+            <RefreshView Grid.Row="1" IsRefreshing="{Binding Refreshing}" Refreshing="OnRefreshing">
                 <CollectionView ItemsSource="{Binding Videos}" SelectionMode="Single"
-                                SelectionChanged="OnVideoTapped">
+                                SelectionChanged="OnVideoTapped"
+                                RemainingItemsThreshold="2"
+                                RemainingItemsThresholdReached="OnLoadMore">
                     <CollectionView.EmptyView>
                         <Label Text="No videos yet" FontFamily="Inter" FontSize="13"
                                TextColor="#80FFFFFF" HorizontalOptions="Center" VerticalOptions="Center" />
@@ -63,8 +65,8 @@
             <WebView x:Name="VideoWebView" BackgroundColor="#000000" />
             <!-- Same two round buttons as the details overlay: full screen on the left, close on the
                  right. -->
-            <Border HorizontalOptions="Start" VerticalOptions="Start"
-                    Margin="10,10,0,0" WidthRequest="40" HeightRequest="40"
+<Border x:Name="FullscreenButton" HorizontalOptions="Start" VerticalOptions="Start"
+                      Margin="10,10,0,0" WidthRequest="40" HeightRequest="40"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
                     StrokeShape="RoundRectangle 20">
                 <Border.GestureRecognizers>
@@ -73,8 +75,8 @@
                 <Image x:Name="FullscreenIcon" Source="icon_fullscreen" WidthRequest="22" HeightRequest="22"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-            <Border HorizontalOptions="End" VerticalOptions="Start"
-                    Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
+<Border x:Name="VideoCloseButton" HorizontalOptions="End" VerticalOptions="Start"
+                      Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
                     StrokeShape="RoundRectangle 20">
                 <Border.GestureRecognizers>

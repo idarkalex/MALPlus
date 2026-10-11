@@ -1,6 +1,6 @@
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 using Microsoft.Maui.ApplicationModel;
 using MALPlus.Services;
 
@@ -81,7 +81,11 @@ public partial class VideosPage : ContentPage
             for (int i = 0; i < 60; i++)
             {
                 await Task.Delay(200);
-                if (!Vm.Loading) break;
+                // Watches the page-in-flight flag rather than Loading. Polling Loading raced the
+                // RefreshView writing it back to true, and the loop then waited on a spinner nobody
+                // was ever going to clear.
+                if (!Vm.Loading && Vm.HasLoadedOnce)
+                    break;
             }
         }
         catch (Exception ex)
@@ -92,7 +96,25 @@ public partial class VideosPage : ContentPage
 
     private void OnRefreshing(object sender, EventArgs e)
     {
-        try { Vm.Init(); } catch { }
+        // Refreshing is set here rather than trusting the binding: RefreshView has already written true
+        // into it to start its own spinner, and clearing it from the page is what keeps the two from
+        // disagreeing. The gesture itself drives the reload; this only ends the gesture.
+        try { Vm.Refreshing = true; Vm.Init(); } catch { }
+    }
+
+    /// <summary>
+    ///     Asks for the next page when the reader nears the end of the list.
+    /// </summary>
+    private async void OnLoadMore(object sender, EventArgs e)
+    {
+        try
+        {
+            await Vm.LoadMore();
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "load more failed: " + ex.GetType().Name);
+        }
     }
 
     private void OnVideoTapped(object sender, SelectionChangedEventArgs e)
@@ -115,6 +137,8 @@ MALPlus.Services.VideoWebViewHelper.BackHandler = OnVideoBackPressed;
                   SetSystemBars(true);
                 VideoOverlayVisibility = true;
                 VideoOverlay.IsVisible = true;
+                // Opening in portrait too: the bars are visible and reserve space of their own.
+                VideoOverlayInsets.Apply(FullscreenButton, VideoCloseButton);
                 VideoListRoot.IsVisible = false;
             }
         }
@@ -155,6 +179,10 @@ MALPlus.Services.VideoWebViewHelper.BackHandler = null;
                 FullscreenVideo.Enter();
             if (FullscreenIcon != null)
                 FullscreenIcon.Source = FullscreenVideo.IsActive ? "icon_exit_fullscreen" : "icon_fullscreen";
+                // The cutout moves onto the long edge when the video rotates to landscape, so
+                // the buttons are re-inset after the change rather than before it.
+                Device.BeginInvokeOnMainThread(() =>
+                    VideoOverlayInsets.Apply(FullscreenButton, VideoCloseButton));
         }
         catch (Exception ex)
         {

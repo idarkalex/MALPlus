@@ -28,24 +28,6 @@
                         <Switch Grid.Column="1" IsToggled="{Binding PreferEnglishTitles}"
                                 OnColor="{StaticResource EmAccent}" />
                     </Grid>
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Higher quality images" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding PullHigherQualityImages}"
-                                OnColor="{StaticResource EmAccent}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Squeeze one more grid item" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding SqueezeOneMoreGridItem}"
-                                OnColor="{StaticResource EmAccent}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Swipe to inc/dec episodes" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding EnableSwipeToIncDec}"
-                                OnColor="{StaticResource EmAccent}" />
-                    </Grid>
 
                     <!-- Content is a three-way choice and not a switch, because a switch cannot
                          express the middle option that is the point of this setting. Measured over one
@@ -103,21 +85,9 @@ Allow adult content removes the filter from the catalogue, your library and sear
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Feeds -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="FEEDS" FontFamily="InterBold" FontSize="11"
-                           TextColor="#A0FFFFFF" />
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Include pinned profiles" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding FeedsIncludePinnedProfiles}"
-                                OnColor="{StaticResource EmAccent}" />
-                    </Grid>
-                </VerticalStackLayout>
-            </Border>
+             <!-- Feeds: removed. Nothing read the stored preference, in this build or the old one,
+                  so the switch changed nothing about which profiles' activity was shown. -->
+
 
             <!-- Calendar -->
             <Border BackgroundColor="{StaticResource EmSheet}"
@@ -138,8 +108,11 @@ Allow adult content removes the filter from the catalogue, your library and sear
                         <Switch Grid.Column="1" IsToggled="{Binding CalendarIncludePlanned}"
                                 OnColor="{StaticResource EmAccent}" />
                     </Grid>
+                    <!-- Says what the switch does. The getter is a negation of Sunday-first, so the
+                         row used to read "Monday" while putting Sunday first: a label carried over
+                         from the old build, where it said "Make Sunday first day of the week". -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Start week on Monday" FontFamily="Inter" FontSize="14"
+                        <Label Grid.Column="0" Text="Start week on Sunday" FontFamily="Inter" FontSize="14"
                                TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                         <Switch Grid.Column="1" IsToggled="{Binding CalendarSwitchMonSun}"
                                 OnColor="{StaticResource EmAccent}" />
@@ -165,78 +138,40 @@ Allow adult content removes the filter from the catalogue, your library and sear
                                BackgroundColor="{StaticResource EmBackground}"
                                PlaceholderColor="#A0FFFFFF" />
                     </Grid>
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
-                            <Label Text="Broadcast time zone" FontFamily="Inter" FontSize="14"
-                                   TextColor="{StaticResource BrushText}" />
-                            <Label Text="Which day an airing is filed under" FontFamily="Inter" FontSize="11"
-                                   TextColor="#A0FFFFFF" />
-                        </VerticalStackLayout>
-                        <Picker Grid.Column="1"
-                                ItemsSource="{Binding CalendarTimeZoneOptions}"
-                                SelectedIndex="{Binding CalendarTimeZoneIndex, Mode=TwoWay}"
-                                TitleColor="#A0FFFFFF" TextColor="{StaticResource BrushText}"
-                                WidthRequest="150">
-                            <Picker.ItemDisplayBinding>
-                                <Binding Path="Label" />
-                            </Picker.ItemDisplayBinding>
-                        </Picker>
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Show season with type" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding DisplaySeasonWithType}"
-                                OnColor="{StaticResource EmAccent}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Start page" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Picker Grid.Column="1"
-                               TitleColor="#A0FFFFFF" TextColor="{StaticResource BrushText}"
-                               WidthRequest="130">
-                            <Picker.ItemsSource>
-                                <x:Array Type="{x:Type x:String}">
-                                    <x:String>anime</x:String>
-                                    <x:String>manga</x:String>
-                                    <x:String>discover</x:String>
-                                </x:Array>
-                            </Picker.ItemsSource>
-                        </Picker>
-                    </Grid>
-                </VerticalStackLayout>
-            </Border>
+                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
+                         <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                             <Label Text="Broadcast time zone" FontFamily="Inter" FontSize="14"
+                                    TextColor="{StaticResource BrushText}" />
+                             <Label Text="Which day an airing is filed under" FontFamily="Inter" FontSize="11"
+                                    TextColor="#A0FFFFFF" />
+                         </VerticalStackLayout>
+                         <!-- Title is not decoration here: a Picker with nothing selected renders as an
+                              empty box, which is why this row looked like it had no value at all.
+                              The label under it reads what the stored choice actually is, since the Picker
+                              itself only shows the option text once one has been tapped.
+                              ItemDisplayBinding is left out on purpose. The options override ToString, so
+                              the binding was only a second path to the same text, and it is the one that
+                              renders nothing when it does not resolve. -->
+                         <VerticalStackLayout Grid.Column="1" Spacing="2" HorizontalOptions="End"
+                                              WidthRequest="180">
+                             <Picker ItemsSource="{Binding CalendarTimeZoneOptions}"
+                                     SelectedIndex="{Binding CalendarTimeZoneIndex, Mode=TwoWay}"
+                                     Title="Time zone"
+                                     TitleColor="#A0FFFFFF" TextColor="{StaticResource BrushText}" />
+                             <Label Text="{Binding CalendarTimeZoneLabel}" FontFamily="Inter" FontSize="11"
+                                    TextColor="#A0FFFFFF" HorizontalOptions="End" />
+                         </VerticalStackLayout>
+                     </Grid>
+                 </VerticalStackLayout>
+             </Border>
 
-            <!-- Notifications -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="NOTIFICATIONS" FontFamily="InterBold" FontSize="11"
-                           TextColor="#A0FFFFFF" />
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Enable notifications" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding EnableNotifications}"
-                                OnColor="{StaticResource EmAccent}" />
-                    </Grid>
-                </VerticalStackLayout>
-            </Border>
+             <!-- Notifications: removed. Every manager behind this row was an empty stub, so the
+                  switch could not start or stop anything, and there is no notifications page for it
+                  to lead to. Left in place it was a row that did nothing at all. -->
 
-            <!-- Articles -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="ARTICLES" FontFamily="InterBold" FontSize="11"
-                           TextColor="#A0FFFFFF" />
-                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Launch external links externally" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding ArticlesLaunchExternalLinks}"
-                                OnColor="{StaticResource EmAccent}" />
-                    </Grid>
-                </VerticalStackLayout>
-            </Border>
+             <!-- Articles: removed. Nothing in the app read the stored preference, so the switch
+                  never changed where a link went. -->
+
 
             <!-- Forums -->
             <Border BackgroundColor="{StaticResource EmSheet}"
@@ -258,11 +193,11 @@ Allow adult content removes the filter from the catalogue, your library and sear
             <Border BackgroundColor="{StaticResource EmSheet}"
                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                     StrokeShape="RoundRectangle 8" Padding="14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="CACHE" FontFamily="InterBold" FontSize="11"
-                           TextColor="#A0FFFFFF" />
-                    <Label Text="{Binding TotalFilesCached, StringFormat='{0} files cached'}"
-                           FontFamily="Inter" FontSize="13" TextColor="#80FFFFFF" />
+                 <VerticalStackLayout Spacing="8">
+                     <Label Text="CACHE" FontFamily="InterBold" FontSize="11"
+                            TextColor="#A0FFFFFF" />
+                     <Label x:Name="CacheCountLabel" Text="No cached files yet"
+                            FontFamily="Inter" FontSize="13" TextColor="#80FFFFFF" />
                     <Button Text="Clear caches" Clicked="OnClearCachesClicked"
                             FontFamily="InterSemiBold" FontSize="13"
                             BackgroundColor="#FF6B00" TextColor="White"

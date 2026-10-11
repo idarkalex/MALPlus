@@ -1,6 +1,6 @@
-﻿using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
+﻿using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Views;
 
@@ -50,7 +50,12 @@ public partial class CalendarPage : ContentPage
         _initialized = true;
         try
         {
-            await Vm.Init(false);
+            // Forced only when the data already on screen was built for the other mode. The view model
+            // is a singleton and refuses a rebuild unless forced, so a page that is new because the
+            // platform recreated it would otherwise show whatever the last build produced, which is the
+            // other tab entirely. Nothing to force when the two agree, so returning to the same mode
+            // costs nothing.
+            await Vm.Init(Vm.CalendarBuiltForAllAiring != Settings.CalendarShowAllAiring);
         }
         catch (Exception ex)
         {

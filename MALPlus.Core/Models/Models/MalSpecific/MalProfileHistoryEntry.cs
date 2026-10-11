@@ -1,4 +1,4 @@
-namespace MALClient.Models.Models.MalSpecific
+namespace MALPlus.Models.Models.MalSpecific
 {
     public class MalProfileHistoryEntry
     {

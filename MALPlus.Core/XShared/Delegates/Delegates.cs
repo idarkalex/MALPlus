@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Delegates
+namespace MALPlus.XShared.Delegates
 {
     public delegate void OffContentPaneStateChanged();
 

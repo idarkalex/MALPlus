@@ -5,9 +5,9 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.XShared.Utils;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Forums
+namespace MALPlus.XShared.Comm.Forums
 {
     public class ForumTopicMessageCountQuery : Query
     {

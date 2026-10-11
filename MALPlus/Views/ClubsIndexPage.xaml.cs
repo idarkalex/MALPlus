@@ -1,6 +1,6 @@
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Clubs;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Clubs;
 
 namespace MALPlus.Views;
 

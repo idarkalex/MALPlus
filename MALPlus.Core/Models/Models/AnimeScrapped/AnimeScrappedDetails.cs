@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MALClient.Models.Models.Misc;
+using MALPlus.Models.Models.Misc;
 
-namespace MALClient.Models.Models.AnimeScrapped
+namespace MALPlus.Models.Models.AnimeScrapped
 {
     public class AnimeScrappedDetails
     {

@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Favourites;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Items;
-using MALClient.XShared.ViewModels.Main;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Items;
+using MALPlus.XShared.ViewModels.Main;
+using MALPlus.XShared.Utils;
 using MALPlus.Services;
 
 namespace MALPlus.Views;
@@ -68,25 +68,33 @@ InitializeComponent();
             // Scrolling the results means the user has moved on from the dropdown, and there is
             // no scrim to catch the tap any more, so the scroll itself has to dismiss it.
             ResultsGrid.Inner.Scrolled += OnResultsScrolled;
-            // Studio logos arrive after the row that asked for one has already been bound, so the
-            // cache has to push them back in. One subscription for the whole list rather than
-            // one per studio.
-            StudioIconCache.IconResolved += OnStudioIconResolved;
-            StudioIconCache.MapReady += OnStudioIconMapReady;
-        }
+// Studio logos arrive after the row that asked for one has already been bound, so the
+              // cache has to push them back in. One subscription for the whole list rather than
+              // one per studio. Subscribed on appearing and not in the constructor: StudioIconCache
+              // raises STATIC events, so a page that subscribes once and never leaves keeps the page
+              // itself alive for the whole process lifetime, and every later visit added another one.
+          }
 
-    protected override void OnDisappearing()
-    {
-        base.OnDisappearing();
-        // The overlay is left on screen otherwise, so coming back to the tab finds it open.
-        CloseRecentSearches();
-    }
-
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing();
-        if (_initialized)
-            return;
+protected override void OnDisappearing()
+      {
+          base.OnDisappearing();
+          // The overlay is left on screen otherwise, so coming back to the tab finds it open.
+          CloseRecentSearches();
+          // Paired with the subscriptions in OnAppearing: static events outlive the page, so
+          // leaving them attached kept every SearchPage ever created reachable from a root.
+          StudioIconCache.IconResolved -= OnStudioIconResolved;
+          StudioIconCache.MapReady -= OnStudioIconMapReady;
+      }
+  
+      protected override async void OnAppearing()
+      {
+          base.OnAppearing();
+          StudioIconCache.IconResolved -= OnStudioIconResolved;
+          StudioIconCache.MapReady -= OnStudioIconMapReady;
+          StudioIconCache.IconResolved += OnStudioIconResolved;
+          StudioIconCache.MapReady += OnStudioIconMapReady;
+          if (_initialized)
+              return;
         _initialized = true;
         try
         {

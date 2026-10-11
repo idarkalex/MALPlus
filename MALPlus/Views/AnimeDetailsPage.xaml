@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
                xmlns:controls="clr-namespace:MALPlus.Controls"
-               xmlns:vm="clr-namespace:MALClient.XShared.ViewModels;assembly=MALPlus.Core"
+               xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels;assembly=MALPlus.Core"
                x:Class="MALPlus.Views.AnimeDetailsPage"
 
              x:Name="DetailsPage"
@@ -26,13 +26,6 @@
             <Setter Property="HorizontalOptions" Value="Center" />
             <Setter Property="VerticalOptions" Value="Center" />
             <Setter Property="Padding" Value="0,7" />
-        </Style>
-
-        <Style x:Key="PanelStyle" TargetType="Border">
-            <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
-            <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
-            <Setter Property="StrokeThickness" Value="1" />
-            <Setter Property="StrokeShape" Value="RoundRectangle 10" />
         </Style>
 
         <!-- Section titles sit OUTSIDE the panel. Inside a card a label reads as a field of that
@@ -214,25 +207,27 @@
             </Border>
         </DataTemplate>
 
+        <!-- Staff is a 3 column grid, not the horizontal 64px-thumbnail row the characters
+             use. A long staff list is mostly one-line entries ("Sound Director", "Episode
+             Director") where the photo is the only expensive part, and three per row turns a
+             40 person list from 4000px of scrolling into 1300. -->
         <DataTemplate x:Key="StaffTemplate">
-            <Border HeightRequest="100" Margin="12,4" Style="{StaticResource PanelStyle}" Padding="10">
-                <Grid ColumnDefinitions="64,*" ColumnSpacing="10">
-                    <Border WidthRequest="64" HeightRequest="88" StrokeShape="RoundRectangle 6"
+            <Border Margin="4" Style="{StaticResource PanelStyle}" Padding="8">
+                <VerticalStackLayout Spacing="5">
+                    <Border HeightRequest="96" StrokeShape="RoundRectangle 6"
                             Stroke="{StaticResource EmBorder}" StrokeThickness="1">
                         <Image Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
                                Aspect="AspectFill" />
                     </Border>
-                    <VerticalStackLayout Grid.Column="1" Spacing="5" VerticalOptions="Start">
-                        <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="15"
-                               TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
-                        <Label Text="{Binding RoleLineOne}" FontFamily="InterSemiBold" FontSize="10"
-                               TextColor="#7AB4FF" MaxLines="1" LineBreakMode="TailTruncation"
-                               IsVisible="{Binding HasRoleLineOne}" />
-                        <Label Text="{Binding RoleLineTwo}" FontFamily="InterSemiBold" FontSize="10"
-                               TextColor="#7AB4FF" MaxLines="1" LineBreakMode="TailTruncation"
-                               IsVisible="{Binding HasRoleLineTwo}" />
-                    </VerticalStackLayout>
-                </Grid>
+                    <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="12"
+                           TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
+                    <Label Text="{Binding RoleLineOne}" FontFamily="InterSemiBold" FontSize="9"
+                           TextColor="#7AB4FF" MaxLines="1" LineBreakMode="TailTruncation"
+                           IsVisible="{Binding HasRoleLineOne}" />
+                    <Label Text="{Binding RoleLineTwo}" FontFamily="InterSemiBold" FontSize="9"
+                           TextColor="#7AB4FF" MaxLines="1" LineBreakMode="TailTruncation"
+                           IsVisible="{Binding HasRoleLineTwo}" />
+                </VerticalStackLayout>
             </Border>
         </DataTemplate>
     </ContentPage.Resources>
@@ -453,19 +448,10 @@
                             <VerticalStackLayout BindableLayout.ItemsSource="{Binding OPs}" Spacing="0">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,7" ColumnSpacing="10">
-                                            <Border Grid.Row="0" WidthRequest="3" BackgroundColor="#0066FF"
-                                                    Margin="0,1" />
-                                            <Border Grid.Column="1" Stroke="#24405A" StrokeThickness="1"
-                                                    StrokeShape="RoundRectangle 8" Padding="10,9"
-                                                    BackgroundColor="#101D2A">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer Tapped="OnOpEdTapped" CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="{Binding .}" FontFamily="Inter" FontSize="13"
-                                                       TextColor="#DCE9F5" MaxLines="2" />
-                                            </Border>
-                                        </Grid>
+                                        <controls:OpEdRow Text="{Binding .}"
+                                                          IsOpening="True"
+                                                          Command="{Binding Source={x:Reference DetailsPage}, Path=OpEdRowCommand}"
+                                                          CommandParameter="{Binding .}" />
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
@@ -478,19 +464,10 @@
                             <VerticalStackLayout BindableLayout.ItemsSource="{Binding EDs}" Spacing="0">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,7" ColumnSpacing="10">
-                                            <Border Grid.Row="0" WidthRequest="3" BackgroundColor="#FF6B00"
-                                                    Margin="0,1" />
-                                            <Border Grid.Column="1" Stroke="#24405A" StrokeThickness="1"
-                                                    StrokeShape="RoundRectangle 8" Padding="10,9"
-                                                    BackgroundColor="#101D2A">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer Tapped="OnOpEdTapped" CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="{Binding .}" FontFamily="Inter" FontSize="13"
-                                                       TextColor="#DCE9F5" MaxLines="2" />
-                                            </Border>
-                                        </Grid>
+                                        <controls:OpEdRow Text="{Binding .}"
+                                                          IsOpening="False"
+                                                          Command="{Binding Source={x:Reference DetailsPage}, Path=OpEdRowCommand}"
+                                                          CommandParameter="{Binding .}" />
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
@@ -705,13 +682,23 @@
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No staff available." Style="{StaticResource StateTextStyle}" />
                         </Border>
+                        <!-- Three across. The staff cap is 200, so one per row was 200 * 108px of scrolling for a
+                         list that is mostly one-line credits ("Sound Director"). Span=3 turns that
+                         into 67 rows. HeightRequest stays pinned to the row count because this list
+                         lives inside the page ScrollView and would otherwise collapse; with the span
+                         the number of realised rows is the same order as before, not 3x. -->
                         <CollectionView x:Name="StaffList"
                                         IsVisible="{Binding Source={x:Reference DetailsPage}, Path=StaffContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedStaff}"
                                         ItemTemplate="{StaticResource StaffTemplate}"
                                         HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=StaffListHeight}"
                                         SelectionMode="Single"
-                                        SelectionChanged="OnStaffItemSelected" />
+                                        SelectionChanged="OnStaffItemSelected">
+                            <CollectionView.ItemsLayout>
+                                <GridItemsLayout Span="3" Orientation="Vertical"
+                                                 HorizontalItemSpacing="0" VerticalItemSpacing="0" />
+                            </CollectionView.ItemsLayout>
+                        </CollectionView>
                     </VerticalStackLayout>
                 </Grid>
             </VerticalStackLayout>
@@ -843,18 +830,36 @@
                             <Border Grid.Column="1" StrokeShape="RoundRectangle 14"
                                     BackgroundColor="#1A000000" Stroke="#29FFFFFF" StrokeThickness="1"
                                     Padding="0" VerticalOptions="End" HeightRequest="32"
-                                    IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                                    IsVisible="{Binding IsEpisodeStepperVisible}">
                                 <Grid ColumnDefinitions="32,Auto,32" ColumnSpacing="0">
-                                    <Button Grid.Column="0" Command="{Binding DecrementEpsCommand}" FontFamily="InterBold" FontSize="16" Text="−"
+                                    <!-- The minus is meaningless at zero and while the entry is not on
+                                         the list, so it is hidden rather than shown dead. -->
+                                    <Button Grid.Column="0" Command="{Binding DecrementEpsCommand}"
+                                            IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
+                                            FontFamily="InterBold" FontSize="16" Text="−"
                                             BackgroundColor="Transparent" TextColor="#80FFFFFF" BorderWidth="0" CornerRadius="0"
                                             WidthRequest="32" HeightRequest="32" Padding="0" />
-                                    <Label Grid.Column="1" Text="{Binding MyEpisodesBind}" FontFamily="InterBold" FontSize="13"
-                                           TextColor="White" VerticalOptions="Center" HorizontalOptions="Center" VerticalTextAlignment="Center" Padding="6,0">
+                                    <Label Grid.Column="1" Text="{Binding MyEpisodesStepperBind}" FontFamily="InterBold" FontSize="13"
+                                           TextColor="White" VerticalOptions="Center" HorizontalOptions="Center" VerticalTextAlignment="Center" Padding="6,0"
+                                           IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                                         <Label.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnEpisodesCounterTapped" />
                                         </Label.GestureRecognizers>
                                     </Label>
-                                    <Button Grid.Column="2" Command="{Binding IncrementEpsCommand}" FontFamily="InterBold" FontSize="16" Text="+"
+                                    <!-- Off the list the pill becomes the "start watching" control,
+                                         which is the route that used to be missing entirely. -->
+                                    <Border Grid.Column="1" IsVisible="{Binding AddAnimeVisibility}"
+                                            Padding="12,0" VerticalOptions="Center"
+                                            BackgroundColor="Transparent">
+                                        <Label Text="Start watching" FontFamily="InterBold" FontSize="12"
+                                               TextColor="White" VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnStepperStartTapped" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                    <Button Grid.Column="2" Command="{Binding IncrementEpsCommand}"
+                                            IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
+                                            FontFamily="InterBold" FontSize="16" Text="+"
                                             BackgroundColor="#0066FF" TextColor="White" BorderWidth="0" CornerRadius="0"
                                             WidthRequest="32" HeightRequest="32" Padding="0" />
                                 </Grid>
@@ -953,7 +958,7 @@
             </Grid.RowDefinitions>
             <!-- Same two round buttons on every page that plays video: full screen on the left, close
                  on the right. They share one size and colour so the three overlays look the same. -->
-            <Border Grid.Row="0" HorizontalOptions="Start" VerticalOptions="Center"
+            <Border x:Name="FullscreenButton" Grid.Row="0" HorizontalOptions="Start" VerticalOptions="Center"
                     Margin="10,10,0,0" WidthRequest="40" HeightRequest="40"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
                     StrokeShape="RoundRectangle 20">
@@ -963,7 +968,7 @@
                 <Image x:Name="FullscreenIcon" Source="icon_fullscreen" WidthRequest="22" HeightRequest="22"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-            <Border Grid.Row="0" HorizontalOptions="End" VerticalOptions="Center"
+            <Border x:Name="VideoCloseButton" Grid.Row="0" HorizontalOptions="End" VerticalOptions="Center"
                     Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
                     StrokeShape="RoundRectangle 20">
@@ -982,6 +987,7 @@
                 <controls:NativeVideoView x:Name="DirectVideoPlayer" Grid.Row="1" IsVisible="False"
                                            VerticalOptions="Fill" HorizontalOptions="Fill"
                                            PlayFailed="OnDirectVideoFailed" />
+
             </Grid>
 
             <!-- The overflow menu. Inside this Grid on purpose: a ContentPage holds one child, so

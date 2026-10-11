@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     public static class AirTimeUtils
     {

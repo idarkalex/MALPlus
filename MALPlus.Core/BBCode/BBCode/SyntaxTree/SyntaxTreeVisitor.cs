@@ -1,4 +1,4 @@
-﻿namespace MALClient.BBCode.SyntaxTree
+﻿namespace MALPlus.BBCode.SyntaxTree
 {
     public class SyntaxTreeVisitor
     {

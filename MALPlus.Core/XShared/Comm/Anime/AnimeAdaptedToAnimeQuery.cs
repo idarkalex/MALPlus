@@ -1,14 +1,14 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public enum MangaAdaptedType
     {
@@ -117,7 +117,7 @@ namespace MALClient.XShared.Comm.Anime
                         node.Attributes.Contains("class") && node.Attributes["class"].Value.Contains("scormem-item score"));
                     if (scoreNode != null)
                     {
-                        var scoreText = scoreNode.InnerText.Replace("★", "").Trim();
+                        var scoreText = scoreNode.InnerText.Replace("?", "").Trim();
                         float.TryParse(scoreText, NumberStyles.Float, CultureInfo.InvariantCulture, out var score);
                         current.Score = score;
                     }
@@ -143,7 +143,7 @@ namespace MALClient.XShared.Comm.Anime
 
             if (output.Count > 0)
             {
-                DataCache.SaveAdaptedToAnimeData(output, _type);
+                await DataCache.SaveAdaptedToAnimeData(output, _type);
                 _prevQueriesCache[_type] = output;
             }
             return output;

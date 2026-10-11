@@ -334,7 +334,6 @@ namespace MALPlus.XShared.Comm.Anime
             var (firstRank, lastRank) = RangeRanks;
             var pageCount = RangeSize / SourcePageSize + RangePageMargin;
             var firstPage = Math.Max(1, (firstRank - 1) / SourcePageSize);
-            var watch = System.Diagnostics.Stopwatch.StartNew();
 
             // Fired together rather than one after another. The pages were read in a line and that is
             // what made changing band take over ten seconds: measured on a device, each page cost
@@ -383,8 +382,6 @@ namespace MALPlus.XShared.Comm.Anime
                 {
                     var page = firstPage + index;
                     pages[index] = await ReadTopPageAsync($"{api}?{query}&limit={SourcePageSize}&page={page}");
-                    Console.WriteLine(
-                        $"MALPLUS Top {api} range={_rangeIndex} page={page} retry={attempt} rows={pages[index]?.Count ?? -1} total={watch.ElapsedMilliseconds}");
                 }
             }
 
@@ -392,8 +389,6 @@ namespace MALPlus.XShared.Comm.Anime
             for (var index = 0; index < pages.Length; index++)
             {
                 var rows = pages[index];
-                Console.WriteLine(
-                    $"MALPLUS Top {api} range={_rangeIndex} page={firstPage + index} rows={rows?.Count ?? -1} total={watch.ElapsedMilliseconds}");
                 if (rows == null || rows.Count == 0)
                     return null;
                 foreach (var row in rows)
@@ -401,8 +396,6 @@ namespace MALPlus.XShared.Comm.Anime
                         byId[row.Id] = row;
             }
 
-            Console.WriteLine(
-                $"MALPLUS Top {api} range={_rangeIndex} done cards={byId.Count} ranks={firstRank}-{lastRank} ms={watch.ElapsedMilliseconds}");
             return byId.Count > 0 ? byId.Values.OrderBy(row => row.Index).ToList() : null;
         }
 
@@ -447,7 +440,7 @@ namespace MALPlus.XShared.Comm.Anime
                             images.TryGetProperty("jpg", out var jpg) && jpg.ValueKind == JsonValueKind.Object &&
                             jpg.TryGetProperty("image_url", out var imgProp) && imgProp.ValueKind == JsonValueKind.String)
                         {
-                            current.ImgUrl = NormalizeImageUrl(imgProp.GetString());
+                            current.ImgUrl = MalImageUrl.Normalize(imgProp.GetString());
                         }
 
                         if (item.TryGetProperty("score", out var scoreProp) && scoreProp.ValueKind == JsonValueKind.Number)
@@ -598,23 +591,6 @@ namespace MALPlus.XShared.Comm.Anime
                 default:
                     return null;
             }
-        }
-
-        private static string NormalizeImageUrl(string url)
-        {
-            if (string.IsNullOrEmpty(url)) return url;
-            url = Regex.Replace(url, @"\/r\/\d+x\d+\/", "/");
-            var qPos = url.IndexOf('?');
-            if (qPos > 0) url = url.Substring(0, qPos);
-            var dotPos = url.LastIndexOf('.');
-            if (dotPos > 0)
-            {
-                var beforeDot = url.Substring(0, dotPos);
-                var lastChar = beforeDot[beforeDot.Length - 1];
-                if (lastChar != 'l' && lastChar != 'm' && lastChar != 's')
-                    url = beforeDot + "l" + url.Substring(dotPos);
-            }
-            return url;
         }
     }
 }

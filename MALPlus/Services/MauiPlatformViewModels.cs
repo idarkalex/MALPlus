@@ -1,13 +1,13 @@
 using System.Windows.Input;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Services;
 
@@ -288,6 +288,18 @@ public class MauiMainViewModel : MainViewModelBase
                 type = a.MangaAdaptedWorkMode.ToString();
             if (type != null)
                 sb.Append("&type=").Append(type);
+
+            // Seasonal: name the season in the route. The details page registers this same args
+            // object as its back navigation, so without it coming back from an anime has no idea
+            // which season it was on and reopens whatever the current one is. Only carried when
+            // there is one: entering Seasonal from the More menu passes none, and that is exactly
+            // what makes it land on the current season.
+            if (a.WorkMode == AnimeListWorkModes.SeasonalAnime && a.CurrSeason != null &&
+                a.CurrSeason.Year > 0)
+            {
+                sb.Append("&year=").Append(a.CurrSeason.Year);
+                sb.Append("&season=").Append(a.CurrSeason.Season);
+            }
         }
         else
         {
@@ -344,7 +356,7 @@ public class MauiHamburgerViewModel : IHamburgerViewModel
     }
 }
 
-public class MauiCssManager : MALClient.XShared.Utils.CssManagerBase
+public class MauiCssManager : MALPlus.XShared.Utils.CssManagerBase
 {
     protected override string AccentColour => "#0066FF";
     protected override string AccentColourLight => "#4D94FF";
@@ -353,7 +365,7 @@ public class MauiCssManager : MALClient.XShared.Utils.CssManagerBase
     protected override string ShadowsDefinition => "";
 }
 
-public class MauiSettingsViewModel : MALClient.XShared.ViewModels.SettingsViewModelBase
+public class MauiSettingsViewModel : MALPlus.XShared.ViewModels.SettingsViewModelBase
 {
     public MauiSettingsViewModel() : base() { }
 

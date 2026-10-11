@@ -2,9 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
-             xmlns:vm="clr-namespace:MALClient.XShared.ViewModels.Main;assembly=MALPlus.Core"
-             xmlns:tmodels="clr-namespace:MALClient.Models.Models;assembly=MALPlus.Core"
-             xmlns:tviewmodels="clr-namespace:MALClient.XShared.ViewModels;assembly=MALPlus.Core"
+             xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
+             xmlns:tmodels="clr-namespace:MALPlus.Models.Models;assembly=MALPlus.Core"
+             xmlns:tviewmodels="clr-namespace:MALPlus.XShared.ViewModels;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.ProfilePage"
              x:DataType="vm:ProfilePageViewModel"
              BackgroundColor="{StaticResource EmBackground}">
@@ -12,6 +12,17 @@
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
         <converters:HtmlSourceConverter x:Key="HtmlSource" />
+        <converters:IntEqualityConverter x:Key="IntEq" />
+
+        <Style x:Key="ProfileTabLabelStyle" TargetType="Label">
+            <Setter Property="FontFamily" Value="InterSemiBold" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="TextColor" Value="#B3FFFFFF" />
+            <Setter Property="MaxLines" Value="1" />
+            <Setter Property="LineBreakMode" Value="TailTruncation" />
+            <Setter Property="VerticalOptions" Value="Center" />
+            <Setter Property="Padding" Value="0,7" />
+        </Style>
     </ContentPage.Resources>
 
     <Grid>
@@ -91,6 +102,41 @@
                     </Grid>
                 </Border>
 
+                <!-- Four tabs, same strip-and-panes pattern the details page uses. The page used to be one
+                     very long scroll: About, six collections, comments and the statistics grid all
+                     in a row, which meant several seconds of scrolling to reach anything. -->
+                <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
+                            VerticalScrollBarVisibility="Never"
+                            Padding="14,0" BackgroundColor="Transparent">
+                    <HorizontalStackLayout Spacing="20">
+                        <Label x:Name="TabGeneral" Text="General" Style="{StaticResource ProfileTabLabelStyle}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnProfileTabTapped" CommandParameter="0" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                        <Label x:Name="TabFavourites" Text="Favourites" Style="{StaticResource ProfileTabLabelStyle}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnProfileTabTapped" CommandParameter="1" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                        <Label x:Name="TabRecent" Text="Recent updates" Style="{StaticResource ProfileTabLabelStyle}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnProfileTabTapped" CommandParameter="2" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                        <Label x:Name="TabStats" Text="Stats" Style="{StaticResource ProfileTabLabelStyle}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnProfileTabTapped" CommandParameter="3" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </HorizontalStackLayout>
+                </ScrollView>
+
+                <Grid>
+                    <!-- Each pane is its own ScrollView so the four do not scroll as one. Only the
+                         visible one is attached to the gesture, so the others cost nothing. -->
+                    <ScrollView IsVisible="{Binding SelectedTab, Converter={StaticResource IntEq}, ConverterParameter=0}">
+                        <VerticalStackLayout Spacing="14">
                 <!-- About Me -->
                 <Border BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
@@ -105,7 +151,11 @@
                                  HeightRequest="{Binding ComputedHtmlHeight}" />
                     </VerticalStackLayout>
                 </Border>
+                        </VerticalStackLayout>
+                    </ScrollView>
 
+                    <ScrollView IsVisible="{Binding SelectedTab, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                        <VerticalStackLayout Spacing="14">
                 <!-- Favorites - Anime -->
                 <Border IsVisible="{Binding FavAnime.Count, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}"
                         BackgroundColor="{StaticResource EmSheet}"
@@ -225,7 +275,11 @@
                         </CollectionView>
                     </VerticalStackLayout>
                 </Border>
+                        </VerticalStackLayout>
+                    </ScrollView>
 
+                    <ScrollView IsVisible="{Binding SelectedTab, Converter={StaticResource IntEq}, ConverterParameter=2}">
+                        <VerticalStackLayout Spacing="14">
                 <!-- Recent Anime -->
                 <Border IsVisible="{Binding RecentAnime.Count, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}"
                         BackgroundColor="{StaticResource EmSheet}"
@@ -350,7 +404,11 @@
                         </CollectionView>
                     </VerticalStackLayout>
                 </Border>
+                        </VerticalStackLayout>
+                    </ScrollView>
 
+                    <ScrollView IsVisible="{Binding SelectedTab, Converter={StaticResource IntEq}, ConverterParameter=3}">
+                        <VerticalStackLayout Spacing="14">
                 <!-- Library statistics. Every number here was already being parsed off the
                      MAL profile page and then thrown away; this is the first thing that
                      actually shows it. -->
@@ -425,8 +483,11 @@
                         </Grid>
                     </VerticalStackLayout>
                 </Border>
-                </VerticalStackLayout>
-            </ScrollView>
+                        </VerticalStackLayout>
+                    </ScrollView>
+                </Grid>
+            </VerticalStackLayout>
+        </ScrollView>
         </RefreshView>
     </Grid>
 </ContentPage>

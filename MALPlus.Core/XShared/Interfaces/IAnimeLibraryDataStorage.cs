@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.ViewModels;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Interfaces
+namespace MALPlus.XShared.Interfaces
 {
     public interface IAnimeLibraryDataStorage
     {

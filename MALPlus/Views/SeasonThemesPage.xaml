@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
+             xmlns:local="clr-namespace:MALPlus.Views"
+             x:Class="MALPlus.Views.SeasonThemesPage"
+             x:Name="SeasonThemesPageRoot"
+             Shell.PresentationMode="NotAnimated"
+             BackgroundColor="{StaticResource EmBackground}">
+
+    <!-- ONE root grid, holding both the page and the playback overlay. It has to be one element because
+         a ContentPage takes a single content child, and two of them meant the season list was dropped
+         in favour of a hidden black rectangle. -->
+    <Grid>
+
+    <!-- Two rows only. The spinner and the "nothing here" label used to each own a row of their own,
+         and an ActivityIndicator keeps its size whether it is running or not, so the spinner's row
+         reserved a couple of hundred pixels of blank space above the list that was never filled. Both
+         now live INSIDE the list's row, centred, where they only appear when they mean something. -->
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- The bar the list pages use, and the same control for both halves: which season, which
+             year. The selection is what fills the rows below, and it opens on whatever is airing. -->
+        <Border Grid.Row="0" BackgroundColor="{StaticResource EmSheet}" Padding="14,0"
+                HeightRequest="52">
+            <Grid ColumnDefinitions="*,Auto">
+                <HorizontalStackLayout Grid.Column="0" Spacing="12" VerticalOptions="Center">
+                    <Label Text="Season OP/ED" FontFamily="InterBold" FontSize="16"
+                           TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                    <controls:SeasonYearSelector x:Name="SeasonSelector"
+                                                 SeasonRequested="OnSeasonRequested"
+                                                 YearRequested="OnYearRequested"
+                                                 SelectionChanged="OnSelectionChanged" />
+                </HorizontalStackLayout>
+                <Border Grid.Column="1" WidthRequest="32" HeightRequest="32"
+                        StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                        VerticalOptions="Center">
+                    <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCloseTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- One anime per row, poster beside its themes. A CollectionView rather than a stack because a
+             season is a couple of dozen entries and the ones scrolled past stop being built. Both the
+             spinner and the "nothing here" message sit on top of it rather than owning a row, so they
+             cost nothing while the list is showing. -->
+        <Grid Grid.Row="1">
+            <CollectionView x:Name="RowsList" Margin="12,6"
+                            IsVisible="{Binding IsListVisible, Source={RelativeSource AncestorType={x:Type local:SeasonThemesPage}}}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Border Margin="0,4" Style="{StaticResource PanelStyle}" Padding="10">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnRowTapped" CommandParameter="{Binding .}" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+
+                            <!-- The poster the rest of the app draws, with nothing of its own on it: no
+                                 title overlay and no badge. On a row it sits beside the words instead
+                                 of carrying them. -->
+                            <controls:AnimePosterCard Grid.Column="0"
+                                                       WidthRequest="96"
+                                                       HeightRequest="144"
+                                                       PosterUrl="{Binding ImgUrl}"
+                                                       Title="{Binding Title}"
+                                                       TitleOverlay="False"
+                                                       HasBadge="False"
+                                                       TypeTag=""
+                                                       ScoreTag="" />
+
+                            <VerticalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                                <Label Text="{Binding Title}" FontFamily="InterSemiBold" FontSize="15"
+                                       TextColor="{StaticResource BrushText}" MaxLines="2"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding MetaLine}" FontFamily="Inter" FontSize="11"
+                                       TextColor="#8FA8C0" MaxLines="1" LineBreakMode="TailTruncation" />
+
+                                <!-- Kept as a line of its own rather than hidden, so a season entry
+                                     with no theme still reads as a row of the season. -->
+                                <Label Text="No OP/ED in AnimeThemes"
+                                       FontFamily="Inter" FontSize="12" TextColor="#66FFFFFF"
+                                       IsVisible="{Binding HasNoThemes}" />
+
+                                 <VerticalStackLayout BindableLayout.ItemsSource="{Binding Themes}" Spacing="0">
+                                     <BindableLayout.ItemTemplate>
+                                         <DataTemplate>
+                                             <!-- Reaches the page by walking the visual tree, not by name.
+                                                  x:Reference is resolved in the namescope it appears in,
+                                                  and a DataTemplate has one of its own: the page's name
+                                                  is simply not in it, so this binding could never
+                                                  resolve and every row failed to build. -->
+                                             <controls:OpEdRow Text="{Binding Text}"
+                                                               IsOpening="{Binding IsOpening}"
+                                                               Command="{Binding Source={RelativeSource AncestorType={x:Type local:SeasonThemesPage}}, Path=ThemeRowCommand}"
+                                                               CommandParameter="{Binding .}" />
+                                         </DataTemplate>
+                                     </BindableLayout.ItemTemplate>
+                                 </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+            <!-- Over the list, centred, so neither of them ever takes space away from it. -->
+            <ActivityIndicator x:Name="Busy" IsRunning="False" Color="#0066FF"
+                               VerticalOptions="Center" HorizontalOptions="Center" />
+            <Label x:Name="EmptyLabel" Text="Nothing for this season." IsVisible="False"
+                   FontFamily="Inter" FontSize="13" TextColor="#80FFFFFF"
+                   VerticalOptions="Center" HorizontalOptions="Center" />
+        </Grid>
+        </Grid>
+
+        <!-- Playback, on ExoPlayer. A WebView plays these WebM files too, but it is a browser doing
+             it: no scrub bar worth the name, a play button that disagrees with the audio, and a start
+             that waits on preload. The details page already settled on ExoPlayer through
+             NativeVideoView for exactly this, and a theme that plays here should play the same way.
+
+             The WebView stays as the second player for the YouTube fallback, because a watch page is
+             HTML with an iframe and ExoPlayer cannot load one. It is created on demand rather than
+             declared, since an Android WebView spawns a Chromium child process and MAUI builds
+             handlers for the whole tree when the page attaches: declaring it cost every open of this
+             page a video nobody played. -->
+        <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="110">
+            <controls:NativeVideoView x:Name="DirectVideoPlayer"
+                                      VerticalOptions="Fill" HorizontalOptions="Fill"
+                                      IsVisible="False" PlayFailed="OnDirectVideoFailed" />
+            <Border HorizontalOptions="End" VerticalOptions="Start" Margin="12"
+                    WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18"
+                    BackgroundColor="#99000000">
+                <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCloseVideoTapped" />
+                </Border.GestureRecognizers>
+            </Border>
+        </Grid>
+    </Grid>
+</ContentPage>

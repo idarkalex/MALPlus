@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
-namespace MALClient.Models.Models.AnimeScrapped
+namespace MALPlus.Models.Models.AnimeScrapped
 {
     public class ReviewScore
     {

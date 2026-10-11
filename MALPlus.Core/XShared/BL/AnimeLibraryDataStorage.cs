@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Library;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Library;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
     public class AnimeLibraryDataStorage : IAnimeLibraryDataStorage
     {

@@ -4,10 +4,10 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     /// <summary>
     /// MAL only creates an episode page once the episode is well past, so an airing cour can

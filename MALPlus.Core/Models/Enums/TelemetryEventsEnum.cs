@@ -1,8 +1,7 @@
-﻿namespace MALClient.Models.Enums
+﻿namespace MALPlus.Models.Enums
 {
     public enum TelemetryTrackedEvents
     {
-        FetchedNews,
         DonatePopUpAppeared,
         LoggedInHummingbird,
         LoggedInMyAnimeList,

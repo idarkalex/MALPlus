@@ -6,11 +6,11 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Text.Json;
 using HtmlAgilityPack;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.Models.Models.Favourites;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeStaffData
     {

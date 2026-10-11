@@ -5,9 +5,9 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Comm.MagicalRawQueries;
 
-namespace MALClient.XShared.Interfaces
+namespace MALPlus.XShared.Interfaces
 {
     public interface IMalHttpContextProvider
     {

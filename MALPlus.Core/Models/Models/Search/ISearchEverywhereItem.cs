@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace MALClient.Models.Models.Search
+namespace MALPlus.Models.Models.Search
 {
     public interface ISearchEverywhereItem
     {

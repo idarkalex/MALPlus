@@ -1,6 +1,6 @@
-using MALClient.Adapters;
+using MALPlus.Adapters;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     public abstract class CssManagerBase : ICssManager
     {

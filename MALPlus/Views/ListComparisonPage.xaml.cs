@@ -1,8 +1,8 @@
-using MALClient.Models.Models;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
+using MALPlus.XShared.Utils;
 
 namespace MALPlus.Views;
 

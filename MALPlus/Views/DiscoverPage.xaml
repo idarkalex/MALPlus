@@ -6,10 +6,10 @@
              BackgroundColor="{StaticResource EmBackground}">
 
     <Grid RowDefinitions="Auto,*">
-        <!-- Fixed header: the old title lived inside the scroll and scrolled away -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,20,16,6" ColumnSpacing="12">
-            <Label Grid.Column="0" Text="Discover" FontFamily="InterBold" FontSize="26"
-                   TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+        <!-- No title: the page is a grid of destinations and nothing said what the page was. The row
+             stays for the spinner, which is the only feedback the multi result tiles give while they
+             are fetching. -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,12,16,4" ColumnSpacing="12">
             <ActivityIndicator x:Name="HeaderSpinner" Grid.Column="1" Color="#0066FF"
                                WidthRequest="22" HeightRequest="22" IsRunning="False" />
         </Grid>
@@ -41,17 +41,19 @@
                                                  Source="discover_btn_calendar"
                                                  AutomationId="DiscoverYourCalendar" SemanticProperties.Description="Your calendar"
                                                  Tapped="OnUpcomingMineTapped" />
-                    <!-- The two random capsules keep their artwork's gear on the right, and it is part
-                         of the picture: the filters are reached from the popup the tap opens, not from
-                         a hot zone over the artwork. -->
+                    <!-- The two random capsules are split: the picture opens the entry, the gear on the
+                         right quarter opens its filters. Both fall through to Tapped when a tile has
+                         no gear handler wired. -->
                     <controls:DiscoverTileButton Grid.Row="2" Grid.Column="0"
                                                  Source="discover_btn_random_anime"
                                                  AutomationId="DiscoverRandomAnime" SemanticProperties.Description="Random anime"
-                                                 Tapped="OnRandomAnimeTapped" />
+                                                 Tapped="OnRandomAnimeTapped"
+                                                 GearTapped="OnRandomAnimeFiltersTapped" />
                     <controls:DiscoverTileButton Grid.Row="2" Grid.Column="1"
                                                  Source="discover_btn_random_manga"
                                                  AutomationId="DiscoverRandomManga" SemanticProperties.Description="Random manga"
-                                                 Tapped="OnRandomMangaTapped" />
+                                                 Tapped="OnRandomMangaTapped"
+                                                 GearTapped="OnRandomMangaFiltersTapped" />
                     <controls:DiscoverTileButton Grid.Row="3" Grid.Column="0"
                                                  Source="discover_btn_gem"
                                                  AutomationId="DiscoverRandomGem" SemanticProperties.Description="Random gem"

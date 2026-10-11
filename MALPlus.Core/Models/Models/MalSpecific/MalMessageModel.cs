@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace MALClient.Models.Models.MalSpecific
+namespace MALPlus.Models.Models.MalSpecific
 {
     public class MalMessageModel
     {

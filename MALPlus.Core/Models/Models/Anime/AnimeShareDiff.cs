@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using MALClient.Models.Enums;
+using MALPlus.Models.Enums;
 
-namespace MALClient.Models.Models.Anime
+namespace MALPlus.Models.Models.Anime
 {
     public class AnimeShareDiff
     {

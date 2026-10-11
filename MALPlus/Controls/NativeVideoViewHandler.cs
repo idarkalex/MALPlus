@@ -194,7 +194,28 @@ protected override FrameLayout CreatePlatformView() =>
             return;
         // The binding flattens Java's nested classes, so ExoPlayer.Builder arrives as
         // ExoPlayerBuilder. Looking for a type literally called ExoPlayer finds nothing.
-        _player = new ExoPlayerBuilder(Context).Build();
+        var builder = new ExoPlayerBuilder(Context);
+
+        // A small buffer, deliberately.
+        //
+        // Media3 sizes its default buffer from the bitrate of the track (CalculateTargetBufferBytes), so
+        // a 2.6 Mbit/s OP reserves tens of megabytes and goes on asking for ranges long after the ninety
+        // seconds it contains have played. The origin refuses bursts of requests per IP, so every one of
+        // those requests is spent from a budget that the next theme needs.
+        //
+        // This does not delay the start. The player begins from whatever has already arrived, and 2.5s
+        // ahead is far more than playback needs to stay smooth; it only stops reaching for more than the
+        // moment requires.
+        builder.SetLoadControl(new DefaultLoadControl.Builder()
+            .SetBufferDurationsMs(
+                2500,  // bufferForPlayback: enough to start without a stall
+                500,   // bufferForPlaybackAfterRebuffer: only rebuffer on a real underrun
+                1500,  // minBuffer: never drop below this
+                3000)  // upper bound kept small on purpose
+            .SetPrioritizeTimeOverSizeThresholds(true)
+            .Build());
+
+        _player = builder.Build();
 _playerView = new PlayerView(Context)
         {
             UseController = true,
@@ -253,4 +274,15 @@ _playerView = new PlayerView(Context)
         Release();
         base.DisconnectHandler(platformView);
     }
+
+    /// <summary>
+    ///     A pass-through data source that reports how many times the player opened the file and how
+    ///     many bytes it took, so one playback has a measured cost instead of an assumed one.
+    /// </summary>
+    /// <remarks>
+    ///     Temporary instrumentation. It sits in the middle of the transfer on purpose, which is the
+    ///     only place the counts are true: the same file delivered whole is one open, and the same file
+    ///     read while playing is a run of them, and that difference is what decides whether the origin's
+    ///     burst allowance is comfortable or hopeless.
+    /// </remarks>
 }

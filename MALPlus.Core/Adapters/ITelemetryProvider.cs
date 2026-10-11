@@ -4,9 +4,9 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
+using MALPlus.Models.Enums;
 
-namespace MALClient.Adapters
+namespace MALPlus.Adapters
 {
     public interface ITelemetryProvider
     {

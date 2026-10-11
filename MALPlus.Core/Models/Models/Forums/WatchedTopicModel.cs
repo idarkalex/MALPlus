@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MALClient.Models.Models.Forums
+namespace MALPlus.Models.Models.Forums
 {
     public class WatchedTopicModel
     {

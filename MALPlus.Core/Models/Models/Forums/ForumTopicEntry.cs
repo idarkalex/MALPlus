@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
-using MALClient.Models.Enums;
+using MALPlus.Models.Enums;
 
-namespace MALClient.Models.Models.Forums
+namespace MALPlus.Models.Models.Forums
 {
     public class ForumBoardContent
     {

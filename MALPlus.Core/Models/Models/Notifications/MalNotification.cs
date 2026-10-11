@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.ApiResponses;
-using MALClient.Models.Models.Forums;
-using MALClient.Models.Models.MalSpecific;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.ApiResponses;
+using MALPlus.Models.Models.Forums;
+using MALPlus.Models.Models.MalSpecific;
 using Newtonsoft.Json;
 
-namespace MALClient.Models.Models.Notifications
+namespace MALPlus.Models.Models.Notifications
 {
     public class MalNotification
     {
@@ -22,6 +22,47 @@ namespace MALClient.Models.Models.Notifications
         public bool IsSupported { get; set; }
         public bool IsRead { get; set; }
         public string ImgUrl { get; set; }
+
+        /// <summary>
+        ///     What to show when there is no picture, which is almost all of them.
+        /// </summary>
+        /// <remarks>
+        ///     MAL only ever sends an image for a friend request and for a profile comment. Every other
+        ///     type arrives without one, and the row reserved a fixed 40dp slot for it regardless, so
+        ///     the left of nearly every notification was an empty gutter.
+        ///     <para>
+        ///     Glyphs rather than pictures, out of the set the rest of the app draws with, so this looks
+        ///     like a notification with a type rather than a notification with something missing.
+        ///     </para>
+        /// </remarks>
+        /// <summary>
+        ///     Whether the row has a picture of its own to show.
+        /// </summary>
+        /// <remarks>
+        ///     The row falls back to <see cref="TypeIcon" /> when this is false. It exists because the
+        ///     fallback used to be a trigger on ImgUrl being null, and MAL hands back an empty string just
+        ///     as often as it hands back nothing, so those rows kept an image slot that resolved to
+        ///     nothing at all instead of showing the glyph.
+        /// </remarks>
+        public bool HasImage => !string.IsNullOrWhiteSpace(ImgUrl);
+
+        public string TypeIcon => Type switch
+        {
+            MalNotificationsTypes.FriendRequest => "icon_user",
+            MalNotificationsTypes.FriendRequestAcceptDeny => "icon_user",
+            MalNotificationsTypes.ProfileComment => "icon_user",
+            MalNotificationsTypes.Messages => "icon_envelope",
+            MalNotificationsTypes.WatchedTopic => "icon_forum",
+            MalNotificationsTypes.WatchedTopics => "icon_forum",
+            MalNotificationsTypes.ForumQuoute => "icon_forum",
+            MalNotificationsTypes.UserMentions => "icon_forum",
+            MalNotificationsTypes.ClubMessages => "icon_club",
+            MalNotificationsTypes.BlogComment => "icon_go",
+            MalNotificationsTypes.NowAiring => "icon_calendar",
+            MalNotificationsTypes.Payment => "icon_account",
+            MalNotificationsTypes.NewRelatedAnime => "icon_anime",
+            _ => "icon_bell"
+        };
 
         public string SanitizedLaunchArgs => LaunchArgs.Contains("~") ? LaunchArgs.Split('~').Last() : LaunchArgs;
 

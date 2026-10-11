@@ -6,15 +6,15 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Interfaces;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Forums;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using IHandyDataStorage = MALClient.XShared.ViewModels.Interfaces.IHandyDataStorage;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Interfaces;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Forums;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using IHandyDataStorage = MALPlus.XShared.ViewModels.Interfaces.IHandyDataStorage;
 
-namespace MALClient.XShared.ViewModels.Forums
+namespace MALPlus.XShared.ViewModels.Forums
 {
     public class ForumsStarredMessagesViewModel : ViewModelBase , ISelfBackNavAware
     {

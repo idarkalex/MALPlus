@@ -1,15 +1,18 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.Models.Models.Favourites;
-using MALClient.Models.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Details;
+using System.Linq;
+using System.Windows.Input;
+using MALPlus.Controls;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.Models.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Details;
 using MALPlus.Services;
 
 namespace MALPlus.Views;
@@ -166,7 +169,27 @@ public partial class AnimeDetailsPage : ContentPage
 
     public double MangaCharactersListHeight => CharacterRowHeight * DisplayedMangaCharacters.Count;
 
-    public double StaffListHeight => CharacterRowHeight * DisplayedStaff.Count;
+    /// <summary>
+    ///     Row count times row height, where the rows are three across. The grid lives inside the
+    ///     page ScrollView, so without an explicit height it collapses to nothing.
+    /// </summary>
+    public double StaffListHeight
+    {
+        get
+        {
+            var rows = (DisplayedStaff.Count + StaffColumns - 1) / StaffColumns;
+            return rows * StaffRowHeight;
+        }
+    }
+
+    /// <summary>Three across, matching the Span on the staff grid in the XAML.</summary>
+    private const int StaffColumns = 3;
+
+    /// <summary>
+    ///     96 image + name + up to two role lines + padding and margins. Slightly taller than
+    ///     <see cref="CharacterRowHeight" /> because the card is a column, not a row.
+    /// </summary>
+    private const double StaffRowHeight = 156;
 
     private double _tabListHeight = 520;
     private bool _tabListHeightSet;
@@ -221,9 +244,11 @@ public partial class AnimeDetailsPage : ContentPage
 
     public AnimeDetailsPage()
     {
-        InitializeComponent();
-        BindingContext = ViewModelLocator.AnimeDetails;
-        DetailsSheet.Closed += OnDetailsSheetClosed;
+InitializeComponent();
+            // Set here rather than as a <BindableLayout.ItemsLayout> property element in the XAML:
+            // on this RC the compiler rejects that form with MAUIX2002.
+            BindingContext = ViewModelLocator.AnimeDetails;
+            DetailsSheet.Closed += OnDetailsSheetClosed;
         if (RelatedGrid?.Inner != null)
             RelatedGrid.Inner.SelectionChanged += OnRelatedSelectionChanged;
         ApplyTabActiveState();
@@ -398,7 +423,7 @@ public partial class AnimeDetailsPage : ContentPage
     ///     </para>
     /// </summary>
     private static async void OpenForumBoard(
-        MALClient.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
+        MALPlus.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
     {
         try
         {
@@ -413,7 +438,7 @@ public partial class AnimeDetailsPage : ContentPage
     }
 
     private bool OpenRewatchSubmenu(MALPlus.Controls.OptionsSheet sheet,
-        MALClient.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
+        MALPlus.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
     {
         var rows = new List<MALPlus.Controls.OptionsSheetItem>
         {
@@ -440,6 +465,10 @@ public partial class AnimeDetailsPage : ContentPage
     {
         base.OnAppearing();
         _isAppearing = true;
+        // Attached here and released on disappearing, because these are static events: a page that
+        // subscribed once and never unsubscribed would answer for every overlay opened afterwards.
+        VideoWebViewHelper.PlaybackError += OnVideoPlaybackError;
+        VideoWebViewHelper.PlaybackStarted += OnVideoPlaybackStarted;
         AttachSubscriptions();
         try
         {
@@ -512,14 +541,21 @@ public partial class AnimeDetailsPage : ContentPage
         }
     }
 
+    /// <summary>
+    ///     Manga gets Reviews, Recs and Related too. The three queries behind them all take an
+    ///     animeMode flag and already handle manga: AnimeReviewsQuery builds its url as
+    ///     /manga/{id}/whatever/reviews, and the other two pass the flag straight through. They
+    ///     were hidden from the manga strip on the assumption the manga scrapes came back empty,
+    ///     which is not true. Staff stays hidden because MAL's staff table is anime-only.
+    /// </summary>
     private void ApplyTabStripVisibilityFromParams(bool isManga)
     {
         TabGeneral.IsVisible = true;
         TabEpisodes.IsVisible = !isManga;
         TabOpEd.IsVisible = !isManga && Vm?.OpEdVisible == true;
-        TabReviews.IsVisible = !isManga;
-        TabRecs.IsVisible = !isManga;
-        TabRelated.IsVisible = !isManga;
+        TabReviews.IsVisible = true;
+        TabRecs.IsVisible = true;
+        TabRelated.IsVisible = true;
         TabCharacters.IsVisible = true;
         TabStaff.IsVisible = !isManga;
         ApplyTabActiveState();
@@ -539,11 +575,11 @@ public partial class AnimeDetailsPage : ContentPage
             return;
         if (!Vm.AnimeMode)
         {
+            // Episodes is anime-only (manga has chapters and volumes, not episodes) and OP/ED are
+            // anime-only. Reviews, Recs and Related are NOT: their queries carry the animeMode flag
+            // and serve manga as well, so they stay on the strip.
             TabEpisodes.IsVisible = false;
             TabOpEd.IsVisible = false;
-            TabReviews.IsVisible = false;
-            TabRecs.IsVisible = false;
-            TabRelated.IsVisible = false;
             TabStaff.IsVisible = false;
         }
         else if (Vm.Type?.Equals("Movie", StringComparison.OrdinalIgnoreCase) == true)
@@ -561,6 +597,8 @@ public partial class AnimeDetailsPage : ContentPage
     {
         base.OnDisappearing();
         _isAppearing = false;
+        VideoWebViewHelper.PlaybackError -= OnVideoPlaybackError;
+        VideoWebViewHelper.PlaybackStarted -= OnVideoPlaybackStarted;
         DetachSubscriptions();
     }
 
@@ -631,8 +669,8 @@ public partial class AnimeDetailsPage : ContentPage
             var pairs = animeMode ? Vm.AnimeStaffData?.AnimeCharacterPairs : null;
             var mangaCharacters = animeMode ? null : Vm.MangaCharacterData;
             var staff = animeMode ? Vm.AnimeStaffData?.AnimeStaff : null;
-            var cap = MALClient.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxCharacterPairs;
-            var staffCap = MALClient.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxStaff;
+            var cap = MALPlus.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxCharacterPairs;
+            var staffCap = MALPlus.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxStaff;
             // Characters and staff are sized to their content and live inside the page ScrollView, so they
             // scroll with the page and the hero reacts to them the way it does everywhere else.
             // That means the height does track the count, so they are filled a chunk at a time and
@@ -1047,11 +1085,14 @@ public partial class AnimeDetailsPage : ContentPage
                 AnimeStatus.Watching, AnimeStatus.Completed, AnimeStatus.OnHold,
                 AnimeStatus.Dropped, AnimeStatus.PlanToWatch
             };
-            var labels = options.Select(status => MALClient.XShared.Utils.Utilities.StatusToString((int)status, !Vm.AnimeMode, false)).ToArray();
-            var choice = await DisplayActionSheet("Set status", "Cancel", null, labels);
-            if (string.IsNullOrEmpty(choice) || choice == "Cancel")
+            var rows = options.Select(status => new OptionsSheetItem(
+                MALPlus.XShared.Utils.Utilities.StatusToString((int)status, !Vm.AnimeMode, false),
+                "icon_status")).ToArray();
+            var choice = await OptionsSheetHost.PickAsync("Set status", null, rows);
+            if (string.IsNullOrEmpty(choice))
                 return;
-            var index = Array.IndexOf(labels, choice);
+            var index = Array.IndexOf(options.Select(status =>
+                MALPlus.XShared.Utils.Utilities.StatusToString((int)status, !Vm.AnimeMode, false)).ToArray(), choice);
             if (index >= 0)
                 Vm.ChangeStatus(options[index]);
         }
@@ -1065,9 +1106,12 @@ public partial class AnimeDetailsPage : ContentPage
     {
         try
         {
-            var choice = await DisplayActionSheet("Set score", "Cancel", null,
-                "10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0 (clear)");
-            if (string.IsNullOrEmpty(choice) || choice == "Cancel")
+            var rows = Enumerable.Range(0, 11)
+                .Select(score => new OptionsSheetItem(score == 0 ? "0 (clear)" : score.ToString(), "icon_score"))
+                .Reverse()
+                .ToArray();
+            var choice = await OptionsSheetHost.PickAsync("Set score", null, rows);
+            if (string.IsNullOrEmpty(choice))
                 return;
             var number = choice.Split(' ')[0];
             if (int.TryParse(number, out var score))
@@ -1083,6 +1127,33 @@ public partial class AnimeDetailsPage : ContentPage
     /// The old client let you type the watched count straight into the flyout; the model still
     /// carries WatchedEpsInput and ChangeWatchedEps for it, only the input surface was missing.
     /// </summary>
+    /// <summary>
+    ///     The hero stepper's pill while the entry is off the list. It adds the title to the
+    ///     library instead of incrementing a counter that does not exist yet: the old code hid the
+    ///     whole stepper in that state, so the only way to start an entry was the separate Add to
+    ///     List button, and the counter itself looked absent rather than empty.
+    /// </summary>
+    private async void OnStepperStartTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null || !vm.AddAnimeVisibility)
+                return;
+
+            vm.AddAnimeCommand?.Execute(null);
+
+            // The command is what puts it on the list; the counter is only useful once that has
+            // happened, and the view model's own notifications redraw the pill.
+            if (!vm.AddAnimeVisibility)
+                return;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnStepperStartTapped failed: " + ex.GetType().Name);
+        }
+    }
+
     private async void OnEpisodesCounterTapped(object sender, TappedEventArgs e)
     {
         try
@@ -1094,21 +1165,21 @@ public partial class AnimeDetailsPage : ContentPage
             int.TryParse(vm.MyEpisodesBind?.Split('/')[0], out var current);
             int.TryParse(vm.MyEpisodesBind?.Split('/').LastOrDefault(), out var max);
 
-            var prompt = new NumberPromptPopup
-            {
-                PromptTitle = vm.AnimeMode ? "Episodes watched" : "Chapters read",
-                InitialValue = current.ToString(),
-                Hint = max > 0 ? $"Max {max}" : string.Empty
-            };
+            var entered = await OptionsSheetHost.PromptAsync(
+                vm.AnimeMode ? "Episodes watched" : "Chapters read",
+                max > 0 ? $"Max {max}" : string.Empty,
+                current.ToString(),
+                max > 0 ? $"Max {max}" : string.Empty,
+                maxLength: 6);
 
-            await Navigation.PushModalAsync(prompt, animated: true);
-            var entered = await prompt.WaitForResultAsync();
+            if (entered == null)
+                return;
 
-            if (entered is int value)
-            {
-                vm.WatchedEpsInput = value.ToString();
-                vm.ChangeWatchedCommand.Execute(null);
-            }
+            // An empty field clears the count, which is what the prompt says it does, so it is read as
+            // zero rather than ignored. Anything that is not a number is ignored instead of being pushed
+            // at the model, which used to be the only thing that could come back.
+            vm.WatchedEpsInput = int.TryParse(entered.Trim(), out var watched) ? watched.ToString() : "0";
+            vm.ChangeWatchedCommand.Execute(null);
         }
         catch (Exception ex)
         {
@@ -1169,8 +1240,25 @@ public partial class AnimeDetailsPage : ContentPage
     }
 
     private async void OnOpEdTapped(object sender, TappedEventArgs e)
+        => await ResolveOpEdAsync(e.Parameter as string);
+
+    /// <summary>
+    ///     The row's own command, so the extracted rows share this handler with the rows that used to
+    ///     own it themselves.
+    /// </summary>
+    /// <remarks>
+    ///     Held in a field rather than built on each read: an inline RelayCommand leaves the delegate
+    ///     with nothing rooting it and Execute becomes a silent no-op that still answers CanExecute
+    ///     true, which is a row that highlights and does nothing.
+    /// </remarks>
+    public ICommand OpEdRowCommand => _opEdRowCommand ?? (_opEdRowCommand =
+        new Command<string>(async text => await ResolveOpEdAsync(text)));
+
+    private ICommand _opEdRowCommand;
+
+    private async Task ResolveOpEdAsync(string text)
     {
-        if (e.Parameter is not string text || string.IsNullOrWhiteSpace(text) || Vm == null)
+        if (string.IsNullOrWhiteSpace(text) || Vm == null)
             return;
         try
         {
@@ -1187,15 +1275,15 @@ public partial class AnimeDetailsPage : ContentPage
 
             var url = await Task.Run(async () =>
             {
-                // 1) AnimeThemes: direct WebM, exact match, plays in the overlay.
+                // 1) AnimeThemes: direct WebM, exact match, plays in the overlay. Resolved by the
+                // entry's own MAL id, which is what makes it work for a title the two sources spell
+                // differently.
                 var themes = Vm.OpEdThemes;
                 if (themes == null || themes.Count == 0)
-                {
-                    ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(
-                        entryId, animeMode, out var english);
-                    themes = await AnimeThemesHelper.SearchAsync(entryTitle, english);
-                }
+                    themes = await AnimeThemesHelper.GetThemesAsync(entryId);
                 var match = AnimeThemesHelper.FindMatch(themes, isOp, sequence, query, song, text);
+                global::Android.Util.Log.Info("MALPlus Themes",
+                    $"id={entryId} isOp={isOp} seq={sequence} themes={themes?.Count ?? 0} match={(string.IsNullOrEmpty(match?.Url) ? "no" : "si")} text={text}");
                 if (!string.IsNullOrEmpty(match?.Url))
                     return match.Url;
 
@@ -1222,7 +1310,7 @@ public partial class AnimeDetailsPage : ContentPage
         catch (Exception ex)
         {
             HideVideoLoading();
-            global::Android.Util.Log.Warn("MALPlus Video", "OnOpEdTapped: " + ex.GetType().Name);
+            global::Android.Util.Log.Warn("MALPlus Video", "ResolveOpEdAsync: " + ex.GetType().Name);
         }
     }
 
@@ -1236,17 +1324,17 @@ public partial class AnimeDetailsPage : ContentPage
             NavigateToCharacter(id);
     }
 
-    private void OnStaffItemSelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.Count == 0)
-            return;
-        var id = ResolveStaffId(e.CurrentSelection[0]);
-        ClearSenderSelection(sender);
-        if (id > 0)
-            NavigateToStaff(id);
-    }
+private void OnStaffItemSelected(object sender, SelectionChangedEventArgs e)
+      {
+          if (e.CurrentSelection.Count == 0)
+              return;
+          var id = ResolveStaffId(e.CurrentSelection[0]);
+          ClearSenderSelection(sender);
+          if (id > 0)
+              NavigateToStaff(id);
+      }
 
-    private async void OnJapaneseVoiceClicked(object sender, EventArgs e)
+private async void OnJapaneseVoiceClicked(object sender, EventArgs e)
     {
         try
         {
@@ -1328,10 +1416,28 @@ public partial class AnimeDetailsPage : ContentPage
             return _videoWebView;
 
             _videoWebView = new WebView();
-            Grid.SetRow(_videoWebView, 1);
+            // Spans rows 0 and 1, so it covers the WHOLE overlay instead of only the area below
+            // the button row. Row 0 is left empty precisely so the buttons can float over the
+            // video; sizing the video to row 1 left a dead band across the top of the picture.
+            Grid.SetRow(_videoWebView, 0);
+            Grid.SetRowSpan(_videoWebView, 2);
             VideoOverlay.Add(_videoWebView);
 #if ANDROID
         _videoWebView.HandlerChanged += OnVideoWebViewHandlerChanged;
+        // Adding the view can make MAUI attach the handler immediately, and HandlerChanged does not
+        // fire again for a handler that is already there. Configuring only from that event is why the
+        // chrome client was sometimes never installed and the player reported nothing: no logging, no
+        // error reporting, and a refused file looked like a broken screen. The handler is therefore
+        // configured here as well, which is harmless when the event still arrives and the only thing
+        // that works when it does not.
+        try
+        {
+            VideoWebViewHelper.ConfigurePlatformView(
+                _videoWebView.Handler?.PlatformView as global::Android.Views.View);
+        }
+        catch
+        {
+        }
 #endif
         return _videoWebView;
     }
@@ -1359,17 +1465,28 @@ public partial class AnimeDetailsPage : ContentPage
             VideoOverlay.IsVisible = true;
             SetSystemBars(true);
 
-            if (VideoWebViewHelper.IsDirectMedia(url))
-            {
-                StartDirectMedia(url);
-                return;
-            }
-
+            // Everything plays on the WebView now, direct media included. ExoPlayer is still wired up
+            // below but no URL is routed to it, so this branch reads as what it is: one player.
             StopDirectMedia();
             var webView = EnsureVideoWebView();
             VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
-            webView.Source = VideoWebViewHelper.BuildSource(url);
-            VideoWebViewHelper.ApplyMediaSettings(webView);
+
+            // Only when this theme is asked for right after the last one was. Tapping down the list
+            // spends the origin's per-IP allowance in a burst and the refusals start at the third
+            // theme; a single theme opened normally is never delayed.
+            var delay = VideoWebViewHelper.BurstDelay();
+            if (delay <= TimeSpan.Zero)
+            {
+                _currentVideoUrl = url;
+                webView.Source = VideoWebViewHelper.BuildSource(url);
+                VideoWebViewHelper.ApplyMediaSettings(webView);
+                return;
+            }
+
+            _pendingBurstUrl = url;
+            _currentVideoUrl = url;
+            ShowVideoLoading();
+            _ = PlayAfterBurstAsync(url, delay);
         }
         catch (Exception ex)
         {
@@ -1377,6 +1494,159 @@ public partial class AnimeDetailsPage : ContentPage
         }
     }
 
+    /// <summary>
+    ///     Waits out a burst and then plays, giving up quietly if the overlay is gone or the reader
+    ///     has already moved on to another theme.
+    /// </summary>
+    private async Task PlayAfterBurstAsync(string url, TimeSpan delay)
+    {
+        try
+        {
+            await Task.Delay(delay);
+            if (VideoOverlay == null || !VideoOverlay.IsVisible || _pendingBurstUrl != url)
+                return;
+            _pendingBurstUrl = null;
+            var webView = EnsureVideoWebView();
+            VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
+            webView.Source = VideoWebViewHelper.BuildSource(url);
+            VideoWebViewHelper.ApplyMediaSettings(webView);
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "PlayAfterBurst: " + ex.GetType().Name);
+        }
+    }
+
+    private string _pendingBurstUrl;
+
+    /// <summary>
+    ///     How many times a refused theme has been asked for again, so one stubborn file cannot hold the
+    ///     overlay open and a temporary refusal recovers by itself.
+    /// </summary>
+    private readonly VideoRetryPolicy _videoRetry = new();
+
+    private string _currentVideoUrl;
+
+    /// <summary>
+    ///     A theme was refused. Asked for again after a wait, up to a point, and then left alone: the
+    ///     origin's refusals are a full budget rather than a broken file, and stopping at the first one
+    ///     is what left the ninth theme dead on a black splash.
+    /// </summary>
+    private void OnVideoPlaybackError(string url)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                url = _currentVideoUrl;
+            if (string.IsNullOrWhiteSpace(url) || url != _currentVideoUrl)
+                return;
+
+            _videoRetry.NoteFailed(url);
+            var delay = _videoRetry.DelayFor(url);
+            if (!delay.HasValue)
+            {
+                global::Android.Util.Log.Warn("MALPlus Video", "giving up on " + url);
+                // Nothing is coming, so the spinner must go: left up it reads as a player still trying
+                // long after it stopped, and it is the one thing still on screen.
+                HideVideoLoading();
+                return;
+            }
+
+            // Only for a retry the reader is still waiting on. ShowVideoLoading reopens the overlay, so
+            // calling it after the overlay was closed put a spinner back over a video already dismissed.
+            if (VideoOverlay == null || !VideoOverlay.IsVisible)
+                return;
+
+            global::Android.Util.Log.Warn("MALPlus Video",
+                $"refused, retrying in {delay.Value.TotalSeconds}s: {url}");
+            ShowVideoLoading();
+            CancelPendingRetries();
+            _retryTokenSource = new CancellationTokenSource();
+            var token = _retryTokenSource.Token;
+            _ = RetryVideoAsync(url, delay.Value, token);
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "OnVideoPlaybackError: " + ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    ///     Stops any retry that has not fired yet.
+    /// </summary>
+    /// <remarks>
+    ///     A retry scheduled for a theme the reader has already left is worse than no retry: it waits out
+    ///     its delay and then puts that theme back on screen by itself, which is what left the loading
+    ///     spinner showing over a video that had been dismissed.
+    /// </remarks>
+    private void CancelPendingRetries()
+    {
+        try
+        {
+            _retryTokenSource?.Cancel();
+            _retryTokenSource?.Dispose();
+        }
+        catch
+        {
+        }
+
+        _retryTokenSource = null;
+        _pendingBurstUrl = null;
+    }
+
+    private CancellationTokenSource _retryTokenSource;
+
+    private void OnVideoPlaybackStarted(string url)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(url) && url == _currentVideoUrl)
+                _videoRetry.NotePlaying(url);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task RetryVideoAsync(string url, TimeSpan delay, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(delay, token);
+            // Everything has to still line up: the reader may have closed the overlay, moved to another
+            // theme, or left the page entirely while this was waiting.
+            if (token.IsCancellationRequested || VideoOverlay == null || !VideoOverlay.IsVisible ||
+                _currentVideoUrl != url)
+                return;
+            var webView = EnsureVideoWebView();
+            VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
+            webView.Source = VideoWebViewHelper.BuildSource(url);
+            VideoWebViewHelper.ApplyMediaSettings(webView);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "RetryVideo: " + ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    ///     Starts direct media on ExoPlayer immediately, and nothing checks the file first.
+    /// </summary>
+    /// <remarks>
+    ///     A probe was tried here, asking for a kilobyte with a range header to discover a refusal
+    ///     cheaply. It was wrong twice over: the Range header is a restricted one and has to be set with
+    ///     AddRange, so the request either threw or, when the header went ignored, downloaded the whole
+    ///     file it was supposed to sample. Either way playback stopped for reasons unrelated to the
+    ///     file, and the themes that used to play stopped playing.
+    ///     <para>
+    ///     So the source is asked once, by the player, which is the one client that needs the answer.
+    ///     A refusal surfaces as a player error and is retried from <see cref="OnDirectVideoFailed"/>,
+    ///     which is the only place that answers one.
+    ///     </para>
+    /// </remarks>
     private void StartDirectMedia(string url)
     {
         var player = DirectVideoPlayer;
@@ -1390,34 +1660,94 @@ public partial class AnimeDetailsPage : ContentPage
     }
 
     /// <summary>
-    ///     ExoPlayer refused the file. Hand it to the WebView player rather than leaving a black
-    ///     rectangle, since the point of the tab is that the theme plays. WebM support is not
-    ///     guaranteed across devices, so this is a real path, not a formality.
+    ///     ExoPlayer could not play the file. Asks the source again before treating it as final,
+    ///     because the refusals here are a moment and not a verdict.
     /// </summary>
+    /// <remarks>
+    ///     The origin refuses bursts. One file answered 206, then 503 twice, then 206 twice across a
+    ///     handful of requests minutes apart, so a 503 on the third theme in a row is not that theme
+    ///     being broken, it is the source being unhappy at that instant, and asking again a couple of
+    ///     seconds later gets the file. Reporting it as final instead is what made playback stop after
+    ///     two.
+    ///     <para>
+    ///     The waits are seconds rather than the 700/1400ms this first used. A refusal means the
+    ///     budget is spent, and retrying inside that window spends it again: each early retry is one
+    ///     more request against the same exhausted allowance, which is what turned a hiccup into
+    ///     playback that never recovers.
+    ///     </para>
+    ///     <para>
+    ///     Nothing falls back to the WebView player for a direct file. That fallback was the answer to
+    ///     a codec the device cannot read, which is a real thing on some hardware, but it was also
+    ///     firing on every refusal —and a refusal is what the retry above is for. Letting it through
+    ///     meant the old WebView player and its white flash replacing playback the moment the source
+    ///     blinked.
+    ///     </para>
+    /// </remarks>
     private void OnDirectVideoFailed(object sender, string reason)
     {
         var url = _directMediaUrl;
         if (string.IsNullOrWhiteSpace(url))
             return;
-        global::Android.Util.Log.Warn("MALPlus Video", "ExoPlayer fallback to WebView: " + reason);
+
+        // Only a refusal by the source is worth another attempt. A codec failure is the device's
+        // answer, and asking it twice more will produce the same answer three times.
+        if (reason.IndexOf("BAD_HTTP_STATUS", StringComparison.Ordinal) >= 0 && RetryDirectMedia(url))
+            return;
+
+        global::Android.Util.Log.Warn("MALPlus Video", "direct media failed: " + reason);
         _directMediaUrl = null;
         StopDirectMedia();
-        try
+    }
+
+    /// <summary>
+    ///     How many times each URL has been asked again, so one stubborn file cannot loop forever and
+    ///     a refusal does not spend the origin's budget twice for the same theme.
+    /// </summary>
+    private readonly Dictionary<string, int> _directMediaRetries = new();
+
+    /// <summary>
+    ///     The URL a retry is waiting to serve, kept apart from <see cref="_directMediaUrl"/> on purpose.
+    ///     Stopping the player clears the current URL, and the pending retry has to outlive that or it
+    ///     would cancel itself before it ever fired.
+    /// </summary>
+    private string _pendingRetryUrl;
+
+    private bool RetryDirectMedia(string url)
+    {
+        var attempts = _directMediaRetries.TryGetValue(url, out var seen) ? seen : 0;
+        if (attempts >= 2)
+            return false;
+        _directMediaRetries[url] = attempts + 1;
+
+        // Seconds, not the 700/1400ms this started with. The origin refuses bursts, so arriving while
+        // the previous refusal is still settling spends the budget again and earns another refusal.
+        var wait = TimeSpan.FromSeconds(2 + 2 * attempts);
+        _pendingRetryUrl = url;
+        global::Android.Util.Log.Warn("MALPlus Video",
+            $"direct media retry {attempts + 1} in {wait.TotalSeconds}s: {url}");
+        StopDirectMedia();
+        MainThread.BeginInvokeOnMainThread(async () =>
         {
-            var webView = EnsureVideoWebView();
-            webView.IsVisible = true;
-            VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
-            webView.Source = VideoWebViewHelper.BuildSource(url);
-            VideoWebViewHelper.ApplyMediaSettings(webView);
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Video", "DirectMedia fallback failed: " + ex.GetType().Name);
-        }
+            await Task.Delay(wait);
+            // The reader may have moved on or closed the overlay while waiting, and a newer retry
+            // for another theme supersedes this one.
+            if (VideoOverlay == null || !VideoOverlay.IsVisible || _pendingRetryUrl != url)
+                return;
+            _pendingRetryUrl = null;
+            _directMediaUrl = url;
+            DirectVideoPlayer.IsVisible = true;
+            DirectVideoPlayer.Source = url;
+        });
+        return true;
     }
 
     private void StopDirectMedia()
     {
+        // Closing is also the end of any retry that has not fired yet, and of the record of what was
+        // playing. Without both, a scheduled retry survives the close, reopens the overlay by itself a
+        // few seconds later and puts a spinner over a video the reader already dismissed.
+        CancelPendingRetries();
+        _currentVideoUrl = null;
         var player = DirectVideoPlayer;
         _directMediaUrl = null;
         if (player == null)
@@ -1441,9 +1771,9 @@ public partial class AnimeDetailsPage : ContentPage
         {
             if (VideoOverlay == null)
                 return;
-            var webView = EnsureVideoWebView();
-            VideoOverlay.IsVisible = true;
-            VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
+        var webView = EnsureVideoWebView();
+        VideoOverlay.IsVisible = true;
+        VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
                 webView.Source = new HtmlWebViewSource
                 {
                     Html = VideoWebViewHelper.BuildLoadingHtml(),
@@ -1493,7 +1823,7 @@ private void HideVideoLoading()
     }
 
     /// <summary>
-    ///     Toggles full screen and swaps the glyph so the button says what it will do next rather
+///     Toggles full screen and swaps the glyph so the button says what it will do next rather
     ///     than what it just did.
     /// </summary>
     private void OnToggleFullscreen(object sender, TappedEventArgs e)
@@ -1501,11 +1831,41 @@ private void HideVideoLoading()
         try
         {
             if (FullscreenVideo.IsActive)
+            {
                 FullscreenVideo.Exit();
+                // Restore overlay to normal layout position (inside safe area)
+                if (VideoOverlay != null)
+                    VideoOverlay.Margin = new Thickness(0);
+            }
             else
+            {
                 FullscreenVideo.Enter();
+                // Pull overlay up into status bar area and down past nav bar for true fullscreen
+                // The window is now laid out behind bars (SetDecorFitsSystemWindows=false), but MAUI
+                // still positions views inside safe area. Negative margins compensate.
+                if (VideoOverlay != null)
+                {
+                    var insets = MALPlus.Services.WindowInsetsHelper.Insets();
+                    VideoOverlay.Margin = new Thickness(-insets.Left, -insets.Top, -insets.Right, -insets.Bottom);
+                }
+            }
+
             if (FullscreenIcon != null)
                 FullscreenIcon.Source = FullscreenVideo.IsActive ? "icon_exit_fullscreen" : "icon_fullscreen";
+
+            // Re-inset buttons after rotation lands
+            Device.StartTimer(TimeSpan.FromMilliseconds(400), () =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    VideoOverlayInsets.Apply(FullscreenButton, VideoCloseButton);
+                    if (FullscreenIcon != null)
+                        FullscreenIcon.Source = FullscreenVideo.IsActive
+                            ? "icon_exit_fullscreen"
+                            : "icon_fullscreen";
+                });
+                return false;
+            });
         }
         catch (Exception ex)
         {
@@ -1746,8 +2106,11 @@ private void HideVideoLoading()
         {
             if (Vm == null)
                 return true;
+            // Manga keeps Reviews (3), Recs (4) and Related (5); only Episodes (1), OP/ED (2)
+            // and Staff (7) are anime-only. This has to agree with
+            // ApplyTabStripVisibility*, or a tab answers as visible while its label is gone.
             if (!Vm.AnimeMode)
-                return index is not (1 or 2 or 3 or 4 or 5 or 7);
+                return index is not (1 or 2 or 7);
             if (index == 2)
                 return Vm.OpEdVisible;
             if (Vm.Type?.Equals("Movie", StringComparison.OrdinalIgnoreCase) == true)
@@ -2034,7 +2397,7 @@ private void HideVideoLoading()
     private delegate TCard TCardFactory<TSource, TCard>(TSource source);
 
     private static void GrowImageTab<TSource, TCard>(IReadOnlyList<TSource> source, ObservableCollection<TCard> target,
-        ref int shown, TCardFactory<TSource, TCard> factory, int cap = MALClient.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxCharacterPairs)
+        ref int shown, TCardFactory<TSource, TCard> factory, int cap = MALPlus.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxCharacterPairs)
     {
         if (source == null || target == null)
             return;
@@ -2134,17 +2497,17 @@ private void HideVideoLoading()
         {
             AnimeCharacter = pair?.AnimeCharacter;
             AnimeStaffPerson = pair?.AnimeStaffPerson;
-            var character = AnimeCharacter?.Data as MALClient.Models.Models.Favourites.AnimeCharacter;
+            var character = AnimeCharacter?.Data as MALPlus.Models.Models.Favourites.AnimeCharacter;
             Role = character?.Role ?? string.Empty;
             Favorites = character?.Favorites ?? 0;
             // Only the Japanese seiyuu. Tenrai hands over up to 32 voice actors per character
             // across ten languages, and the card has room for exactly one row.
             JapaneseVoice =
                 (pair?.VoiceActors ?? new List<FavouriteViewModel>())
-                .FirstOrDefault(actor => actor?.Data is MALClient.Models.Models.Favourites.AnimeStaffPerson va &&
+                .FirstOrDefault(actor => actor?.Data is MALPlus.Models.Models.Favourites.AnimeStaffPerson va &&
                                         string.Equals(va.Language, "Japanese", StringComparison.OrdinalIgnoreCase))
                 ?? (pair?.VoiceActors ?? new List<FavouriteViewModel>()).FirstOrDefault(actor => actor?.Data != null);
-            VoiceFavorites = (JapaneseVoice?.Data as MALClient.Models.Models.Favourites.AnimeStaffPerson)?.Favorites ?? 0;
+            VoiceFavorites = (JapaneseVoice?.Data as MALPlus.Models.Models.Favourites.AnimeStaffPerson)?.Favorites ?? 0;
         }
 
         public FavouriteViewModel AnimeCharacter { get; }
@@ -2185,7 +2548,7 @@ private void HideVideoLoading()
         public StaffCard(FavouriteViewModel person)
         {
             Person = person;
-            var staff = person?.Data as MALClient.Models.Models.Favourites.AnimeStaffPerson;
+            var staff = person?.Data as MALPlus.Models.Models.Favourites.AnimeStaffPerson;
             PrimaryPosition = staff?.PrimaryPosition ?? string.Empty;
             ExtraPositions = staff?.ExtraPositions ?? 0;
             // Up to two lines of roles, the rest folded into a count so a six role person
@@ -2221,7 +2584,7 @@ private void HideVideoLoading()
         public MangaCharacterCard(FavouriteViewModel character)
         {
             Character = character;
-            var data = character?.Data as MALClient.Models.Models.Favourites.AnimeCharacter;
+            var data = character?.Data as MALPlus.Models.Models.Favourites.AnimeCharacter;
             Role = data?.Role ?? string.Empty;
             Favorites = data?.Favorites ?? 0;
         }

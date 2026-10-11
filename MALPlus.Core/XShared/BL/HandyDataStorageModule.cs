@@ -6,12 +6,12 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
     public class HandyDataStorageModule<T> : IHandyDataStorageModule<T>
     {

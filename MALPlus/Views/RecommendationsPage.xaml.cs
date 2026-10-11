@@ -1,7 +1,9 @@
-using MALClient.Models.Enums;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
+using System.ComponentModel;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Views;
 
@@ -25,11 +27,10 @@ public partial class RecommendationsPage : ContentPage
         {
             Vm.CurrentWorkMode = RecommendationsPageWorkMode.Anime;
             await WaitForLoad();
-            ItemsList.ItemsSource = Vm.RecommendationAnimeItems;
         }
         catch (Exception ex)
         {
-            Console.WriteLine("MALPLUS RecommendationsPage Init failed: " + ex.Message);
+            Console.WriteLine("MALPlus RecommendationsPage Init failed: " + ex.Message);
         }
     }
 
@@ -42,87 +43,69 @@ public partial class RecommendationsPage : ContentPage
         }
     }
 
+    /// <summary>
+    ///     Opens whichever entry the tap landed on.
+    /// </summary>
+    /// <remarks>
+    ///     Same route the poster grids use everywhere else: the arguments go through the handoff first
+    ///     and the query string only carries what the shell needs to find the page, so the manga tab
+    ///     cannot open an anime and the other way round.
+    /// </remarks>
+    private async void OpenEntry(AnimeItemViewModel model)
+    {
+        if (model == null || model.Id <= 0)
+            return;
+        try
+        {
+            var anime = Vm.CurrentWorkMode == RecommendationsPageWorkMode.Anime;
+            var titleQs = Uri.EscapeDataString(model.Title ?? string.Empty);
+
+            MALPlus.Services.MauiDetailsNavigationHandoff.Set(
+                new AnimeDetailsPageNavigationArgs(model.Id, model.Title, null, null, null)
+                {
+                    AnimeMode = anime,
+                    Source = PageIndex.PageRecomendations
+                });
+
+            var query = anime ? string.Empty : "&manga=true";
+            await Shell.Current.GoToAsync($"animedetails?id={model.Id}&title={titleQs}{query}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPlus recommendation tap failed: " + ex.Message);
+        }
+    }
+
+    /// <summary>The "If you liked..." cover: opens the entry the recommendation hangs off.</summary>
+    private void OnDependentTapped(object sender, TappedEventArgs e) => OpenEntry(Vm.DependentItem);
+
+    /// <summary>The "then you might like" cover: opens the entry being recommended.</summary>
+    private void OnRecommendedTapped(object sender, TappedEventArgs e) => OpenEntry(Vm.RecommendedItem);
+
+    private void OnPreviousClicked(object sender, EventArgs e) => Vm.GoToPreviousItemCommand.Execute(null);
+
+    private void OnNextClicked(object sender, EventArgs e) => Vm.GoToNextItemCommand.Execute(null);
+
     private void OnModeClicked(object sender, EventArgs e)
     {
         try
         {
             if (sender is Button b && b.CommandParameter is string s)
             {
-                if (s == "Anime")
-                {
-                    Vm.CurrentWorkMode = RecommendationsPageWorkMode.Anime;
-                    AnimeTab.BackgroundColor = Color.FromArgb("#0066FF");
-                    AnimeTab.TextColor = Colors.White;
-                    MangaTab.BackgroundColor = Colors.Transparent;
-                    MangaTab.TextColor = Color.FromArgb("#FFFFFF");
-                    ItemsList.ItemsSource = Vm.RecommendationAnimeItems;
-                }
-                else
-                {
-                    Vm.CurrentWorkMode = RecommendationsPageWorkMode.Manga;
-                    MangaTab.BackgroundColor = Color.FromArgb("#0066FF");
-                    MangaTab.TextColor = Colors.White;
-                    AnimeTab.BackgroundColor = Colors.Transparent;
-                    AnimeTab.TextColor = Color.FromArgb("#FFFFFF");
-                    ItemsList.ItemsSource = Vm.RecommendationMangaItems;
-                }
+                var anime = s == "Anime";
+                Vm.CurrentWorkMode = anime
+                    ? RecommendationsPageWorkMode.Anime
+                    : RecommendationsPageWorkMode.Manga;
+
+                AnimeTab.BackgroundColor = anime ? Color.FromArgb("#0066FF") : Colors.Transparent;
+                AnimeTab.TextColor = anime ? Colors.White : Color.FromArgb("#FFFFFF");
+                MangaTab.BackgroundColor = anime ? Colors.Transparent : Color.FromArgb("#0066FF");
+                MangaTab.TextColor = anime ? Color.FromArgb("#FFFFFF") : Colors.White;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("MALPLUS rec mode switch failed: " + ex.Message);
-        }
-    }
-
-    private void OnRefreshing(object sender, EventArgs e)
-    {
-        try
-        {
-            if (Vm.CurrentWorkMode == RecommendationsPageWorkMode.Anime)
-            {
-                Vm.RecommendationAnimeItems = null;
-                Vm.CurrentWorkMode = RecommendationsPageWorkMode.Anime;
-            }
-            else
-            {
-                Vm.RecommendationMangaItems = null;
-                Vm.CurrentWorkMode = RecommendationsPageWorkMode.Manga;
-            }
-        }
-        catch { }
-    }
-
-    private async void OnOpenClicked(object sender, EventArgs e)
-    {
-        try
-        {
-            if (sender is Button b && b.CommandParameter is RecommendationsViewModel.XPivotItem item)
-            {
-                // Open the dependent title (first one in the pair)
-                var rec = item.Content as RecommendationItemViewModel;
-                if (rec != null)
-                {
-                    // Manga entries were opening in anime mode: AnimeMode defaults to
-                    // true and this route never carried manga=true.
-                    var anime = rec.Data.IsAnime;
-                    if (anime)
-                    {
-                        MALPlus.Services.MauiDetailsNavigationHandoff.Set(
-                            new AnimeDetailsPageNavigationArgs(rec.Data.DependentId, rec.Data.DependentTitle, null, null, null)
-                            {
-                                AnimeMode = true,
-                                Source = PageIndex.PageRecomendations
-                            });
-                    }
-                    var query = anime ? string.Empty : "&manga=true";
-                    await Shell.Current.GoToAsync(
-                        $"animedetails?id={rec.Data.DependentId}&title={System.Uri.EscapeDataString(rec.Data.DependentTitle ?? "")}{query}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("MALPLUS rec open failed: " + ex.Message);
+            Console.WriteLine("MALPlus rec mode switch failed: " + ex.Message);
         }
     }
 }

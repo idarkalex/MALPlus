@@ -119,38 +119,10 @@
                      it, so switching between a status and a season is not a visual change. The extra
                      8dp before the year is what separates the two groups without a rule or a gap
                      that would only matter when both are visible. -->
-                <HorizontalStackLayout x:Name="SeasonSelectors" Grid.Column="0" Spacing="16"
-                                       VerticalOptions="Center" IsVisible="False">
-                    <HorizontalStackLayout Spacing="2" VerticalOptions="Center">
-                        <Label x:Name="SeasonLabel" Text="Fall"
-                               FontFamily="InterSemiBold" FontSize="16"
-                               TextColor="{StaticResource BrushText}"
-                               VerticalOptions="Center" LineBreakMode="TailTruncation" />
-                        <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
-                                BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
-                            <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
-                                   HorizontalOptions="Center" VerticalOptions="Center" />
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnSeasonMenuTapped" />
-                            </Border.GestureRecognizers>
-                        </Border>
-                    </HorizontalStackLayout>
-
-                    <HorizontalStackLayout Spacing="2" VerticalOptions="Center">
-                        <Label x:Name="YearLabel" Text="2026"
-                               FontFamily="InterSemiBold" FontSize="16"
-                               TextColor="{StaticResource BrushText}"
-                               VerticalOptions="Center" />
-                        <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
-                                BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
-                            <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
-                                   HorizontalOptions="Center" VerticalOptions="Center" />
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnYearMenuTapped" />
-                            </Border.GestureRecognizers>
-                        </Border>
-                    </HorizontalStackLayout>
-                </HorizontalStackLayout>
+                <controls:SeasonYearSelector x:Name="SeasonSelectors" Grid.Column="0"
+                                       SeasonRequested="OnSeasonPickerRequested"
+                                       YearRequested="OnYearPickerRequested"
+                                       IsVisible="False" />
 
                 <!-- Fills what the magnifier leaves behind, so it reaches the right edge of the bar
                      instead of floating in the middle with dead space beside it. It used to sit in an

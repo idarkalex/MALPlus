@@ -1,7 +1,7 @@
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Views;
 
@@ -24,6 +24,31 @@ public partial class ProfilePage : ContentPage
         {
             System.Diagnostics.Debug.WriteLine("MALPLUS add friend failed: " + ex.Message);
         }
+    }
+
+    /// <summary>
+    ///     Switches the four profile tabs. The tab index is a plain number the view model raises,
+    ///     and each pane's IsVisible is bound to it through the equality converter, so nothing
+    ///     here has to touch the panes themselves.
+    /// </summary>
+    private void OnProfileTabTapped(object sender, TappedEventArgs e)
+    {
+        if (e?.Parameter is not string raw || !int.TryParse(raw, out var index))
+            return;
+        Vm.SelectedTab = index;
+        ApplyProfileTabColors();
+    }
+
+    private void ApplyProfileTabColors()
+    {
+        if (TabGeneral == null || TabFavourites == null || TabRecent == null || TabStats == null)
+            return;
+        var selected = Vm?.SelectedTab ?? 0;
+        var tabs = new[] { TabGeneral, TabFavourites, TabRecent, TabStats };
+        for (var i = 0; i < tabs.Length; i++)
+            tabs[i].TextColor = i == selected
+                ? Color.FromArgb("#0066FF")
+                : Color.FromArgb("#B3FFFFFF");
     }
 
     public ProfilePage()
@@ -49,6 +74,9 @@ public partial class ProfilePage : ContentPage
         {
             await Vm.LoadProfileData(args);
             System.Diagnostics.Debug.WriteLine("MALPLUS ProfilePage LoadProfileData completed");
+            // LoadProfileData resets the tab to 0 for a new profile, so the colours are read back
+            // here rather than assumed.
+            ApplyProfileTabColors();
         }
         catch (Exception ex)
         {
@@ -169,7 +197,7 @@ public partial class ProfilePage : ContentPage
 
     private async void OnFriendTapped(object sender, SelectionChangedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is MALClient.Models.Models.MalUser user)
+        if (e.CurrentSelection.FirstOrDefault() is MALPlus.Models.Models.MalUser user)
         {
             ((CollectionView)sender).SelectedItem = null;
             await Shell.Current.GoToAsync($"profile?user={Uri.EscapeDataString(user.Name)}");

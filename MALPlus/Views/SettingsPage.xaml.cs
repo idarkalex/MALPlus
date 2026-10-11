@@ -8,8 +8,13 @@ public partial class SettingsPage : ContentPage
     private bool _initialized;
     private SettingsViewModelBase Vm => (SettingsViewModelBase)BindingContext;
 
-    /// <summary>Mirrors LogInViewModel.LogOutButtonVisibility so the row only shows when signed in.</summary>
-    public bool LogOutButtonVisibility => MALPlus.XShared.Utils.Credentials.Authenticated;
+    /// <summary>
+    ///     Whether the sign-out row is offered: a live session, or anything still stored for the
+    ///     account. Hiding it on <c>Authenticated</c> alone took the only way out away exactly when
+    ///     a session had gone stale but the vault entry, the username and the website cookies were
+    ///     all still on the device.
+    /// </summary>
+    public bool LogOutButtonVisibility => MALPlus.XShared.Utils.Credentials.HasStoredAccount();
 
     public SettingsPage()
     {
@@ -44,8 +49,32 @@ public partial class SettingsPage : ContentPage
     {
         base.OnAppearing();
         UpdateAccountHeader();
+        UpdateCacheCount();
         if (_initialized) return;
         _initialized = true;
+    }
+
+    /// <summary>
+    ///     Shows how many files the cache holds, which is what "Clear caches" removes.
+    /// </summary>
+    /// <remarks>
+    ///     The label was bound to a property nothing ever assigned, so it read "N/A files cached" and
+    ///     had for as long as this page existed.
+    /// </remarks>
+    private void UpdateCacheCount()
+    {
+        try
+        {
+            var cache = MALPlus.XShared.ViewModels.ResourceLocator.DataCacheService as MALPlus.Services.MauiDataCache;
+            var files = cache?.CountCachedFiles() ?? 0;
+            CacheCountLabel.Text = files > 0
+                ? $"{files} files cached"
+                : "No cached files yet";
+        }
+        catch
+        {
+            // A count is not worth failing a settings page over.
+        }
     }
 
     private void UpdateAccountHeader()
@@ -57,16 +86,16 @@ public partial class SettingsPage : ContentPage
             ? "Not signed in"
             : $"Signed in as {name}";
         if (LogOutButton != null)
-            LogOutButton.IsVisible = MALPlus.XShared.Utils.Credentials.Authenticated;
+            LogOutButton.IsVisible = LogOutButtonVisibility;
     }
 
     private async void OnLogOutClicked(object sender, EventArgs e)
     {
         try
         {
-            var ok = await DisplayAlert("Sign out",
+            var ok = await OptionsSheetHost.ConfirmAsync("Sign out",
                 "You will need to sign in again, and the forums, clubs and wall will stay unavailable until then.",
-                "Sign out", "Cancel");
+                "Sign out", destructive: true);
             if (!ok)
                 return;
 
@@ -94,9 +123,9 @@ public partial class SettingsPage : ContentPage
     {
         try
         {
-            var ok = await DisplayAlert("Clear caches",
-                "This will remove all locally cached data and force a fresh fetch on the next open. Continue?",
-                "Clear", "Cancel");
+            var ok = await OptionsSheetHost.ConfirmAsync("Clear caches",
+                "This will remove all locally cached data and force a fresh fetch on the next open.",
+                "Clear", destructive: true);
             if (!ok) return;
             // Best-effort: ask the SimpleIoc-resolved data cache to invalidate.
             try
@@ -104,6 +133,10 @@ public partial class SettingsPage : ContentPage
                 await ResourceLocator.DataCacheService.ClearApiRelatedCache();
             }
             catch { }
+
+            // Re-counted straight away: the label described what a clear would remove, so leaving the
+            // old number up made it look like the button had done nothing.
+            UpdateCacheCount();
         }
         catch (Exception ex)
         {

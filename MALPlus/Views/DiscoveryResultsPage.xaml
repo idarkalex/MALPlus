@@ -1,18 +1,14 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
              xmlns:converters="clr-namespace:MALPlus.Converters"
              x:Class="MALPlus.Views.DiscoveryResultsPage"
+             x:Name="ResultsPage"
              BackgroundColor="{StaticResource EmBackground}">
 
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImgConv" />
-        <Style x:Key="PanelStyle" TargetType="Border">
-            <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
-            <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
-            <Setter Property="StrokeThickness" Value="1" />
-            <Setter Property="StrokeShape" Value="RoundRectangle 10" />
-        </Style>
     </ContentPage.Resources>
 
     <Grid>
@@ -26,29 +22,89 @@
                         WidthRequest="40" HeightRequest="40" Padding="0" />
             </Grid>
 
-            <CollectionView x:Name="ResultsList" Grid.Row="1" Margin="12,0"
-                            SelectionMode="Single" SelectionChanged="OnItemSelected">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Border Margin="6,4" Style="{StaticResource PanelStyle}" Padding="10">
-                            <Grid ColumnDefinitions="64,*" ColumnSpacing="12">
-                                <Border Grid.Column="0" WidthRequest="64" HeightRequest="64"
-                                        StrokeShape="RoundRectangle 8" IsVisible="True">
-                                    <Image Aspect="AspectFill"
-                                           Source="{Binding ImgUrl, Converter={StaticResource ImgConv}}" />
-                                </Border>
-                                <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
-                                    <Label Text="{Binding Title}" FontFamily="InterSemiBold" FontSize="15"
-                                           TextColor="{StaticResource BrushText}" MaxLines="2"
-                                           LineBreakMode="TailTruncation" />
-                                    <Label Text="{Binding Subtitle}" FontFamily="Inter" FontSize="12"
-                                           TextColor="#A0FFFFFF" MaxLines="1" LineBreakMode="TailTruncation" />
-                                </VerticalStackLayout>
+<!-- The gem is one hero card, not a row in the list: a 64px thumbnail for the single
+                         recommendation the week is a poor use of the space. Everything else keeps
+                         the compact list. -->
+              <ScrollView Grid.Row="1" Margin="12,0" IsVisible="{Binding IsHeroVisible}">
+                  <Border Margin="6,4" Style="{StaticResource PanelStyle}" Padding="0"
+                          StrokeShape="RoundRectangle 20">
+                      <Grid>
+                          <Grid.RowDefinitions>
+                              <RowDefinition Height="Auto" />
+                              <RowDefinition Height="Auto" />
+                          </Grid.RowDefinitions>
+                          <Grid Grid.Row="0" HeightRequest="340">
+                              <Image Aspect="AspectFill"
+                                     Source="{Binding HeroImgUrl, Converter={StaticResource ImgConv}}" />
+                              <Border VerticalOptions="End" HeightRequest="140">
+                                  <Border.Background>
+                                      <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                          <GradientStop Color="#00000000" Offset="0.35" />
+                                          <GradientStop Color="#E6051522" Offset="1" />
+                                      </LinearGradientBrush>
+                                  </Border.Background>
+                              </Border>
+                          </Grid>
+                          <VerticalStackLayout Grid.Row="1" Padding="16,4,16,16" Spacing="5">
+                              <Label Text="{Binding HeroTitle}" FontFamily="InterBold" FontSize="20"
+                                     TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
+                              <Label Text="{Binding HeroSubtitle}" FontFamily="InterSemiBold" FontSize="13"
+                                     TextColor="#7AB4FF" MaxLines="1" LineBreakMode="TailTruncation" />
+                              <Label Text="Open in MyAnimeList to add it to your list." FontFamily="Inter"
+                                     FontSize="12" TextColor="#80FFFFFF" />
+                          </VerticalStackLayout>
+                          <Border.GestureRecognizers>
+                              <TapGestureRecognizer Tapped="OnHeroTapped" />
+                          </Border.GestureRecognizers>
+                      </Grid>
+                  </Border>
+              </ScrollView>
+
+<CollectionView x:Name="ResultsList" Grid.Row="1" Margin="12,0"
+                                IsVisible="{Binding IsListVisible}"
+                                SelectionMode="Single" SelectionChanged="OnItemSelected">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <!-- The poster is the app's own, sized by the poster grid's own constants so a row here
+                                 cannot drift from the library's. TitleOverlay is off because the name
+                                 belongs beside the artwork rather than scrimmed across it.
+                                 The chips are the type, the mean score and the library badge, which is
+                                 what every other poster in the app carries; a bare poster here read as a
+                                 different kind of item from the one on the list.
+                                 The gap between artwork and text lives on the two-column Grid, which is
+                                 the one that has two columns to space: it used to sit on the wrapping
+                                 Grid, which has a single implicit column and so drew no gap at all.
+
+                                 The row carries a solid background on purpose: a Grid holding only a
+                                 recognizer is transparent to touches and the taps fall through. -->
+                            <Grid BackgroundColor="Transparent" Padding="4,4">
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRowTapped" CommandParameter="{Binding .}" />
+                                </Grid.GestureRecognizers>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                                    <controls:AnimePosterCard
+                                        HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
+                                        WidthRequest="{Binding Source={x:Reference ResultsPage}, Path=PosterCellWidth}"
+                                        PosterUrl="{Binding ImgUrl}"
+                                        Title="{Binding Title}"
+                                        TitleOverlay="False"
+                                        TypeTag="{Binding TypeTag}"
+                                        ScoreTag="{Binding CardScore}"
+                                        BadgeVisible="True"
+                                        BadgeAccent="{Binding LibraryBadgeAccent}"
+                                        BadgeMain="{Binding LibraryBadgeMain}" />
+                                    <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
+                                        <Label Text="{Binding Title}" FontFamily="InterSemiBold" FontSize="15"
+                                               TextColor="{StaticResource BrushText}" MaxLines="2"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding Subtitle}" FontFamily="Inter" FontSize="12"
+                                               TextColor="#A0FFFFFF" MaxLines="2" LineBreakMode="TailTruncation" />
+                                    </VerticalStackLayout>
+                                </Grid>
                             </Grid>
-                        </Border>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
 
             <ActivityIndicator x:Name="Busy" Grid.Row="1" IsRunning="False" Color="#0066FF"
                                VerticalOptions="Center" HorizontalOptions="Center" />
@@ -62,8 +118,8 @@
             <!-- The WebView is added at runtime. This overlay declares no RowDefinitions, so MAUI
                  keeps every child in the single implicit row and Grid.SetRow is ignored: the close
                  button therefore needs an explicit ZIndex to stay above the video. -->
-            <Border HorizontalOptions="Start" VerticalOptions="Start"
-                    Margin="10,10,0,0" WidthRequest="40" HeightRequest="40" ZIndex="20"
+<Border x:Name="FullscreenButton" HorizontalOptions="Start" VerticalOptions="Start"
+                        Margin="10,10,0,0" WidthRequest="40" HeightRequest="40" ZIndex="20"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
                     StrokeShape="RoundRectangle 20">
                 <Border.GestureRecognizers>
@@ -72,9 +128,9 @@
                 <Image x:Name="FullscreenIcon" Source="icon_fullscreen" WidthRequest="22" HeightRequest="22"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-            <Border HorizontalOptions="End" VerticalOptions="Start"
-                    Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
-                    ZIndex="20"
+<Border x:Name="VideoCloseButton" HorizontalOptions="End" VerticalOptions="Start"
+                        Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
+                        ZIndex="20"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
                     StrokeShape="RoundRectangle 20">
                 <Border.GestureRecognizers>

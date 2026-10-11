@@ -5,14 +5,14 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Forums;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Forums;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Forums
+namespace MALPlus.XShared.ViewModels.Forums
 {
     public class ForumsMainViewModel : ViewModelBase
     {
@@ -66,13 +66,6 @@ namespace MALClient.XShared.ViewModels.Forums
             =>
                 _navigateRecentTopicsCommand ??
                 (_navigateRecentTopicsCommand = new RelayCommand(GotoMyRecentTopics));
-
-        private ICommand _navigateMalClientTopicsCommand;
-
-        public ICommand NavigateMalClientTopicsCommand
-            =>
-                _navigateMalClientTopicsCommand ??
-                (_navigateMalClientTopicsCommand = new RelayCommand(GotoMalClientTopic));
 
         private ICommand _navigateWatchedTopicsCommand;
 
@@ -204,21 +197,6 @@ namespace MALClient.XShared.ViewModels.Forums
                 CurrentBackNavRegistrar.RegisterSelfBackNav();
             }
             ViewModelLocator.GeneralMain.Navigate(PageIndex.PageForumIndex, new ForumsBoardNavigationArgs(ForumBoardPageWorkModes.WatchedTopics));
-        }
-
-        private void GotoMalClientTopic()
-        {
-            if (CurrentBackNavRegistrar == null)
-            {
-                ViewModelLocator.NavMgr.ResetMainBackNav();
-                ViewModelLocator.NavMgr.RegisterBackNav(PageIndex.PageForumIndex, new ForumsNavigationArgs());
-                ViewModelLocator.NavMgr.RegisterBackNav(PageIndex.PageForumIndex, new ForumsBoardNavigationArgs(ForumBoardPageWorkModes.WatchedTopics));
-            }
-            else
-            {
-                CurrentBackNavRegistrar.RegisterSelfBackNav();
-            }
-            ViewModelLocator.GeneralMain.Navigate(PageIndex.PageForumIndex, new ForumsTopicNavigationArgs("1626591", null));
         }
 
         private void GotoStarredMessages()

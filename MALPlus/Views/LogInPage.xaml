@@ -15,8 +15,13 @@
                    FontFamily="Inter" FontSize="14" />
             <Entry x:Name="PassEntry" Placeholder="Password" Text="{Binding PasswordInput}" IsPassword="True"
                    FontFamily="Inter" FontSize="14" />
-            <Button x:Name="SignInButton" Text="Sign in" Clicked="OnAutoSignInClicked"
-                    FontFamily="InterSemiBold" FontSize="14" />
+<!-- One way in. The username and password are typed here, our form fills MyAnimeList's own
+                         login page behind the scenes, and the privacy notice, the OAuth consent and
+                         the token exchange are all accepted without the user ever seeing MAL's
+                         pages. There is deliberately no second "quick" button: asking MAL over plain
+                         HTTP only ever answered 400, so it was a path that could never work. -->
+                     <Button x:Name="SignInButton" Text="Sign in" Clicked="OnAutoSignInClicked"
+                             FontFamily="InterSemiBold" FontSize="14" />
             <ActivityIndicator x:Name="BusySpinner" IsRunning="False" IsVisible="False"
                                Color="{StaticResource EmAccent}" HorizontalOptions="Center" />
             <Label x:Name="StatusLabel" IsVisible="False" FontFamily="Inter" FontSize="13"
@@ -25,10 +30,14 @@
             <Button Text="Log out" Command="{Binding LogOutCommand}"
                     IsVisible="{Binding LogOutButtonVisibility}"
                     FontFamily="InterSemiBold" FontSize="14" />
-            <Button x:Name="ManualLoginButton" Text="Sign in on the MyAnimeList site"
-                    Clicked="OnManualLoginClicked" IsVisible="False"
-                    FontFamily="Inter" FontSize="12" BackgroundColor="Transparent"
-                    TextColor="{StaticResource EmAccent}" />
+<!-- Always available, never conditional. This is the way past a captcha: it hands MAL's own
+                         login form to the user instead of filling it. It used to appear only after
+                         the automatic sign-in had already failed, which meant the one route that
+                         always works could not be reached until something was already broken. -->
+                     <Button x:Name="ManualLoginButton" Text="Use the MyAnimeList site instead"
+                             Clicked="OnManualLoginClicked"
+                             FontFamily="Inter" FontSize="12" BackgroundColor="Transparent"
+                             TextColor="{StaticResource EmAccent}" />
             <Button Text="Create account on myanimelist.net" Command="{Binding NavigateRegister}"
                     FontFamily="Inter" FontSize="12" BackgroundColor="Transparent"
                     TextColor="{StaticResource EmAccent}" />
@@ -47,6 +56,24 @@
                    Margin="16,4" HorizontalTextAlignment="Center" />
             <WebView x:Name="AuthWebView" Grid.Row="2"
                      Navigating="OnAuthNavigating" Navigated="OnAuthNavigated" />
+            <!-- A WebView that is handed a user agent too late, or that failed to reach the page,
+                 renders nothing at all: a blank white rectangle with no error. This says what
+                 happened instead, because the manual sign-in is the last way into the app and a
+                 blank box there is indistinguishable from a broken build. -->
+            <VerticalStackLayout Grid.Row="2" x:Name="WebEmptyState" IsVisible="False"
+                                 BackgroundColor="#051522" Spacing="10"
+                                 HorizontalOptions="Center" VerticalOptions="Center" Margin="28">
+                <Label Text="The MyAnimeList page did not load" FontFamily="InterSemiBold" FontSize="15"
+                       TextColor="{StaticResource BrushText}" HorizontalTextAlignment="Center" />
+                <Label Text="Check your connection and try again. Nothing has been sent to MyAnimeList."
+                       FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF"
+                       HorizontalTextAlignment="Center" />
+                <Button Text="Retry" Clicked="OnWebRetryClicked"
+                        FontFamily="InterSemiBold" FontSize="13"
+                        BackgroundColor="{StaticResource EmSheet}" TextColor="{StaticResource BrushText}"
+                        BorderColor="{StaticResource EmBorder}" BorderWidth="1"
+                        CornerRadius="10" Padding="16,8" HorizontalOptions="Center" />
+            </VerticalStackLayout>
         </Grid>
     </Grid>
     </Grid>

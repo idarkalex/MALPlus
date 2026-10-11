@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Adapters;
-using MALClient.XShared.Interfaces;
+using MALPlus.Adapters;
+using MALPlus.XShared.Interfaces;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
 
     public class EnglishTitlesProvider : IEnglishTitlesProvider

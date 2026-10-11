@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+     Which season and which year, as one control.
+
+     This used to live inside the anime list page, where it could only ever serve that page: its rows
+     were entries in that page's dropdown overlay and its years came from a view model that refused to
+     load them unless the page happened to be on the seasonal work mode. Any other page that wanted
+     the same two choices rebuilt both from nothing, and two copies of a year list drift apart.
+
+     It carries the two words, the shared year list and the marks, and asks the host to show the
+     choices. The rows themselves stay in the host on purpose: a panel belonging to a control this
+     small would be clipped to the control's own bounds, which on Android means the menu would be
+     drawn behind the bar and never seen. Every page that uses this already has an overlay to draw a
+     dropdown into.
+
+     Same shape as the status word and the subcategory dropdown, deliberately: a 16sp label with its
+     chevron touching it, and the same sixteen between the two groups.
+-->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MALPlus.Controls.SeasonYearSelector"
+             x:Name="Root">
+    <HorizontalStackLayout Spacing="16" VerticalOptions="Center">
+        <HorizontalStackLayout Spacing="2" VerticalOptions="Center">
+            <Label x:Name="SeasonLabel" Text="Fall"
+                   FontFamily="InterSemiBold" FontSize="16"
+                   TextColor="{StaticResource BrushText}"
+                   VerticalOptions="Center" LineBreakMode="TailTruncation" />
+            <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
+                    BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnSeasonTapped" />
+                </Border.GestureRecognizers>
+            </Border>
+        </HorizontalStackLayout>
+
+        <HorizontalStackLayout Spacing="2" VerticalOptions="Center">
+            <Label x:Name="YearLabel" Text="2026"
+                   FontFamily="InterSemiBold" FontSize="16"
+                   TextColor="{StaticResource BrushText}"
+                   VerticalOptions="Center" />
+            <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
+                    BackgroundColor="#14FFFFFF" Padding="0" VerticalOptions="Center">
+                <Image Source="icon_arrow_down_solid" WidthRequest="28" HeightRequest="28"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnYearTapped" />
+                </Border.GestureRecognizers>
+            </Border>
+        </HorizontalStackLayout>
+    </HorizontalStackLayout>
+</ContentView>

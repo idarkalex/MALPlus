@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Forums;
-using MALClient.Models.Models.Notifications;
-using MALClient.XShared.Interfaces;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Forums;
+using MALPlus.Models.Models.Notifications;
+using MALPlus.XShared.Interfaces;
 
-namespace MALClient.XShared.ViewModels.Interfaces
+namespace MALPlus.XShared.ViewModels.Interfaces
 {
     public interface IHandyDataStorage
     {

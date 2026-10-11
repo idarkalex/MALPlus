@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.Favourites;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.Favourites;
 
-namespace MALClient.Models.Models.ScrappedDetails
+namespace MALPlus.Models.Models.ScrappedDetails
 {
     public class CharacterDetailsData
     {

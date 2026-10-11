@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
-using MALClient.BBCode.SyntaxTree;
+using MALPlus.BBCode.SyntaxTree;
 
-namespace MALClient.BBCode
+namespace MALPlus.BBCode
 {
     public static class BBCode
     {

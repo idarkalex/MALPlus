@@ -4,15 +4,15 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.Models.Models.Favourites;
-using MALClient.Models.Models.ScrappedDetails;
-using MALClient.XShared.Comm.Details;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.NavArgs;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.Models.Models.ScrappedDetails;
+using MALPlus.XShared.Comm.Details;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.NavArgs;
 
-namespace MALClient.XShared.ViewModels.Details
+namespace MALPlus.XShared.ViewModels.Details
 {
     public class StaffDetailsViewModel : ViewModelBase
     {

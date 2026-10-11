@@ -2,7 +2,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace MALClient.Models.Models.MalSpecific
+namespace MALPlus.Models.Models.MalSpecific
 {
     public enum MalNewsType
     {

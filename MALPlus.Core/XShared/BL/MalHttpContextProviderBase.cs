@@ -9,14 +9,14 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
-using MALClient.XShared.Comm.MagicalRawQueries;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
     public abstract class MalHttpContextProviderBase : IMalHttpContextProvider
     {
@@ -29,21 +29,42 @@ namespace MALClient.XShared.BL
         private DateTime _lastRefresh = DateTime.MinValue;
         private Exception _exc;
 
-        public void SetCookies(string cookies)
+public void SetCookies(string cookies)
         {
-            if (_httpClient != null)
-            {
-                foreach (var cookie in cookies.Split(';'))
-                {
-                    var tokens = cookie.Split('=');
-                    try
-                    {
-                        _httpClient.Handler.CookieContainer.Add(new Cookie(HttpUtility.UrlEncode(tokens[0].Trim()), HttpUtility.UrlEncode(tokens[1].Trim()), "/", "myanimelist.net"));
-                    }
-                    catch (Exception e)
-                    {
+            if (_httpClient == null || string.IsNullOrWhiteSpace(cookies))
+                return;
 
-                    }
+            foreach (var cookie in cookies.Split(';'))
+            {
+                // Up to the first '=' only, never Split('='). A session cookie's own value contains
+                // '=', and splitting on every one of them kept only the first fragment, which was the
+                // cookie that then failed to authenticate.
+                if (string.IsNullOrWhiteSpace(cookie))
+                    continue;
+                var equals = cookie.IndexOf('=');
+                if (equals <= 0)
+                    continue;
+
+                var name = cookie.Substring(0, equals).Trim();
+                var value = cookie.Substring(equals + 1).Trim();
+                if (name.Length == 0 || value.Length == 0)
+                    continue;
+
+                try
+                {
+                    // The cookie goes in exactly as it came out. It used to be UrlEncoded here, which
+                    // turned a live value into a different string and invalidated it outright: MAL then
+                    // answered the request with the login page, and everything that followed read that
+                    // as "the session is gone" rather than "the cookie was mangled on the way in".
+                    _httpClient.Handler.CookieContainer.Add(
+                        new Cookie(name, value, "/", "myanimelist.net"));
+                }
+                catch (Exception ex)
+                {
+                    // Logged, not swallowed. A silently dropped cookie is indistinguishable from a
+                    // bad one later on, and this is the first place either would show up.
+                    System.Diagnostics.Debug.WriteLine(
+                        "MALPLUS cookie dropped: " + name + " :: " + ex.GetType().Name);
                 }
             }
         }
@@ -184,11 +205,14 @@ namespace MALClient.XShared.BL
             }
             catch (Exception e)
             {
-
                 _exc = e;
 
-                if (e.Message.Contains("Unable to authorize"))
+                // Once, not once per screen. Every page that could not get a context used to draw its
+                // own notice, so a single failure at startup grew into one banner per page the reader
+                // opened, all saying the same thing about the same session.
+                if (e.Message.Contains("Unable to authorize") && !_warnedAboutAuth)
                 {
+                    _warnedAboutAuth = true;
                     ResourceLocator.DispatcherAdapter.Run(
                         () =>
                         {
@@ -208,6 +232,17 @@ namespace MALClient.XShared.BL
                 _semaphoreSlim.Release();
             }
         }
+
+        /// <summary>
+        ///     Whether the reader has already been told the website session could not be authorised.
+        /// </summary>
+        private static bool _warnedAboutAuth;
+
+        /// <summary>
+        ///     Clears the "already warned" flag, so a session that starts working again can warn again
+        ///     if it later stops.
+        /// </summary>
+        public void ResetAuthWarning() => _warnedAboutAuth = false;
 
         public void Invalidate()
         {

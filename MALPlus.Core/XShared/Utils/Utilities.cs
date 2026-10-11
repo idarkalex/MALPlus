@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
+using MALPlus.Models.Enums;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     public static class Utilities
     {

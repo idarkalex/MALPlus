@@ -1026,8 +1026,6 @@ namespace MALPlus.XShared.ViewModels.Main
 
         private async Task LoadMoreCore()
         {
-            Console.WriteLine(
-                $"MALPLUS LoadMore in page={CurrentPage} can={CanLoadMore} queued={_animeItemsSet.Count} shown={AnimeItems.Count} max={MaxPage}");
             if (_animeItemsSet.Count > 0)
             {
                 var count = Math.Max(10, GetGridItemsToLoad());
@@ -1063,8 +1061,6 @@ namespace MALPlus.XShared.ViewModels.Main
             }
             CanLoadMore = CurrentPage < MaxPage &&
                           WorkMode.GetAttribute<EnumUtilities.AnimeListWorkModeEnumMember>().AllowLoadingMore;
-            Console.WriteLine(
-                $"MALPLUS LoadMore out page={CurrentPage} iters={iterations} added={added} shown={AnimeItems.Count} can={CanLoadMore}");
         }
 
         /// <summary>

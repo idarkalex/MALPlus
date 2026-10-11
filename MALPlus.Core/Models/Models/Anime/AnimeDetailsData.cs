@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace MALClient.Models.Models.Anime
+namespace MALPlus.Models.Models.Anime
 {
     public enum DataSource
     {

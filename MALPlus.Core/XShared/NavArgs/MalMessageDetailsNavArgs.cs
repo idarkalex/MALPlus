@@ -1,4 +1,4 @@
-﻿namespace MALClient.XShared.NavArgs
+﻿namespace MALPlus.XShared.NavArgs
 {
     public enum MessageDetailsWorkMode
     {

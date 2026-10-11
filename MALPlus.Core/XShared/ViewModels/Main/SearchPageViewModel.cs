@@ -6,14 +6,14 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.Comm.Manga;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.Comm.Manga;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     //this thing begs for refactor
 
@@ -616,7 +616,7 @@ public bool AnimeSearch
         {
             try
             {
-                var data = new MALClient.Models.Models.Misc.RoamingData<List<string>>
+                var data = new MALPlus.Models.Models.Misc.RoamingData<List<string>>
                 {
                     Data = new List<string>(RecentSearches)
                 };
@@ -630,7 +630,7 @@ public async void LoadRecentSearches()
             try
             {
                 var data = await ResourceLocator.DataCacheService
-                    .RetrieveDataRoaming<MALClient.Models.Models.Misc.RoamingData<List<string>>>("MALPlus_RecentSearches_v1", -1);
+                    .RetrieveDataRoaming<MALPlus.Models.Models.Misc.RoamingData<List<string>>>("MALPlus_RecentSearches_v1", -1);
                 if (data?.Data != null)
                 {
 RecentSearches.Clear();

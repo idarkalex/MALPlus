@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
-using MALClient.Models.Enums;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Utils;
 
 namespace MALPlus.Converters;
 

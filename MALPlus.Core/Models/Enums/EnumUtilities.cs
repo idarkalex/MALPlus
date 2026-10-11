@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Reflection;
 
-namespace MALClient.Models.Enums
+namespace MALPlus.Models.Enums
 {
     public static class EnumUtilities
     {

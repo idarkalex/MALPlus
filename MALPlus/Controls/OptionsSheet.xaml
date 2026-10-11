@@ -44,9 +44,9 @@
                                TextColor="#8FA8C0" LineBreakMode="TailTruncation" MaxLines="1"
                                IsVisible="False" />
                     </VerticalStackLayout>
-                    <Border Grid.Column="1" WidthRequest="32" HeightRequest="32"
-                            StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
-                            VerticalOptions="Center">
+<Border Grid.Column="1" x:Name="CloseButton" WidthRequest="32" HeightRequest="32"
+                                StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                                VerticalOptions="Center">
                         <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                         <Border.GestureRecognizers>

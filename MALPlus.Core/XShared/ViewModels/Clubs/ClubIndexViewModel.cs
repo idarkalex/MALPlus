@@ -7,16 +7,16 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Comm.Forums;
-using MALClient.XShared.Comm.MagicalRawQueries.Clubs;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels.Forums.Items;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Comm.Forums;
+using MALPlus.XShared.Comm.MagicalRawQueries.Clubs;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels.Forums.Items;
 
-namespace MALClient.XShared.ViewModels.Clubs
+namespace MALPlus.XShared.ViewModels.Clubs
 {
     public class ClubActivityEntry
     {

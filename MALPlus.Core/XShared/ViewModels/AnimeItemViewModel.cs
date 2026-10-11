@@ -691,17 +691,100 @@ namespace MALPlus.XShared.ViewModels
             }
         }
 
-        private string _title;
+private string _title;
+
+        /// <summary>
+        ///     What the card shows for a title once "prefer English" has been taken into account.
+        /// </summary>
+        /// <remarks>
+        ///     Not the field itself. The setting used to be applied while the library was being fetched,
+        ///     so a list served from cache kept whatever titles it was written with, and turning the
+        ///     setting on changed nothing until something else re-read the whole list.
+        ///     <para>
+        ///     Resolved once per card rather than on every bind. A poster's Title is read many times while
+        ///     it scrolls, and looking the entry up on each read was enough to make the grid stutter even
+        ///     though the lookup itself is cheap. The result is kept, and dropped whenever the setting
+        ///     changes, which is the only thing that can make it wrong.
+        ///     </para>
+        /// </remarks>
+        private string _resolvedTitle;
+        private bool _titleResolved;
 
         public string Title
         {
-            get { return _title; }
+            get
+            {
+                if (!Settings.PreferEnglishTitles)
+                {
+                    // Falling back clears the memo, so switching off takes effect immediately rather
+                    // than after the next reload.
+                    _titleResolved = false;
+                    _resolvedTitle = null;
+                    return _title;
+                }
+
+                if (_titleResolved)
+                    return _resolvedTitle;
+
+                _titleResolved = true;
+                _resolvedTitle = null;
+
+                try
+                {
+                    if (Id > 0 && ParentAbstraction?.RepresentsAnime != null &&
+                        ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(
+                            Id, ParentAbstraction.RepresentsAnime, out var english) &&
+                        !string.IsNullOrWhiteSpace(english))
+                        _resolvedTitle = english;
+                }
+                catch
+                {
+                    // A memo that could not be filled must not take the card down with it.
+                }
+
+                return _resolvedTitle ?? _title;
+            }
             set
             {
                 _title = value;
                 RaisePropertyChanged(() => Title);
             }
         }
+
+        /// <summary>
+        ///     Forgets the resolved title, so the next read looks it up again.
+        /// </summary>
+        /// <remarks>
+        ///     Called when the setting changes, because that is the one thing that can make a memo wrong
+        ///     while the card is still on screen.
+        /// </remarks>
+public void ResetTitleCache()
+    {
+    _titleResolved = false;
+    _resolvedTitle = null;
+    }
+
+    /// <summary>
+    ///     Drops the memoized English title and tells the card to re-read it, but only when the text it
+    ///     would then show is not the text it is already showing.
+    /// </summary>
+    /// <remarks>
+    ///     Flipping the preference used to raise PropertyChanged on every card in the library, and every
+    ///     one of those notifications re-measures the cell. The dictionary only holds titles the reader
+    ///     has actually been shown, so the large majority of cards resolve to exactly what they already
+    ///     had and the work was wasted, which is what made the switch take seconds. Comparing against
+    ///     the stored title covers both directions: turning the preference off has to notice when the
+    ///     card is currently holding an English one, and turning it on only raises for the cards that
+    ///     really have one.
+    /// </remarks>
+    public void RefreshEnglishTitle()
+    {
+    ResetTitleCache();
+    var resolved = Title;
+    if (string.Equals(resolved, _title, StringComparison.Ordinal))
+        return;
+    RaisePropertyChanged(nameof(Title));
+    }
 
         public string GlobalScoreBind
             => GlobalScore > 0 ? GlobalScore.ToString("N2") : "";

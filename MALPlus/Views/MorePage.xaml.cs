@@ -206,11 +206,6 @@ public partial class MorePage : ContentPage
         NavigateTo(PageIndex.PageForumIndex, null);
     }
 
-    private void OnWallpapersTapped(object sender, TappedEventArgs e)
-    {
-        NavigateTo(PageIndex.PageWallpapers, null);
-    }
-
     private void OnClubsTapped(object sender, TappedEventArgs e)
     {
         NavigateTo(PageIndex.PageClubIndex, null);
@@ -257,14 +252,16 @@ public partial class MorePage : ContentPage
         NavigateTo(PageIndex.PageProfile, new ProfilePageNavigationArgs { TargetUser = Credentials.UserName });
     }
 
-    private async void OnLogOutTapped(object sender, TappedEventArgs e)
+    private void OnLogOutTapped(object sender, TappedEventArgs e)
     {
         try
         {
-            // Fire-and-forget log out (mirrors v2 LogOutCommand flow).
-            MALPlus.XShared.Utils.Credentials.Reset();
-            _initialized = false;
-            await NavigateToLoginAsync();
+            // The shared command, not a private Credentials.Reset(). This page used to reset the
+            // credentials and navigate on its own, which left the library in memory, the list cache
+            // and the http context populated: a sign-out from here was a half sign-out. The command
+            // is also what raises LogOutRequested, and AppShell is what navigates, so signing out
+            // from here lands exactly like signing out from Settings.
+            ViewModelLocator.LogIn.LogOutCommand.Execute(null);
         }
         catch (Exception ex) { Console.WriteLine("MALPLUS logout failed: " + ex); }
     }
@@ -441,8 +438,18 @@ public partial class MorePage : ContentPage
             animeArgs.ResetBackNav = false;
         }
         ViewModelLocator.GeneralMain.Navigate(page, args);
+
+        // This used to end on the NavMgr, whose stack has no reader on MAUI at all: the registration
+        // was written and then never consulted, which is why backing out of any page opened from here
+        // did not return to More. The destination now goes somewhere the back gesture actually looks.
         ViewModelLocator.NavMgr.DeregisterBackNav();
-        ViewModelLocator.NavMgr.RegisterBackNav(PageIndex.PageMore, null);
+        MALPlus.Services.Navigation.BackRouter.Register(PageIndex.PageMore);
+#if ANDROID
+        // Registered here rather than at startup: the dispatcher runs the most recently added enabled
+        // callback first and the Shell adds its own after OnCreate returns, so one added back then sits
+        // behind the Shell's and never sees the press.
+        global::MALPlus.MainActivity.ArmBackNavCallback();
+#endif
     }
 
     #endregion
@@ -479,6 +486,13 @@ public partial class MorePage : ContentPage
 
     protected override void OnDisappearing()
     {
+        // A back destination is only meaningful while the page it was registered for is still on
+        // screen. Back at More, there is nowhere to go but the Shell's own handling, so the
+        // registration is dropped and the armed callback disarms.
+        MALPlus.Services.Navigation.BackRouter.Clear();
+#if ANDROID
+        global::MALPlus.MainActivity.DisarmBackNavCallback();
+#endif
         base.OnDisappearing();
         SavePanelState();
     }

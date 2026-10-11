@@ -6,9 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using HtmlAgilityPack;
-using MALClient.XShared.Utils;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeImageQuery : Query
     {

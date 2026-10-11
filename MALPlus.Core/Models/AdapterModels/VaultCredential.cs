@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MALClient.Models.AdapterModels
+namespace MALPlus.Models.AdapterModels
 {
     public class VaultCredential
     {

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MALClient.BBCode.SyntaxTree
+namespace MALPlus.BBCode.SyntaxTree
 {
     public sealed class SequenceNode : SyntaxTreeNode
     {

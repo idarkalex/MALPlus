@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -7,11 +7,11 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeDirectRecommendationsQuery : Query
     {
@@ -134,7 +134,7 @@ namespace MALClient.XShared.Comm.Anime
                         if (entry.TryGetProperty("images", out var images) && images.ValueKind == JsonValueKind.Object &&
                             images.TryGetProperty("jpg", out var jpg) && jpg.ValueKind == JsonValueKind.Object &&
                             jpg.TryGetProperty("image_url", out var imgUrl) && imgUrl.ValueKind == JsonValueKind.String)
-                            current.ImageUrl = NormalizeImageUrl(imgUrl.GetString());
+                            current.ImageUrl = MalImageUrl.Normalize(imgUrl.GetString());
 
                         output.Add(current);
                     }
@@ -365,12 +365,5 @@ namespace MALClient.XShared.Comm.Anime
             };
         }
 
-        private static string NormalizeImageUrl(string url)
-        {
-            if (string.IsNullOrEmpty(url)) return url;
-            url = Regex.Replace(url, @"\/r\/\d+x\d+", "");
-            var qPos = url.IndexOf('?');
-            return qPos > 0 ? url.Substring(0, qPos) : url;
-        }
     }
 }

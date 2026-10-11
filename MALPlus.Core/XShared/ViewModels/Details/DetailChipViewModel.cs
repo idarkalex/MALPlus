@@ -1,6 +1,6 @@
-using MALClient.Models.Enums;
+using MALPlus.Models.Enums;
 
-namespace MALClient.XShared.ViewModels;
+namespace MALPlus.XShared.ViewModels;
 
 /// <summary>
 ///     A tappable chip on the details page: a genre or a studio, shown by its MAL name and carrying

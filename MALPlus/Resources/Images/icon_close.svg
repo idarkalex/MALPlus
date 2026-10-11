@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!--
+    Close / clear glyph. Drawn as strokes rather than text so it needs no font and no platform
+    glyph rasterisation: SearchPage.xaml referenced a "icon_close.png" that never existed in the
+    project, which is why both the clear button in the query field and the one on the search
+    history row rendered as an empty box.
+  -->
+  <path d="M5 5 L19 19" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" />
+  <path d="M19 5 L5 19" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" />
+</svg>

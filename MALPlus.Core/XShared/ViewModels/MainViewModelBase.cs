@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels.Main;
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     public abstract class MainViewModelBase : ViewModelBase
     {

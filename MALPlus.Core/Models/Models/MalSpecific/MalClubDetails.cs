@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MALClient.Models.Models.MalSpecific
+namespace MALPlus.Models.Models.MalSpecific
 {
     public class MalClubComment
     {

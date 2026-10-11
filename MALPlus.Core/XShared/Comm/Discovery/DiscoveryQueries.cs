@@ -33,43 +33,134 @@ public class DiscoveryItem
     public class RandomFilter
     {
         public List<int> GenreIds { get; set; } = new List<int>();
+
+        /// <summary>
+        ///     The media formats the reader is willing to be shown, as MAL spells them.
+        /// </summary>
+        /// <remarks>
+        ///     A list rather than the single value it used to be, because picking several is a normal
+        ///     thing to want: "TV or OVA", "specials too". Tenrai accepts them comma separated, verified:
+        ///     type=tv,ova comes back a real mix rather than the first value alone, which is the usual
+        ///     way this API quietly ignores a filter.
+        ///     <para>
+        ///         Empty means no format filter at all. The old single Format property was read here so
+        ///         that a filter saved before this change still narrows things down instead of quietly
+        ///         becoming "everything".
+        ///     </para>
+        /// </remarks>
+        public List<string> Formats { get; set; } = new List<string>();
+
         public string Format { get; set; } = "";
+
+        /// <summary>Every format the picker offers, in the order it shows them.</summary>
+        public static readonly string[] AnimeFormats =
+            { "", "tv", "movie", "ova", "special", "ona", "music" };
+
+        public static readonly string[] MangaFormats =
+            { "", "manga", "novel", "lightnovel", "oneshot", "doujinshi", "manhwa", "manhua" };
+
+        /// <summary>
+        ///     What actually goes in the query: the list when there is one, otherwise the single value a
+        ///     filter stored before the multi-select existed.
+        /// </summary>
+        public string FormatsQuery()
+        {
+            if (Formats != null && Formats.Count > 0)
+                return string.Join(",", Formats);
+            return Format ?? "";
+        }
         public int MinYear { get; set; }
         public int MaxYear { get; set; }
         public double MinScore { get; set; } = 0;
     }
 
-    /// <summary>
-    /// Trending for the Discover hub. Tenrai has no trending at all (/trending 404,
-    /// order_by=trending 400) and MAL v2 has no popularity sort, so this reads AniList's
-    /// TRENDING_DESC and keeps only the entries AniList can map to a MAL id, which is what
-    /// lets the row open our own details page.
+/// <summary>
+    ///     Trending for the Discover hub.
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This is AniList's own trending metric, and the one thing the app can ask a source for that
+    ///         means "what people are actually on this week". Tenrai has no equivalent: /trending is a 404
+    ///         and order_by=trending is a 400, and its order_by=popularity and order_by=rank both come
+    ///         back in an order that is plainly not the requested one.
+    ///     </para>
+    ///     <para>
+    ///         The part that made this look random was one missing word. Without a status filter,
+    ///         TRENDING_DESC spans the whole catalogue, so a 1999 or a 2004 title with a sudden flurry of
+    ///         activity outranked anything currently airing: Crayon Shin-chan, Conan and One Piece came
+    ///         first and Doraemon with them. Restricting to status RELEASING is what makes it mean
+    ///         trending now: the top of the list is this season's premieres and the long runners sit
+    ///         where their popularity earns them.
+    ///     </para>
+    ///     <para>
+    ///         Only entries AniList can map to a MAL id are kept, which is what lets a row open our own
+    ///         details page. Measured, that was every entry in the page.
+    ///     </para>
+    /// </remarks>
     public static class AniListTrendingQuery
     {
         private static readonly HttpClient Client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
 
+        /// <summary>
+        ///     AniList answers a request with no browser User-Agent as an outright refusal, and the
+        ///     response is a plain 400 rather than anything that says what was wrong.
+        /// </summary>
         private const string ChromeUserAgent =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
         /// <summary>Last failure, surfaced so the caller can log why the list came back empty.</summary>
         public static string LastError { get; private set; } = "";
 
-        private const string Endpoint = "https://graphql.anilist.co";
-        private const string Body =
-            @"{""query"":""query{Page{media(type:ANIME,sort:TRENDING_DESC,isAdult:false){id idMal title{romaji}coverImage{large}popularity averageScore seasonYear}}}""}";
+        /// <summary>
+        ///     The list of genres that marks an entry as too much for the strict setting.
+        /// </summary>
+        /// <remarks>
+        ///     AniList has a flag for adult material but not for the softer tier, so Rx is excluded with
+        ///     isAdult and R+ is excluded here by genre. Without this the strict setting let ecchi through
+        ///     on this page, which is exactly what that setting promises not to.
+        /// </remarks>
+        private static readonly string[] StrictGenreBlocklist = { "Ecchi", "Hentai", "Erotica" };
 
-        public static async Task<List<DiscoveryItem>> GetAsync(int limit = 20)
+        /// <summary>
+        ///     The query, written out a line per level so the braces can be counted by eye.
+        /// </summary>
+        /// <remarks>
+        ///     Two things here are not optional, and both are the kind a test only catches by sending the
+        ///     body verbatim.
+        ///     <para>
+        ///         The page size is a declared variable: a variables object beside a query that never
+        ///         mentions it is answered with a 400 that does not say which half is wrong.
+        ///     </para>
+        ///     <para>
+        ///         The media argument list closes BEFORE the selection set opens. Run them together and
+        ///         <c>isAdult:false,id idMal</c> reads id as one more argument, which reports "Expected :,
+        ///         found Name idMal"; and a parenthesis where the selection set's brace belongs reports
+        ///         "Expected Name, found )". The last line is media's brace plus Page's plus the
+        ///         operation's, in that order.
+        ///     </para>
+        /// </remarks>
+        private const string Query =
+            "query($perPage:Int)" +
+            "{Page(perPage:$perPage)" +
+            "{media(type:ANIME,status:RELEASING,sort:TRENDING_DESC,isAdult:false)" +
+            "{id idMal:idMal title{romaji}coverImage{large}genres averageScore}" +
+            "}}";
+
+        private static string Body(int perPage) =>
+            "{\"query\":\"" + Query + "\",\"variables\":{\"perPage\":" + perPage + "}}";
+
+        public static async Task<List<DiscoveryItem>> GetAsync(int limit = 10)
         {
             var output = new List<DiscoveryItem>();
             LastError = "";
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+                using var request = new HttpRequestMessage(HttpMethod.Post, "https://graphql.anilist.co")
                 {
-                    Content = new StringContent(Body, Encoding.UTF8, "application/json")
+                    // isAdult is false in the query itself, so nothing explicit is wanted here, and the
+                    // softer tier is decided by genre below instead.
+                    Content = new StringContent(Body(50), Encoding.UTF8, "application/json")
                 };
-                // AniList rejects requests without a browser User-Agent outright.
                 request.Headers.TryAddWithoutValidation("User-Agent", ChromeUserAgent);
                 request.Headers.TryAddWithoutValidation("Accept", "application/json");
                 using var response = await Client.SendAsync(request);
@@ -89,56 +180,71 @@ public class DiscoveryItem
                     return output;
                 }
 
+                var blockEcchi = XShared.Utils.Settings.ContentFilter == Models.Enums.ContentFilterMode.Safe;
+
                 foreach (var entry in media.EnumerateArray())
                 {
                     if (output.Count >= limit)
                         break;
-                    if (!entry.TryGetProperty("idMal", out var idMal) ||
-                        idMal.ValueKind != JsonValueKind.Number)
-                        continue; // AniList original with no MAL equivalent
+
+                    // An AniList original has no MAL id, so there is nowhere for the row to go.
+                    if (!entry.TryGetProperty("idMal", out var idMal) || idMal.ValueKind != JsonValueKind.Number)
+                        continue;
+                    var id = idMal.GetInt32();
+                    if (id <= 0)
+                        continue;
+
+                    var genres = new List<string>();
+                    if (entry.TryGetProperty("genres", out var genreArray) && genreArray.ValueKind == JsonValueKind.Array)
+                        foreach (var genre in genreArray.EnumerateArray())
+                            if (genre.ValueKind == JsonValueKind.String)
+                                genres.Add(genre.GetString() ?? "");
+
+                    if (blockEcchi && genres.Any(g => StrictGenreBlocklist.Contains(g, StringComparer.OrdinalIgnoreCase)))
+                        continue;
+
                     var title = entry.TryGetProperty("title", out var t) && t.TryGetProperty("romaji", out var r)
                         ? r.GetString()
                         : null;
                     string cover = null;
                     if (entry.TryGetProperty("coverImage", out var coverImage) &&
-                        coverImage.TryGetProperty("large", out var large) && large.ValueKind == JsonValueKind.String)
+                        coverImage.TryGetProperty("large", out var large) &&
+                        large.ValueKind == JsonValueKind.String)
                         cover = large.GetString();
+
+                    if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(cover))
+                        continue;
+
+                    var score = entry.TryGetProperty("averageScore", out var sc) && sc.ValueKind == JsonValueKind.Number
+                        ? sc.GetDouble()
+                        : 0d;
+                    // AniList scores out of 100 and MAL out of ten.
+                    var malScore = score > 0 ? score / 10d : 0d;
+
                     output.Add(new DiscoveryItem
                     {
-                        Id = idMal.GetInt32(),
+                        Id = id,
                         Title = title,
                         ImgUrl = cover,
-                        Subtitle = FormatTrendMeta(entry)
+                        IsManga = false,
+                        Score = malScore,
+                        // No subtitle. It used to say "Trending now" on every row, which told the
+                        // reader the same thing the sheet's own heading says twenty times over; the
+                        // type and the score on the poster carry the useful part.
+                        Subtitle = ""
                     });
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                LastError = "exception";
+                LastError = ex.GetType().Name;
             }
-            return output;
-        }
 
-        private static string FormatTrendMeta(JsonElement entry)
-        {
-            try
-            {
-                var score = entry.TryGetProperty("averageScore", out var s) && s.ValueKind == JsonValueKind.Number
-                    ? (s.GetDouble() / 10.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
-                    : "";
-                return string.IsNullOrEmpty(score) ? "Trending" : $"Trending · {score}";
-            }
-            catch
-            {
-                return "Trending";
-            }
+            return output;
         }
     }
 
     /// <summary>
-    /// "Random with filters" for the Discover hub. Tenrai's /random endpoints ignore every
-    /// filter except sfw (verified: min_score=9 came back with a 7.48), so we run the
-    /// filtered listing and jump to a random page inside it instead.
     /// </summary>
     public static class DiscoveryRandomQuery
     {
@@ -204,8 +310,9 @@ public class DiscoveryItem
                 {
                     if (filter.GenreIds.Count > 0)
                         parts.Add("genres=" + string.Join(",", filter.GenreIds));
-                    if (!string.IsNullOrEmpty(filter.Format))
-                        parts.Add("type=" + filter.Format);
+                    var formats = filter.FormatsQuery();
+                    if (!string.IsNullOrEmpty(formats))
+                        parts.Add("type=" + formats);
                 }
                 if (effectiveMinScore > 0)
                     parts.Add("min_score=" + effectiveMinScore.ToString("0.0",

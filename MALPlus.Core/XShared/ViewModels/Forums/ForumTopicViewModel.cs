@@ -8,20 +8,20 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Interfaces;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Forums;
-using MALClient.XShared.Comm.Forums;
-using MALClient.XShared.Comm.MagicalRawQueries.Forums;
-using MALClient.XShared.Delegates;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels.Forums.Items;
-using IHandyDataStorage = MALClient.XShared.ViewModels.Interfaces.IHandyDataStorage;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Interfaces;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Forums;
+using MALPlus.XShared.Comm.Forums;
+using MALPlus.XShared.Comm.MagicalRawQueries.Forums;
+using MALPlus.XShared.Delegates;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels.Forums.Items;
+using IHandyDataStorage = MALPlus.XShared.ViewModels.Interfaces.IHandyDataStorage;
 
-namespace MALClient.XShared.ViewModels.Forums
+namespace MALPlus.XShared.ViewModels.Forums
 {
     public class ForumTopicViewModel : ViewModelBase , ISelfBackNavAware
     {

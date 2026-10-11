@@ -3,13 +3,13 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Forums;
-using MALClient.XShared.Comm.MagicalRawQueries;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Forums;
+using MALPlus.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm.Forums
+namespace MALPlus.XShared.Comm.Forums
 {
     public static class ForumSearchQuery
     {

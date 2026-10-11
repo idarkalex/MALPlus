@@ -5,14 +5,14 @@ using System.Net;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Comm.MagicalRawQueries;
-using MALClient.XShared.Comm.MagicalRawQueries.Messages;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Comm.MagicalRawQueries;
+using MALPlus.XShared.Comm.MagicalRawQueries.Messages;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public class MalMessagingViewModel : ViewModelBase
     {

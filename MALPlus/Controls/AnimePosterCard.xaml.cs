@@ -74,6 +74,44 @@ public partial class AnimePosterCard : ContentView
                                  || !string.IsNullOrWhiteSpace(card.BadgeMain));
     }
 
+    /// <summary>
+    ///     Position in a ranked list, as "#20". Empty on any panel that has no ranking.
+    /// </summary>
+    /// <remarks>
+    ///     Its own property rather than one of the generic chips because the grid has to be able to
+    ///     leave it blank without a page opting out: a template that always passes it means a panel
+    ///     that does not care simply binds an empty string, and the cell's own visibility rule decides
+    ///     whether it draws.
+    /// </remarks>
+    public static readonly BindableProperty RankTagProperty =
+        BindableProperty.Create(nameof(RankTag), typeof(string), typeof(AnimePosterCard), default(string),
+            propertyChanged: OnRankChanged);
+
+    public string RankTag
+    {
+        get => (string)GetValue(RankTagProperty);
+        set => SetValue(RankTagProperty, value);
+    }
+
+    /// <summary>
+    ///     True when there is a rank to draw. Derived, because a Border with no text would still paint
+    ///     its background and put a blue rectangle in the corner of every poster in the library.
+    /// </summary>
+    public static readonly BindableProperty HasRankProperty =
+        BindableProperty.Create(nameof(HasRank), typeof(bool), typeof(AnimePosterCard), false);
+
+    public bool HasRank
+    {
+        get => (bool)GetValue(HasRankProperty);
+        private set => SetValue(HasRankProperty, value);
+    }
+
+    private static void OnRankChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        var card = (AnimePosterCard)bindable;
+        card.HasRank = !string.IsNullOrWhiteSpace(card.RankTag);
+    }
+
     public static readonly BindableProperty TitleOverlayProperty =
         BindableProperty.Create(nameof(TitleOverlay), typeof(bool), typeof(AnimePosterCard), true);
 

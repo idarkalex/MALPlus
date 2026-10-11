@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MALClient.Models.Models.Forums
+namespace MALPlus.Models.Models.Forums
 {
     public class ForumBreadcrumb
     {

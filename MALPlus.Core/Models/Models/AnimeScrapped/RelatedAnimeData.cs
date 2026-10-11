@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
-using MALClient.Models.Enums;
-using MALClient.Models.Interfaces;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Interfaces;
 
-namespace MALClient.Models.Models.AnimeScrapped
+namespace MALPlus.Models.Models.AnimeScrapped
 {
     public class RelatedAnimeData : IDetailsPageArgs
     {

@@ -5,18 +5,18 @@ using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Adapters;
-using MALClient.Models.Interfaces;
-using MALClient.Models.Models;
-using MALClient.Models.Models.Forums;
-using MALClient.Models.Models.Notifications;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.ViewModels;
+using MALPlus.Adapters;
+using MALPlus.Models.Interfaces;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.Forums;
+using MALPlus.Models.Models.Notifications;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
-using IHandyDataStorage = MALClient.XShared.ViewModels.Interfaces.IHandyDataStorage;
+using IHandyDataStorage = MALPlus.XShared.ViewModels.Interfaces.IHandyDataStorage;
 
-namespace MALClient.XShared.BL
+namespace MALPlus.XShared.BL
 {
     public class HandyDataStorage : IHandyDataStorage
     {

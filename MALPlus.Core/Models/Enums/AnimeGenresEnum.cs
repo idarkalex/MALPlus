@@ -6,7 +6,7 @@
 
 //// ReSharper disable InconsistentNaming
 
-//namespace MALClient.Models.Enums
+//namespace MALPlus.Models.Enums
 //{
 //    public enum AnimeGenres
 //    {

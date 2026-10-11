@@ -2,10 +2,10 @@
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using MALClient.Models.Models.Anime;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Models.Anime;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.Comm.Anime
+namespace MALPlus.XShared.Comm.Anime
 {
     public class AnimeDetailsAnnQuery : Query
     {

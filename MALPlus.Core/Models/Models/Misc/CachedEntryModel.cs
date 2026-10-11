@@ -1,6 +1,6 @@
 ﻿using System.Windows.Input;
 
-namespace MALClient.Models.Models.Misc
+namespace MALPlus.Models.Models.Misc
 {
     public class CachedEntryModel
     {

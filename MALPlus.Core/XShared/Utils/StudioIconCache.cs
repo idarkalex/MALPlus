@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MALClient.XShared.Comm;
+using MALPlus.XShared.Comm;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     /// <summary>
     ///     Studio logos for the search picker.

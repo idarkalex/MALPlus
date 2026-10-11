@@ -5,11 +5,11 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm
+namespace MALPlus.XShared.Comm
 {
     public abstract class Query
     {
@@ -112,6 +112,25 @@ namespace MALClient.XShared.Comm
 
                 await Task.Delay(150);
                 var content = await res.Content.ReadAsStringAsync();
+
+                // A body is not proof of a usable answer, and treating it as one is what made these
+                // screens fail silently. MAL answers a request it refused to authenticate with HTTP 200
+                // and the login page, so "no results" and "not signed in" looked identical and every
+                // page parsed the login markup as an empty collection.
+                if (!res.IsSuccessStatusCode)
+                {
+                    ResourceLocator.ConnectionInfoProvider.HasInternetConnection = false;
+                    return null;
+                }
+
+                // Reported rather than served: the caller has to know the difference between MAL having
+                // nothing and MAL not knowing who was asking.
+                if (IsLoggedOutBody(content))
+                {
+                    ResourceLocator.SnackbarProvider.ShowText(SnackbarMessageOnFail);
+                    return null;
+                }
+
                 ResourceLocator.ConnectionInfoProvider.HasInternetConnection = true;
                 return content;
             }
@@ -126,6 +145,23 @@ namespace MALClient.XShared.Comm
         }
 
         public virtual string SnackbarMessageOnFail => "Operation failed, check your internet connection...";
+
+        /// <summary>
+        ///     Whether a body from MAL is actually the login page, which is what comes back for a
+        ///     request the session could not authorise.
+        /// </summary>
+        /// <remarks>
+        ///     The login page is the only body carrying both the "you must first login" notice and a
+        ///     login form, and an empty inbox carries neither. The form is checked as well as the notice
+        ///     so a reworded redesign still does not read as a signed-in reply.
+        /// </remarks>
+        private static bool IsLoggedOutBody(string content)
+        {
+            if (string.IsNullOrEmpty(content) || content.Length > 4096)
+                return false;
+            return content.Contains("You must first login to see this page")
+                   || (content.Contains("badresult") && content.Contains("Login</h1>"));
+        }
 
         private static readonly SemaphoreSlim _buggedMalMessageSemaphore = new SemaphoreSlim(1);
         private async void HandleMalBuggines()

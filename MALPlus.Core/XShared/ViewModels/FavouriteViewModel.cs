@@ -1,10 +1,10 @@
 ﻿using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Models.Favourites;
-using MALClient.XShared.Utils.Managers;
+using MALPlus.Models.Models.Favourites;
+using MALPlus.XShared.Utils.Managers;
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     public class FavouriteViewModel : ViewModelBase
     {

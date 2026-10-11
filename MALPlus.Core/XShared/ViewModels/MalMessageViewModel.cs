@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using GalaSoft.MvvmLight;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.MalSpecific;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.MalSpecific;
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     public class MalMessageViewModel : ViewModelBase
     {

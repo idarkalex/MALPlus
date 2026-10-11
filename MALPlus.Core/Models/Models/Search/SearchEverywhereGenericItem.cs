@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using MALClient.Models.Models.ApiResponses;
+using MALPlus.Models.Models.ApiResponses;
 
-namespace MALClient.Models.Models.Search
+namespace MALPlus.Models.Models.Search
 {
     public abstract class SearchEverywhereGenericItem : ISearchEverywhereItem
     {

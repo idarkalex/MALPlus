@@ -4,10 +4,10 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Comm.MagicalRawQueries
+namespace MALPlus.XShared.Comm.MagicalRawQueries
 {
     public static class MalHelpfulReviewQuery
     {

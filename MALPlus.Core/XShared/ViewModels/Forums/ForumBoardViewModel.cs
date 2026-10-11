@@ -4,15 +4,15 @@ using System.Linq;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Forums;
-using MALClient.XShared.Comm.Forums;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels.Forums.Items;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Forums;
+using MALPlus.XShared.Comm.Forums;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels.Forums.Items;
 
-namespace MALClient.XShared.ViewModels.Forums
+namespace MALPlus.XShared.ViewModels.Forums
 {
     public class ForumBoardViewModel : ViewModelBase , ISelfBackNavAware
     {

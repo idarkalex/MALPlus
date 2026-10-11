@@ -1,6 +1,6 @@
 using System;
 
-namespace MALClient.Models.Enums
+namespace MALPlus.Models.Enums
 {
     [Flags]
     public enum MalNotificationsTypes

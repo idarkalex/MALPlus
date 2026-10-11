@@ -267,15 +267,6 @@
                         <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
                         <Grid HeightRequest="44" ColumnDefinitions="Auto,*" ColumnSpacing="16" Padding="16,0">
                             <Grid.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnWallpapersTapped" />
-                            </Grid.GestureRecognizers>
-                            <Image Grid.Column="0" Source="icon_wallpaper" Style="{StaticResource RowIcon}" />
-                            <Label Grid.Column="1" Text="Wallpapers" Style="{StaticResource RowLabel}" />
-                        </Grid>
-
-                        <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
-                        <Grid HeightRequest="44" ColumnDefinitions="Auto,*" ColumnSpacing="16" Padding="16,0">
-                            <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnClubsTapped" />
                             </Grid.GestureRecognizers>
                             <Image Grid.Column="0" Source="icon_club" Style="{StaticResource RowIcon}" />

@@ -1,6 +1,6 @@
-﻿using MALClient.Models.Enums;
+﻿using MALPlus.Models.Enums;
 
-namespace MALClient.Models.Interfaces
+namespace MALPlus.Models.Interfaces
 {
     public interface IDetailsPageArgs
     {

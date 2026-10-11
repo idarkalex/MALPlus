@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MALClient.Models.Models.Notifications
+namespace MALPlus.Models.Models.Notifications
 {
     public class AiringShowNotificationEntry
     {

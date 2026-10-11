@@ -1,4 +1,4 @@
-namespace MALClient.Models.Models.Misc
+namespace MALPlus.Models.Models.Misc
 {
     public class RoamingData<T>
     {

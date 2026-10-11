@@ -1,7 +1,7 @@
-using MALClient.Adapters;
-using MALClient.XShared.ViewModels;
+using MALPlus.Adapters;
+using MALPlus.XShared.ViewModels;
 
-namespace MALClient.XShared.Utils;
+namespace MALPlus.XShared.Utils;
 
 /// <summary>
 /// Single source of truth for the MyAnimeList OAuth client. The client id used to be copied

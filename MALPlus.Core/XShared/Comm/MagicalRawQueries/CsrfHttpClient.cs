@@ -1,12 +1,14 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 using HttpClient = System.Net.Http.HttpClient;
 using HttpStatusCode = System.Net.HttpStatusCode;
 
-namespace MALClient.XShared.Comm.MagicalRawQueries
+namespace MALPlus.XShared.Comm.MagicalRawQueries
 {
     /// <summary>
     ///     Client wrapped with token.
@@ -58,23 +60,51 @@ namespace MALClient.XShared.Comm.MagicalRawQueries
 
             var raw = await GetAsync("https://myanimelist.net/");
 
-            ParseTokenFromHtml(await raw.Content.ReadAsStringAsync());
-
+            if (!ParseTokenFromHtml(await raw.Content.ReadAsStringAsync()))
+            {
+                // Thrown here rather than allowed to leave ParseTokenFromHtml as an InvalidOperation
+                // from a First() over a document with no csrf_token in it. The login page has none, so
+                // this is the shape a failed session takes, and the message says so because the caller
+                // acts on it.
+                throw new WebException("No csrf_token found; the response is most likely the login page.");
+            }
         }
 
-        public void ParseTokenFromHtml(string html)
+        /// <summary>
+        ///     Reads the CSRF token out of a MAL page.
+        /// </summary>
+        /// <returns>
+        ///     False when the page carries no token, which is what the login page does.
+        /// </returns>
+        public bool ParseTokenFromHtml(string html)
         {
+            if (string.IsNullOrEmpty(html))
+                return false;
+
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            var nodes = doc.DocumentNode.Descendants("head").First().ChildNodes;
-            var csfr =
-                nodes.First(
-                        htmlNode =>
-                            htmlNode.Attributes.Contains("name") &&
-                            htmlNode.Attributes["name"].Value == "csrf_token")
-                    .Attributes["content"].Value;
-            Token = csfr;
+            foreach (var head in doc.DocumentNode.Descendants("head"))
+            {
+                foreach (var node in head.ChildNodes)
+                {
+                    if (!node.Attributes.Contains("name"))
+                        continue;
+                    if (node.Attributes["name"].Value != "csrf_token")
+                        continue;
+
+                    // A token attribute that does not resolve is as good as no token, and reads as the
+                    // same thing: a page that is not the signed in one.
+                    var content = node.Attributes["content"];
+                    if (content == null || string.IsNullOrWhiteSpace(content.Value))
+                        continue;
+
+                    Token = content.Value;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         protected override void Dispose(bool disposing)

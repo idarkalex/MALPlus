@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:allowBackup="true" android:supportsRtl="true" />
+<!--
+        Edge to edge. Without this the window is laid out INSIDE the system bars and never reaches
+        the display cutout, so `windowLayoutInDisplayCutoutMode` is ignored, every WindowInsets the
+        app reads comes back as zero, and a full screen video keeps a black band where the notch is.
+        shortEdges is the one that matters in landscape, where the cutout sits on a long edge.
+
+        The app has to cope with the bars itself now, which is why the pages apply their own top
+        inset; see EdgeToEdgeInsets.
+      -->
+      <application android:allowBackup="true" android:supportsRtl="true"
+android:icon="@mipmap/ic_launcher_malplus"
+        android:roundIcon="@mipmap/ic_launcher_malplus"
+                   android:windowLayoutInDisplayCutoutMode="shortEdges" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>

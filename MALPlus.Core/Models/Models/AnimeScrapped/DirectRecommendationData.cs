@@ -1,9 +1,9 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using MALClient.Models.Enums;
-using MALClient.Models.Interfaces;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Interfaces;
 
-namespace MALClient.Models.Models.AnimeScrapped
+namespace MALPlus.Models.Models.AnimeScrapped
 {
     /// <summary>
     ///     Direct as in recommendation from details page

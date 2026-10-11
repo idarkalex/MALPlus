@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
-using MALClient.Models.Enums;
+using MALPlus.Models.Enums;
 
-namespace MALClient.Models.Models.Favourites
+namespace MALPlus.Models.Models.Favourites
 {
     public class AnimeStaffPerson : FavouriteBase
     {

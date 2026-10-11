@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using MALClient.Models.Enums;
-using MALClient.XShared.NavArgs;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.NavArgs;
 
-namespace MALClient.XShared.Interfaces
+namespace MALPlus.XShared.Interfaces
 {
     public interface INavMgr
     {

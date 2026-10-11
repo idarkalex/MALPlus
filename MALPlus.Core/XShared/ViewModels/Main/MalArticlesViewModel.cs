@@ -4,13 +4,13 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Adapters;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Comm.Articles;
-using MALClient.XShared.Utils;
+using MALPlus.Adapters;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Comm.Articles;
+using MALPlus.XShared.Utils;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     public class MalArticlesPageNavigationArgs
     {

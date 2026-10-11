@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
     /// <summary>
     /// Holds UI state for pages that don't have a dedicated ViewModel.

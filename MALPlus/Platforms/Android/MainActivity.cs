@@ -26,9 +26,101 @@ public class MainActivity : MauiAppCompatActivity
     /// </summary>
     private static VideoOverlayBackCallback _armedBackCallback;
 
+    /// <summary>
+    ///     The callback currently routing back to whatever page registered itself, if any.
+    /// </summary>
+    private static BackNavCallback _armedBackNavCallback;
+
+    /// <summary>
+    ///     Puts the page navigation in front of the back gesture, so pressing back goes where the
+    ///     reader came from rather than popping to whatever happens to be under the current page.
+    /// </summary>
+    /// <remarks>
+    ///     Registered at the moment a page arrives, not at startup, for the same reason as the video
+    ///     overlay: the dispatcher runs the most recently added enabled callback first, and the Shell
+    ///     adds its own after OnCreate returns. A callback added in OnCreate therefore sits behind the
+    ///     Shell's and never sees a press, which is exactly what was measured for the video overlay
+    ///     before this mechanism was adopted.
+    ///     <para>
+    ///     When nothing has registered anywhere to go back to, the callback stands itself down for that
+    ///     press and re-dispatches, which lets the Shell's own callback do the navigating. That keeps
+    ///     the behaviour of every page that does not use this identical to how it was.
+    ///     </para>
+    /// </remarks>
+    public static void ArmBackNavCallback()
+    {
+        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity as MainActivity;
+        if (activity == null)
+            return;
+        DisarmBackNavCallback();
+        _armedBackNavCallback = new BackNavCallback(activity);
+        activity.OnBackPressedDispatcher.AddCallback(activity, _armedBackNavCallback);
+    }
+
+    /// <summary>
+    ///     Takes the back navigation back out of the back gesture.
+    /// </summary>
+    public static void DisarmBackNavCallback()
+    {
+        if (_armedBackNavCallback == null)
+            return;
+        _armedBackNavCallback.Enabled = false;
+        _armedBackNavCallback = null;
+    }
+
+    private sealed class BackNavCallback : AndroidX.Activity.OnBackPressedCallback
+    {
+        private readonly MainActivity _owner;
+
+        public BackNavCallback(MainActivity owner) : base(enabled: true)
+        {
+            _owner = owner;
+        }
+
+        public override void HandleOnBackPressed()
+        {
+            try
+            {
+                if (Services.Navigation.BackRouter.TryGoBack())
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("MALPLUS", "back-nav callback failed: " + ex.GetType().Name);
+            }
+
+            // Nobody has anything to go back to, so this becomes the Shell's press. Left disabled
+            // rather than re-enabled, so a stale entry does not keep intercepting later presses just
+            // to forward them.
+            Enabled = false;
+            _armedBackNavCallback = null;
+            _owner.OnBackPressedDispatcher.OnBackPressed();
+        }
+    }
+
     protected override void OnCreate(Bundle savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+
+        // Edge to edge, declared in the manifest AND applied here. The manifest attribute only
+        // tells the system the app is willing to draw under the cutout; this is what makes the
+        // window actually do it. Without it every WindowInsets the app reads comes back as zero,
+        // the notch keeps a black band, and a full screen video is letterboxed by the status bar.
+        //
+        // Every page applies its own top inset now (EdgeToEdgeInsets), because MAUI does not do
+        // it for us and the alternative was the window shrinking, which is what the system bar
+        // colours used to handle.
+        try
+        {
+            MALPlus.Services.WindowInsetsHelper.Enable(this);
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("MALPLUS", "edge to edge failed: " + ex.GetType().Name);
+        }
+
         Android.Util.Log.Info("MALPLUS", $"OnCreate intent data: {Intent?.Data}");
         if (Intent?.Data != null && Intent.Data.ToString().StartsWith("malplus://"))
         {

@@ -3,7 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Input;
-using MALClient.XShared.ViewModels;
+using MALPlus.XShared.ViewModels;
 
 namespace MALPlus.Controls;
 
@@ -322,15 +322,41 @@ public partial class AnimePosterGrid : ContentView
         }
 
         // The card template reads these through x:Reference, so no page has to repeat the numbers.
-        ItemsView.ItemTemplate = CellTemplate ?? (DataTemplate)Root.Resources["DefaultCellTemplate"];
+//
+// Every one of these is only written when it actually changes, and that is the whole point of
+// this method: it is called on EVERY collection change, so while scrolling a long list. Assigning
+// ItemTemplate again, even to the same template, makes the CollectionView drop its adapter and
+// re-template every visible cell, and re-writing the sizing properties invalidates the layout of
+// every card again. That is what a scroll through already-loaded posters was stuttering against:
+// nothing about the grid had changed, but all of it was being rebuilt on every row that arrived.
+var wantedTemplate = CellTemplate ?? (DataTemplate)Root.Resources["DefaultCellTemplate"];
+if (!ReferenceEquals(_appliedTemplate, wantedTemplate))
+{
+    _appliedTemplate = wantedTemplate;
+    ItemsView.ItemTemplate = wantedTemplate;
+}
 
-        CellMargin = new Thickness(0);
-        CellHeight = DefaultCellHeight;
-        RowHeight = CellHeight + Spacing;
+if (_appliedCellHeight != DefaultCellHeight)
+{
+    _appliedCellHeight = DefaultCellHeight;
+    CellHeight = DefaultCellHeight;
+    RowHeight = CellHeight + Spacing;
+}
 
-        if (FixedHeight)
-            HeightRequest = CalculateHeight(count, span, RowHeight);
-    }
+if (_appliedMargin != NoMargin)
+{
+    _appliedMargin = NoMargin;
+    CellMargin = NoMargin;
+}
+
+if (FixedHeight)
+    HeightRequest = CalculateHeight(count, span, RowHeight);
+}
+
+private static readonly Thickness NoMargin = new Thickness(0);
+private DataTemplate _appliedTemplate;
+private double _appliedCellHeight = -1;
+private Thickness _appliedMargin = new Thickness(-1);
 
     private void OnCellTapped(object sender, TappedEventArgs e)
     {

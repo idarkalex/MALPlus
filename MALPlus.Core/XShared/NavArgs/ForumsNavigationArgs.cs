@@ -1,8 +1,8 @@
 using System;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.Forums;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.Forums;
 
-namespace MALClient.XShared.NavArgs
+namespace MALPlus.XShared.NavArgs
 {
     public enum ForumBoardPageWorkModes
     {

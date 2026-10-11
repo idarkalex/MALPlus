@@ -7,15 +7,15 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.ApiResponses;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.Models.Models.Notifications;
-using MALClient.XShared.Utils;
-using MALClient.XShared.ViewModels;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.ApiResponses;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.Models.Models.Notifications;
+using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Comm.MagicalRawQueries
+namespace MALPlus.XShared.Comm.MagicalRawQueries
 {
     public static class MalNotificationsQuery
     {

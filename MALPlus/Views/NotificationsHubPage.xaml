@@ -2,8 +2,8 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
-xmlns:vm="clr-namespace:MALClient.XShared.ViewModels.Main;assembly=MALPlus.Core"
-xmlns:mnotifications="clr-namespace:MALClient.Models.Models.Notifications;assembly=MALPlus.Core"
+xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
+xmlns:mnotifications="clr-namespace:MALPlus.Models.Models.Notifications;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.NotificationsHubPage"
              x:DataType="vm:NotificationsHubViewModel"
              BackgroundColor="{StaticResource EmBackground}">
@@ -48,9 +48,27 @@ xmlns:mnotifications="clr-namespace:MALClient.Models.Models.Notifications;assemb
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12">
-                                <Grid ColumnDefinitions="40,*,Auto" ColumnSpacing="10">
-                                    <Image Grid.Column="0" Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
-                                           Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
+<Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                     <!-- Two images on one slot: the picture when the source had one,
+                                          the per-type glyph when it did not. Only two of the twelve
+                                          notification types carry an image at all, so leaving the slot
+                                          empty left a fixed 40dp gutter of nothing on the left of
+                                          almost every row, which read as a broken layout rather than
+                                          as "this notification has no picture".
+                                          The trigger is on HasImage and not on ImgUrl being null,
+                                          because an empty ImgUrl is just as common as a missing one and
+                                          used to leave the glyph out entirely. -->
+                                     <Image Grid.Column="0"
+                                            Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
+                                            Aspect="AspectFill" WidthRequest="36" HeightRequest="36">
+                                         <Image.Triggers>
+                                             <DataTrigger TargetType="Image"
+                                                          Binding="{Binding HasImage}"
+                                                          Value="False">
+                                                 <Setter Property="Source" Value="{Binding TypeIcon}" />
+                                             </DataTrigger>
+                                         </Image.Triggers>
+                                     </Image>
                                     <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                                         <Label Text="{Binding Header}" FontFamily="InterBold" FontSize="13"
                                                TextColor="{StaticResource BrushText}" MaxLines="2"
@@ -59,8 +77,12 @@ xmlns:mnotifications="clr-namespace:MALClient.Models.Models.Notifications;assemb
                                                TextColor="#C0FFFFFF" MaxLines="3"
                                                LineBreakMode="TailTruncation" />
                                     </VerticalStackLayout>
+                                    <!-- Third column of three. It used to be placed on column 2 of a grid
+                                         that only declared two, so the date was laid over the text column
+                                         instead of beside it and the two ran into each other. -->
                                     <Label Grid.Column="2" Text="{Binding Date}" FontFamily="Inter" FontSize="11"
-                                           TextColor="#80FFFFFF" VerticalOptions="Center" />
+                                           TextColor="#80FFFFFF" VerticalOptions="Center"
+                                           MaxLines="2" LineBreakMode="TailTruncation" />
                                 </Grid>
                             </Border>
                         </DataTemplate>

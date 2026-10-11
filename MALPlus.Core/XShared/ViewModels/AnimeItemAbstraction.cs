@@ -2,15 +2,15 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using MALClient.Models.Enums;
-using MALClient.Models.Models.AnimeScrapped;
-using MALClient.Models.Models.Library;
-using MALClient.Models.Models.Misc;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models.AnimeScrapped;
+using MALPlus.Models.Models.Library;
+using MALPlus.Models.Models.Misc;
+using MALPlus.XShared.Utils;
 
 // ReSharper disable InconsistentNaming
 
-namespace MALClient.XShared.ViewModels
+namespace MALPlus.XShared.ViewModels
 {
     /// <summary>
     ///     This class serves as a container for actual UI AnimeItem element.
@@ -134,6 +134,18 @@ namespace MALClient.XShared.ViewModels
             get { return EntryData?.AllEpisodes ?? _seasonalAllEps; }
             set { _seasonalAllEps = value; }
         }
+
+        /// <summary>
+        ///     Episode count for a panel that is showing a list's own number.
+        /// </summary>
+        /// <remarks>
+        ///     The plain setter is not enough on a card that came from the user's library, because
+        ///     <see cref="AllEpisodes" /> prefers the library entry over anything written here. That
+        ///     is correct for the library and wrong for a Top or Seasonal panel, where the number that
+        ///     belongs on the card is the one the incoming list carried, not the user's own. Setting
+        ///     the field directly is what makes the card show the list it is actually on.
+        /// </remarks>
+        public void SetEpisodesForPanel(int episodes) => _seasonalAllEps = episodes;
 
         public int AllVolumes => (EntryData as MangaLibraryItemData)?.AllVolumes ?? 0;
         public int Type => EntryData?.Type ?? _seasonalData?.Type ?? 0;

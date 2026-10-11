@@ -2,15 +2,15 @@ using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using MALClient.Models.Enums;
-using MALClient.Models.Models;
-using MALClient.Models.Models.MalSpecific;
-using MALClient.XShared.Comm.Anime;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.ViewModels.Main;
+using MALPlus.Models.Enums;
+using MALPlus.Models.Models;
+using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Comm.Anime;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.ViewModels.Main;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     public static class MalLinkParser
     {

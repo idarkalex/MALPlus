@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
-using MALClient.Models.Models.Favourites;
+using MALPlus.Models.Models.Favourites;
 using Newtonsoft.Json;
 
-namespace MALClient.Models.Models
+namespace MALPlus.Models.Models
 {
     [DataContract]
     public class MalUser

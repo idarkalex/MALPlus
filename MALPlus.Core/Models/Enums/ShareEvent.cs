@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace MALClient.Models.Enums
+namespace MALPlus.Models.Enums
 {
     [Flags]
     public enum ShareEvent

@@ -8,14 +8,14 @@ using System.Windows.Input;
 using System.Xml.Linq;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
-using MALClient.Models.Enums;
-using MALClient.XShared.Comm;
-using MALClient.XShared.Interfaces;
-using MALClient.XShared.NavArgs;
-using MALClient.XShared.Utils;
+using MALPlus.Models.Enums;
+using MALPlus.XShared.Comm;
+using MALPlus.XShared.Interfaces;
+using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.ViewModels.Main
+namespace MALPlus.XShared.ViewModels.Main
 {
 
     /// <summary>
@@ -62,12 +62,34 @@ namespace MALClient.XShared.ViewModels.Main
         }
 
 
-        public string UserNameInput { get; set; }
+        private string _userNameInput;
 
-        public string PasswordInput {
-            get;
-            set;
+        /// <summary>
+        ///     Auto-properties here meant the Entry had nothing to bind to a change on: they never
+        ///     raise PropertyChanged, so clearing the password after a sign-in left the text in the
+        ///     box. Same for the code behind, which writes these directly before running the
+        ///     command.
+        /// </summary>
+        public string UserNameInput
+        {
+            get => _userNameInput;
+            set
+            {
+                _userNameInput = value;
+                RaisePropertyChanged(() => UserNameInput);
+            }
+        }
 
+        private string _passwordInput;
+
+        public string PasswordInput
+        {
+            get => _passwordInput;
+            set
+            {
+                _passwordInput = value;
+                RaisePropertyChanged(() => PasswordInput);
+            }
         }
 
         public bool Authenticating
@@ -91,8 +113,33 @@ namespace MALClient.XShared.ViewModels.Main
             ViewModelLocator.GeneralMain.CurrentOffStatus = "Log In";
             ViewModelLocator.GeneralHamburger.UpdateLogInLabel();
             LogOutButtonVisibility = false;
+
+            // Signing out has to leave the app, not just drop the tokens. The Shell is not
+            // reachable from here (Core is platform independent), so the request goes out as an
+            // event and the shell decides who moves. Without it the user stays on the page they
+            // were reading with an empty library and no obvious way back to the login form.
+            try
+            {
+                LogOutRequested?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception)
+            {
+            }
         });
 
+        /// <summary>
+        ///     Raised after a sign-out has actually dropped the session. AppShell listens and goes
+        ///     to the login page. Async void on purpose: the handler navigates, and the command
+        ///     cannot wait on it.
+        /// </summary>
+        public event EventHandler LogOutRequested;
+
+        /// <summary>
+        ///     Cached in the field, which is the only reason this works at all. RelayCommand holds
+        ///     the delegate as a MvvmLight WeakAction: a command built inline from a lambda has no
+        ///     strong reference once the constructor returns, the collector takes it, and Execute
+        ///     becomes a silent no-op that still answers CanExecute == true.
+        /// </summary>
         public ICommand LogInCommand => _logInCommand ??= new RelayCommand(AttemptAuthentication);
 
 		public ICommand ProblemsCommand => _problemsCommand ?? (_problemsCommand = new RelayCommand(() =>
@@ -136,48 +183,86 @@ namespace MALClient.XShared.ViewModels.Main
             LogOutButtonVisibility = Credentials.Authenticated;
         }
 
+        /// <summary>
+        ///     The direct path: check the typed username and password against MyAnimeList before
+        ///     touching any credential state.
+        ///     <para>
+        ///     It used to write the password straight into <c>Credentials</c> and then ask
+        ///     <c>AuthQuery</c> for "the context", which authenticated with that password read as
+        ///     MAL session cookies. The request therefore went out with no session, always failed,
+        ///     and reported a bad password for good ones. It now asks MAL directly, and only stores
+        ///     anything once MAL has actually accepted the pair.
+        ///     </para>
+        /// </summary>
         private async void AttemptAuthentication()
         {
             if (Authenticating)
                 return;
+
+            var user = (UserNameInput ?? string.Empty).Trim();
+            var pass = PasswordInput ?? string.Empty;
+
             Authenticating = true;
-            Credentials.Update(UserNameInput, PasswordInput, CurrentApiType);
-            Query.RefreshClientAuthHeader();
-            PasswordInput = string.Empty;
-            RaisePropertyChanged(() => PasswordInput);
             try
             {
-                if (CurrentApiType == ApiType.Mal)
+                if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
                 {
-                    var response = await new AuthQuery().GetRequestResponse();
-                    if (string.IsNullOrEmpty(response))
-                        throw new Exception();
-                    Settings.SelectedApiType = ApiType.Mal;
-                    Credentials.SetAuthStatus(true);
-                    ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInMyAnimeList);
+                    ResourceLocator.MessageDialogProvider.ShowMessageDialog(
+                        "Enter your MyAnimeList username and password.", "Sign in");
+                    return;
                 }
-                else //hummingbird
-                {
-                    var response = await new AuthQuery().GetRequestResponse();
-                    if (string.IsNullOrEmpty(response))
-                        throw new Exception();
-                    if (response.Contains("\"error\": \"Invalid credentials\""))
-                        throw new Exception();
-                    Settings.SelectedApiType = ApiType.Hummingbird;
-                    Credentials.SetAuthToken(response);
-                    Credentials.SetAuthStatus(true);
-                    ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInHummingbird);
 
+                var check = new AuthQuery();
+                var outcome = await check.CheckCredentialsAsync(user, pass);
+
+                if (outcome != AuthQuery.AuthOutcome.Success)
+                {
+                    Credentials.SetAuthStatus(false);
+                    Credentials.Update(string.Empty, string.Empty, ApiType.Mal);
+
+                    // A verification wall is not a wrong password and not a dead network, and telling
+                    // the user either of those leaves them retyping a password that was always right.
+                    // The form already carries a "Use the MyAnimeList site instead" button, so the
+                    // message names it rather than adding a second way in.
+                    if (outcome == AuthQuery.AuthOutcome.Challenge)
+                    {
+                        ResourceLocator.MessageDialogProvider.ShowMessageDialog(
+                            "MyAnimeList is asking to verify that you are not a robot, so it will not " +
+                            "take the password here. Tap \"Use the MyAnimeList site instead\" below and " +
+                            "sign in on their site; the app picks the session up from there.",
+                            "Verification required");
+                        return;
+                    }
+
+                    var message = string.IsNullOrWhiteSpace(check.Detail)
+                        ? "Unable to authorize with the provided credentials."
+                        : check.Detail;
+                    ResourceLocator.MessageDialogProvider.ShowMessageDialog(message, "Authorization failed.");
+                    return;
                 }
+
+                // Only now is it safe to hold the password anywhere.
+                Credentials.Update(user, pass, ApiType.Mal);
+                Query.RefreshClientAuthHeader();
+                Settings.SelectedApiType = ApiType.Mal;
+                Credentials.SetAuthStatus(true);
+                ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInMyAnimeList);
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 Credentials.SetAuthStatus(false);
                 Credentials.Update(string.Empty, string.Empty, ApiType.Mal);
-                ResourceLocator.MessageDialogProvider.ShowMessageDialog("Unable to authorize with provided credentials. If problem persists please try to sign-in on website.","Authorization failed.");
-                Authenticating = false;
+                ResourceLocator.MessageDialogProvider.ShowMessageDialog(
+                    "Unable to authorize with the provided credentials.", "Authorization failed.");
                 return;
             }
+            finally
+            {
+                PasswordInput = string.Empty;
+                RaisePropertyChanged(() => PasswordInput);
+                Authenticating = false;
+            }
+
             try
             {
                 await ViewModelLocator.GeneralHamburger.UpdateProfileImg();
@@ -186,6 +271,7 @@ namespace MALClient.XShared.ViewModels.Main
             {
                 //
             }
+
             try
             {
                 ViewModelLocator.GeneralMain.HideOffContentCommand.Execute(null);
@@ -196,10 +282,6 @@ namespace MALClient.XShared.ViewModels.Main
             {
                 // A throw in this tail left Authenticating true, which made the
                 // sign-in button permanently unresponsive.
-            }
-            finally
-            {
-                Authenticating = false;
             }
         }
 

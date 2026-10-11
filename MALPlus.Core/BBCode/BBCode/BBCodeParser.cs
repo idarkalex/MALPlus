@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using MALClient.BBCode.SyntaxTree;
+using MALPlus.BBCode.SyntaxTree;
 
-namespace MALClient.BBCode
+namespace MALPlus.BBCode
 {
     /// <summary>
     /// This class is useful for creating a custom parser. You can customize which tags are available

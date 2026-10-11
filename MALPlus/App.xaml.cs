@@ -1,5 +1,5 @@
-using MALClient.XShared.BL;
-using MALClient.XShared.Utils;
+using MALPlus.XShared.BL;
+using MALPlus.XShared.Utils;
 using MALPlus.Services;
 
 namespace MALPlus;
@@ -29,12 +29,25 @@ public partial class App : Application
 
     protected override void OnStart()
     {
-        base.OnStart();
+base.OnStart();
 
-        System.Diagnostics.Debug.WriteLine("=== MALPLUS App.OnStart ===");
+        System.Diagnostics.Debug.WriteLine("=== MALPlus App.OnStart ===");
 
         Task.Run(async () =>
         {
+            // Reads the saved dictionary off the UI thread. This used to be an unawaited call sitting
+            // directly in OnStart, so the part of the read that runs before its first await blocked the
+            // thread that paints the first frame: the window came up, nothing was drawn over the
+            // background colour, and on a cold cache it sat there looking frozen until the read gave up.
+            try
+            {
+                await MALPlus.XShared.ViewModels.ResourceLocator.EnglishTitlesProvider.Init();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPlus EnglishTitles init failed: " + ex.GetType().Name);
+            }
+
             StartupTrace.Mark("initapp-begin");
             var initTask = InitializationRoutines.InitApp();
             try
@@ -86,7 +99,7 @@ public partial class App : Application
                     }
                     try
                     {
-                        var client = await MALClient.XShared.ViewModels.ResourceLocator.MalHttpContextProvider.GetApiHttpContextAsync();
+                        var client = await MALPlus.XShared.ViewModels.ResourceLocator.MalHttpContextProvider.GetApiHttpContextAsync();
                         Console.WriteLine("MALPLUS boot api client ok=" + (client != null));
                     }
                     catch (Exception ex)
@@ -101,5 +114,30 @@ public partial class App : Application
             }
             await MainActivity.ApplyPendingDeepLinkAsync();
         });
+    }
+
+    /// <summary>
+    ///     Writes out the English titles the reader collected this session.
+    /// </summary>
+    /// <remarks>
+    ///     Without this the dictionary stayes in memory only, so every cold start began with an empty
+    ///     one and the switch had no effect on a list that was not already showing English titles.
+    ///     Nothing else in the app ever saved it: the provider had no caller at all.
+    /// </remarks>
+    protected override void OnSleep()
+    {
+        base.OnSleep();
+        try
+        {
+            // Started and left running rather than waited on. Blocking here on GetResult is the
+            // classic way to wedge the platform's own save path: resume has to come back through
+            // this same thread, and anything the write needs from it cannot get it while we hold it.
+            // The write is skipped entirely when nothing changed, so there is rarely anything to lose.
+            _ = MALPlus.XShared.ViewModels.ResourceLocator.EnglishTitlesProvider.SaveData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS EnglishTitles save on sleep failed: " + ex.GetType().Name);
+        }
     }
 }

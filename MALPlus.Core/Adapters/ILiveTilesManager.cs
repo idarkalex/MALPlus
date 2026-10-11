@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MALClient.Models.Models.Library;
+using MALPlus.Models.Models.Library;
 
-namespace MALClient.Adapters
+namespace MALPlus.Adapters
 {
     public interface ILiveTilesManager
     {

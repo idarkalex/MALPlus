@@ -2,15 +2,32 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace MALClient.XShared.Utils
+namespace MALPlus.XShared.Utils
 {
     public static class AnimeThemesHelper
     {
         private static readonly HttpClient Client = new HttpClient();
+
+        /// <summary>
+        ///     Where AnimeThemes maps a MAL id onto its own entries.
+        /// </summary>
+        /// <remarks>
+        ///     GraphQL rather than REST, because the REST side has no filter for an external reference:
+        ///     asking for one answers 422. This endpoint answers 200 with the slugs that share the MAL
+        ///     id, and a MAL id can own more than one of them, which is why it returns a list.
+        ///     <para>
+        ///     No token is needed despite what the docs suggest: a plain POST with a JSON body works.
+        /// </para>
+        /// </remarks>
+        private const string GraphQlEndpoint = "https://graphql.animethemes.moe/";
+
+        private static readonly HttpClient GraphQlClient = new HttpClient();
 
         static AnimeThemesHelper()
         {
@@ -20,6 +37,27 @@ namespace MALClient.XShared.Utils
 
         private static DateTime? _rateLimitedUntil;
 
+        /// <summary>
+        ///     How long one refused request silences every other one.
+        /// </summary>
+        /// <remarks>
+        ///     Short, and deliberately so. It used to be a minute, and a minute is far longer than it takes
+        ///     a reader to move from the thing that caused it to the next thing they wanted. The random
+        ///     theme reported "no theme found" for that whole minute, which read as AnimeThemes being
+        ///     empty rather than as the app having asked it to stand still.
+        /// </remarks>
+        private static readonly TimeSpan RateLimitCooldown = TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        ///     How long one request may take before it is written off.
+        /// </summary>
+        /// <remarks>
+        ///     The client had no timeout of its own, so a request that never answered held the caller for
+        ///     the default hundred seconds. On a page that means a spinner that never stops and a list
+        ///     that never appears, with nothing to say which of the two went wrong.
+        /// </remarks>
+        private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(25);
+
         private static async Task<string> GetStringWithBackoffAsync(string url)
         {
             if (_rateLimitedUntil.HasValue && DateTime.UtcNow < _rateLimitedUntil.Value)
@@ -27,13 +65,20 @@ namespace MALClient.XShared.Utils
 
             try
             {
-                return await Client.GetStringAsync(url);
+                using var cts = new CancellationTokenSource(RequestTimeout);
+                return await Client.GetStringAsync(url, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Nothing came back inside the budget. Reported rather than thrown, because a caller
+                // that gets an exception here shows an error where "no theme" is the honest answer.
+                return null;
             }
             catch (HttpRequestException ex)
             {
                 if (ex.Message.Contains("429") || ex.Message.Contains("Too Many Requests"))
                 {
-                    _rateLimitedUntil = DateTime.UtcNow.AddMinutes(1);
+                    _rateLimitedUntil = DateTime.UtcNow.Add(RateLimitCooldown);
                     return null;
                 }
                 if (ex.Message.Contains("404") || ex.Message.Contains("Not Found"))
@@ -51,13 +96,34 @@ namespace MALClient.XShared.Utils
             public int Sequence { get; set; }
             public string Url { get; set; }
             public string AnimeSlug { get; set; }
-public string SongTitle { get; set; }
+            public string SongTitle { get; set; }
 
-                /// <summary>
-                ///     Episode coverage, as inclusive ranges. This is what the match keys on.
-                /// </summary>
-                public List<EpisodeRange> Episodes { get; set; } = new List<EpisodeRange>();
-            }
+            /// <summary>
+            ///     The MAL id of the entry this theme belongs to, when the source knows it.
+            /// </summary>
+            /// <remarks>
+            ///     Carried so a theme can be matched to the right row without anybody comparing names.
+            ///     Zero means AnimeThemes held no reference for this entry, which happens for the
+            ///     hand-built ones and means the theme cannot be placed on a card.
+            /// </remarks>
+            public int MalId { get; set; }
+
+            /// <summary>
+            ///     Episode coverage, as inclusive ranges. This is what the match keys on.
+            /// </summary>
+            /// <summary>
+            ///     Size in bytes, as AnimeThemes reports it. Zero when unknown.
+            /// </summary>
+            /// <remarks>
+            ///     Free: it arrives in the same document as the link, so picking the lightest of several
+            ///     encodes costs nothing extra. One Piece's first opening exists three times, at 16.8, 30.4
+            ///     and 50.2 MB, and the order the API returns them in has nothing to do with size, so
+            ///     without this the biggest one is as likely to be played as the smallest.
+            /// </remarks>
+            public long Size { get; set; }
+
+            public List<EpisodeRange> Episodes { get; set; } = new List<EpisodeRange>();
+        }
 
             /// <summary>
             ///     A class and not a ValueTuple on purpose: this list is round tripped through the
@@ -167,6 +233,50 @@ public string SongTitle { get; set; }
         }
 
         /// <summary>
+        ///     The shared way of reducing two names to something that can be compared.
+        /// </summary>
+        /// <remarks>
+        ///     The same function the song matching has always used, offered for the season join so a
+        ///     season of titles is matched with the rule the app already matches songs by rather than a
+        ///     second scheme of its own. It keeps letters and digits and drops everything else, which
+        ///     is why "Tensei Shitara Ken Deshita 2nd Season" survives as one key.
+        /// </remarks>
+        public static string NormalizeForMatch(string s) => NormalizeSong(s);
+
+        /// <summary>
+        ///     Reads a URL with the source's own backoff, for a caller that wants the raw document.
+        /// </summary>
+        public static Task<string> GetRawAsync(string url) => GetStringWithBackoffAsync(url);
+
+        /// <summary>
+        ///     The name of an anime AnimeThemes holds, from its slug.
+        /// </summary>
+        /// <remarks>
+        ///     The random theme only carries the slug, and a slug is not a thing to show anybody. One
+        ///     request turns it into the name, which is then enough to reach MAL, which is the only side
+        ///     of the arrangement with artwork to show.
+        /// </remarks>
+        public static async Task<string> GetAnimeNameAsync(string slug)
+        {
+            if (string.IsNullOrEmpty(slug))
+                return null;
+            try
+            {
+                var json = await GetStringWithBackoffAsync(
+                    $"https://api.animethemes.moe/anime/{Uri.EscapeDataString(slug)}");
+                if (string.IsNullOrEmpty(json))
+                    return null;
+
+                var doc = JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JObject>(json);
+                return doc?["anime"]?["name"]?.ToString();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Fuzzy score (0..1) of how much of the query words appear in the theme title.
         /// Extra words in the title never penalize, so a high but not perfect coincidence
         /// still matches (user requirement: no 100% needed).
@@ -217,6 +327,30 @@ public string SongTitle { get; set; }
         {
             return "animethemes_v2_" + CacheFileName(cacheKey);
         }
+
+        /// <summary>
+        ///     The cache file for one MAL entry's themes.
+        /// </summary>
+        /// <remarks>
+        ///     Keyed on the id and not on a name, and that is the whole point: a name is what differs
+        ///     between MAL and AnimeThemes, so a cache keyed on one of them answers a question that
+        ///     was never asked. The version in the name is bumped from v2, so the entries written under
+        ///     the old title keys are simply not read rather than served as though they were current.
+        /// </remarks>
+        private static string ThemeCacheFileForMalId(int malId)
+        {
+            // v4 because Size arrived in v3 and a cached entry written before it deserialises with zero,
+            // which is exactly the value that makes Lightest decline to choose. There is no in-place
+            // migration for this cache, so the version lives in the filename and bumping it is how the
+            // new field reaches an existing install.
+            return "animethemes_mal_" + malId + "_v4";
+        }
+
+        /// <summary>
+        ///     Themes already resolved, by MAL id, for the life of the process.
+        /// </summary>
+        private static readonly Dictionary<int, List<ThemeVideo>> ThemesByMalId =
+            new Dictionary<int, List<ThemeVideo>>();
 
         private static string CacheFileName(string key)
         {
@@ -275,6 +409,198 @@ public string SongTitle { get; set; }
 
         public static bool ThemeDebugEnabled { get; set; }
 
+        /// <summary>
+        ///     The themes of one MAL entry, and the only way anything in the app asks for them.
+        /// </summary>
+        /// <remarks>
+        ///     Everything resolves by MAL id here, and that is deliberate. The name is not a reliable
+        ///     key: AnimeThemes calls Psyren "PSYЯEN", with a Cyrillic letter, and a search by the name
+        ///     MAL uses finds nothing at all. The id is the same on both sides and needs no interpreting.
+        ///     <para>
+        ///     One MAL id can own several AnimeThemes entries — JoJo's Steel Ball Run has one for
+        ///     "Part 7" and a second for "2nd &amp; 3rd STAGE" — so every slug the id maps to is read and
+        ///     the results are merged, with duplicates collapsed on slot, song and video.
+        ///     </para>
+        ///     <para>
+        ///     Cached twice: in memory for the life of the process, and on disk under the id for seven
+        ///     days. Keying the disk copy on the id rather than a name is what makes it mean the same
+        ///     thing it did when it was written.
+        ///     </para>
+        /// </remarks>
+        public static async Task<List<ThemeVideo>> GetThemesAsync(int malId)
+        {
+            if (malId <= 0)
+                return new List<ThemeVideo>();
+
+            if (ThemesByMalId.TryGetValue(malId, out var remembered))
+                return remembered;
+
+            var onDisk = await DataCache.RetrieveData<List<ThemeVideo>>(
+                ThemeCacheFileForMalId(malId), "AnimeThemes", 7);
+            if (onDisk != null && onDisk.Count > 0)
+            {
+                ThemesByMalId[malId] = onDisk;
+                return onDisk;
+            }
+
+            var slugs = await GetSlugsByMalIdAsync(malId);
+            if (slugs.Count == 0)
+            {
+                // Nothing maps to this id. Remembered as an empty answer so the round trip is not paid
+                // for again on every open of the same entry.
+                ThemesByMalId[malId] = new List<ThemeVideo>();
+                return ThemesByMalId[malId];
+            }
+
+            var merged = new List<ThemeVideo>();
+            if (slugs.Count == 1)
+            {
+                merged = await FetchBySlugAsync(slugs[0]);
+            }
+            else
+            {
+                // Read together rather than one after another: an id that maps to several entries is
+                // not the common case, but when it happens the whole point of this call is done.
+                var batches = await Task.WhenAll(slugs.Select(slug => FetchBySlugAsync(slug)));
+                foreach (var batch in batches)
+                    if (batch != null)
+                        merged.AddRange(batch);
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            merged = merged
+                .Where(theme => seen.Add(theme.Type + " " + theme.Sequence + "|" +
+                                         (theme.SongTitle ?? "") + "|" + theme.Url))
+                .ToList();
+
+            foreach (var theme in merged)
+                theme.MalId = malId;
+
+            ThemesByMalId[malId] = merged;
+            try
+            {
+                await DataCache.SaveData(merged, ThemeCacheFileForMalId(malId), "AnimeThemes");
+            }
+            catch
+            {
+            }
+            return merged;
+        }
+
+        /// <summary>
+        ///     Fills the id cache from themes somebody already read in one go, so the per-entry
+        ///     resolution finds them without asking the source again.
+        /// </summary>
+        /// <remarks>
+        ///     What makes the season tab cheap: it reads every entry of the season with its references
+        ///     in a single request, so the rows afterwards hit the cache rather than each spending two
+        ///     requests of their own. It goes through the same function the other callers use.
+        /// </remarks>
+        public static void PrimeThemesByMalId(IEnumerable<KeyValuePair<int, List<ThemeVideo>>> entries)
+        {
+            foreach (var pair in entries)
+            {
+                if (pair.Key <= 0 || pair.Value == null || pair.Value.Count == 0)
+                    continue;
+                ThemesByMalId[pair.Key] = pair.Value;
+            }
+        }
+
+        /// <summary>
+        ///     The AnimeThemes slugs one MAL entry maps to, which can be more than one.
+        /// </summary>
+        public static async Task<List<string>> GetSlugsByMalIdAsync(int malId)
+        {
+            var slugs = new List<string>();
+            if (malId <= 0)
+                return slugs;
+
+            try
+            {
+                var query =
+                    "{ findAnimeByExternalSite(site: MAL, id: " + malId + ") { slug } }";
+                var body = "{\"query\":\"" + query.Replace("\"", "\\\"") + "\"}";
+                using var cts = new CancellationTokenSource(RequestTimeout);
+
+                var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+                var response = await GraphQlClient.PostAsync(GraphQlEndpoint, content, cts.Token);
+                if (!response.IsSuccessStatusCode)
+                    return slugs;
+
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("data", out var data) ||
+                    !data.TryGetProperty("findAnimeByExternalSite", out var matches) ||
+                    matches.ValueKind != JsonValueKind.Array)
+                    return slugs;
+
+                foreach (var match in matches.EnumerateArray())
+                {
+                    if (match.TryGetProperty("slug", out var slugProp) &&
+                        slugProp.ValueKind == JsonValueKind.String)
+                    {
+                        var slug = slugProp.GetString();
+                        if (!string.IsNullOrEmpty(slug))
+                            slugs.Add(slug);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception)
+            {
+            }
+
+            return slugs;
+        }
+
+        /// <summary>
+        ///     The themes of one AnimeThemes entry, read by its slug.
+        /// </summary>
+        public static async Task<List<ThemeVideo>> FetchBySlugAsync(string slug, int malId = 0)
+        {
+            if (string.IsNullOrEmpty(slug))
+                return new List<ThemeVideo>();
+
+            var cacheBuster = string.Empty;
+            var url = $"https://api.animethemes.moe/anime/{Uri.EscapeDataString(slug)}" +
+                      "?include=animethemes.animethemeentries.videos,animethemes.song," +
+                      "animethemes.song.artists";
+
+            var json = await GetStringWithBackoffAsync(url);
+            if (string.IsNullOrEmpty(json))
+                return new List<ThemeVideo>();
+
+            try
+            {
+                var root = JsonConvert.DeserializeObject<AnimeKeyedApiResponse>(json);
+                var anime = root?.anime;
+                if (anime == null)
+                    return new List<ThemeVideo>();
+
+                var themes = BuildVideos(anime);
+                if (malId > 0)
+                    foreach (var theme in themes)
+                        theme.MalId = malId;
+                return themes;
+            }
+            catch
+            {
+                return new List<ThemeVideo>();
+            }
+        }
+
+        /// <summary>
+        ///     Themes found by name. NOT the way anything asks for them any more.
+        /// </summary>
+        /// <remarks>
+        ///     Kept only as a red de seguridad for when the id route cannot reach the source at all,
+        ///     because a name is a bad key and this is the code that proved it: it searches for the name
+        ///     MAL uses, and AnimeThemes calls Psyren "PSYЯEN", so it finds nothing. A resolved-by-id
+        ///     answer beats a guessed-by-name one every time, which is why <see cref="GetThemesAsync"/>
+        ///     exists and this is not on its path.
+        /// </remarks>
         public static async Task<List<ThemeVideo>> SearchAsync(string animeTitle, string englishTitle = null)
         {
             if (string.IsNullOrEmpty(animeTitle) && string.IsNullOrEmpty(englishTitle))
@@ -579,15 +905,21 @@ public string SongTitle { get; set; }
                     {
                         if (string.IsNullOrEmpty(video.link))
                             continue;
-                        if (videos.Any(v => v.Url == video.link))
+                        // Same video AND same kind. The URL alone was too broad: one video used by both
+                        // an opening and an ending was kept only once, whichever came first, and an
+                        // ending that shared its file with an opening silently became the opening.
+                        if (videos.Any(v => v.Url == video.link &&
+                                           string.Equals(v.Type, theme.type, StringComparison.OrdinalIgnoreCase)))
                             continue;
-videos.Add(new ThemeVideo
-                            {
-                                Type = theme.type,
+
+                        videos.Add(new ThemeVideo
+                        {
+                            Type = theme.type,
                                 Sequence = theme.sequence ?? 1,
                                 Url = video.link,
                                 AnimeSlug = Slugify(anime.name),
                                 SongTitle = theme.song?.title,
+                                Size = video.size,
                                 Episodes = ParseEpisodeRanges(entry.episodes)
                             });
                     }
@@ -648,6 +980,7 @@ private class InlineThemeEntry
         private class InlineVideo
         {
             [JsonProperty("link")] public string link { get; set; }
+            [JsonProperty("size")] public long size { get; set; }
         }
 
         /// <summary>
@@ -671,6 +1004,20 @@ private class InlineThemeEntry
             if (videos == null || videos.Count == 0)
                 return null;
 
+            // Only themes of the kind that was asked about. This is the whole fix for picking the last
+            // opening when the last ending was tapped: the kind was already an argument, and it was
+            // never consulted, so when a line carried no episode range the scoring ran over openings
+            // and endings together and the better title won regardless of which one it belonged to.
+            //
+            // An empty set of the right kind returns null rather than falling back to the other kind.
+            // Playing an opening for an ending is worse than not playing.
+            var wantedType = isOp ? "OP" : "ED";
+            videos = videos
+                .Where(v => string.Equals(v.Type, wantedType, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (videos.Count == 0)
+                return null;
+
             var wanted = ExtractEpisodeRanges(opEdText);
             if (wanted.Count > 0)
             {
@@ -692,7 +1039,7 @@ private class InlineThemeEntry
                             bestByEpisode = v;
                         }
                     }
-                    return bestByEpisode ?? overlapping[0];
+                    return Lightest(bestByEpisode ?? overlapping[0], overlapping);
                 }
             }
 
@@ -709,7 +1056,45 @@ private class InlineThemeEntry
                     best = v;
                 }
             }
-            return bestScore >= 0.7 ? best : null;
+            return bestScore >= 0.7 ? Lightest(best, videos) : null;
+        }
+
+        /// <summary>
+        ///     Swaps the chosen encode for the smallest one that plays the same slot, keeping the winner
+        ///     when the candidates are not interchangeable.
+        /// </summary>
+        /// <remarks>
+        ///     AnimeThemes files one opening several times: One Piece's first exists as an NCDVD480 at
+        ///     16.8 MB, a plain one at 30.4 and a v2 at 50.2. They are the same ninety seconds, so the
+        ///     biggest is three times the transfer for nothing, and the order they arrive in is not
+        ///     sorted by size, so "take the first" is how the 50 MB one got played.
+        ///     <para>
+        ///     Only applies inside the same theme slot, and never trades away the chosen song: a candidate
+        ///     only replaces the winner when it is the same type and sequence, so a differently titled
+        ///     version of the same episodes cannot slip in and defeat the match that just happened.
+        ///     </para>
+        /// </remarks>
+        private static ThemeVideo Lightest(ThemeVideo chosen, List<ThemeVideo> candidates)
+        {
+            if (chosen == null || candidates == null || candidates.Count <= 1 || chosen.Size <= 0)
+                return chosen;
+
+            ThemeVideo best = chosen;
+            foreach (var v in candidates)
+            {
+                if (v == null || v.Size <= 0 || v.Size >= best.Size)
+                    continue;
+                if (!string.Equals(v.Type, chosen.Type, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (v.Sequence != chosen.Sequence)
+                    continue;
+                if (!string.Equals(NormalizeSong(v.SongTitle), NormalizeSong(chosen.SongTitle),
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+                best = v;
+            }
+
+            return best;
         }
 
         private static double ScoreSong(ThemeVideo v, string songQuery, string songName)
@@ -721,48 +1106,59 @@ private class InlineThemeEntry
                 : Math.Max(SongMatchScore(songName, v.SongTitle), SongMatchScore(songQuery, v.SongTitle));
         }
 
-        /// <summary>
-        /// One random theme straight from AnimeThemes, for the Discover "nostalgia gem" tile.
-        /// Reuses the same CDN WebM link the OP/ED path plays.
-        /// </summary>
         public static async Task<ThemeVideo> GetRandomThemeAsync()
         {
-            try
+            const string url =
+                "https://api.animethemes.moe/animetheme?sort=random&page[size]=1" +
+                "&include=anime,animethemeentries.videos,song";
+
+            // Tried a few times, because there always IS a theme and the only reason to come back empty
+            // is a refusal or a hiccup. It used to be asked once, so a single 429 turned into "no theme
+            // found", which is not a thing AnimeThemes ever says.
+            for (var attempt = 1; attempt <= 3; attempt++)
             {
-                const string url =
-                    "https://api.animethemes.moe/animetheme?sort=random&page[size]=1" +
-                    "&include=anime,animethemeentries.videos,song";
-                var json = await GetStringWithBackoffAsync(url);
-                if (string.IsNullOrEmpty(json))
-                    return null;
-
-                var root = JsonConvert.DeserializeObject<RandomThemeResponse>(json);
-                var theme = root?.animethemes?.FirstOrDefault();
-                if (theme == null)
-                    return null;
-
-                var link = theme.animethemeentries?
-                    .SelectMany(entry => entry.videos ?? new List<InlineVideo>())
-                    .Select(video => video.link)
-                    .FirstOrDefault(l => !string.IsNullOrEmpty(l));
-                if (string.IsNullOrEmpty(link))
-                    return null;
-
-                return new ThemeVideo
+                try
                 {
-                    Type = theme.type ?? "OP",
-                    Sequence = theme.sequence ?? 1,
-                    Url = link,
-                    AnimeSlug = theme.anime?.slug,
-                    SongTitle = theme.song?.title
-                };
-            }
-            catch
-            {
-                return null;
-            }
-        }
+                    var json = await GetStringWithBackoffAsync(url);
+                    if (string.IsNullOrEmpty(json))
+                    {
+                        if (attempt >= 3)
+                            return null;
+                        await Task.Delay(TimeSpan.FromMilliseconds(400 * attempt));
+                        continue;
+                    }
 
+                    var root = JsonConvert.DeserializeObject<RandomThemeResponse>(json);
+                    var theme = root?.animethemes?.FirstOrDefault();
+                    if (theme == null)
+                        return null;
+
+                    var link = theme.animethemeentries?
+                        .SelectMany(entry => entry.videos ?? new List<InlineVideo>())
+                        .Select(video => video.link)
+                        .FirstOrDefault(l => !string.IsNullOrEmpty(l));
+                    if (string.IsNullOrEmpty(link))
+                        return null;
+
+                    return new ThemeVideo
+                    {
+                        Type = theme.type ?? "OP",
+                        Sequence = theme.sequence ?? 1,
+                        Url = link,
+                        AnimeSlug = theme.anime?.slug,
+                        SongTitle = theme.song?.title
+                    };
+                }
+                catch
+                {
+                    if (attempt >= 3)
+                        return null;
+                    await Task.Delay(TimeSpan.FromMilliseconds(400 * attempt));
+                }
+            }
+
+            return null;
+        }
         private class RandomThemeResponse
         {
             // The animetheme index returns its collection under "animethemes", NOT "data".
