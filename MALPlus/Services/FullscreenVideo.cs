@@ -14,10 +14,16 @@ public static class FullscreenVideo
     public static bool IsActive { get; private set; }
 
     /// <summary>
-    ///     Go landscape and hide the bars. The activity's own orientation is saved first: forcing it
-    ///     is not reversible on its own, and an app left in landscape after the overlay closes is the
-    ///     kind of thing that looks like a crash on the next page.
+    ///     Go landscape and hide the bars.
     /// </summary>
+    /// <remarks>
+    ///     Nothing is saved here, and nothing needs to be: <see cref="Exit" /> asks
+    ///     <see cref="OrientationPolicy" /> what the app should be, which knows whether this is a
+    ///     phone that has to stay portrait or a tablet that is free. The earlier version of this saved
+    ///     the activity's orientation and there was nothing to save, because the activity never set
+    ///     one: it inherited Unspecified from the manifest, so "restore what we found" restored
+    ///     nothing and the app stayed landscape after the overlay closed.
+    /// </remarks>
     public static void Enter()
     {
         try
@@ -25,6 +31,13 @@ public static class FullscreenVideo
             var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
             if (activity == null)
                 return;
+
+            // The lock stops applying before the rotation is asked for, and not after. MainActivity
+            // re-applies the portrait lock from OnConfigurationChanged, and the rotation below is what
+            // raises that: lock on, rotate to landscape, lock pulls it straight back to portrait,
+            // WebView reads the second rotation as the video leaving full screen and the picture
+            // closes itself the moment it opens.
+            OrientationPolicy.Suspended = true;
 
             activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Landscape;
 
@@ -84,13 +97,34 @@ public static class FullscreenVideo
     }
 
     /// <summary>
-    ///     Leave full screen and hand the orientation back to the sensor, which restores whatever the
-    ///     user was holding the phone in before. Forcing Portrait would be wrong on a tablet.
+    ///     Leave full screen and hand the orientation back to what the app should be.
     /// </summary>
+    /// <remarks>
+    ///     It used to hand it back to the sensor with Unspecified, which was right while nothing
+    ///     locked the phone, and wrong the moment something did: Unspecified is the platform's own
+    ///     "free to rotate", so a portrait locked phone that played one video came out of it unlocked
+    ///     for the rest of the session. Asking the policy is what makes a phone portrait again and
+    ///     still leaves a tablet free, which is why this does not just force Portrait.
+    /// </remarks>
     public static void Exit()
     {
+        // Released before the IsActive check, not inside it. Enter can suspend the portrait lock and
+        // then return without ever reaching IsActive = true, and it can do the same by throwing: an
+        // early return for a null window is the ordinary case, not an edge case. Gating the release on
+        // IsActive left the lock suspended with no flag left to reset it, which is a phone that never
+        // locks sideways again for the rest of the session.
+        var wasSuspended = OrientationPolicy.Suspended;
+        OrientationPolicy.Suspended = false;
+
         if (!IsActive)
+        {
+            // Nothing else to undo, but the orientation still has to come back if the lock was the
+            // only thing that had moved it.
+            if (wasSuspended)
+                RestoreDesiredOrientation();
             return;
+        }
+
         try
         {
             var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
@@ -119,8 +153,10 @@ public static class FullscreenVideo
                 }
             }
 
-            if (activity != null)
-                activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Unspecified;
+            // The lock starts applying again BEFORE the orientation is handed back, so the rotation to
+            // portrait it causes cannot be undone by a later configuration change.
+            OrientationPolicy.Suspended = false;
+            RestoreDesiredOrientation();
 
             // The overlays paint the bars themselves on close, so the colour is left to them; all
             // that matters here is that they are visible again.
@@ -129,6 +165,29 @@ public static class FullscreenVideo
         catch (Exception ex)
         {
             global::Android.Util.Log.Warn("MALPlus Video", "Fullscreen exit failed: " + ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    ///     Puts the activity back on whatever <see cref="OrientationPolicy" /> wants: portrait on a
+    ///     phone, free on a tablet.
+    /// </summary>
+    /// <remarks>
+    ///     Not Unspecified. That is the platform's own "free to rotate", so restoring it here would
+    ///     quietly unlock the phone for the rest of the session, once for every video watched.
+    /// </remarks>
+    private static void RestoreDesiredOrientation()
+    {
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            if (activity == null)
+                return;
+            activity.RequestedOrientation = OrientationPolicy.Desired(activity.Resources?.Configuration);
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Video", "orientation restore failed: " + ex.GetType().Name);
         }
     }
 }

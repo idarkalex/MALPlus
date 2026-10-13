@@ -121,6 +121,10 @@ public class MainActivity : MauiAppCompatActivity
             Android.Util.Log.Warn("MALPLUS", "edge to edge failed: " + ex.GetType().Name);
         }
 
+        // Portrait on a phone, free to rotate on a tablet. Applied before anything is built so the
+        // first layout is already the right way up rather than flashing sideways.
+        MALPlus.Services.OrientationPolicy.Apply(this);
+
         Android.Util.Log.Info("MALPLUS", $"OnCreate intent data: {Intent?.Data}");
         if (Intent?.Data != null && Intent.Data.ToString().StartsWith("malplus://"))
         {
@@ -138,6 +142,23 @@ public class MainActivity : MauiAppCompatActivity
         // recently added callback FIRST and the Shell adds its own after OnCreate returns, so one
         // added here sits behind the Shell's and never sees the press, which is also what was
         // measured. ArmVideoBackCallback adds it at the moment an overlay opens instead.
+    }
+
+    /// <summary>
+    ///     Re-applies the portrait lock when the window crosses the compact breakpoint.
+    /// </summary>
+    /// <remarks>
+    ///     The activity declares ScreenSize and Orientation in ConfigurationChanges, so a rotation
+    ///     does not recreate it and this is the only place that sees the new size. A tablet folded
+    ///     down to a narrow window, or a phone put into split screen, crosses the line in both
+    ///     directions and the lock has to follow it. Apply is a no-op when the orientation is already
+    ///     what the policy wants, which is what keeps this from looping against itself: assigning
+    ///     RequestedOrientation raises a configuration change even when the value does not move.
+    /// </remarks>
+    public override void OnConfigurationChanged(global::Android.Content.Res.Configuration newConfig)
+    {
+        base.OnConfigurationChanged(newConfig);
+        MALPlus.Services.OrientationPolicy.Apply(this);
     }
 
     /// <summary>
