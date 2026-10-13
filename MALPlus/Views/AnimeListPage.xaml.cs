@@ -30,6 +30,15 @@ public partial class AnimeListPage : ContentPage
     private int _lastMode = -1;
     private int _lastStatus = -1;
     private bool _navConnected;
+    /// <summary>
+    ///     Set when this page pushes a details page, and consumed by the very next ApplyRoute.
+    /// </summary>
+    /// <remarks>
+    ///     It means "this is the way back from a details page", which is the only navigation that has to
+    ///     reopen the panel that was on screen rather than resolve afresh. Cleared by ApplyRoute itself,
+    ///     so it can never outlive the navigation that set it.
+    /// </remarks>
+    private bool _returningFromDetails;
     private TopAnimeType _topType = TopAnimeType.General;
     private MangaTopType _mangaTopType = MangaTopType.All;
     private MangaAdaptedType _adaptedType = MangaAdaptedType.AiringNow;
@@ -168,8 +177,15 @@ public partial class AnimeListPage : ContentPage
             var query = ParseQuery(route);
             var mode = ResolveMode(query, out var modeFromQuery);
             var status = ResolveStatus(query, modeFromQuery);
-            _lastMode = mode;
-            _lastStatus = status;
+            // Only when this is not the way back from a details page. This runs on the tab tap, before
+            // the shell navigates, and it writes the very fields ResolveMode falls back to. Returning
+            // from a details page re-activates the section, so on the way back this overwrote the panel
+            // with whatever Mode held and the panel was lost before ApplyRoute ever looked at it.
+            if (!_returningFromDetails)
+            {
+                _lastMode = mode;
+                _lastStatus = status;
+            }
             CloseStatusDropdown();
             UpdateContextBars();
         }
@@ -184,7 +200,16 @@ public partial class AnimeListPage : ContentPage
         try
         {
             var query = ParseQuery(route);
+            // Captured before the property is cleared below. Reading it in the log instead printed an
+            // empty string every time, because the nulling happens earlier in this same method, and that
+            // is exactly the value this diagnostic exists to show.
+            var rawModeProperty = Mode;
+            var wasReturningFromDetails = _returningFromDetails;
             var mode = ResolveMode(query, out var modeFromQuery);
+            // Consumed here, AFTER the resolve above rather than before it. Clearing it first meant
+            // ResolveMode never saw the flag it is supposed to honour, and the panel was flattened to
+            // the plain library anyway while the log cheerfully reported back=True.
+            _returningFromDetails = false;
             var status = ResolveStatus(query, modeFromQuery);
             var type = ResolveType(query, modeFromQuery);
             ParseTypeQuery(mode, type);
@@ -238,7 +263,7 @@ Mode = null;
                 !(seasonalRoute && (routeSeason.Value != _shownSeason || routeYear.Value != _shownYear)) &&
                 (Vm.AnimeItems?.Count ?? 0) > 0;
             Android.Util.Log.Info("MALPLUS",
-                $"AnimeList apply route='{route ?? "(properties)"}' -> mode={mode} status={status} type={type} reset={forceReset} skip={alreadyShowing} applied=({_appliedMode},{_appliedStatus},{_appliedType})");
+                $"AnimeList apply route='{route ?? "(properties)"}' -> mode={mode} status={status} type={type} reset={forceReset} skip={alreadyShowing} applied=({_appliedMode},{_appliedStatus},{_appliedType}) propMode='{rawModeProperty}' last=({_lastMode},{_lastStatus}) back={wasReturningFromDetails}");
             if (alreadyShowing)
             {
 if (openStatusMenu)
@@ -386,6 +411,12 @@ Season? routeSeason = null, int? routeYear = null)
             var topPanel = _lastMode == (int)AnimeListWorkModes.TopAnime ||
                            _lastMode == (int)AnimeListWorkModes.TopManga ||
                            _lastMode == (int)AnimeListWorkModes.MangaAdapted;
+
+            // Seasonal, Top and Adapted are opened from More and only borrowed this page to show
+            // themselves, so the tab bar is told to mark More instead. A genre or studio panel is
+            // deliberately not in here: it is opened from a details page, it is part of the anime
+            // section's own subject, and back from it leads back to that entry.
+            BottomNav?.SetSectionOverride(seasonal || topPanel ? "more" : null);
             // Seasonal gets the same bar as the list, with the season and the year standing in for
             // the status word. There is no status to choose on this panel, and the bar exists to
             // name what the grid is holding, so naming the season is exactly its job.
@@ -475,7 +506,11 @@ Season? routeSeason = null, int? routeYear = null)
 
                 if (!isSubPanel)
                 {
-                    _panelBackArmed = false;
+                    // Disarmed, not just unflagged. The flag is the page's belief about the dispatcher;
+                    // clearing it while the callback is still registered left a live back handler pointing
+                    // at GoToMainPageAsync with nothing left to take it down, and the next back press
+                    // landed on the main list instead of doing what the reader expected.
+                    DisarmPanelBack();
                     return;
                 }
 
@@ -493,6 +528,23 @@ Season? routeSeason = null, int? routeYear = null)
 
         private bool _panelBackArmed;
 
+    /// <summary>
+    ///     Takes the panel's back callback down and says so.
+    /// </summary>
+    /// <remarks>
+    ///     Every place that used to write <c>_panelBackArmed = false</c> on its own left the flag and the
+    ///     dispatcher disagreeing: the page believed it had released the gesture while a callback was
+    ///     still registered. Since the flag is what OnDisappearing checks before disarming, that
+    ///     disagreement made the disarm a no-op and the stale handler survived into the next navigation.
+    /// </remarks>
+    private void DisarmPanelBack()
+    {
+        if (!_panelBackArmed)
+            return;
+        _panelBackArmed = false;
+        MainActivity.DisarmMenuBackCallback();
+    }
+
         /// <summary>
         ///     Leaves a subpanel for the main page, which is where back is expected to land.
         /// </summary>
@@ -509,17 +561,26 @@ Season? routeSeason = null, int? routeYear = null)
         /// </remarks>
         private async Task GoToMainPageAsync()
         {
-            _panelBackArmed = false;
+            DisarmPanelBack();
+            var mode = (AnimeListWorkModes)_lastMode;
+            Android.Util.Log.Info("MALPLUS", $"AnimeList leaving panel mode={mode} for the main page");
             try
             {
-                var startTab = Settings.DefaultMenuTab ?? "anime";
-                var route = startTab switch
+                // A genre or studio panel was opened from a details page and belongs to that entry's
+                // stack, so back from it returns to the entry. Everything else here was opened from More
+                // and returns there.
+                //
+                // It used to go to the tab picked in Settings, which for most readers is the Anime tab.
+                // That meant leaving a Seasonal panel dumped the reader in their library, and because
+                // the stack still had More behind it the gesture to get back there took a second swipe.
+                // Going to More directly is one gesture, and it is where they were a moment earlier.
+                if (mode == AnimeListWorkModes.AnimeByGenre || mode == AnimeListWorkModes.AnimeByStudio)
                 {
-                    "discover" => "///discover",
-                    "manga" => "///manga?mode=2&status=0&reset=1",
-                    _ => "///anime?mode=0&status=0&reset=1"
-                };
-                await Shell.Current.GoToAsync(route);
+                    await Shell.Current.GoToAsync("..");
+                    return;
+                }
+
+                await Shell.Current.GoToAsync("///more");
             }
             catch (Exception ex)
             {
@@ -1017,6 +1078,18 @@ Season? routeSeason = null, int? routeYear = null)
     private int ResolveMode(Dictionary<string, string> query, out bool fromQuery)
     {
         fromQuery = false;
+
+        // FIRST, ahead of the query and ahead of the Mode property, because on this one navigation both
+        // of those are unreliable. The list is coming back from a details page it opened itself, so the
+        // panel that was on screen is the answer by definition: the query arrives empty and Mode has
+        // just been re-applied by MAUI holding whatever the shell last had, which for a panel opened
+        // off More is the plain library's own value. The log caught this going out as mode=1 and
+        // coming back as mode=0 with _appliedMode still on 1, and the only branch that can do that is
+        // the Mode property. Checking this flag after it, as it was, could never fire.
+        if (_returningFromDetails && _appliedMode >= 0 &&
+            System.Enum.IsDefined(typeof(AnimeListWorkModes), _appliedMode))
+            return _appliedMode;
+
         if (query.TryGetValue("mode", out var raw) &&
             int.TryParse(raw, out var parsed) &&
             System.Enum.IsDefined(typeof(AnimeListWorkModes), parsed))
@@ -1031,6 +1104,17 @@ Season? routeSeason = null, int? routeYear = null)
             fromQuery = true;
             return fromProperty;
         }
+
+        // Nothing at all asked for a mode: the panel the reader had open is still the one to reopen.
+        // Falling back to "Anime" here is what made Seasonal, Top anime, Top manga, Adapted, and the
+        // genre/studio panels all come back as the plain library list instead of themselves, which for a
+        // Seasonal that is also what left the grid empty: the plain list filters by the status index,
+        // and a library with nothing in that band has nothing to show.
+        if (_appliedMode >= 0 && System.Enum.IsDefined(typeof(AnimeListWorkModes), _appliedMode))
+            return _appliedMode;
+        if (_lastMode >= 0 && System.Enum.IsDefined(typeof(AnimeListWorkModes), _lastMode))
+            return _lastMode;
+
         return IsMangaLocation() ? (int) AnimeListWorkModes.Manga : (int) AnimeListWorkModes.Anime;
     }
 
@@ -1455,6 +1539,26 @@ case AnimeListWorkModes.SeasonalAnime:
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        // The panel's back callback is armed for as long as the reader is ON the list. Without
+        // releasing it here it kept answering while a details page was in front, and back from a
+        // details page was spent leaving the subpanel instead of coming back to it: the press ran
+        // GoToMainPageAsync, which lands on the main list, so Seasonal (or Top anime, Top manga,
+        // Adapted, a genre or studio panel) reopened as the plain library instead of itself.
+        // OnAppearing runs ApplyRoute, which re-arms it, so the panel still leaves for the main page
+        // on its own back press.
+        DisarmPanelBack();
+        // MAUI re-applies query attributes on re-navigation but never clears a [QueryProperty] that the
+        // new route omits, which would leak the previous work mode into this page. Dropped here rather
+        // than only inside ApplyRoute, because the shell re-applies them as the section comes back into
+        // view: leaving them set meant the next visit to the Anime tab inherited the mode of the last
+        // one, so opening a Seasonal panel and then tapping Anime reopened it filtered by the season
+        // instead of showing the library.
+        Mode = null;
+        Status = null;
+        Type = null;
+        Menu = null;
+        Reset = null;
+        _applied = false;
         RestoreTabAfterFilterPush();
         if (_navConnected)
         {
@@ -1462,15 +1566,6 @@ case AnimeListWorkModes.SeasonalAnime:
             BottomNav.SectionChanging -= OnSectionChanging;
             _navConnected = false;
         }
-        // MAUI re-applies query attributes on re-navigation but never clears a
-        // [QueryProperty] that the new route omits, which would leak the previous
-        // work mode into this page. Drop them so the next apply resolves fresh.
-        Mode = null;
-        Status = null;
-        Type = null;
-        Menu = null;
-        Reset = null;
-        _applied = false;
     }
 
     /// <summary>
@@ -1796,7 +1891,6 @@ case AnimeListWorkModes.SeasonalAnime:
         _panelBackArmed = false;
         UpdatePanelBackNavigation();
     }
-
     private async void OnGridItemTapped(object sender, object item)
     {
         if (item is AnimeItemViewModel viewModel)
@@ -1842,6 +1936,32 @@ case AnimeListWorkModes.SeasonalAnime:
             var route = manga
                 ? $"animedetails?id={item.Id}&title={titleQs}&manga=true"
                 : $"animedetails?id={item.Id}&title={titleQs}";
+
+            // Declared rather than inferred. Coming back from this page is the one navigation that has
+            // to reopen the panel it left, and it cannot be worked out afterwards: MAUI re-applies the
+            // [QueryProperty] values when the shell pops, so by the time this page appears its Mode
+            // holds whatever the shell last had, which for a panel opened off More is the plain
+            // library's own value rather than the panel's. The log showed mode=1 going out and mode=0
+            // coming back with _appliedMode still sitting on 1, so the fallback never got a look in.
+            _returningFromDetails = true;
+
+            // The gesture is taken over rather than left to the shell. Details is pushed with a
+            // relative route while the four tabs are ShellContents rather than stackable pages, so the
+            // shell does not treat it as a child of this section and pops two levels on the way back:
+            // from //anime/animedetails straight to //more, which is the section the panel was opened
+            // from. The navigation trace showed exactly that, one gesture, //more. Naming the way back
+            // here is what makes it land on this panel instead of wherever the shell feels like.
+            _detailsReturnMode = _lastMode;
+            _detailsReturnManga = manga;
+
+            // The panel's own back callback is replaced by this one, so the flag has to come down with
+            // it. Left set, the OnDisappearing this very navigation raises saw a panel it still believed
+            // was armed and disarmed the callback just registered, so nothing was left to answer the
+            // gesture and the shell popped two levels on its own. The trace showed the return handler
+            // never running at all.
+            _panelBackArmed = false;
+            MainActivity.ArmMenuBackCallback(ReturnFromDetailsAsync);
+
             await Shell.Current.GoToAsync(route);
         }
         catch (Exception ex)
@@ -1852,6 +1972,40 @@ case AnimeListWorkModes.SeasonalAnime:
         {
             _navigatingToDetails = false;
         }
+    }
+
+    private int _detailsReturnMode = -1;
+    private bool _detailsReturnManga;
+
+    /// <summary>
+    ///     The way back from a details page this list opened: straight to this list, in the mode it was
+    ///     showing.
+    /// </summary>
+    /// <remarks>
+    ///     Named rather than popped, because the shell cannot do it here. The four tabs are ShellContents
+    ///     and a details page is pushed with a relative route, so the two are not parent and child as far
+    ///     as the navigation stack is concerned, and a back gesture unwound two levels at once and left
+    ///     the panel entirely. Going back to the section root that was actually on screen also stops the
+    ///     Mode query from surviving into the next visit, which is what reopened the Anime tab still
+    ///     filtered by the season.
+    /// </remarks>
+    private void ReturnFromDetailsAsync()
+    {
+        var mode = _detailsReturnMode >= 0 ? _detailsReturnMode : (int)AnimeListWorkModes.Anime;
+        var root = _detailsReturnManga ? "//manga" : "//anime";
+        Android.Util.Log.Info("MALPLUS", $"AnimeList returning from details to {root}?mode={mode}");
+        _detailsReturnMode = -1;
+        _ = MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            try
+            {
+                await Shell.Current.GoToAsync($"{root}?mode={mode}&reset=1");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS return from details failed: " + ex.GetType().Name);
+            }
+        });
     }
 
     private sealed class MauiDimensionsProvider : MALPlus.XShared.ViewModels.Interfaces.IDimensionsProvider

@@ -38,6 +38,11 @@ public partial class BottomNavBar : ContentView
         {
             UnsubscribeFromShell();
             InvalidateNavigation();
+            // Dropped with the parent. Four of these exist, one per root page, and a stale override on
+            // one that is no longer on screen would repaint a tab nobody is looking at the moment the
+            // shell next navigates.
+            _sectionOverride = null;
+            _appliedSection = null;
             return;
         }
 
@@ -91,11 +96,38 @@ public partial class BottomNavBar : ContentView
 
     private string _appliedSection;
 
+    private string _sectionOverride;
+
+    /// <summary>
+    ///     Marks a different tab than the one on screen, for a page that is still inside a section it
+    ///     was reached from elsewhere.
+    /// </summary>
+    /// <remarks>
+    ///     A Seasonal or a Top list is opened from More but lives in the anime section, so the bar said
+    ///     "Anime" while the reader was nowhere near their library: the tabs disagreed with the page and
+    ///     there was nothing on screen saying where they actually were. Passing "more" marks the tab the
+    ///     panel was reached from, which is also the tab back leads to. Passing null gives the bar back
+    ///     to the section the shell reports.
+    ///     <para>
+    ///     Kept as an override rather than folded into <see cref="CurrentSection" /> because the shell's
+    ///     own answer is not wrong, only incomplete: the list really is in the anime section, and it is
+    ///     the reader's mental model that needs correcting.
+    ///     </para>
+    /// </remarks>
+    public void SetSectionOverride(string section)
+    {
+        if (string.Equals(_sectionOverride, section, StringComparison.Ordinal))
+            return;
+        _sectionOverride = section;
+        _appliedSection = null;
+        RefreshSelection();
+    }
+
     public void RefreshSelection()
     {
         try
         {
-            var section = CurrentSection();
+            var section = string.IsNullOrEmpty(_sectionOverride) ? CurrentSection() : _sectionOverride;
             // Shell.Navigated fires on every navigation anywhere, and there are 4
             // BottomNavBar instances alive (one per root page). Re-writing the 20
             // bindable properties each time dirtied 4 buttons for no visual change.
