@@ -24,7 +24,7 @@
                 <Grid x:Name="TileGrid"
                       ColumnDefinitions="*,*"
                       RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
-                      ColumnSpacing="10" RowSpacing="10">
+                      ColumnSpacing="10" RowSpacing="16">
                     <controls:DiscoverTileButton Grid.Row="0" Grid.Column="0"
                                                  Source="discover_btn_search"
                                                  AutomationId="DiscoverSearch" SemanticProperties.Description="Search"
