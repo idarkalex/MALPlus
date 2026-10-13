@@ -86,7 +86,6 @@ namespace MALPlus.XShared.Comm.Anime
                 }
 
                 _cache[animeId] = (result, DateTime.UtcNow, 1);
-                NotifyOverrideIfResumed(animeId, result);
                 return result;
             }
             catch
@@ -156,32 +155,12 @@ namespace MALPlus.XShared.Comm.Anime
                 }
 
                 _cache[animeId] = (result, DateTime.UtcNow, lastPage);
-                NotifyOverrideIfResumed(animeId, result);
                 return result;
             }
             catch
             {
                 return null;
             }
-        }
-
-        //Every real episode fetch funnels through here, so a series that was flagged as
-        //not airing by hand gets its flag dropped the moment a newer episode shows up.
-        //No-op for every anime that has no override.
-        private static void NotifyOverrideIfResumed(int animeId, List<AnimeEpisode> episodes)
-        {
-            try
-            {
-                if (episodes == null || episodes.Count == 0) return;
-                if (!MALPlus.XShared.Utils.AiringOverrides.IsOverriddenAsNotAiring(animeId)) return;
-                var latest = episodes.Where(ep => ep.AiredDate.HasValue)
-                    .Select(ep => ep.AiredDate.Value)
-                    .OrderByDescending(d => d)
-                    .FirstOrDefault();
-                if (latest == default) return;
-                MALPlus.XShared.Utils.AiringOverrides.ResumeIfAiring(animeId, latest);
-            }
-            catch { }
         }
 
         private static string GetString(JsonElement el, string prop) =>
@@ -229,9 +208,20 @@ namespace MALPlus.XShared.Comm.Anime
         /// </summary>
         public async Task<List<AnimeEpisode>> GetEpisodesWithScheduleAsync(int animeId, bool force = false,
             CancellationToken cancellationToken = default, Action<List<AnimeEpisode>> onFirstBatch = null,
-            IReadOnlyDictionary<int, string> episodeForumTopics = null)
+            IReadOnlyDictionary<int, string> episodeForumTopics = null,
+            Action<List<AnimeEpisode>> onTenraiBatch = null)
         {
             var tenrai = await GetEpisodes(animeId, force, cancellationToken, onFirstBatch);
+            // The AniList schedule is an improvement, not a prerequisite. On a cold cache it queues
+            // behind the rate limiter for tens of seconds, and the rows we already hold are correct,
+            // only less precise. Handing them over now is the difference between a tab that paints in
+            // under a tenth of a second and one that sits empty for most of a minute; the merge below
+            // replaces them with the dated ones when it finally lands.
+            if (onTenraiBatch != null && tenrai != null && tenrai.Count > 0)
+            {
+                try { onTenraiBatch(tenrai); }
+                catch { }
+            }
             if (!AniListScheduleClient.Enabled)
                 return tenrai;
 

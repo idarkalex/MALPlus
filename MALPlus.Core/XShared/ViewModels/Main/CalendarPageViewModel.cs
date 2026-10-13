@@ -408,6 +408,7 @@ namespace MALPlus.XShared.ViewModels.Main
             try
             {
                 var now = DateTime.UtcNow;
+                var pending = new List<AnimeItemViewModel>();
                 foreach (var page in CalendarData)
                 {
                     if (page is CalendarSummaryPivotPage)
@@ -415,9 +416,15 @@ namespace MALPlus.XShared.ViewModels.Main
                     foreach (var item in page.Items)
                     {
                         if (string.IsNullOrEmpty(item.TimeTillNextAirCache))
-                            item.RefreshTimeTillNextAirInBackground();
+                            pending.Add(item);
                     }
                 }
+
+                if (pending.Count == 0)
+                    return;
+
+                foreach (var item in pending)
+                    item.RefreshTimeTillNextAirInBackground();
             }
             catch (Exception ex)
             {
@@ -522,51 +529,101 @@ namespace MALPlus.XShared.ViewModels.Main
 
         private async Task<List<AnimeItemAbstraction>> BuildAllAiringAbstractionsAsync()
         {
-            return await Task.Run(() =>
+            return await Task.Run(async () =>
             {
                 var result = new List<AnimeItemAbstraction>();
                 var nowUtc = DateTime.UtcNow;
-                List<int> ids;
+
+                // The ids worth asking about. The schedule endpoint is one source, but it misses
+                // series that really are airing: JoJo's Steel Ball Run, Link Click III, Seitokai ni
+                // mo Ana wa Aru! and three more were all absent from it while airing this week, and
+                // each of them is a series nobody would accept missing from a calendar. The user's
+                // own list and the current season cover the rest.
+                var ids = new HashSet<int>();
                 try
                 {
-                    ids = ResourceLocator.AiringInfoProvider.GetAllAiringIds()
-                        .Select(id => (Id: id, Next: ResourceLocator.AiringInfoProvider.TryGetNextAirDate(id, nowUtc, out var d) ? (DateTime?)d : null))
-                        .Where(x => x.Next.HasValue && (x.Next.Value - nowUtc).TotalDays < 7)
-                        .OrderBy(x => x.Next.Value)
-                        .Select(x => x.Id)
-                        .Distinct()
-                        .ToList();
+                    foreach (var id in ResourceLocator.AiringInfoProvider.GetAllAiringIds())
+                        ids.Add(id);
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
-                    ids = new List<int>();
+                }
+                try
+                {
+                    foreach (var id in _animeLibraryDataStorage.AllLoadedAuthAnimeItems
+                                 .Where(i => i != null && i.RepresentsAnime)
+                                 .Select(i => i.MalId))
+                        ids.Add(id);
+                }
+                catch (Exception)
+                {
+                }
+                try
+                {
+                    foreach (var id in await SeasonalAiringIdsAsync())
+                        ids.Add(id);
+                }
+                catch (Exception)
+                {
                 }
 
-                foreach (var id in ids)
+                // Ask about the whole set at once and keep those with a real date this week.
+                try
                 {
-                    try
+                    await ResourceLocator.AiringInfoProvider.Init(false);
+                    await ResourceLocator.AiringInfoProvider.RefreshDeclaredNextAirAsync(ids, true);
+
+                    var wanted = ids
+                        .Where(id => ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(id, out var d) &&
+                                     d > nowUtc && (d - nowUtc).TotalDays < 7)
+                        .OrderBy(id => ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(id, out var x) ? x : DateTime.MaxValue)
+                        .ToList();
+
+                    foreach (var id in wanted)
                     {
                         if (!ResourceLocator.AiringInfoProvider.TryGetEntry(id, out var entry))
-                            continue;
+                            entry = null;
 
                         result.Add(new AnimeItemAbstraction(false, new AnimeLibraryItemData
                         {
-                            Id = entry.MalId,
-                            MalId = entry.MalId,
-                            Title = entry.Title,
-                            ImgUrl = entry.ImgUrl,
-                            AllEpisodes = entry.AllEpisodes,
-                            Type = entry.Type,
-                            AlternateTitle = entry.Title
+                            Id = id,
+                            MalId = id,
+                            Title = entry?.Title ?? "",
+                            ImgUrl = entry?.ImgUrl,
+                            AllEpisodes = entry?.AllEpisodes ?? 0,
+                            Type = entry?.Type ?? 0,
+                            AlternateTitle = entry?.Title ?? ""
                         }));
                     }
-                    catch (Exception)
-                    {
-                        // skip failed entry
-                    }
                 }
+                catch (Exception)
+                {
+                }
+
                 return result;
             });
+        }
+
+        /// <summary>
+        ///     The ids of the current season, which is where the schedule endpoint's gaps show up.
+        ///     Read through the same query the Seasonal page uses, so both agree on what is on.
+        /// </summary>
+        private async Task<List<int>> SeasonalAiringIdsAsync()
+        {
+            try
+            {
+                // "Airing" is the season the anime list uses for what is on right now, and it is the
+                // list the Seasonal page reads, so this agrees with what the user is looking at.
+                var data = await new AnimeSeasonalQuery(
+                    new Models.Models.Anime.AnimeSeason { Name = "Airing" }).GetSeasonalAnime();
+                if (data == null)
+                    return new List<int>();
+                return data.Where(s => s.Id > 0).Select(s => s.Id).ToList();
+            }
+            catch (Exception)
+            {
+                return new List<int>();
+            }
         }
 
         public async Task GoToDesiredTab()

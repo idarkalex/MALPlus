@@ -116,9 +116,21 @@ namespace MALPlus.XShared.Utils
                     gap = 7;
             }
 
-            // Never assume infinite airing: if the latest episode is far older than
-            // ~3x the typical cadence, the series likely paused or finished airing.
-            if ((nowUtc - aired[aired.Count - 1]).TotalDays > gap * 3)
+            // Never assume infinite airing. Two things have to be true for a cadence to still be
+            // a schedule rather than a habit.
+            //
+            // The old test was only "the latest episode is older than about three cadences", which
+            // lets a weekly show survive two and a half missed weeks. One Piece is the case that
+            // mattered: its last real episode sat fifteen days old, a weekly slot kept it inside
+            // three cadences, and the extrapolation below happily rolled it forward to a chapter
+            // nobody had announced. Fifteen days without an episode is already a break for a show
+            // that runs weekly, so a gap past about one and a half cadences stops the arithmetic.
+            //
+            // Beyond that, a series whose real episodes have simply not been recorded also lands
+            // here: the more than thirty day cadence above resets it to weekly, and a yearly show
+            // with a month-old entry would otherwise count down to a next one.
+            var silence = (nowUtc - aired[aired.Count - 1]).TotalDays;
+            if (silence > gap * 1.5)
                 return null;
 
             var latest = aired[aired.Count - 1];

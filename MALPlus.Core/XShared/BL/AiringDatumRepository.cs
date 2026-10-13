@@ -31,18 +31,6 @@ namespace MALPlus.XShared.BL
         public static async Task<DateTime?> GetNextAirUtcAsync(int malId, bool force = false)
         {
             var now = DateTime.UtcNow;
-            if (AiringOverrides.IsOverriddenAsNotAiring(malId))
-            {
-                //The source keeps advertising a weekly slot for this series even though it
-                //switched to batch releases, so every fallback below would invent a date.
-                //Deliberately NOT re-checked against the local episode cache: that cache is fed by
-                //the seed bundle, whose synthetic weekly dates run past the real last episode and
-                //would read as "it resumed airing". Only a live fetch (AnimeEpisodesQuery) can
-                //lift this, so the override holds until the next cour is really published.
-                lock (_lockObj) _memCache[malId] = (null, now);
-                DataCache.UpdateVolatileDataWithNextAir(malId, null);
-                return null;
-            }
             if (!force && DataCache.TryRetrieveDataForId(malId, out var vd) && vd.NextAirUtc.HasValue)
             {
                 if (!AirTimeUtils.NeedsRefresh(vd.NextAirUtc, vd.NextAirFetchedAtUtc, now))
@@ -95,12 +83,15 @@ namespace MALPlus.XShared.BL
                         return vd2.NextAirUtc;
                     }
                 }
-                if (ResourceLocator.AiringInfoProvider.TryGetNextAirDate(malId, now, out var airDate) && (airDate > now || AirTimeUtils.IsInAiringWindow(airDate, now)))
+                // The real schedule, when there is one. AniList declares the next episode of a series outright;
+                // MyAnimeList does not, and the weekly broadcast slot is a statement about when a
+                // slot usually is rather than about a chapter coming out in it.
+                var declared = await ResolveDeclaredNextAirAsync(malId, force);
+                if (declared.HasValue)
                 {
-                    var res = airDate;
-                    lock (_lockObj) _memCache[malId] = (res, now);
-                    DataCache.UpdateVolatileDataWithNextAir(malId, res);
-                    return res;
+                    lock (_lockObj) _memCache[malId] = (declared, now);
+                    DataCache.UpdateVolatileDataWithNextAir(malId, declared);
+                    return declared;
                 }
 
                 // Ask AniList whether this thing is still running BEFORE extrapolating a cadence
@@ -122,14 +113,9 @@ namespace MALPlus.XShared.BL
                     }
                 }
 
-                var broadcast = await GetBroadcastFallbackAsync(malId, stillRunning);
-                if (broadcast.HasValue)
-                {
-                    lock (_lockObj) _memCache[malId] = (broadcast, now);
-                    DataCache.UpdateVolatileDataWithNextAir(malId, broadcast);
-                    return broadcast;
-                }
-
+                // The weekly slot is the last resort, and only as a calendar convenience: it is a
+                // slot, not a chapter, so it never reaches a countdown on its own. Anything the
+                // real sources refused is left with no date rather than with an invented one.
                 lock (_lockObj) _memCache[malId] = (null, now);
                 DataCache.UpdateVolatileDataWithNextAir(malId, null);
                 DataCache.RegisterVolatileDataAiringTimeFetchFailure(malId);
@@ -138,6 +124,86 @@ namespace MALPlus.XShared.BL
             finally
             {
                 sem.Release();
+            }
+        }
+
+        /// <summary>
+        ///     The next episode date AniList declares, checked against the series' own history.
+        ///     <para>
+        ///     A date alone is not enough to trust. AniList keeps a scheduled slot in
+        ///     <c>nextAiringEpisode</c> for a series that is months away from its next batch, and
+        ///     that is a planning slot rather than an announced chapter: One Piece carried one for
+        ///     January while its most recent real episode was five weeks old, and a countdown to a
+        ///     date nobody had announced is worse than no countdown at all. So a far off date only
+        ///     counts when the series has actually been emitting; otherwise it is reported as no
+        ///     date and the status still reads as airing.
+        ///     </para>
+        /// </summary>
+private static async Task<DateTime?> ResolveDeclaredNextAirAsync(int malId, bool force)
+        {
+            try
+            {
+                await ResourceLocator.AiringInfoProvider.RequestDeclaredNextAir(malId);
+
+            if (!ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(malId, out var declared))
+                return null;
+
+            var now = DateTime.UtcNow;
+            if (declared <= now)
+                return null;
+
+            // Within the horizon the date is taken as given: it is the published schedule.
+            if (declared - now <= DeclaredHorizon)
+                return declared;
+
+            // Far off: only believable if the series has actually been emitting recently.
+            var latestEpisode = await GetLatestRealEpisodeUtcAsync(malId);
+            if (latestEpisode.HasValue && now - latestEpisode.Value <= StaleEpisodeWindow)
+                return declared;
+
+            return null;
+            }
+            catch (Exception)
+            {
+                // The service was unreachable, or answered something unreadable. No declared date.
+                return null;
+            }
+        }
+
+        /// <summary>
+        ///     How far ahead a declared date is believed without checking the series' history.
+        ///     A countdown two weeks out is useful; one three months out is a plan, not a date.
+        /// </summary>
+        private static readonly TimeSpan DeclaredHorizon = TimeSpan.FromDays(14);
+
+        /// <summary>
+        ///     How long a series may have been quiet before a distant declared date stops being
+        ///     believed. Roughly two missed weekly slots.
+        /// </summary>
+        private static readonly TimeSpan StaleEpisodeWindow = TimeSpan.FromDays(14);
+
+        /// <summary>
+        ///     The most recent real episode date on record for a series, or null when there is none.
+        /// </summary>
+        private static async Task<DateTime?> GetLatestRealEpisodeUtcAsync(int malId)
+        {
+            try
+            {
+                var episodes = await DataCache.RetrieveAnimeEpisodesStale(malId);
+                if (episodes == null || episodes.Count == 0)
+                    episodes = await new AnimeEpisodesQuery().GetLastEpisodesAsync(malId);
+                if (episodes == null || episodes.Count == 0)
+                    return null;
+
+                return episodes
+                    .Where(ep => ep.AiredDate.HasValue)
+                    .Select(ep => ep.AiredDate.Value)
+                    .OrderByDescending(d => d)
+                    .FirstOrDefault();
+            }
+            catch (Exception)
+            {
+                return null;
             }
         }
 
@@ -201,12 +267,19 @@ namespace MALPlus.XShared.BL
         {
             if (AniListScheduleClient.Enabled)
             {
-                var schedule = await AniListScheduleClient.GetScheduleAsync(malId);
-                if (schedule != null && !string.IsNullOrWhiteSpace(schedule.Status))
+                // The status, and only the status. This used to pull the whole schedule, two or three
+                // requests per series, to read one string: and it ran for every series WITHOUT an
+                // announced episode, which is to say for precisely the ones a library full of airing
+                // shows is made of. That is where the request storm came from, and it is what left the
+                // Episodes tab queued behind the limiter for the better part of a minute.
+                // The batched status query answers the same question in one request.
+                var statuses = await AniListAiringQuery.GetStatusAsync(new[] { malId });
+                if (statuses != null && statuses.TryGetValue(malId, out var anilistStatus) &&
+                    !string.IsNullOrWhiteSpace(anilistStatus))
                 {
-                    var mapped = schedule.IsReleasing ? "Currently Airing" : "Finished Airing";
+                    var mapped = IsReleasingStatus(anilistStatus) ? "Currently Airing" : "Finished Airing";
                     DataCache.UpdateVolatileStatus(malId, mapped);
-                    return schedule.IsReleasing;
+                    return IsReleasingStatus(anilistStatus);
                 }
             }
 
@@ -234,5 +307,14 @@ namespace MALPlus.XShared.BL
                 return null;
             }
         }
+
+        /// <summary>
+        ///     AniList's own spelling of "still running". Its status field is a handful of words and
+        ///     only RELEASING means episodes are still coming; everything else, including a series it
+        ///     has simply forgotten, is answered as not running so no countdown is invented for it.
+        /// </summary>
+        private static bool IsReleasingStatus(string status) =>
+            string.Equals(status, "RELEASING", StringComparison.OrdinalIgnoreCase) ||
+            MALPlus.XShared.Utils.AirTimeUtils.IsCurrentlyAiringStatus(status);
     }
 }

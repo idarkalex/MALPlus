@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -656,6 +656,8 @@ namespace MALPlus.XShared.ViewModels.Main
 
             var status = GetDesiredStatus();
 
+            System.Diagnostics.Debug.WriteLine($"MALPLUS rows: mode={WorkMode} status={status} allAnime={_animeLibraryDataStorage.AllLoadedAnimeItemAbstractions?.Count} allManga={_animeLibraryDataStorage.AllLoadedMangaItemAbstractions?.Count} authAnime={_animeLibraryDataStorage.AllLoadedAuthAnimeItems?.Count} authManga={_animeLibraryDataStorage.AllLoadedAuthMangaItems?.Count} drawn={AnimeItems?.Count} listSource={ListSource} user={Credentials.UserName} auth={Credentials.Authenticated}");
+
             IEnumerable<AnimeItemAbstraction> items;
             if (queryCondition && !_invalidatePreviousSearchResults &&
                 WasPreviousQuery &&
@@ -1212,13 +1214,15 @@ namespace MALPlus.XShared.ViewModels.Main
             if (_airTimesPrefetched)
                 return;
             _airTimesPrefetched = true;
-            foreach (var item in AnimeItems.Take(12))
-            {
-                if (item.ParentAbstraction.RepresentsAnime && string.IsNullOrEmpty(item.TimeTillNextAirCache))
-                    item.RefreshTimeTillNextAirInBackground();
-            }
-        }
 
+            var visible = AnimeItems.Take(12)
+                .Where(item => item.ParentAbstraction.RepresentsAnime && string.IsNullOrEmpty(item.TimeTillNextAirCache))
+                .ToList();
+            if (visible.Count == 0)
+                return;
+            foreach (var item in visible)
+                item.RefreshTimeTillNextAirInBackground();
+        }
         private int GetGridItemsToLoad()
         {
             if (DimensionsProvider?.ActualHeight < 0 && DimensionsProvider?.ActualWidth < 0)

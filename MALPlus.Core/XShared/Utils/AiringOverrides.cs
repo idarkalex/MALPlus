@@ -20,10 +20,19 @@ namespace MALPlus.XShared.Utils
         private const string ResumedStorageKey = "AiringOverridesResumedIdsV3";
 
         //malId -> newest real episode known when the override was created
-        private static readonly Dictionary<int, DateTime> Overrides = new Dictionary<int, DateTime>
-        {
-            { 21, new DateTime(2026, 8, 16) }, //One Piece - last real episode, now on a cour model
-        };
+        //Empty on purpose. This table existed for One Piece, which the weekly broadcast slot kept
+        //promising a chapter for years after it stopped airing weekly, and the entry was flagged by
+        //hand. It also expired by itself: a series "resumes" whenever a real episode turned up
+        //inside the resume window, which is what a cour-based show does between batches, so the
+        //countdown it was suppressing came back on its own after a fortnight.
+        //
+        //The declared next air date from AniList settles it properly instead. One Piece carries a
+        //scheduled slot months out while its last real episode is weeks old, and that is now a
+        //date nobody trusts without the series having emitted recently, so no countdown appears
+        //without a hand written list that has to be re-argued every season. A series that is
+        //really airing announces its next chapter and is counted down to it, and One Piece starts
+        //counting again by itself the moment it comes back.
+        private static readonly Dictionary<int, DateTime> Overrides = new Dictionary<int, DateTime>();
 
         private static readonly object Gate = new object();
 

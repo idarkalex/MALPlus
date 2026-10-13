@@ -21,9 +21,6 @@ namespace MALPlus.Models.Models.Anime
         [JsonProperty("forum_url")] public string ForumUrl { get; set; }
         [JsonProperty("aired")] public DateTime? AiredDate { get; set; }
 
-        /// <summary>Row we projected from the broadcast cadence, not a real MAL episode page.</summary>
-        [JsonIgnore] public bool IsEstimated { get; set; }
-
         [JsonIgnore] private bool _isWatched;
         [JsonIgnore]
         public bool IsWatched

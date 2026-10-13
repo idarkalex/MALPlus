@@ -258,7 +258,12 @@ namespace MALPlus.XShared.Utils
         {
             try
             {
-                var loaded = await DataCacheService.RetrieveData<Dictionary<int, VolatileDataCache>>("volatile_data.json","",0);
+                // Schema is part of the file name, so a build that changes what it stores stops
+                // reading the previous build's table at once. Without it a corrected write is
+                // invisible for the whole TTL, and every old entry is a lie the app keeps
+                // repeating with total confidence.
+                var loaded = await DataCacheService.RetrieveData<Dictionary<int, VolatileDataCache>>(
+                    "volatile_data_v2.json", "", 0);
                 if (loaded == null)
                     return;
                 foreach (var kvp in loaded)
@@ -275,7 +280,7 @@ namespace MALPlus.XShared.Utils
             {
                 await DataCacheService.SaveData(
                     _volatileDataCache.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
-                    "volatile_data.json", "");
+                    "volatile_data_v2.json", "");
             }
             catch (Exception)
             {
@@ -662,29 +667,49 @@ namespace MALPlus.XShared.Utils
         public DateTime FetchedAtUtc { get; set; }
     }
 
-    public static async Task SaveAiringSchedule(int id, AniListSchedule schedule)
+    /// <summary>
+    ///     Forgets the stored schedule so the next read asks rather than answering from disk.
+    /// </summary>
+    public static async Task ClearAiringSchedule(int id)
     {
-        if (schedule == null)
-            return;
         try
         {
-            var json = System.Text.Json.JsonSerializer.Serialize(new CachedAiringSchedule
-            {
-                Schedule = schedule,
-                FetchedAtUtc = DateTime.UtcNow
-            });
-            await DataCacheService.SaveData(json, $"anilist_schedule_{id}.json", "AiringSchedule");
+            // Overwriting with an unreadable entry is the same as forgetting it here:
+            // RetrieveAiringSchedule reads an empty or unparsable body as "nothing stored" and
+            // goes to the network, so there is no need for a delete the cache interface does not
+            // have.
+            await DataCacheService.SaveData("{}", "anilist_schedule_v2_" + id + ".json", "AiringSchedule");
         }
         catch (Exception)
         {
         }
     }
 
-    public static async Task<AniListSchedule> RetrieveAiringSchedule(int id)
-    {
+    public static async Task SaveAiringSchedule(int id, AniListSchedule schedule)    {
+        if (schedule == null)
+            return;
         try
         {
-            var json = await DataCacheService.RetrieveData<string>($"anilist_schedule_{id}.json",
+            // Schema is part of the file name: a build that changes how the record is picked up stops
+            // reading the previous build's answer at once, instead of repeating a wrong schedule for
+            // as long as the TTL lasts.
+            var json = System.Text.Json.JsonSerializer.Serialize(new CachedAiringSchedule
+            {
+                Schedule = schedule,
+                FetchedAtUtc = DateTime.UtcNow
+            });
+            await DataCacheService.SaveData(json, $"anilist_schedule_v2_{id}.json", "AiringSchedule");
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+public static async Task<AniListSchedule> RetrieveAiringSchedule(int id)
+        {
+        try
+        {
+            var json = await DataCacheService.RetrieveData<string>($"anilist_schedule_v2_{id}.json",
                 "AiringSchedule", 0);
             if (string.IsNullOrEmpty(json))
                 return null;

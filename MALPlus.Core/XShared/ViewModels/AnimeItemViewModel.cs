@@ -85,17 +85,12 @@ namespace MALPlus.XShared.ViewModels
             GlobalScore = ParentAbstraction.GlobalScore;
             Airing = ParentAbstraction.AirDay >= 0;
 
-            if (string.IsNullOrEmpty(_timeTillNextAirCache) && Airing &&
-                ResourceLocator.AiringInfoProvider.InitializationSuccess)
-            {
-                var malId = ParentAbstraction?.MalId ?? Id;
-                if (ResourceLocator.AiringInfoProvider.TryGetNextAirDate(malId, DateTime.UtcNow, out var airDate) &&
-                    airDate > DateTime.UtcNow)
-                {
-                    _timeTillNextAirCache = AirTimeUtils.FormatAirCountdown(airDate, DateTime.UtcNow);
-                    RaisePropertyChanged(() => TimeTillNextAirCache);
-                }
-            }
+            // No countdown is seeded here. This used to read the weekly broadcast slot straight
+            // from the airing provider and write it as the countdown, bypassing the decision the
+            // repository makes: a series can have a slot every week and no announced chapter, and
+            // then it counts down to a position nobody scheduled. AiringDatumRepository is the only
+            // thing allowed to turn a slot into a countdown, and it does it through the persisted
+            // value rather than by writing a field from a constructor.
         }
 
         //manga
@@ -130,17 +125,12 @@ namespace MALPlus.XShared.ViewModels
             AdjustIncrementButtonsVisibility();
             ShowMoreVisibility = false;
 
-            if (string.IsNullOrEmpty(_timeTillNextAirCache) && Airing &&
-                ResourceLocator.AiringInfoProvider.InitializationSuccess)
-            {
-                var malId = ParentAbstraction?.MalId ?? Id;
-                if (ResourceLocator.AiringInfoProvider.TryGetNextAirDate(malId, DateTime.UtcNow, out var airDate) &&
-                    airDate > DateTime.UtcNow)
-                {
-                    _timeTillNextAirCache = AirTimeUtils.FormatAirCountdown(airDate, DateTime.UtcNow);
-                    RaisePropertyChanged(() => TimeTillNextAirCache);
-                }
-            }
+            // No countdown is seeded here. This used to read the weekly broadcast slot straight
+            // from the airing provider and write it as the countdown, bypassing the decision the
+            // repository makes: a series can have a slot every week and no announced chapter, and
+            // then it counts down to a position nobody scheduled. AiringDatumRepository is the only
+            // thing allowed to turn a slot into a countdown, and it does it through the persisted
+            // value rather than by writing a field from a constructor.
         }
 
         #endregion
@@ -269,13 +259,13 @@ namespace MALPlus.XShared.ViewModels
                 RefreshTimeTillNextAirInBackground();
         }
 
-        public void RefreshTimeTillNextAirInBackground()
+        public void RefreshTimeTillNextAirInBackground(bool force = false)
         {
-            if (_airFetchInFlight)
+            if (_airFetchInFlight && !force)
                 return;
 
             var malId = ParentAbstraction?.MalId ?? Id;
-            if (DataCache.TryRetrieveDataForId(malId, out var cached))
+            if (!force && DataCache.TryRetrieveDataForId(malId, out var cached))
             {
                 if (!AirTimeUtils.NeedsRefresh(cached.NextAirUtc, cached.NextAirFetchedAtUtc, DateTime.UtcNow))
                     return;
@@ -292,7 +282,7 @@ namespace MALPlus.XShared.ViewModels
                     await AirFetchGate.WaitAsync();
                     try
                     {
-                        var nextAir = await GetTimeTillNextAirAsync();
+                        var nextAir = await GetTimeTillNextAirAsync(force);
                         ResourceLocator.DispatcherAdapter.Run(() => ApplyNextAir(nextAir));
                     }
                     finally
@@ -1095,8 +1085,6 @@ public void ResetTitleCache()
         {
             if (malId <= 0)
                 return "";
-            if (AiringOverrides.IsOverriddenAsNotAiring(malId))
-                return "";
             if (!string.IsNullOrEmpty(lastKnownStatus) && !AirTimeUtils.IsCurrentlyAiringStatus(lastKnownStatus))
                 return "";
 
@@ -1105,11 +1093,10 @@ public void ResetTitleCache()
                 (vd.NextAirUtc.Value > now || AirTimeUtils.IsInAiringWindow(vd.NextAirUtc.Value, now)))
                 return AirTimeUtils.FormatAirCountdown(vd.NextAirUtc.Value, now);
 
-            if (ResourceLocator.AiringInfoProvider.InitializationSuccess &&
-                ResourceLocator.AiringInfoProvider.TryGetNextAirDate(malId, now, out var airDate) &&
-                (airDate > now || AirTimeUtils.IsInAiringWindow(airDate, now)))
-                return AirTimeUtils.FormatAirCountdown(airDate, now);
-
+            // Same rule as the grid: no fallback to the weekly broadcast slot. The repository owns
+            // the decision, and it withholds a date when a series has no announced episode. Reading
+            // the slot here as a second opinion put a countdown back on a series the repository had
+            // just cleared.
             return "";
         }
 
@@ -1118,16 +1105,6 @@ public void ResetTitleCache()
             get
             {
                 var malIdPeek = ParentAbstraction?.MalId ?? Id;
-                if (AiringOverrides.IsOverriddenAsNotAiring(malIdPeek))
-                {
-                    if (!string.IsNullOrEmpty(_timeTillNextAirCache))
-                    {
-                        _timeTillNextAirCache = "";
-                        RaisePropertyChanged(() => TimeTillNextAirCache);
-                        RaisePropertyChanged(() => AirDayTillBind);
-                    }
-                    return "";
-                }
                 if (DataCache.TryRetrieveDataForId(malIdPeek, out var vdPeek) && !string.IsNullOrEmpty(vdPeek.LastKnownStatus) && !AirTimeUtils.IsCurrentlyAiringStatus(vdPeek.LastKnownStatus))
                 {
                     if (!string.IsNullOrEmpty(_timeTillNextAirCache))
@@ -1173,15 +1150,12 @@ public void ResetTitleCache()
                     }
                 }
 
-                if (string.IsNullOrEmpty(_timeTillNextAirCache) &&
-                    ResourceLocator.AiringInfoProvider.InitializationSuccess &&
-                    ResourceLocator.AiringInfoProvider.TryGetNextAirDate(malId, now, out DateTime airDate) &&
-                    (airDate > now || AirTimeUtils.IsInAiringWindow(airDate, now)))
-                {
-                    _timeTillNextAirCache = AirTimeUtils.FormatAirCountdown(airDate, now);
-                    calculated = true;
-                }
-
+                // No second opinion from the weekly broadcast slot here. When the repository has decided that a
+                // series has no announced episode this returns the slot's date anyway, which is what
+                // put a countdown back on One Piece after the repository had correctly withheld one:
+                // the slot is a recurring weekly position, not a chapter, and a countdown to a
+                // position nobody announced is the thing being fixed. AiringDatumRepository is the
+                // only place allowed to turn a series into a countdown.
                 if (calculated)
                 {
                     RaisePropertyChanged(() => TimeTillNextAirCache);
@@ -1199,10 +1173,10 @@ public void ResetTitleCache()
                 RaisePropertyChanged(() => AirDayTillBind);
             }
         }
-        public async Task<DateTime?> GetTimeTillNextAirAsync()
+        public async Task<DateTime?> GetTimeTillNextAirAsync(bool force = false)
         {
             var malIdLog = ParentAbstraction?.MalId ?? Id;
-            var res = await MALPlus.XShared.BL.AiringDatumRepository.GetNextAirUtcAsync(malIdLog);
+            var res = await MALPlus.XShared.BL.AiringDatumRepository.GetNextAirUtcAsync(malIdLog, force);
             return res;
         }
 

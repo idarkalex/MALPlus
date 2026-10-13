@@ -49,7 +49,6 @@ namespace MALPlus.XShared.Comm.Anime
         public string Status { get; set; }
 
         public List<AniListEpisodeSlot> Slots { get; set; } = new List<AniListEpisodeSlot>();
-
         /// <summary>Next episode to air, when one is scheduled.</summary>
         public int? NextEpisodeNumber { get; set; }
 
@@ -57,7 +56,7 @@ namespace MALPlus.XShared.Comm.Anime
 
         public bool IsReleasing => string.Equals(Status, "RELEASING", StringComparison.OrdinalIgnoreCase);
 
-        public bool HasSchedule => Slots.Count > 0;
+        public bool HasSchedule => Slots != null && Slots.Count > 0;
 
         /// <summary>
         ///     The most recent episode that has already aired, JST date. This is the value the
@@ -67,7 +66,7 @@ namespace MALPlus.XShared.Comm.Anime
         /// </summary>
         public AniListEpisodeSlot LastAired(DateTime nowUtc)
         {
-            if (Slots.Count == 0)
+            if (Slots == null || Slots.Count == 0)
                 return null;
             return Slots
                 .Where(s => s.AiringUtc <= nowUtc)
@@ -120,61 +119,60 @@ namespace MALPlus.XShared.Comm.Anime
         private static readonly SemaphoreSlim Gate = new SemaphoreSlim(4, 4);
 
         /// <summary>
-        ///     AniList allows 30 requests per minute per IP. The bucket holds a burst of eight so a
-        ///     screenful of posters and one details page can be in flight together: with a burst of
-        ///     five the details page waited behind the grid's warming and the Episodes tab visibly
-        ///     stalled on WaitForTokenAsync. Eight still leaves the long-run average at 30/min.
+        ///     The request budget is shared with every other AniList call in the app through
+        ///     <see cref="AniListRateLimiter" />, because the limit belongs to AniList rather than to
+        ///     this class. Two private buckets meant two clients each spending a full allowance and
+        ///     the API answering 429 to both.
         /// </summary>
-        private const int BucketCapacity = 8;
-        private static readonly TimeSpan RefillInterval = TimeSpan.FromSeconds(2);
-        private static int _tokens = BucketCapacity;
-        private static DateTime _lastRefill = DateTime.UtcNow;
-        private static readonly object BucketLock = new object();
-
-        private static bool TryTakeToken()
-        {
-            lock (BucketLock)
-            {
-                var now = DateTime.UtcNow;
-                var elapsed = now - _lastRefill;
-                var refill = (int)(elapsed.TotalSeconds / RefillInterval.TotalSeconds);
-                if (refill > 0)
-                {
-                    _tokens = Math.Min(BucketCapacity, _tokens + refill);
-                    _lastRefill = now;
-                }
-                if (_tokens <= 0)
-                    return false;
-                _tokens--;
-                return true;
-            }
-        }
-
-        private static async Task WaitForTokenAsync()
-        {
-            while (!TryTakeToken())
-                await Task.Delay(RefillInterval);
-        }
+        private static Task WaitForTokenAsync() => AniListRateLimiter.WaitAsync();
 
         /// <summary>
         ///     Schedule for one entry. In-flight requests are shared so returning to a grid does
-        ///     not re-request every poster on it.
+        ///     not re-request every poster on it, and the stored schedule is read before the network
+        ///     is touched.
+        ///     <para>
+        ///     That stored read was missing, and its absence is why restarting the app was as slow as
+        ///     opening a series for the first time ever. The schedule was written to disk on every
+        ///     fetch but never read back: DataCache has carried a six hour reader for it since the
+        ///     file was introduced, with nothing calling it. Every process therefore re-asked AniList
+        ///     for every entry it touched, spent the answer queueing behind the rate limiter, and
+        ///     Bleach's episodes took thirty seconds to appear on a warm machine with a full disk
+        ///     cache. Closing and reopening the app is the case that proved it.
+        ///     </para>
+        ///     <para>
+        ///     A forced call skips both the in-flight sharing and the stored schedule, which is what
+        ///     a pull-to-refresh means: the user asked, so the answer is asked again rather than
+        ///     read back from disk.
+        ///     </para>
         /// </summary>
-        public static Task<AniListSchedule> GetScheduleAsync(int malId)
+        public static Task<AniListSchedule> GetScheduleAsync(int malId, bool force = false)
         {
             if (!Enabled || malId <= 0)
                 return Task.FromResult<AniListSchedule>(null);
-            return InFlight.GetOrAdd(malId, id => FetchAsync(id));
+            if (force)
+                return FetchAsync(malId);
+            return InFlight.GetOrAdd(malId, id => LoadOrFetchAsync(id));
+        }
+
+        private static async Task<AniListSchedule> LoadOrFetchAsync(int malId)
+        {
+            try
+            {
+                var stored = await MALPlus.XShared.Utils.DataCache.RetrieveAiringSchedule(malId);
+                if (stored != null)
+                    return stored;
+            }
+            catch (Exception)
+            {
+                // A cache that cannot be read is a cache miss, not a failure.
+            }
+            return await FetchAsync(malId);
         }
 
         private static async Task<AniListSchedule> FetchAsync(int malId)
         {
             try
             {
-                var cached = await MALPlus.XShared.Utils.DataCache.RetrieveAiringSchedule(malId);
-                if (cached != null)
-                    return cached;
-
                 await Gate.WaitAsync();
                 try
                 {
@@ -200,6 +198,21 @@ namespace MALPlus.XShared.Comm.Anime
             }
         }
 
+        /// <summary>
+        ///     Drops the stored schedule for an entry so the next read goes to the network.
+        /// </summary>
+        public static async Task InvalidateAsync(int malId)
+        {
+            try
+            {
+                InFlight.TryRemove(malId, out _);
+                await MALPlus.XShared.Utils.DataCache.ClearAiringSchedule(malId);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         private static async Task<AniListSchedule> FetchCoreAsync(int malId)
         {
             var status = await GetStatusAsync(malId);
@@ -214,7 +227,11 @@ namespace MALPlus.XShared.Comm.Anime
                 return schedule;
             schedule.Slots.AddRange(first);
 
-            var hasMore = first.Count > 0;
+            // A short page IS the end of the schedule, and an eleven episode cour came back that way
+            // from page one. Treating "the page had rows" as "there may be more" made every single
+            // series ask for a page two that does not exist, which is one wasted request per entry
+            // across every airing poster the grid touches.
+            var hasMore = first.Count >= PageSize;
             var page = 1;
             while (hasMore && page < MaxPages)
             {
@@ -266,43 +283,117 @@ namespace MALPlus.XShared.Comm.Anime
 
         private static async Task<StatusResult> GetStatusAsync(int malId)
         {
+            // Page rather than Media, for the same reason the countdown query uses it: one MAL id can
+            // carry more than one AniList record, and JoJo's Steel Ball Run is split into a first
+            // stage that finished and a second stage that is the one airing. Media answers with the
+            // first, which reported a finished series with no schedule and left the details page
+            // quoting an episode from months ago.
             const string query =
-                "query($id:Int){Media(idMal:$id,type:ANIME){status nextAiringEpisode{episode airingAt}}}";
-            var body = await PostAsync(BuildRequest(query, malId));
+                "query($ids:[Int],$perPage:Int){Page(perPage:$perPage){media(idMal_in:$ids,type:ANIME)" +
+                "{id idMal status nextAiringEpisode{episode airingAt}}}}";
+            var variables = "{\"ids\":[" + malId + "],\"perPage\":10}";
+            var body = await PostAsync(BuildRequest(query, malId, variables));
             if (!body.HasValue)
                 return null;
-            if (!body.Value.TryGetProperty("data", out var data) || !data.TryGetProperty("Media", out var media) ||
-                media.ValueKind != JsonValueKind.Object)
+            if (!body.Value.TryGetProperty("data", out var data) ||
+                !data.TryGetProperty("Page", out var page) ||
+                !page.TryGetProperty("media", out var media) || media.ValueKind != JsonValueKind.Array)
                 return null;
 
-            string status = null;
+            // A finished record answers with nothing scheduled, and the still-airing half of a split
+            // series is the one worth reading. Preferring it is what puts the current season back on
+            // the details page.
+            JsonElement? chosen = null;
+            var chosenIsReleasing = false;
+            foreach (var item in media.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                    continue;
+                if (chosen == null)
+                    chosen = item;
+
+                if (!item.TryGetProperty("status", out var statusEl) ||
+                    statusEl.ValueKind != JsonValueKind.String)
+                    continue;
+                if (!string.Equals(statusEl.GetString(), "RELEASING", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                chosen = item;
+                chosenIsReleasing = true;
+                break;
+            }
+
+            if (chosen == null || !chosen.Value.TryGetProperty("status", out var status2) ||
+                status2.ValueKind != JsonValueKind.String)
+                return null;
+
+            var statusText = status2.GetString();
             int? nextEpisode = null;
             DateTime? nextAiring = null;
-            if (media.TryGetProperty("status", out var statusEl) && statusEl.ValueKind == JsonValueKind.String)
-                status = statusEl.GetString();
-            if (media.TryGetProperty("nextAiringEpisode", out var next) && next.ValueKind == JsonValueKind.Object)
+            if (chosen.Value.TryGetProperty("nextAiringEpisode", out var next) && next.ValueKind == JsonValueKind.Object)
             {
                 if (next.TryGetProperty("episode", out var epEl) && epEl.ValueKind == JsonValueKind.Number)
                     nextEpisode = epEl.GetInt32();
                 if (next.TryGetProperty("airingAt", out var atEl) && atEl.ValueKind == JsonValueKind.Number)
                     nextAiring = DateTimeOffset.FromUnixTimeSeconds(atEl.GetInt64()).UtcDateTime;
             }
-            return new StatusResult { Status = status, NextEpisodeNumber = nextEpisode, NextAiringUtc = nextAiring };
+
+            // A still-airing record with no schedule is a series between cours. Reporting it as
+            // finished because that is what its next episode field happens to say is how a running
+            // show ends up wearing a last aired date from its previous run.
+            if (chosenIsReleasing && !nextAiring.HasValue)
+                statusText = "RELEASING";
+
+            return new StatusResult { Status = statusText, NextEpisodeNumber = nextEpisode, NextAiringUtc = nextAiring };
         }
 
         private static async Task<List<AniListEpisodeSlot>> GetSchedulePageAsync(int malId, int page)
         {
             const string query =
-                "query($id:Int,$page:Int){Media(idMal:$id,type:ANIME){airingSchedule(notYetAired:false,perPage:50,page:$page){nodes{episode airingAt}}}}";
-            var variables = "{\"id\":" + malId + ",\"page\":" + page + "}";
+                "query($ids:[Int],$page:Int){Page(perPage:10)" +
+                "{media(idMal_in:$ids,type:ANIME)" +
+                "{status airingSchedule(notYetAired:false,perPage:50,page:$page)" +
+                "{nodes{episode airingAt}}}}}";
+            var variables = "{\"ids\":[" + malId + "],\"page\":" + page + "}";
             var body = await PostAsync(BuildRequest(query, malId, variables));
             if (!body.HasValue)
                 return null;
-            if (!body.Value.TryGetProperty("data", out var data) || !data.TryGetProperty("Media", out var media) ||
-                media.ValueKind != JsonValueKind.Object ||
-                !media.TryGetProperty("airingSchedule", out var schedule) ||
-                schedule.ValueKind != JsonValueKind.Object ||
-                !schedule.TryGetProperty("nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array)
+            if (!body.Value.TryGetProperty("data", out var data) || !data.TryGetProperty("Page", out var pageEl) ||
+                !pageEl.TryGetProperty("media", out var media) || media.ValueKind != JsonValueKind.Array)
+                return new List<AniListEpisodeSlot>();
+
+            // A MAL id can hold several AniList records for a series that was split into stages, and
+            // only one of them is the current run. JoJo's Steel Ball Run is the case that mattered:
+            // its first stage answered as a finished series whose one episode was in March, and the
+            // details page quoted that instead of the episode that aired last week. The record still
+            // releasing wins; failing that, the one carrying the most aired episodes.
+            JsonElement? best = null;
+            var bestNodes = -1;
+            var bestReleasing = false;
+            foreach (var item in media.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                    continue;
+                if (!item.TryGetProperty("airingSchedule", out var candidate) ||
+                    candidate.ValueKind != JsonValueKind.Object ||
+                    !candidate.TryGetProperty("nodes", out var probe) || probe.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var count = probe.GetArrayLength();
+                var releasing = item.TryGetProperty("status", out var statusEl) &&
+                                statusEl.ValueKind == JsonValueKind.String &&
+                                string.Equals(statusEl.GetString(), "RELEASING", StringComparison.OrdinalIgnoreCase);
+
+                if (best != null && !(releasing && !bestReleasing) && !(releasing == bestReleasing && count <= bestNodes))
+                    continue;
+
+                best = candidate;
+                bestNodes = count;
+                bestReleasing = releasing;
+            }
+
+            if (best == null || !best.Value.TryGetProperty("nodes", out var nodes) ||
+                nodes.ValueKind != JsonValueKind.Array)
                 return new List<AniListEpisodeSlot>();
 
             var result = new List<AniListEpisodeSlot>();

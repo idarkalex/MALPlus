@@ -12,6 +12,18 @@ namespace MALPlus.XShared.Comm.Anime
     {
         private static readonly string[] DayNames = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
 
+/// <summary>
+        ///     The series MyAnimeList currently lists as airing, with their weekly broadcast slot.
+        ///     <para>
+        ///     Deliberately NOT a list of episodes. This used to take the weekly slot and invent 52
+        ///     weekly dates from it, which is the source of every wrong countdown in the app: it
+        ///     announced chapters that were never scheduled, and it kept announcing them for a series
+        ///     whose real last episode was weeks old, and for a series that had moved to a different
+        ///     broadcast day it kept pointing at the old one. What a weekly slot can honestly answer
+        ///     is "this is on the air, and this is the slot it normally uses", and that is all this
+        ///     returns now. The next air date comes from AniListAiringQuery.
+        ///     </para>
+        /// </summary>
         public async Task<List<AiringInfoProvider.AiringData>> GetScheduleAsync()
         {
             var output = new List<AiringInfoProvider.AiringData>();
@@ -33,34 +45,22 @@ namespace MALPlus.XShared.Comm.Anime
                         if (dayOfWeek == null || time == null)
                             continue;
 
-                        var firstAir = AirTimeUtils.ComputeNextAirDate(dayOfWeek.Value, time.Value, nowUtc);
-                        if (!firstAir.HasValue)
-                            continue;
-
                         var airingData = new AiringInfoProvider.AiringData
                         {
                             MalId = malId,
+                            // Deliberately empty. This used to hold fifty-two weekly slots rolled
+                            // forward from today, and those fabrications are what put a countdown on
+                            // One Piece months after its last real episode and on Bleach on the old
+                            // Saturday after it had moved. What a weekly slot can honestly answer is
+                            // "this is on the air", and the dates now come from AniList.
                             Episodes = new List<AiringInfoProvider.Episode>(),
                             Title = GetString(entry, "title"),
                             ImgUrl = GetNestedImageUrl(entry),
                             Type = (int)MalTypeParser.ParseAnimeType(GetString(entry, "type")),
-                            AllEpisodes = GetInt(entry, "episodes")
+                            AllEpisodes = GetInt(entry, "episodes"),
+                            BroadcastDay = dayOfWeek,
+                            BroadcastTime = time
                         };
-
-                        for (int i = 0; i < 52; i++)
-                        {
-                            //ComputeNextAirDate already returns UTC, but with Kind=Unspecified.
-                            //ConvertToUnixTimestamp calls ToUniversalTime(), which treats
-                            //Unspecified as LOCAL time, so without this the stored instant is
-                            //shifted by the device UTC offset and every countdown comes out
-                            //that many hours off. Specifying Utc makes the conversion a no-op.
-                            var airDate = DateTime.SpecifyKind(firstAir.Value.AddDays(i * 7), DateTimeKind.Utc);
-                            airingData.Episodes.Add(new AiringInfoProvider.Episode
-                            {
-                                Timestamp = Utilities.ConvertToUnixTimestamp(airDate),
-                                EpisodeNumber = i + 1
-                            });
-                        }
 
                         output.Add(airingData);
                     }
@@ -77,6 +77,7 @@ namespace MALPlus.XShared.Comm.Anime
 
             return output.Count > 0 ? output : null;
         }
+
 
         private static DayOfWeek? GetBroadcastDay(JsonElement entry)
         {

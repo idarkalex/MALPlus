@@ -160,19 +160,10 @@ namespace MALPlus.XShared.ViewModels.Details
             get
             {
                 var heroMalIdPeek = (_animeItemReference as AnimeItemViewModel)?.ParentAbstraction?.MalId ?? Id;
-                // The manual override has to beat every branch below. One Piece has no announced
-                // next chapter, but its persisted NextAirUtc predates the override, and the old
-                // cascade formatted that straight into the pill, so the hero showed a 4D the grid
-                // never showed for the same entry.
-                if (AiringOverrides.IsOverriddenAsNotAiring(heroMalIdPeek))
-                {
-                    if (!string.IsNullOrEmpty(_timeTillNextAirCache))
-                    {
-                        _timeTillNextAirCache = "";
-                        RaisePropertyChanged(() => TimeTillNextAir);
-                    }
-                    return "";
-                }
+                // The status test has to beat every branch below. A series that finished keeps a
+                // persisted NextAirUtc written while it was still running, and formatting that
+                // straight into the pill is how the hero showed a countdown for an entry that was
+                // over months ago.
                 if (DataCache.TryRetrieveDataForId(heroMalIdPeek, out var heroVdPeek) && !string.IsNullOrEmpty(heroVdPeek.LastKnownStatus) && !AirTimeUtils.IsCurrentlyAiringStatus(heroVdPeek.LastKnownStatus))
                 {
                     if (!string.IsNullOrEmpty(_timeTillNextAirCache))
@@ -272,6 +263,19 @@ namespace MALPlus.XShared.ViewModels.Details
         }
 
         /// <summary>
+        ///     Episode number for a row that arrived without one, worked out from how many chapters
+        ///     are at or before its date. This used to be IndexOf + 1, which silently depended on the
+        ///     list being oldest first: a running series is read newest first, so that would have
+        ///     counted backwards and printed "Ep 1 of 11" for the episode that just went up.
+        /// </summary>
+        private int PositionalNumber(AnimeEpisode episode)
+        {
+            if (episode?.AiredDate == null)
+                return 0;
+            return Episodes.Count(e => e?.AiredDate != null && e.AiredDate.Value <= episode.AiredDate.Value);
+        }
+
+        /// <summary>
         ///     The authoritative version, and the reason the hero stopped showing plausible wrong
         ///     numbers. It used to be built from the newest episode in our own list, which for One
         ///     Piece was episode 1177 of a real 1180 because Tenrai's list has gaps; and it printed
@@ -327,7 +331,7 @@ namespace MALPlus.XShared.ViewModels.Details
             }
             var lastEp = Episodes.Where(ep => ep.AiredDate.HasValue).OrderBy(ep => ep.AiredDate.Value).LastOrDefault();
             DateTime? epDate = lastEp?.AiredDate;
-            int epNum = lastEp != null ? (lastEp.EpisodeId > 0 ? (int)lastEp.EpisodeId : Episodes.IndexOf(lastEp) + 1) : 0;
+            int epNum = lastEp != null ? (lastEp.EpisodeId > 0 ? (int)lastEp.EpisodeId : PositionalNumber(lastEp)) : 0;
             if (schedDate.HasValue || epDate.HasValue)
             {
                 DateTime chosenDate;
@@ -353,7 +357,7 @@ namespace MALPlus.XShared.ViewModels.Details
             {
                 var ep = last.EpisodeId > 0
                     ? last.EpisodeId
-                    : Episodes.IndexOf(last) + 1;
+                    : PositionalNumber(last);
                 LastAired = LastAiredValue = $"{ep} · {last.AiredDate.Value.ToString("d MMM", CultureInfo.InvariantCulture)}";
             }
             else if (!string.IsNullOrEmpty(EndDate) && EndDate != AnimeItemViewModel.InvalidStartEndDate && EndDate != "N/A")
@@ -2074,6 +2078,38 @@ RaisePropertyChanged(() => GeneralSeason);
             try { await LoadReviews(true); } catch { }
             if (_loadedCharacters)
                 try { await LoadCharacters(true); } catch { }
+
+            // Pulling to refresh has to reach the airing data too. It used to reload the
+            // description, the cast and the reviews while the countdown and the last aired
+            // timestamp kept answering from their stored value, so a refresh appeared to change
+            // a page that then went back to quoting a stale episode.
+            await RefreshAiringAsync();
+        }
+
+        /// <summary>
+        ///     Re-reads the declared airing data for this entry, ignoring whatever is stored.
+        /// </summary>
+        private async Task RefreshAiringAsync()
+        {
+            try
+            {
+                if (MalId > 0)
+                    await MALPlus.XShared.Comm.Anime.AniListScheduleClient.InvalidateAsync(MalId);
+
+                // Resolve the countdown again, ignoring what is stored, and publish it: the hero subscribes
+                // to the property rather than reading the broadcast slot on its own.
+                var nextAir = await MALPlus.XShared.BL.AiringDatumRepository.GetNextAirUtcAsync(MalId, true);
+                MALPlus.XShared.Utils.DataCache.UpdateVolatileDataWithNextAir(MalId, nextAir);
+                RaisePropertyChanged(() => TimeTillNextAir);
+
+                // The hero reads its schedule from AniList directly, so ask again rather than
+                // waiting for the stored copy to expire on its own.
+                await UpdateLastAiredFromScheduleAsync();
+            }
+            catch (Exception)
+            {
+                // Airing is an enhancement: a failure here must not fail the whole refresh.
+            }
         }
 
         public async void RefreshData()
@@ -2521,17 +2557,21 @@ RaisePropertyChanged(() => ProducersVisible);
         {
             if (source == null || source.Count == 0)
                 return;
-Episodes.Clear();
-                foreach (var ep in source)
-                    Episodes.Add(ep);
-                RaisePropertyChanged(() => Episodes);
-                RaisePropertyChanged(() => EpisodesLoaded);
-                // The hero's LAST AIRED used to be refreshed only after the FULL episode list
-                // landed, so for a twelve page series it waited for all twelve requests before
-                // showing anything. This callback is the newest page, which is exactly what the
-                // hero needs, so the countdown now appears with the first batch.
-                UpdateLastAired();
-            }
+            Episodes.Clear();
+            // Newest first, exactly like the full list this is replaced by: the point of showing a
+            // partial list early is that the episode just aired is already the top row.
+            foreach (var ep in source
+                         .OrderByDescending(ep => ep.AiredDate ?? DateTime.MinValue)
+                         .ThenByDescending(ep => ep.EpisodeId))
+                Episodes.Add(ep);
+            RaisePropertyChanged(() => Episodes);
+            RaisePropertyChanged(() => EpisodesLoaded);
+            // The hero's LAST AIRED used to be refreshed only after the FULL episode list
+            // landed, so for a twelve page series it waited for all twelve requests before
+            // showing anything. This callback is the newest page, which is exactly what the
+            // hero needs, so the countdown now appears with the first batch.
+            UpdateLastAired();
+        }
 
         public async Task LoadEpisodes(bool force = false)
         {
@@ -2558,13 +2598,12 @@ Episodes.Clear();
                     }
                 }
 
-                // The forum thread index and the AniList schedule are independent of each other and of the
-                // episode list, and all three were running in series, one after the other, in
-                // front of the code that builds the list. That is what made this tab feel slow to
-                // open and sometimes look empty: it was waiting for a forum scrape and a rate
-                // limited lookup it does not need in order to show rows. They run together now, and
-                // the forum index is allowed to come back empty: a row without its thread is
-                // exactly what the app already did when a thread did not exist.
+                // The forum thread index is an enrichment, not a prerequisite. It is an HTML scrape of
+                // the series' own MAL forum, and awaiting it before drawing anything is what held
+                // this tab hostage: rows that need nothing from it were waiting on a scrape that can
+                // take seconds. It runs in the background now and patches the discussion link onto the
+                // rows once it lands. A row without its thread is exactly what the app already did
+                // when a thread did not exist.
                 var forumTask = Task.Run(async () =>
                 {
                     try
@@ -2576,24 +2615,17 @@ Episodes.Clear();
                         return null;
                     }
                 });
-                var scheduleTask = AniListScheduleClient.Enabled
-                    ? AniListScheduleClient.GetScheduleAsync(MalId)
-                    : Task.FromResult<AniListSchedule>(null);
-
-                await Task.WhenAll(forumTask, scheduleTask);
-                var episodeForumTopics = forumTask.Result;
 
                 if (isAiring)
                 {
                     episodes = await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force,
-                        cancellationToken: default, onFirstBatch: null, episodeForumTopics: episodeForumTopics);
+                        onTenraiBatch: PublishEpisodes);
                     if ((episodes == null || episodes.Count == 0) && cached != null && cached.Count > 0)
                         episodes = cached;
                 }
                 else
                 {
-                    episodes = cached != null && cached.Count > 0 ? cached : await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force,
-                        cancellationToken: default, onFirstBatch: null, episodeForumTopics: episodeForumTopics);
+                    episodes = cached != null && cached.Count > 0 ? cached : await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force);
                 }
                 var fromStale = false;
 
@@ -2622,27 +2654,27 @@ Episodes.Clear();
                 if (!fromStale && !ReferenceEquals(episodes, cached))
                     await DataCache.SaveAnimeEpisodes(MalId, episodes);
 
+                // Only chapters that are known to have aired are listed. MAL has not created the last
+                // rows of a running cour yet, and the old answer was to project them from the cadence,
+                // which put rows on screen carrying a date nobody published. Bleach skipped five weeks,
+                // so the projection invented two episodes with the wrong week and marked them "est.".
+                // A short list of real chapters is the honest one: there is no fallback here, so a
+                // series with no schedule simply shows the episodes its own list already had.
                 var display = episodes;
-                var isCurrentlyAiring = string.Equals(Status, "Currently Airing", StringComparison.CurrentCultureIgnoreCase);
-                if (isCurrentlyAiring)
+
+                // A running series is read from the newest downwards, which is the whole point of
+                // watching one: the episode that just went up has to be the first row. The query
+                // hands every list over oldest first, so the reversal belongs here, and only for a
+                // series still airing. Finished ones stay in reading order, which is what the long
+                // list of a completed show is actually for.
+                if (isAiring)
                 {
-                    // MAL has not created the last rows of a running cour yet, so project them
-                    // from the cadence and attach the real discussion thread when the forum
-                    // index already has one. Never persisted: these are a view of the schedule.
-                    var topics = await new AnimeEpisodeForumQuery(MalId, true).GetEpisodeTopicsAsync();
-                    var projected = AnimeEpisodeBackfill.Build(episodes, AllEpisodes, DateTime.UtcNow,
-                        topics.Count > 0 ? topics.Keys.Max() : 0);
-                    if (projected.Count > 0)
-                    {
-                        foreach (var ep in projected)
-                            if (topics.TryGetValue((int)ep.EpisodeId, out var topic))
-                                ep.ForumUrl = topic;
-                        display = episodes.Concat(projected).ToList();
-                    }
                     display = display
-                        .OrderByDescending(ep => ep.AiredDate ?? DateTime.MaxValue)
+                        .OrderByDescending(ep => ep.AiredDate ?? DateTime.MinValue)
+                        .ThenByDescending(ep => ep.EpisodeId)
                         .ToList();
                 }
+
                 foreach (var ep in display)
                     ep.IsWatched = ep.EpisodeId > 0 && ep.EpisodeId <= MyEpisodes;
                 Episodes.Clear();
@@ -2651,6 +2683,21 @@ Episodes.Clear();
                 UpdateLastAired();
                 await UpdateLastAiredFromScheduleAsync();
                 RaisePropertyChanged(() => TimeTillNextAir);
+
+                // The discussion links are patched onto the rows that are already on screen rather
+                // than waited for. MalId is re-checked because this view model is a singleton: if the
+                // user moved on while the scrape was in flight, Episodes now belongs to another entry
+                // and patching by number would attach the wrong series' threads to it.
+                var loadedFor = MalId;
+                var topics = await forumTask;
+                if (topics != null && topics.Count > 0 && MalId == loadedFor)
+                {
+                    foreach (var ep in Episodes)
+                    {
+                        if (ep.EpisodeId > 0 && topics.TryGetValue((int)ep.EpisodeId, out var topic))
+                            ep.ForumUrl = topic;
+                    }
+                }
 
                 if (_animeItemReference is AnimeItemViewModel itemVm)
                 {
