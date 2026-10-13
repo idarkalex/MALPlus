@@ -63,6 +63,9 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
         // registered would keep answering presses for a page nobody is looking at.
         MainActivity.DisarmMenuBackCallback();
         MainActivity.DisarmVideoBackCallback();
+        // Same reasoning as closing the overlay by hand: a page that goes away still sideways stays
+        // sideways, and the next page opens looking broken.
+        FullscreenVideo.Exit();
         StopDirectMedia();
     }
 
@@ -248,6 +251,9 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
             return;
 
         VideoOverlay.IsVisible = true;
+        // Only the close button is placed now. Full screen lives on the player's own control bar,
+        // which the shared WebChromeClient answers for every video surface in the app.
+        VideoOverlayInsets.Apply(null, CloseButton);
         VideoWebViewHelper.BackHandler = OnVideoBackPressed;
         MainActivity.ArmVideoBackCallback();
 
@@ -519,13 +525,19 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
 
     private void OnCloseVideoTapped(object sender, EventArgs e)
     {
+        // Leaving full screen belongs to closing: an overlay that went away while the activity was
+        // still landscape left the whole app sideways.
+        FullscreenVideo.Exit();
         StopDirectMedia();
+        // Source = null on its own leaves the media element running, so the overlay went away and the
+        // audio carried on. StopMediaAndClear pauses it and navigates the WebView away.
         if (_videoWebView != null)
-            _videoWebView.Source = null;
+            VideoWebViewHelper.StopMediaAndClear(_videoWebView);
         VideoOverlay.IsVisible = false;
         VideoWebViewHelper.BackHandler = null;
         MainActivity.DisarmVideoBackCallback();
     }
+
 
     /// <summary>
     ///     The back gesture while a video is up: it closes the video, and only the video.

@@ -597,6 +597,12 @@ InitializeComponent();
     {
         base.OnDisappearing();
         _isAppearing = false;
+        // The "More" sheet arms the menu back callback when it opens and this page never released it on
+        // the way out. A callback left registered outlives the page that armed it and goes on answering
+        // for it: the dispatcher runs the most recently added callback first, so back on whatever the
+        // reader reached next was spent dismissing a sheet that was not there, which reads as back doing
+        // nothing at all.
+        MainActivity.DisarmMenuBackCallback();
         VideoWebViewHelper.PlaybackError -= OnVideoPlaybackError;
         VideoWebViewHelper.PlaybackStarted -= OnVideoPlaybackStarted;
         DetachSubscriptions();
@@ -1820,57 +1826,6 @@ private void HideVideoLoading()
     private void CloseVideoOverlay(object sender, EventArgs e)
     {
         HideVideoLoading();
-    }
-
-    /// <summary>
-///     Toggles full screen and swaps the glyph so the button says what it will do next rather
-    ///     than what it just did.
-    /// </summary>
-    private void OnToggleFullscreen(object sender, TappedEventArgs e)
-    {
-        try
-        {
-            if (FullscreenVideo.IsActive)
-            {
-                FullscreenVideo.Exit();
-                // Restore overlay to normal layout position (inside safe area)
-                if (VideoOverlay != null)
-                    VideoOverlay.Margin = new Thickness(0);
-            }
-            else
-            {
-                FullscreenVideo.Enter();
-                // Pull overlay up into status bar area and down past nav bar for true fullscreen
-                // The window is now laid out behind bars (SetDecorFitsSystemWindows=false), but MAUI
-                // still positions views inside safe area. Negative margins compensate.
-                if (VideoOverlay != null)
-                {
-                    var insets = MALPlus.Services.WindowInsetsHelper.Insets();
-                    VideoOverlay.Margin = new Thickness(-insets.Left, -insets.Top, -insets.Right, -insets.Bottom);
-                }
-            }
-
-            if (FullscreenIcon != null)
-                FullscreenIcon.Source = FullscreenVideo.IsActive ? "icon_exit_fullscreen" : "icon_fullscreen";
-
-            // Re-inset buttons after rotation lands
-            Device.StartTimer(TimeSpan.FromMilliseconds(400), () =>
-            {
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    VideoOverlayInsets.Apply(FullscreenButton, VideoCloseButton);
-                    if (FullscreenIcon != null)
-                        FullscreenIcon.Source = FullscreenVideo.IsActive
-                            ? "icon_exit_fullscreen"
-                            : "icon_fullscreen";
-                });
-                return false;
-            });
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Video", "Fullscreen toggle failed: " + ex.GetType().Name);
-        }
     }
 
     /// <summary>

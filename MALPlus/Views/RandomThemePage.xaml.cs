@@ -98,25 +98,18 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
     {
         base.OnAppearing();
 
-        // This page declares its WebView in XAML and never routed it through the configuration every
-        // other video overlay gets, so it had no console reporting and no way to answer a refused
-        // file: the frame just stayed black. Configuring it here is what makes the retries below
-        // reachable from this page at all.
-#if ANDROID
-        try
-        {
-            VideoWebViewHelper.ConfigurePlatformView(
-                ThemeVideo?.Handler?.PlatformView as global::Android.Views.View);
-        }
-        catch
-        {
-        }
-#endif
-
         foreach (var name in new[] { nameof(AnimeName), nameof(AnimeYear), nameof(HasYear),
                     nameof(AnimeSynopsis), nameof(MediaFormat), nameof(HasMediaFormat),
                     nameof(IsOpening), nameof(SongLine) })
             Raise(name);
+
+        // The player is attached here rather than configured in place. Configuring a WebView that does
+        // not have a handler yet is silently a no-op, which is why this page's full screen button used
+        // to do nothing: the chrome client that answers it was never installed.
+        _player ??= new VideoPlayerSession(ThemeVideo, OnVideoBackPressed);
+        _player.Attach();
+        _player.OnPlaybackError(OnVideoPlaybackError);
+        _player.OnPlaybackStarted(OnVideoPlaybackStarted);
 
         // The slug is the only thing the random theme carries about the entry, and it is not something
         // to show anybody. One request turns it into the name, the year, the synopsis and the format,
@@ -133,10 +126,40 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
 
         VideoFrame.IsVisible = true;
         _currentVideoUrl = Url;
-        VideoWebViewHelper.PlaybackError += OnVideoPlaybackError;
-        VideoWebViewHelper.PlaybackStarted += OnVideoPlaybackStarted;
-        ThemeVideo.Source = VideoWebViewHelper.BuildSource(Url);
-        VideoWebViewHelper.ApplyMediaSettings(ThemeVideo);
+        _player.Open(Url);
+    }
+
+    private VideoPlayerSession _player;
+
+    /// <summary>
+    ///     Keeps the player box at 16:9, which is the shape of every one of these files.
+    /// </summary>
+    /// <remarks>
+    ///     A fixed height could only be right for one screen width. This is a percent rather than a
+    ///     number so it survives a font scale and a tablet, and it is set after the fact because a
+    ///     binding cannot ask the layout how wide it ended up.
+    /// </remarks>
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        if (VideoFrame == null || width <= 0 || double.IsNaN(width))
+            return;
+
+        var wanted = width * 9d / 16d;
+        if (double.IsNaN(VideoFrame.HeightRequest) || Math.Abs(VideoFrame.HeightRequest - wanted) > 0.5)
+            VideoFrame.HeightRequest = wanted;
+    }
+
+    /// <summary>
+    ///     Back gesture while a theme is playing: it closes the video and stays on the page instead of
+    ///     leaving it.
+    /// </summary>
+    private bool OnVideoBackPressed()
+    {
+        if (VideoFrame == null || !VideoFrame.IsVisible)
+            return false;
+        OnCloseTapped(this, EventArgs.Empty);
+        return true;
     }
 
     private string _currentVideoUrl;
@@ -218,8 +241,9 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
             if (token.IsCancellationRequested || _currentVideoUrl != url || VideoFrame == null ||
                 !VideoFrame.IsVisible)
                 return;
-            ThemeVideo.Source = VideoWebViewHelper.BuildSource(url);
-            VideoWebViewHelper.ApplyMediaSettings(ThemeVideo);
+            // Opened through the session rather than by hand: the media settings have to be re-applied
+            // after every source change or the element never starts, and that is the session's job now.
+            _player.Open(url);
         }
         catch (Exception ex)
         {
@@ -330,8 +354,8 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
             {
                 VideoFrame.IsVisible = true;
                 VideoFailed.IsVisible = false;
-                ThemeVideo.Source = VideoWebViewHelper.BuildSource(url);
-                VideoWebViewHelper.ApplyMediaSettings(ThemeVideo);
+                _currentVideoUrl = url;
+                _player.Open(url);
                 return;
             }
 
@@ -351,8 +375,8 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
             if (MalId <= 0)
                 return;
             // The player stops with the page: a WebView left decoding behind a popped page keeps
-            // spending on a surface nobody is looking at.
-            ThemeVideo.Source = null;
+            // spending on a surface nobody is looking at, and its audio keeps playing.
+            _player?.Close();
             _ = Shell.Current.GoToAsync(
                 $"animedetails?id={MalId}&title={Uri.EscapeDataString(AnimeName ?? string.Empty)}");
         }
@@ -370,18 +394,25 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
         // Leaving the page ends any retry still waiting, or it would wake up afterwards and reopen the
         // theme the reader just closed.
         CancelPendingRetries();
-        ThemeVideo.Source = null;
+        _player?.Close();
         _ = Shell.Current.GoToAsync("..");
     }
 
     /// <summary>
-    ///     Releases the static playback subscriptions, which otherwise outlive the page and go on
-    ///     answering for a theme nobody is looking at.
+    ///     Releases the player when the page goes away without its close button having been used.
     /// </summary>
+    /// <remarks>
+    ///     The bottom navigation and a deep link both leave this page without going near
+    ///     <see cref="OnCloseTapped" />, and a WebView left behind keeps decoding video and playing it
+    ///     for as long as the process lives. Closing it here is what stops one visit from making the
+    ///     next one slower. The static playback subscriptions go with it, or a page still in the
+    ///     navigation stack keeps answering for a theme it is no longer showing.
+    /// </remarks>
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        VideoWebViewHelper.PlaybackError -= OnVideoPlaybackError;
-        VideoWebViewHelper.PlaybackStarted -= OnVideoPlaybackStarted;
+        CancelPendingRetries();
+        _player?.Close();
+        _player?.Dispose();
     }
 }

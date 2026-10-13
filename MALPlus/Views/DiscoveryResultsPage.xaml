@@ -117,17 +117,8 @@
         <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="110">
             <!-- The WebView is added at runtime. This overlay declares no RowDefinitions, so MAUI
                  keeps every child in the single implicit row and Grid.SetRow is ignored: the close
-                 button therefore needs an explicit ZIndex to stay above the video. -->
-<Border x:Name="FullscreenButton" HorizontalOptions="Start" VerticalOptions="Start"
-                        Margin="10,10,0,0" WidthRequest="40" HeightRequest="40" ZIndex="20"
-                    BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 20">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnToggleFullscreen" />
-                </Border.GestureRecognizers>
-                <Image x:Name="FullscreenIcon" Source="icon_fullscreen" WidthRequest="22" HeightRequest="22"
-                       HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
+                 button therefore needs an explicit ZIndex to stay above the video. Full screen is the
+                 player's own control now, so close is the only button left here. -->
 <Border x:Name="VideoCloseButton" HorizontalOptions="End" VerticalOptions="Start"
                         Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
                         ZIndex="20"

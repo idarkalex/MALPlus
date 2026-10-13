@@ -94,9 +94,14 @@
                     </VerticalStackLayout>
                 </Grid>
 
-                <!-- Full width, and tall enough that the video is the thing on the page rather than a
-                     thumbnail beside the theme. -->
-                <Grid x:Name="VideoFrame" HeightRequest="260" BackgroundColor="Black" IsVisible="False">
+                <!-- 16:9, which is the shape the themes are. It used to be a fixed 260, which is taller
+                     than the video: the player fills the element with object-fit:contain, so the extra
+                     height became black bands and, more to the point, a taller element to decode for.
+                     Chromium sizes the file it fetches to the size the element asks to display, so a box
+                     that is not the video's shape costs resolution and time on every open. The height is
+                     measured from the width in code rather than guessed, so it stays right on a narrow
+                     screen too. -->
+                <Grid x:Name="VideoFrame" BackgroundColor="Black" IsVisible="False">
                     <WebView x:Name="ThemeVideo" HorizontalOptions="Fill" VerticalOptions="Fill"
                              BackgroundColor="Black" />
                 </Grid>

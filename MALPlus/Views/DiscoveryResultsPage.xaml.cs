@@ -203,7 +203,7 @@ public partial class DiscoveryResultsPage : ContentPage, INotifyPropertyChanged
             var webView = EnsureVideoWebView();
             VideoOverlay.IsVisible = true;
             // Opening in portrait too: the bars are visible and reserve space of their own.
-            VideoOverlayInsets.Apply(FullscreenButton, VideoCloseButton);
+            VideoOverlayInsets.Apply(null, VideoCloseButton);
             VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
             webView.Source = VideoWebViewHelper.BuildSource(url);
             // MAUI re-applies MediaPlaybackRequiresUserGesture on every source update and puts it
@@ -255,10 +255,12 @@ private void OnCloseVideo(object sender, EventArgs e)
             // Leaving full screen belongs to closing: an overlay that went away while the activity
             // was still landscape left the whole app sideways.
             FullscreenVideo.Exit();
-VideoWebViewHelper.BackHandler = null;
+            VideoWebViewHelper.BackHandler = null;
               MainActivity.DisarmVideoBackCallback();
+              // Source = null on its own leaves the media element running, so the overlay went away
+              // and the audio carried on.
               if (_videoWebView != null)
-                _videoWebView.Source = null;
+                  VideoWebViewHelper.StopMediaAndClear(_videoWebView);
             VideoOverlay.IsVisible = false;
         }
         catch
@@ -267,30 +269,9 @@ VideoWebViewHelper.BackHandler = null;
     }
 
     /// <summary>
-    ///     Toggles full screen and swaps the glyph so the button says what it will do next.
+    ///     Back gesture while the overlay is up: it closes the video and stays on the results list
+    ///     instead of popping the page.
     /// </summary>
-    private void OnToggleFullscreen(object sender, TappedEventArgs e)
-    {
-        try
-        {
-            if (FullscreenVideo.IsActive)
-                FullscreenVideo.Exit();
-            else
-                FullscreenVideo.Enter();
-            if (FullscreenIcon != null)
-                FullscreenIcon.Source = FullscreenVideo.IsActive ? "icon_exit_fullscreen" : "icon_fullscreen";
-                // The cutout moves onto the long edge when the video rotates to landscape, so
-                // the buttons are re-inset after the change rather than before it.
-                Device.BeginInvokeOnMainThread(() =>
-                    VideoOverlayInsets.Apply(FullscreenButton, VideoCloseButton));
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Video", "Fullscreen toggle failed: " + ex.GetType().Name);
-        }
-    }
-
-
     private bool OnVideoBackPressed()
     {
         if (VideoOverlay == null || !VideoOverlay.IsVisible)

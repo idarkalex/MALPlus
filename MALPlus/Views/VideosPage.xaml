@@ -63,28 +63,6 @@
         <!-- In-app video overlay -->
         <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="100">
             <WebView x:Name="VideoWebView" BackgroundColor="#000000" />
-            <!-- Same two round buttons as the details overlay: full screen on the left, close on the
-                 right. -->
-<Border x:Name="FullscreenButton" HorizontalOptions="Start" VerticalOptions="Start"
-                      Margin="10,10,0,0" WidthRequest="40" HeightRequest="40"
-                    BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 20">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnToggleFullscreen" />
-                </Border.GestureRecognizers>
-                <Image x:Name="FullscreenIcon" Source="icon_fullscreen" WidthRequest="22" HeightRequest="22"
-                       HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
-<Border x:Name="VideoCloseButton" HorizontalOptions="End" VerticalOptions="Start"
-                      Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
-                    BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 20">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnCloseVideo" />
-                </Border.GestureRecognizers>
-                <Label Text="✕" FontFamily="InterBold" FontSize="18" TextColor="White"
-                       HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
         </Grid>
     </Grid>
 </ContentPage>

@@ -52,18 +52,16 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnEpisodeTapped" CommandParameter="{Binding .}" />
                 </Border.GestureRecognizers>
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                     <Label Text="{Binding EpisodeId, StringFormat='Ep {0}'}"
                            FontFamily="InterBold" FontSize="14" TextColor="#0066FF"
                            VerticalOptions="Center" MinimumWidthRequest="52" MaxLines="1" />
                     <Label Grid.Column="1" Text="{Binding Title}" FontFamily="Inter" FontSize="14"
                            TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation"
                            VerticalOptions="Center" />
-                    <Label Grid.Column="2" Text="est." FontFamily="InterSemiBold" FontSize="10" TextColor="#7AB4FF"
-                           MaxLines="1" VerticalOptions="Center" IsVisible="{Binding IsEstimated}" />
-                    <Label Grid.Column="3" Text="✓" FontFamily="InterBold" FontSize="13" TextColor="#2E9E5B"
+                    <Label Grid.Column="2" Text="✓" FontFamily="InterBold" FontSize="13" TextColor="#2E9E5B"
                            MaxLines="1" VerticalOptions="Center" IsVisible="{Binding IsWatched}" />
-                    <Label Grid.Column="4" Text="{Binding AiredLabel}" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF"
+                    <Label Grid.Column="3" Text="{Binding AiredLabel}" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF"
                            MaxLines="1" VerticalOptions="Center" />
                 </Grid>
             </Border>
@@ -956,18 +954,9 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <!-- Same two round buttons on every page that plays video: full screen on the left, close
-                 on the right. They share one size and colour so the three overlays look the same. -->
-            <Border x:Name="FullscreenButton" Grid.Row="0" HorizontalOptions="Start" VerticalOptions="Center"
-                    Margin="10,10,0,0" WidthRequest="40" HeightRequest="40"
-                    BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 20">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnToggleFullscreen" />
-                </Border.GestureRecognizers>
-                <Image x:Name="FullscreenIcon" Source="icon_fullscreen" WidthRequest="22" HeightRequest="22"
-                       HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
+            <!-- Only close on the right. Full screen is the player's own control now: Chromium draws
+                 the button and the shared WebChromeClient answers the request for every video
+                 surface in the app. -->
             <Border x:Name="VideoCloseButton" Grid.Row="0" HorizontalOptions="End" VerticalOptions="Center"
                     Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"

@@ -377,11 +377,17 @@ public static class VideoWebViewHelper
     private static string BuildPlayerShell(string body, string script = null, bool directMedia = false)
     {
         var videoStyle = directMedia
-            // The stage stops short of the bottom so Chromium's own control bar sits on its own strip
-            // instead of overlapping the picture. Native controls size themselves, so no height is
-            // hard coded here beyond leaving room for one.
-            ? "#stage{position:absolute;top:0;left:0;right:0;bottom:56px;display:flex;align-items:center;justify-content:center;background:#000}" +
-              "#video{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;background:#000}" +
+            // The stage fills the container and the element fills the stage. It used to stop 56px short
+            // of the bottom "so Chromium's own control bar sits on its own strip", but the native
+            // controls draw over the <video> element itself and never used that strip; with it, the
+            // element was also sized by the file's intrinsic size (width/height auto, capped by
+            // max-width/max-height), so a direct-media file rendered letterboxed with black down each
+            // side instead of filling the box. object-fit:contain keeps the picture undistorted, so the
+            // only letterboxing left is the unavoidable top/bottom one when the box is not the video's
+            // aspect. The iframe branch below was already width/height 100% all along, which is why a
+            // YouTube-sourced theme filled the box and an AnimeThemes one did not.
+            ? "#stage{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:#000}" +
+              "#video{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;background:#000}" +
               "#splash{position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:20;transition:opacity 0.3s;pointer-events:none}"
             : "iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none}";
 
@@ -457,6 +463,98 @@ public static class VideoWebViewHelper
             }
 
             return base.OnConsoleMessage(consoleMessage);
+        }
+
+        // THE FULL SCREEN BUTTON THE PLAYER ALREADY DRAWS.
+        //
+        // Chromium draws a full screen control on its own because the html carries the `controls`
+        // attribute, but WebView deliberately drops the request unless the host app implements these
+        // two callbacks. AOSP WebChromeClient.java: "If this method is not overridden, WebView will
+        // report to the web page it does not support fullscreen mode and will not honor the web page's
+        // request to run in fullscreen mode." The Chromium WebView docs say the same thing. So the
+        // button was always there and always did nothing, silently, and that was the whole bug.
+        //
+        // Implementing them here rather than per page is deliberate: this client is installed on
+        // every video WebView in the app, so this is the one place that makes full screen work on the
+        // details overlay, the videos page, the discovery overlay, the season themes page and the
+        // random theme page, which has no button of its own at all.
+        private global::Android.Views.View _fullscreenView;
+        private ICustomViewCallback _fullscreenCallback;
+
+        /// <summary>
+        ///     The web content asked for full screen. WebView builds the surface and hands it over;
+        ///     attaching it to the window is the app's half of the contract.
+        /// </summary>
+        public override void OnShowCustomView(global::Android.Views.View view, ICustomViewCallback callback)
+        {
+            base.OnShowCustomView(view, callback);
+
+            try
+            {
+                if (view == null)
+                    return;
+
+                // A second request while one is already up: tell the page to stand down rather than
+                // attaching a second surface on top of the first.
+                //
+                // OnCustomViewHidden is the only exit member the .NET Android binding exposes on
+                // ICustomViewCallback; onRequestCustomViewExit and onCustomViewPositionChanged exist
+                // in the Java interface and are simply not mapped, and asking for one is a compile
+                // error. It is also the correct one: the surface is not going away, the page is being
+                // told its request was refused, and WebView then raises OnHideCustomView by itself.
+                if (_fullscreenView != null)
+                {
+                    callback?.OnCustomViewHidden();
+                    return;
+                }
+
+                var decor = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?
+                    .Window?.DecorView as global::Android.Views.ViewGroup;
+                if (decor == null)
+                    return;
+
+                _fullscreenView = view;
+                _fullscreenCallback = callback;
+
+                decor.AddView(view, new global::Android.Views.ViewGroup.LayoutParams(
+                    global::Android.Views.ViewGroup.LayoutParams.MatchParent,
+                    global::Android.Views.ViewGroup.LayoutParams.MatchParent));
+
+                // Landscape, bars hidden and the cutout released: the whole of what a video wants,
+                // and already handled for the three overlays that used to carry a button of our own.
+                FullscreenVideo.Enter();
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPlus Video", "fullscreen enter failed: " + ex.GetType().Name);
+            }
+        }
+
+        /// <summary>
+        ///     The web content left full screen, whoever asked. WebView calls this on its own when the
+        ///     player closes it, so the teardown does not depend on us noticing first.
+        /// </summary>
+        public override void OnHideCustomView()
+        {
+            base.OnHideCustomView();
+
+            try
+            {
+                if (_fullscreenView == null)
+                    return;
+
+                if (_fullscreenView.Parent is global::Android.Views.ViewGroup parent)
+                    parent.RemoveView(_fullscreenView);
+
+                _fullscreenView = null;
+                _fullscreenCallback = null;
+
+                FullscreenVideo.Exit();
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPlus Video", "fullscreen exit failed: " + ex.GetType().Name);
+            }
         }
     }
 

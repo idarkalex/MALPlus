@@ -130,7 +130,7 @@
             <controls:NativeVideoView x:Name="DirectVideoPlayer"
                                       VerticalOptions="Fill" HorizontalOptions="Fill"
                                       IsVisible="False" PlayFailed="OnDirectVideoFailed" />
-            <Border HorizontalOptions="End" VerticalOptions="Start" Margin="12"
+            <Border x:Name="CloseButton" HorizontalOptions="End" VerticalOptions="Start" Margin="12"
                     WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18"
                     BackgroundColor="#99000000">
                 <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
