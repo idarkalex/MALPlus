@@ -14,6 +14,9 @@ namespace MALPlus.Models.Models.Library
         string StartDate { get; set; }
         string EndDate { get; set; }
         string Notes { get; set; }
+
+        /// <summary>MAL's free text note. See <see cref="ILibraryData.Comment" />.</summary>
+        string Comment { get; set; }
         bool IsRewatching { get; set; }
         string AlaternateTitle { get; }
         //okay ... I know that it doesn't really fit here but

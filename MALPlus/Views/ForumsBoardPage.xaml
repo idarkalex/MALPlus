@@ -18,7 +18,7 @@ x:Class="MALPlus.Views.ForumsBoardPage"
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
 
-<Grid RowDefinitions="Auto,Auto,*">
+<Grid RowDefinitions="Auto,*">
               <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,10,12,4">
                   <Label Grid.Column="0" Text="{Binding Title}" FontFamily="InterBold" FontSize="22"
                          TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
@@ -36,22 +36,7 @@ x:Class="MALPlus.Views.ForumsBoardPage"
                   </Border>
               </Grid>
 
-              <!-- Entry boards are MAL's own anime/manga discussion, where a topic can only be
-                   started against the media id. The global boards have no entry, so the button is
-                   hidden there rather than posting into an arbitrary board. -->
-              <Border Grid.Row="1" Margin="16,0,16,8" Padding="14,11" StrokeThickness="1"
-                      StrokeShape="RoundRectangle 8"
-                      BackgroundColor="{StaticResource EmSheet}"
-                      Stroke="{StaticResource EmBorder}"
-                      IsVisible="{Binding Source={x:Reference BoardPageRoot}, Path=CanStartTopicHere}">
-                  <Border.GestureRecognizers>
-                      <TapGestureRecognizer Tapped="OnNewTopicTapped" />
-                  </Border.GestureRecognizers>
-                  <Label Text="Start a topic in this discussion" FontFamily="InterSemiBold" FontSize="14"
-                         TextColor="{StaticResource EmAccent}" />
-              </Border>
-
-            <RefreshView Grid.Row="2" IsRefreshing="{Binding LoadingTopics}" Refreshing="OnRefreshing">
+            <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingTopics}" Refreshing="OnRefreshing">
                 <CollectionView ItemsSource="{Binding Topics}">
                     <CollectionView.EmptyView>
                         <VerticalStackLayout Spacing="10" HorizontalOptions="Center">

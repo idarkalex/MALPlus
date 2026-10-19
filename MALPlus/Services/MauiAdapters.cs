@@ -197,10 +197,13 @@ public class MauiMessageDialogProvider : IMessageDialogProvider
             {
                 if (Shell.Current == null)
                     return;
-                // ConfirmAsync answers yes or no, which is all this has ever been able to say: the old
-                // action sheet took a choice of label, and every caller passes two of them.
+                // The two labels are the whole point of the signature: callers have always passed a
+                // real word for each answer and it used to be dropped on the floor, which is why every
+                // one of them got a sheet reading "Yes" and then "Cancel". Handing the false label
+                // through also puts the two answers on one row, because a question with a real word
+                // for each side is not a menu.
                 var yes = await OptionsSheetHost.ConfirmAsync(title ?? string.Empty, content ?? string.Empty,
-                    trueCommand, destructive: false);
+                    trueCommand, destructive: false, cancelLabel: falseCommand);
                 if (yes)
                     callbackOnTrue?.Invoke();
                 else

@@ -89,6 +89,16 @@ namespace MALPlus.XShared.Comm.Anime
                         data.Add(new KeyValuePair<string, string>("num_times_rewatched", _rewatched.Value.ToString()));
                     }
 
+                    // Only when it is known. This endpoint replaces the whole entry, so a comments
+                    // field that was never loaded would come back as an empty one and quietly wipe
+                    // whatever the user had written. Null means "we do not know", an empty string
+                    // means "known to be empty", and only the second one is allowed to erase it.
+                    // The list is read from the scrape path too, and that one has no comments field.
+                    if (_item.Comment != null)
+                    {
+                        data.Add(new KeyValuePair<string, string>("comments", _item.Comment));
+                    }
+
                     if (dateStart != null)
                     {
                         data.Add(new KeyValuePair<string, string>("start_date", dateStart));

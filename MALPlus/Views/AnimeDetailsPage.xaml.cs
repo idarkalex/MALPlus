@@ -186,10 +186,15 @@ public partial class AnimeDetailsPage : ContentPage
     private const int StaffColumns = 3;
 
     /// <summary>
-    ///     96 image + name + up to two role lines + padding and margins. Slightly taller than
-    ///     <see cref="CharacterRowHeight" /> because the card is a column, not a row.
+    ///     The tallest the staff card can get: 96 image + name + two role lines + three 5dp gaps +
+    ///     the card's own padding and margin. Measured, not guessed, and it has to cover the two
+    ///     role lines case because a fixed row height clips whatever does not fit.
     /// </summary>
-    private const double StaffRowHeight = 156;
+    /// <remarks>
+    ///     It was 156, which is 19 short of the above: every entry with two role lines had its
+    ///     second one cut off. Reducing it further would only hide more.
+    /// </remarks>
+    private const double StaffRowHeight = 176;
 
     private double _tabListHeight = 520;
     private bool _tabListHeightSet;
@@ -385,9 +390,19 @@ InitializeComponent();
                     submenu: sheet => OpenRewatchSubmenu(sheet, vm)));
 
             if (onList)
+            {
                 rows.Add(new MALPlus.Controls.OptionsSheetItem(
                     vm.AnimeMode ? "Set rewatch count" : "Set reread count", "icon_episodes",
                     submenu: sheet => OpenRewatchSubmenu(sheet, vm)));
+
+                // The two fields at the bottom of MAL's own edit form. Only offered while the entry
+                // is on the list, because my_list_status does not exist for anything else and both
+                // of them are written to it.
+                rows.Add(new MALPlus.Controls.OptionsSheetItem("Note", "icon_note",
+                    action: () => EditNote(vm)));
+                rows.Add(new MALPlus.Controls.OptionsSheetItem("Tags", "icon_tag",
+                    action: () => EditTags(vm)));
+            }
 
             rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy title", "icon_copy",
                 vm.CopyTitleToClipboardCommand));
@@ -406,6 +421,47 @@ InitializeComponent();
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS OnShowMoreRequested failed: " + ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    ///     The free text note, edited on the panel that is already up rather than in a dialog on top
+    ///     of it.
+    /// </summary>
+    private void EditNote(AnimeDetailsPageViewModel vm)
+    {
+        try
+        {
+            if (DetailsSheet == null)
+                return;
+
+            DetailsSheet.OpenPrompt("Note", null, vm.Comment, "Write a note...", 2000, false,
+                value => _ = vm.ChangeCommentAsync(value), null, multiline: true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS EditNote failed: " + ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    ///     The tags, as the comma joined field MAL actually stores. Same shape as the note, one line.
+    /// </summary>
+    private void EditTags(AnimeDetailsPageViewModel vm)
+    {
+        try
+        {
+            if (DetailsSheet == null)
+                return;
+
+            DetailsSheet.OpenPrompt("Tags", "Separate them with commas", vm.TagsText,
+                "favourite, rewatching...", 200, false,
+                value => _ = vm.ChangeTagsAsync(value), null,
+                keyboard: Keyboard.Text);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS EditTags failed: " + ex.GetType().Name);
         }
     }
 
@@ -665,7 +721,32 @@ InitializeComponent();
         }
     }
 
-    private void ApplyCharacterStaffBindings()
+    private IEnumerable<AnimeDetailsPageViewModel.AnimeStaffDataViewModels.AnimeCharacterStaffModelViewModel> OrderByImportance(
+            List<AnimeDetailsPageViewModel.AnimeStaffDataViewModels.AnimeCharacterStaffModelViewModel> pairs, int take)
+        {
+            if (pairs == null)
+                return Enumerable.Empty<AnimeDetailsPageViewModel.AnimeStaffDataViewModels.AnimeCharacterStaffModelViewModel>();
+
+            // Main before Supporting, then most favourited first, then the name so the order does
+            // not shuffle between two entries with the same count.
+            return pairs
+                .OrderByDescending(pair => IsMain(pair))
+                .ThenByDescending(pair => CharacterData(pair)?.Favorites ?? 0)
+                .ThenBy(pair => pair.AnimeCharacter?.Data?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .Take(take);
+        }
+
+        private static AnimeCharacter CharacterData(
+            AnimeDetailsPageViewModel.AnimeStaffDataViewModels.AnimeCharacterStaffModelViewModel pair)
+            // The wrapper only carries FavouriteBase, and the role and the favourite count live on
+            // the concrete character. Anything that is not one keeps its source position.
+            => pair?.AnimeCharacter?.Data as AnimeCharacter;
+
+        private static bool IsMain(
+            AnimeDetailsPageViewModel.AnimeStaffDataViewModels.AnimeCharacterStaffModelViewModel pair)
+            => string.Equals(CharacterData(pair)?.Role, "Main", StringComparison.OrdinalIgnoreCase);
+
+        private void ApplyCharacterStaffBindings()
     {
         try
         {
@@ -691,7 +772,12 @@ InitializeComponent();
             DisplayedMangaCharacters.Clear();
             DisplayedStaff.Clear();
             DisplayedRelated.Clear();
-            foreach (var pair in pairs?.Take(charTarget) ?? Enumerable.Empty<AnimeDetailsPageViewModel.AnimeStaffDataViewModels.AnimeCharacterStaffModelViewModel>())
+            // Tenrai hands the cast over exactly as MAL orders it: every Main first, then
+            // every Supporting, alphabetical inside each group. That is not nothing, but it is
+            // alphabetical and not importance, which is why Luffy sat fourth on One Piece with
+            // 150k favourites behind three characters nobody has heard of. Sorting here rather than in
+            // the query keeps the cached payload in the order the source gave it.
+            foreach (var pair in OrderByImportance(pairs, charTarget))
                 DisplayedCharacters.Add(new AnimeCharacterCard(pair));
             foreach (var character in mangaCharacters?.Take(mangaTarget) ?? Enumerable.Empty<FavouriteViewModel>())
                 DisplayedMangaCharacters.Add(new MangaCharacterCard(character));
@@ -1093,14 +1179,45 @@ InitializeComponent();
             };
             var rows = options.Select(status => new OptionsSheetItem(
                 MALPlus.XShared.Utils.Utilities.StatusToString((int)status, !Vm.AnimeMode, false),
-                "icon_status")).ToArray();
+                "icon_status")).ToList();
+
+            // Removal lives here rather than only in the overflow because this is the one control that
+            // already says where the entry stands. Offered only while there is something to remove:
+            // AddAnimeVisibility is the flag for "not on the list", so the row is added when it is
+            // down, and an entry that was never added has nothing to take off.
+            if (!Vm.AddAnimeVisibility)
+                rows.Add(new OptionsSheetItem("Remove from list", "icon_list",
+                    // action, not command: Choose runs a row's Command and then reports the row as
+                    // chosen, so a row carrying the command AND being dispatched by label here ran the
+                    // removal twice and the confirmation came back up a second time. Action is checked
+                    // first and is the only one, so this row does exactly one thing.
+                    action: () => Vm.RemoveAnimeCommand?.Execute(null),
+                    destructive: true));
+
             var choice = await OptionsSheetHost.PickAsync("Set status", null, rows);
             if (string.IsNullOrEmpty(choice))
                 return;
+
             var index = Array.IndexOf(options.Select(status =>
                 MALPlus.XShared.Utils.Utilities.StatusToString((int)status, !Vm.AnimeMode, false)).ToArray(), choice);
-            if (index >= 0)
-                Vm.ChangeStatus(options[index]);
+            if (index < 0)
+                return;
+
+            // Off the list there is no entry behind ChangeStatus, which writes straight onto the
+            // library item. Setting a status is a decision to start following the entry, so it is put
+            // on the list first, exactly as the stepper's plus does, and only then given that status.
+            if (Vm.AddAnimeVisibility)
+            {
+                // Awaited, which is the whole point. AddAnimeCommand is async void: checked without
+                // waiting, this raced the add and ChangeStatus lost, because the add finishes by
+                // sending its own update with Settings.DefaultStatusAfterAdding, which is Plan to
+                // watch. Choosing "On hold" from an entry that was not on the list landed on Plan to
+                // watch every time for that reason and nothing else.
+                if (!await Vm.AddToListAsync())
+                    return;
+            }
+
+            Vm.ChangeStatus(options[index]);
         }
         catch (Exception ex)
         {
@@ -1129,37 +1246,10 @@ InitializeComponent();
         }
     }
 
-    /// <summary>
+/// <summary>
     /// The old client let you type the watched count straight into the flyout; the model still
     /// carries WatchedEpsInput and ChangeWatchedEps for it, only the input surface was missing.
     /// </summary>
-    /// <summary>
-    ///     The hero stepper's pill while the entry is off the list. It adds the title to the
-    ///     library instead of incrementing a counter that does not exist yet: the old code hid the
-    ///     whole stepper in that state, so the only way to start an entry was the separate Add to
-    ///     List button, and the counter itself looked absent rather than empty.
-    /// </summary>
-    private async void OnStepperStartTapped(object sender, TappedEventArgs e)
-    {
-        try
-        {
-            var vm = Vm;
-            if (vm == null || !vm.AddAnimeVisibility)
-                return;
-
-            vm.AddAnimeCommand?.Execute(null);
-
-            // The command is what puts it on the list; the counter is only useful once that has
-            // happened, and the view model's own notifications redraw the pill.
-            if (!vm.AddAnimeVisibility)
-                return;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("MALPLUS OnStepperStartTapped failed: " + ex.GetType().Name);
-        }
-    }
-
     private async void OnEpisodesCounterTapped(object sender, TappedEventArgs e)
     {
         try

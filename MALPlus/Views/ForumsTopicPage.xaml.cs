@@ -5,6 +5,7 @@ using MALPlus.XShared.NavArgs;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Forums;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Controls;
 
 namespace MALPlus.Views;
 
@@ -87,10 +88,7 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
             // The MAUI WebView exposes no LoadDataWithBaseURL, so this goes through the platform
             // view. The base URL is what relative links and inline images resolve against, and
             // it has to be myanimelist.net for the same reason the video overlay uses it.
-            if (ReplyPreviewWebView.Handler?.PlatformView is global::Android.Webkit.WebView native)
-                native.LoadDataWithBaseURL("https://myanimelist.net", html, "text/html", "UTF-8", null);
-            else
-                ReplyPreviewWebView.Source = new HtmlWebViewSource {Html = html};
+            Console.WriteLine("MALPLUS reply preview moved to ForumReplyPage: " + html.Length);
         }
         catch (Exception ex)
         {
@@ -110,6 +108,10 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         Vm.PropertyChanged -= OnVmPropertyChanged;
         Vm.PropertyChanged += OnVmPropertyChanged;
 #if ANDROID
+        // The Shell's own back handler pops the whole section instead of this page, so the press is
+        // taken over while the page is on screen: close the reply overlay if open, otherwise pop one
+        // page (to the board, or to the forum index when the topic was opened from there).
+        ArmTopicBack();
         if (!_handlerAttached)
         {
             TopicWebView.HandlerChanged += OnTopicWebViewHandlerChanged;
@@ -123,6 +125,7 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         try
         {
             await Vm.Init(new ForumsTopicNavigationArgs(TopicId, null, 1));
+            Vm.RegisterSelfBackNav();
             await UpdateTopicWebViewHeightAsync();
         }
         catch (Exception ex)
@@ -176,6 +179,316 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
     private async void OnTopicWebViewNavigated(object sender, WebNavigatedEventArgs e)
     {
         await UpdateTopicWebViewHeightAsync();
+    }
+
+    private async void OnPageJumpTapped(object sender, TappedEventArgs e)
+    {
+        await PromptPageJumpAsync();
+    }
+
+    private async void OnPageChipClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            if (sender is Button button && button.BindingContext is Tuple<int, bool> chip)
+            {
+                if (chip.Item1 > 0)
+                {
+                    Vm?.LoadPageCommand?.Execute(chip.Item1);
+                    return;
+                }
+
+                await PromptPageJumpAsync();
+                return;
+            }
+
+            await PromptPageJumpAsync();
+        }
+        catch
+        {
+        }
+    }
+
+    private async void OnPageJumpClicked(object sender, EventArgs e)
+    {
+        await PromptPageJumpAsync();
+    }
+
+    private async Task PromptPageJumpAsync()
+    {
+        var vm = Vm;
+        if (vm?.CurrentTopicData == null)
+            return;
+        var result = await DisplayPromptAsync("Go to page",
+            $"Enter a page between 1 and {vm.CurrentTopicData.AllPages}",
+            keyboard: Keyboard.Numeric, accept: "Go", cancel: "Cancel");
+        if (!string.IsNullOrWhiteSpace(result) && int.TryParse(result, out var page))
+            vm.LoadPageCommand.Execute(page);
+    }
+
+    private async void OnOpenReplyPageTapped(object sender, EventArgs e)
+    {
+        try
+        {
+            if (Vm == null)
+            {
+                await DisplayAlert("Reply", "Vm not available", "OK");
+                return;
+            }
+            Vm.ReplyMessage = Vm.ReplyMessage ?? string.Empty;
+            ReplyOverlay.IsVisible = true;
+            ReplyOverlayEditor.Text = Vm.ReplyMessage;
+            await Task.Delay(1);
+            ReplyOverlayEditor.Focus();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS ForumsTopicPage: reply open failed: " + ex.GetType().Name);
+        }
+    }
+
+    private void OnHideReplyOverlayTapped(object sender, EventArgs e)
+    {
+        ReplyOverlay.IsVisible = false;
+    }
+
+#if ANDROID
+    private void ArmTopicBack()
+    {
+        global::MALPlus.MainActivity.ArmMenuBackCallback(() =>
+        {
+            if (ReplyOverlay.IsVisible)
+            {
+                ReplyOverlay.IsVisible = false;
+                // The menu callback disables itself after this press; re-arm once it has finished
+                // (posted, so the re-arm is not clobbered by that internal cleanup).
+                MainThread.BeginInvokeOnMainThread(ArmTopicBack);
+                return;
+            }
+
+            _ = Shell.Current.GoToAsync("..");
+        });
+    }
+#endif
+
+    protected override bool OnBackButtonPressed()
+    {
+        if (ReplyOverlay.IsVisible)
+        {
+            ReplyOverlay.IsVisible = false;
+            return true;
+        }
+
+        return base.OnBackButtonPressed();
+    }
+
+    private void OnFormatBBCodeTapped(object sender, EventArgs e)
+    {
+        var tag = (sender as Button)?.CommandParameter as string;
+        if (string.IsNullOrWhiteSpace(tag) || ReplyOverlayEditor == null)
+            return;
+
+        var text = ReplyOverlayEditor.Text ?? string.Empty;
+        var start = Math.Max(0, Math.Min(ReplyOverlayEditor.CursorPosition, text.Length));
+        var length = Math.Max(0, Math.Min(ReplyOverlayEditor.SelectionLength, text.Length - start));
+        var openTag = $"[{tag}]";
+        var closeTag = $"[/{tag}]";
+        if (length > 0)
+        {
+            var selected = text.Substring(start, length);
+            text = text.Remove(start, length).Insert(start, openTag + selected + closeTag);
+            ReplyOverlayEditor.Text = text;
+            ReplyOverlayEditor.CursorPosition = start + openTag.Length + selected.Length + closeTag.Length;
+        }
+        else
+        {
+            text = text.Insert(start, openTag + closeTag);
+            ReplyOverlayEditor.Text = text;
+            ReplyOverlayEditor.CursorPosition = start + openTag.Length;
+        }
+    }
+
+    private async void OnInsertUrlTapped(object sender, EventArgs e)
+    {
+        var url = await DisplayPromptAsync("URL", "Enter the URL", keyboard: Keyboard.Url);
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+        var editor = ReplyOverlayEditor;
+        var start = Math.Max(0, Math.Min(editor.CursorPosition, editor.Text?.Length ?? 0));
+        var length = Math.Max(0, Math.Min(editor.SelectionLength, (editor.Text?.Length ?? 0) - start));
+        var text = editor.Text ?? string.Empty;
+        if (length > 0)
+        {
+            var selected = text.Substring(start, length);
+            var replacement = $"[url={url}]{selected}[/url]";
+            text = text.Remove(start, length).Insert(start, replacement);
+            editor.Text = text;
+            editor.CursorPosition = start + replacement.Length;
+        }
+        else
+        {
+            var replacement = $"[url={url}]Text[/url]";
+            text = text.Insert(start, replacement);
+            editor.Text = text;
+            editor.CursorPosition = start + replacement.Length;
+        }
+    }
+
+    private async void OnInsertImageTapped(object sender, EventArgs e)
+    {
+        var url = await DisplayPromptAsync("Image", "Enter image URL", keyboard: Keyboard.Url);
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+        InsertAtCursor($"[img]{url}[/img]");
+    }
+
+    private async void OnInsertQuoteTapped(object sender, EventArgs e)
+    {
+        var name = await DisplayPromptAsync("Quote", "Quote author (optional)", accept: "OK", cancel: "Cancel");
+        var editor = ReplyOverlayEditor;
+        var start = Math.Max(0, Math.Min(editor.CursorPosition, editor.Text?.Length ?? 0));
+        var length = Math.Max(0, Math.Min(editor.SelectionLength, (editor.Text?.Length ?? 0) - start));
+        var text = editor.Text ?? string.Empty;
+        if (length > 0)
+        {
+            var selected = text.Substring(start, length);
+            var replacement = $"[quote={name} message=0]{selected}[/quote]";
+            text = text.Remove(start, length).Insert(start, replacement);
+            editor.Text = text;
+            editor.CursorPosition = start + replacement.Length;
+        }
+        else
+        {
+            var replacement = $"[quote={name} message=0]Text[/quote]";
+            text = text.Insert(start, replacement);
+            editor.Text = text;
+            editor.CursorPosition = start + replacement.Length;
+        }
+    }
+
+    private void OnInsertListTapped(object sender, EventArgs e)
+    {
+        InsertAtCursor("[list]\n[*]Item\n[/list]");
+    }
+
+    private async void OnInsertColorTapped(object sender, EventArgs e)
+    {
+        var color = await DisplayPromptAsync("Color", "Enter color (red/blue/#00FF00)", accept: "OK", cancel: "Cancel");
+        if (string.IsNullOrWhiteSpace(color))
+            return;
+        var start = Math.Max(0, Math.Min(ReplyOverlayEditor.CursorPosition, ReplyOverlayEditor.Text?.Length ?? 0));
+        var length = Math.Max(0, Math.Min(ReplyOverlayEditor.SelectionLength, (ReplyOverlayEditor.Text?.Length ?? 0) - start));
+        var text = ReplyOverlayEditor.Text ?? string.Empty;
+        if (length > 0)
+        {
+            var selected = text.Substring(start, length);
+            text = text.Remove(start, length).Insert(start, $"[color={color}]{selected}[/color]");
+            ReplyOverlayEditor.Text = text;
+            ReplyOverlayEditor.CursorPosition = start + selected.Length + $"[color={color}]".Length + 8;
+        }
+        else
+        {
+            var replacement = $"[color={color}][/color]";
+            text = text.Insert(start, replacement);
+            ReplyOverlayEditor.Text = text;
+            ReplyOverlayEditor.CursorPosition = start + replacement.Length - 9;
+        }
+    }
+
+    private void InsertAtCursor(string content)
+    {
+        if (ReplyOverlayEditor == null)
+            return;
+        var text = ReplyOverlayEditor.Text ?? string.Empty;
+        var start = Math.Max(0, Math.Min(ReplyOverlayEditor.CursorPosition, text.Length));
+        text = text.Insert(start, content);
+        ReplyOverlayEditor.Text = text;
+        ReplyOverlayEditor.CursorPosition = start + content.Length;
+    }
+
+    private void OnReplyOverlayPreviewTapped(object sender, EventArgs e)
+    {
+        if (ReplyOverlayEditor == null || Vm == null)
+            return;
+        var html = MALPlus.BBCode.BBCode.ToHtml(ReplyOverlayEditor.Text ?? string.Empty);
+        var body =
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
+            "<base href=\"https://myanimelist.net/\"><style>" +
+            "html,body{margin:0;padding:0;background:transparent;color:#d4e4f7;}" +
+            "body{font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.5;word-wrap:break-word;}" +
+            ".message-content *{color:#d4e4f7 !important;}.message-content a{color:#4da3ff !important;}" +
+            ".message-content img{max-width:100%;height:auto;}" +
+            ".message-content blockquote{border-left:3px solid #0066ff;background:#10283d;margin:8px 0;padding:6px 10px;}" +
+            ".message-content p{margin:0 0 6px;}.message-content p:last-child{margin-bottom:0;}" +
+            "</style></head><body><div class=\"message-content\">" + html + "</div></body></html>";
+        try
+        {
+            if (ReplyOverlayPreview.Handler?.PlatformView is global::Android.Webkit.WebView native)
+                native.LoadDataWithBaseURL("https://myanimelist.net", html, "text/html", "UTF-8", null);
+            else
+                ReplyOverlayPreview.Source = new HtmlWebViewSource { Html = body };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS reply preview failed: " + ex.GetType().Name);
+        }
+        ReplyOverlayPreview.IsVisible = true;
+    }
+
+    private async void OnSendReplyOverlayTapped(object sender, EventArgs e)
+    {
+        if (Vm == null || ReplyOverlayEditor == null)
+            return;
+        if (Vm.CurrentTopicData?.Id == null && !string.IsNullOrWhiteSpace(TopicId))
+        {
+            await Vm.Init(new ForumsTopicNavigationArgs(TopicId, null, 1));
+            Vm.RegisterSelfBackNav();
+        }
+        Vm.ReplyMessage = ReplyOverlayEditor.Text;
+        if (await Vm.SendReplyAsync())
+        {
+            ReplyOverlay.IsVisible = false;
+            if (ReplyOverlayEditor != null)
+                ReplyOverlayEditor.Text = Vm.ReplyMessage;
+        }
+    }
+
+    private void OnTopicWebViewNavigating(object sender, WebNavigatingEventArgs e)
+    {
+        try
+        {
+            if (Vm == null || !e.Url.StartsWith("malplusquote:", StringComparison.OrdinalIgnoreCase))
+                return;
+            e.Cancel = true;
+            var prefix = "malplusquote:";
+            var rest = Uri.UnescapeDataString(e.Url.Substring(prefix.Length));
+            var sep = rest.IndexOf('?');
+            var id = sep >= 0 ? rest.Substring(0, sep) : rest;
+            var user = "Unknown";
+            if (sep >= 0)
+            {
+                foreach (var pair in rest.Substring(sep + 1).Split('&'))
+                {
+                    var kv = pair.Split('=', 2);
+                    if (kv.Length == 2 && string.Equals(kv[0], "user", StringComparison.OrdinalIgnoreCase))
+                        user = Uri.UnescapeDataString(kv[1]);
+                }
+            }
+            _ = Task.Run(async () =>
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    Vm.QuouteMessage(id, user);
+                    ReplyOverlay.IsVisible = true;
+                    ReplyOverlayEditor.Text = Vm.ReplyMessage;
+                    ReplyOverlayEditor.Focus();
+                });
+            });
+        }
+        catch
+        {
+        }
     }
 
     private async Task UpdateTopicWebViewHeightAsync()

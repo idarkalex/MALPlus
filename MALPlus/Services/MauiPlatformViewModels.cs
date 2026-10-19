@@ -135,11 +135,22 @@ public class MauiMainViewModel : MainViewModelBase
                 route = "videos";
                 break;
             case PageIndex.PageForumIndex:
-                // Notification links carry a topic id: open the topic, not the index.
                 if (args is ForumsTopicNavigationArgs ftn && !string.IsNullOrEmpty(ftn.TopicId))
                 {
                     route = "forumtopic";
                     query = $"?id={Uri.EscapeDataString(ftn.TopicId)}";
+                }
+                else if (args is ForumsBoardNavigationArgs fbn)
+                {
+                    route = "forumboard";
+                    if (fbn.AnimeId > 0)
+                        query = $"?anime={Uri.EscapeDataString(fbn.AnimeId.ToString())}&title={Uri.EscapeDataString(fbn.AnimeTitle ?? "")}&manga={(fbn.IsAnimeBoard ? "false" : "true")}&page={fbn.PageNumber}";
+                    else if (fbn.TargetBoard > (ForumBoards)0)
+                        query = $"?board={Uri.EscapeDataString(((int)fbn.TargetBoard).ToString())}&page={fbn.PageNumber}";
+                    else if (fbn.ClubId != null)
+                        query = $"?club={Uri.EscapeDataString(fbn.ClubId)}&title={Uri.EscapeDataString(fbn.ClubName ?? "")}&page={fbn.PageNumber}";
+                    else if (!string.IsNullOrWhiteSpace(fbn.Query))
+                        query = $"?board={Uri.EscapeDataString(((int)(fbn.Scope ?? fbn.TargetBoard)).ToString())}&page={fbn.PageNumber}";
                 }
                 else
                 {
@@ -263,10 +274,16 @@ public class MauiMainViewModel : MainViewModelBase
                index == PageIndex.PageMangaAdapted;
     }
 
-    private static string BuildAnimeListQuery(PageIndex index, object args)
+    internal static string BuildAnimeListQuery(PageIndex index, object args)
     {
         // Anime list is a parameterised page (work mode, status, type).
         // Args may be AnimeListPageNavigationArgs (rich) or null.
+        //
+        // THIS IS THE ONLY PLACE THAT DECIDES WHAT STATE TRAVELS on a list route, and both
+        // directions go through it. Opening a panel from More and coming back from a details page
+        // both serialise here, so a field added below and on the args object round-trips without
+        // anyone remembering a second place. Building the return query by hand is what dropped the
+        // type and sent an Upcoming panel back to the General ranking.
         var sb = new System.Text.StringBuilder("?");
         if (args is AnimeListPageNavigationArgs a)
         {
@@ -288,6 +305,13 @@ public class MauiMainViewModel : MainViewModelBase
                 type = a.MangaAdaptedWorkMode.ToString();
             if (type != null)
                 sb.Append("&type=").Append(type);
+
+            // The band, when this ranking has one. It was on the args and parsed back off the query,
+            // but never emitted here, so it was lost on every trip through a route: pick Movies in
+            // the ranking, open an entry, come back, and you were on the first band again. Only the
+            // rankings that actually read bands carry it, which is why the args default to -1.
+            if (a.TopRangeIndex >= 0)
+                sb.Append("&range=").Append(a.TopRangeIndex);
 
             // Seasonal: name the season in the route. The details page registers this same args
             // object as its back navigation, so without it coming back from an anime has no idea

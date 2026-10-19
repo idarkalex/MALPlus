@@ -91,14 +91,21 @@ namespace MALPlus.XShared.BL
             //(no titles/images). Treat it as stale so we try to re-fetch the full schedules data.
             var oldSchema = data != null && data.Any() && data.All(x => string.IsNullOrEmpty(x.Title));
 
+            if (data != null && data.Any() && fresh && !oldSchema)
+            {
+                ApplyData(data);
+                return;
+            }
+
+            // Stale cache: publish it NOW (stale-not-blank) so the calendar and the countdowns
+            // have ids, titles and images within milliseconds. Holding `_airingData` null for the
+            // whole refetch below is what made the first calendar open of the day wait out the
+            // network bound before it could build anything.
+            if (data != null && data.Any() && !oldSchema)
+                ApplyData(data);
+
             try
             {
-                if (data != null && data.Any() && fresh && !oldSchema)
-                {
-                    ApplyData(data);
-                    return;
-                }
-
                 if (!cacheOnly)
                 {
                     var schedulesTask = new AnimeSchedulesQuery().GetScheduleAsync();
@@ -122,8 +129,6 @@ namespace MALPlus.XShared.BL
                 // network/refetch failure -> keep whatever cache we already read (stale-not-blank)
             }
 
-            if (oldSchema && data != null && data.Any() && !string.IsNullOrEmpty(data.First().Title))
-
             if (data == null || !data.Any())
             {
                 AiringShows = new List<AiringData>();
@@ -144,6 +149,7 @@ namespace MALPlus.XShared.BL
             }
             AiringShows = data.GroupBy(x => x.MalId).Select(g => g.First()).ToList();
             InitializationSuccess = true;
+            WarmDeclaredNextAirsInBackground();
         }
 
         #region Real next air dates
@@ -227,7 +233,9 @@ namespace MALPlus.XShared.BL
 
         private bool _nextAirKnown(int malId)
         {
-            if (_nextAirByMalId.ContainsKey(malId))
+            // A date that has already passed is not an answer: the episode aired, and the series'
+            // next one is a different date nobody has fetched yet.
+            if (_nextAirByMalId.TryGetValue(malId, out var known) && known > DateTime.UtcNow)
                 return true;
 
             // A series asked about inside the window already counts as answered, even when the
@@ -298,22 +306,31 @@ namespace MALPlus.XShared.BL
         }
 
         /// <summary>
-        ///     Fetches the declared next air dates for the given series.
+        ///     Fetches the declared next air dates for the given series and returns how many dates
+        ///     were learned.
         ///     <para>
         ///     The window is a cache for what has been answered, not a wall in front of the service.
-        ///     A series already held, and a series already asked about inside the window, are both
-        ///     skipped; anything new goes out. Sharing one timestamp across every caller used to
-        ///     mean the first one paid and the rest were told "not yet" against an empty table, and
-        ///     every series on screen then looked like it had no announced episode.
+        ///     A series holding a date still ahead, and a series already asked about inside the
+        ///     window, are both skipped; anything else, including one whose date has passed, goes
+        ///     out. Sharing one timestamp across every caller used to mean the first one paid and
+        ///     the rest were told "not yet" against an empty table, and every series on screen then
+        ///     looked like it had no announced episode.
         ///     </para>
         /// </summary>
-        public async Task RefreshDeclaredNextAirAsync(IEnumerable<int> malIds, bool force = false)
+        public async Task<int> RefreshDeclaredNextAirAsync(IEnumerable<int> malIds, bool force = false)
         {
             var ids = malIds?.Where(id => id > 0).Distinct().ToList();
             if (ids == null || ids.Count == 0)
-                return;
+                return 0;
 
             var now = DateTime.UtcNow;
+
+            // Answered before the gate is taken: when the table already holds the answer, waiting
+            // behind a fetch in flight only to answer "nothing to do" is what put a whole warm-up's
+            // latency in front of the calendar. The answer is re-checked under the gate below, so a
+            // race between callers cannot fetch the same series twice.
+            if (!HasWanted(ids, force, now))
+                return 0;
 
             await _nextAirGate.WaitAsync();
             try
@@ -326,7 +343,7 @@ namespace MALPlus.XShared.BL
                     withinWindow = _nextAirFetchedAtUtc > DateTime.MinValue &&
                                    now - _nextAirFetchedAtUtc < window;
                     wanted = ids
-                        .Where(id => !_nextAirByMalId.ContainsKey(id))
+                        .Where(id => !_nextAirByMalId.TryGetValue(id, out var known) || known <= now)
                         .Where(id => force || !withinWindow || !_nextAirAsked.Contains(id))
                         .ToList();
                     foreach (var id in ids)
@@ -334,11 +351,11 @@ namespace MALPlus.XShared.BL
                 }
 
                 if (wanted.Count == 0)
-                    return;
+                    return 0;
 
                 var fetched = await AniListAiringQuery.GetNextAiringAsync(wanted);
                 if (fetched == null || fetched.Count == 0)
-                    return;
+                    return 0;
 
                 lock (_nextAirMapLock)
                 {
@@ -351,6 +368,12 @@ namespace MALPlus.XShared.BL
                         // this is the belt to that pair of braces.
                         _nextAirByMalId[pair.Key] = pair.Value;
                     }
+
+                    // A passed date is dropped rather than kept: it is not a schedule any more, and
+                    // keeping it makes the entry look answered forever instead of asked again.
+                    foreach (var id in ids)
+                        if (_nextAirByMalId.TryGetValue(id, out var stale) && stale <= now)
+                            _nextAirByMalId.Remove(id);
                 }
 
                 _nextAirFetchedAtUtc = now;
@@ -362,15 +385,68 @@ namespace MALPlus.XShared.BL
                     _dataCache.SaveData(snapshot, NextAirCacheFile, null);
                 }
                 catch { }
+
+                return fetched.Count;
             }
             catch (Exception)
             {
                 // AniList unreachable: keep the dates already known.
+                return 0;
             }
             finally
             {
                 _nextAirGate.Release();
             }
+        }
+
+        /// <summary>
+        ///     Read-only check of whether any of the series still have no answer, using the same
+        ///     rules as the wanted list inside the refresh.
+        /// </summary>
+        private bool HasWanted(List<int> ids, bool force, DateTime now)
+        {
+            lock (_nextAirMapLock)
+            {
+                var withinWindow = _nextAirFetchedAtUtc > DateTime.MinValue &&
+                                   now - _nextAirFetchedAtUtc < TimeSpan.FromHours(8);
+                foreach (var id in ids)
+                {
+                    if (_nextAirByMalId.TryGetValue(id, out var known) && known > now)
+                        continue;
+                    if (!force && withinWindow && _nextAirAsked.Contains(id))
+                        continue;
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        private int _declaredWarmStarted;
+
+        /// <summary>
+        ///     Fetches the declared dates for the whole schedule once per process, off the caller's
+        ///     path. The calendar decides what is on a day from this table, and paying for a season's
+        ///     worth of chunks on the calendar's own open is what made it slow; by the time the
+        ///     screen is opened the table is usually already filled.
+        /// </summary>
+        private void WarmDeclaredNextAirsInBackground()
+        {
+            if (Interlocked.Exchange(ref _declaredWarmStarted, 1) == 1)
+                return;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var ids = GetAllAiringIds().ToList();
+                    if (ids.Count > 0)
+                        await RefreshDeclaredNextAirAsync(ids);
+                }
+                catch (Exception)
+                {
+                    // The calendar asks again on its own open.
+                }
+            });
         }
 
         /// <summary>

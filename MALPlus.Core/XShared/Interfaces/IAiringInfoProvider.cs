@@ -24,9 +24,11 @@ namespace MALPlus.XShared.Interfaces
         bool TryGetDeclaredNextAirDate(int malId, out DateTime dateUtc);
 
         /// <summary>
-        ///     Refreshes the declared next air dates, at most once per cache window.
+        ///     Refreshes the declared next air dates, at most once per cache window. The result is
+        ///     how many dates were learned, which a caller waiting with a bound uses to decide
+        ///     whether a rebuild is worth it.
         /// </summary>
-        Task RefreshDeclaredNextAirAsync(IEnumerable<int> malIds, bool force = false);
+        Task<int> RefreshDeclaredNextAirAsync(IEnumerable<int> malIds, bool force = false);
 
         /// <summary>
         ///     Says a series is wanted, batching the requests that arrive together. Screens call this

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MALPlus.Views.ForumReplyPage"
+             x:Name="ReplyRoot"
+             BackgroundColor="{StaticResource EmBackground}"
+             Title="Reply">
+    <Grid RowDefinitions="Auto,*">
+        <Grid Padding="16,12,16,8" BackgroundColor="#051522">
+            <Label Text="Reply to topic" FontFamily="InterBold" FontSize="20"
+                   TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+        </Grid>
+        <ScrollView Grid.Row="1" Padding="16,12,16,18">
+            <VerticalStackLayout Spacing="12">
+                <Label Text="{Binding CurrentTopicData.Title}" FontFamily="InterSemiBold"
+                       FontSize="13" TextColor="{StaticResource EmAccent}" />
+                <Editor Text="{Binding ReplyMessage, Mode=TwoWay}"
+                        Placeholder="Write a reply (BBCode supported)..."
+                        FontFamily="Inter" FontSize="13" HeightRequest="220"
+                        BackgroundColor="{StaticResource EmSheet}" TextColor="{StaticResource BrushText}"
+                        PlaceholderColor="#80FFFFFF" AutoSize="Disabled" />
+                <Button Text="Post Reply" Clicked="OnPostReplyTapped"
+                        FontFamily="InterSemiBold" FontSize="14"
+                        BackgroundColor="#0066FF" TextColor="White"
+                        CornerRadius="8" HeightRequest="42" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

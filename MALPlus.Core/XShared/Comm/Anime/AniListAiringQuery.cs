@@ -101,10 +101,43 @@ namespace MALPlus.XShared.Comm.Anime
         }
 
         /// <summary>
-        ///     One request for a whole batch of series, gated so several batches can be in flight
-        ///     without walking into the request budget.
+        ///     AniList silently caps a page at fifty records, so a bigger batch answers with an
+        ///     arbitrary fifty of the ids and nothing says the rest were dropped. The calendar asks
+        ///     about a whole season at once, which is exactly the case that lost every date it did
+        ///     not happen to fit.
+        /// </summary>
+        private const int MaxIdsPerRequest = 50;
+
+        /// <summary>
+        ///     A whole batch is spent in requests of at most fifty ids, sent together rather than
+        ///     one after another: on a slow network the batch then costs one round trip instead of
+        ///     one per chunk, and the gate and the shared budget still pace how many leave at once.
+        ///     Everything that arrives is merged, and a chunk that fails adds nothing.
         /// </summary>
         private static async Task<List<Entry>> FetchBatchAsync(int[] malIds, bool requireDate = true)
+        {
+            var output = new List<Entry>();
+            var seen = new HashSet<int>();
+            var chunks = malIds.Chunk(MaxIdsPerRequest)
+                .Select(chunk => FetchChunkAsync(chunk.ToArray(), requireDate));
+            var results = await Task.WhenAll(chunks);
+            foreach (var chunk in results)
+            {
+                foreach (var entry in chunk)
+                {
+                    if (seen.Add(entry.MalId))
+                        output.Add(entry);
+                }
+            }
+
+            return output;
+        }
+
+        /// <summary>
+        ///     One request for a chunk of series, gated so several chunks can be in flight without
+        ///     walking into the request budget.
+        /// </summary>
+        private static async Task<List<Entry>> FetchChunkAsync(int[] malIds, bool requireDate)
         {
             var output = new List<Entry>();
             try
@@ -227,7 +260,7 @@ namespace MALPlus.XShared.Comm.Anime
 
             var ids = string.Join(",", malIds);
             return "{\"query\":\"" + query + "\",\"variables\":{\"ids\":[" + ids +
-                   "],\"perPage\":" + malIds.Length + "}}";
+                   "],\"perPage\":" + Math.Min(malIds.Length, MaxIdsPerRequest) + "}}";
         }
     }
 }

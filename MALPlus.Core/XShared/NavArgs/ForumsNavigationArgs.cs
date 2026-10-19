@@ -25,7 +25,7 @@ namespace MALPlus.XShared.NavArgs
     public class ForumsBoardNavigationArgs : ForumsNavigationArgs
     {
         public ForumBoards TargetBoard { get; }
-        public int PageNumber { get; }
+        public int PageNumber { get; set; }
         public int AnimeId { get; }
         public string AnimeTitle { get; set; }
         public bool IsAnimeBoard { get; }

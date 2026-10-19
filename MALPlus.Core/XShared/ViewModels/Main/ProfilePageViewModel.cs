@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -20,14 +20,25 @@ using MALPlus.XShared.Utils;
 
 namespace MALPlus.XShared.ViewModels.Main
 {
-    public sealed class ProfilePageViewModel : ViewModelBase
+public sealed class ProfilePageViewModel : ViewModelBase
+{
+    public sealed class StatBarItem
     {
-        private List<int> _animeChartValues = new List<int>();
+        public string Label { get; set; }
+        public int Value { get; set; }
+        public string Percent { get; set; }
+        public double Width { get; set; }
+        public string BarColor { get; set; }
+    }
+
+    private List<int> _animeChartValues = new List<int>();
 
         private string _currUser;
 
         private List<FavouriteViewModel> _favouriteCharacters;
         private List<FavouriteViewModel> _favouriteStaff;
+        private List<StatBarItem> _animeStatBars = new List<StatBarItem>();
+        private List<StatBarItem> _mangaStatBars = new List<StatBarItem>();
         private ObservableCollection<MalComment> _malComments = new ObservableCollection<MalComment>();
         public ProfilePageNavigationArgs PrevArgs;
 
@@ -222,14 +233,33 @@ if (_currUser == null || _currUser != args.TargetUser || force)
                     CurrentData.AnimeDropped,
                     CurrentData.AnimePlanned
                 };
-                MangaChartValues = new List<int>
-                {
-                    CurrentData.MangaReading,
-                    CurrentData.MangaCompleted,
-                    CurrentData.MangaOnHold,
-                    CurrentData.MangaDropped,
-                    CurrentData.MangaPlanned
-                };
+        MangaChartValues = new List<int>
+        {
+            CurrentData.MangaReading,
+            CurrentData.MangaCompleted,
+            CurrentData.MangaOnHold,
+            CurrentData.MangaDropped,
+            CurrentData.MangaPlanned
+        };
+
+        // Drutol drew each status as a proportional bar. The VM already has the raw counts, so this
+        // just converts them into display bars without duplicating the parsing logic.
+        AnimeStatBars = BuildStatBars(new[]
+        {
+            ("Watching", CurrentData.AnimeWatching, "#3B82F6"),
+            ("Completed", CurrentData.AnimeCompleted, "#22C55E"),
+            ("On Hold", CurrentData.AnimeOnHold, "#EAB308"),
+            ("Dropped", CurrentData.AnimeDropped, "#EF4444"),
+            ("Planned", CurrentData.AnimePlanned, "#94A3B8")
+        });
+        MangaStatBars = BuildStatBars(new[]
+        {
+            ("Reading", CurrentData.MangaReading, "#3B82F6"),
+            ("Completed", CurrentData.MangaCompleted, "#22C55E"),
+            ("On Hold", CurrentData.MangaOnHold, "#EAB308"),
+            ("Dropped", CurrentData.MangaDropped, "#EF4444"),
+            ("Planned", CurrentData.MangaPlanned, "#94A3B8")
+        });
 
                 EmptyRecentAnimeNoticeVisibility = RecentAnime.Count == 0;
                 EmptyRecentMangaNoticeVisibility = RecentManga.Count == 0;
@@ -337,6 +367,28 @@ if (_currUser == null || _currUser != args.TargetUser || force)
         {
             return MalTypeParser.ParseMangaType(type);
         }
+
+        private static List<StatBarItem> BuildStatBars((string Label, int Value, string ColorHex)[] items)
+        {
+            var total = items.Sum(item => item.Value);
+            if (total < 1)
+                total = 1;
+
+            return items.Select(item =>
+            {
+                var percent = total == 0 ? 0 : (double)item.Value / total * 100d;
+                return new StatBarItem
+                {
+                    Label = item.Label,
+                    Value = item.Value,
+                    Percent = percent > 0 ? $"{percent:0}%" : "0%",
+                    Width = Math.Max(item.Value == 0 ? 0 : 3, 260d * item.Value / total),
+                    BarColor = ColorConverter(item.ColorHex)
+                };
+            }).ToList();
+        }
+
+        private static string ColorConverter(string hex) => hex;
 
         private static string FormatTime(TimeSpan time)
         {
@@ -610,6 +662,26 @@ if (_currUser == null || _currUser != args.TargetUser || force)
             {
                 _mangaChartValues = value;
                 RaisePropertyChanged(() => MangaChartValues);
+            }
+        }
+
+        public List<StatBarItem> AnimeStatBars
+        {
+            get => _animeStatBars;
+            set
+            {
+                _animeStatBars = value;
+                RaisePropertyChanged(() => AnimeStatBars);
+            }
+        }
+
+        public List<StatBarItem> MangaStatBars
+        {
+            get => _mangaStatBars;
+            set
+            {
+                _mangaStatBars = value;
+                RaisePropertyChanged(() => MangaStatBars);
             }
         }
 
@@ -984,6 +1056,14 @@ if (_currUser == null || _currUser != args.TargetUser || force)
                        ViewModelLocator.GeneralMain.Navigate(PageIndex.PageFriends,
                            new FriendsPageNavArgs {TargetUser = CurrentData.User});
                    }));
+
+        public ICommand OpenMalProfileCommand => new RelayCommand(() =>
+        {
+            if (CurrentData?.User?.Name == null)
+                return;
+            ResourceLocator.SystemControlsLauncherService.LaunchUri(
+                new Uri($"https://myanimelist.net/profile/{Uri.EscapeDataString(CurrentData.User.Name)}"));
+        });
 
 
         private string _aboutMeHtmlContent;

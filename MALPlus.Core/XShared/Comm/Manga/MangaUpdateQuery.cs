@@ -59,6 +59,13 @@ namespace MALPlus.XShared.Comm.Manga
                         new("tags", _item.Notes),
                     };
 
+                    // Null means the note was never loaded, and sending it anyway would replace it
+                    // with an empty one. See the same guard in AnimeUpdateQuery.
+                    if (_item.Comment != null)
+                    {
+                        data.Add(new KeyValuePair<string, string>("comments", _item.Comment));
+                    }
+
                     if (dateStart != null)
                     {
                         data.Add(new KeyValuePair<string, string>("start_date", dateStart));

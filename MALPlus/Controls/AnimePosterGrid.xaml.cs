@@ -176,6 +176,23 @@ public partial class AnimePosterGrid : ContentView
         BindableProperty.Create(nameof(FixedHeight), typeof(bool), typeof(AnimePosterGrid), false,
             propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ApplyLayout(force: true));
 
+    /// <summary>
+    ///     Shows the tag and note indicators on the cards.
+    /// </summary>
+    /// <remarks>
+    ///     Off unless a page asks. They are facts about the user's library entry, so they mean
+    ///     nothing on a search result, a recommendation or a ranking, and the default cell is shared
+    ///     by every grid in the app. Only the anime library list turns them on.
+    /// </remarks>
+    public static readonly BindableProperty ShowEntryIndicatorsProperty =
+        BindableProperty.Create(nameof(ShowEntryIndicators), typeof(bool), typeof(AnimePosterGrid), false);
+
+    public bool ShowEntryIndicators
+    {
+        get => (bool)GetValue(ShowEntryIndicatorsProperty);
+        set => SetValue(ShowEntryIndicatorsProperty, value);
+    }
+
     /// <summary>Raised with the bound item when a card is tapped.</summary>
     public event EventHandler<object> ItemTapped;
 

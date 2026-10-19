@@ -30,7 +30,7 @@
                 Margin="0,0,0,58" Padding="0"
                 BackgroundColor="{StaticResource EmSheet}"
                 StrokeShape="RoundRectangle 28 28 0 0">
-            <Grid RowDefinitions="Auto,Auto,Auto">
+            <Grid x:Name="PanelGrid" RowDefinitions="Auto,Auto,Auto">
                 <!-- Drag handle, sheet shape only. -->
                 <BoxView x:Name="Handle" Grid.Row="0" WidthRequest="40" HeightRequest="4"
                          CornerRadius="2" Color="#33FFFFFF"
@@ -66,7 +66,18 @@
                 <ScrollView x:Name="RowsScroll" Grid.Row="2">
                     <VerticalStackLayout x:Name="ItemsHost" Spacing="2" Padding="12,0" />
                 </ScrollView>
-            </Grid>
-        </Border>
+<!-- The last few pixels of the window, painted in the panel's own fill.
+             The panel is flush with the bottom of its layout, but the system navigation bar is a
+             surface laid over that and it is transparent, so those pixels show whatever page was
+             under the sheet instead of the sheet. Measured on a 480dpi device the panel reached
+             y=2709 of a 2712 window and the two rows below it were the list page's own posters.
+             Android 15 refuses to colour the bar any other way, so this paints over it rather
+             than asking the system to. 24dp covers the tallest bar a device ships with and is
+             invisible everywhere else, being the same colour as the panel it stands under.
+             Last child, so it draws over the panel and over anything behind it. -->
+        <BoxView VerticalOptions="End" HeightRequest="24" Color="{StaticResource EmSheet}"
+                 InputTransparent="True" />
+    </Grid>
+</Border>
     </Grid>
 </ContentView>

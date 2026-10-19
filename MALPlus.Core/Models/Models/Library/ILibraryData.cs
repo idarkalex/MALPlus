@@ -26,6 +26,13 @@ namespace MALPlus.Models.Models.Library
         string MyStartDate { get; set; }
         string MyEndDate { get; set; }
         string Notes { get; set; }
+
+        /// <summary>
+        ///     MAL's own "Notes" field on the edit page, the free text one. <see cref="Notes" /> is not
+        ///     it: that holds the tag list, comma joined, and has done since the tags arrived. Both
+        ///     exist side by side on MAL's edit form and they are two different things.
+        /// </summary>
+        string Comment { get; set; }
         bool IsRewatching { get; set; }
         string AlternateTitle { get; set; }
         AnimePriority Priority { get; set; }

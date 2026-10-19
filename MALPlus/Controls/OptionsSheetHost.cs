@@ -73,8 +73,42 @@ public static class OptionsSheetHost
     ///     A question with a commit and a cancel. Returns true only when the commit was chosen.
     /// </summary>
     public static async Task<bool> ConfirmAsync(string title, string message, string okLabel = "OK",
-        bool destructive = false)
+        bool destructive = false, string cancelLabel = null)
     {
+        // A caller with a real word for each answer asks for it, and gets the two answers on one
+        // row. Without one the shape stays what it has always been, because every existing caller
+        // here is a single "OK" and a "Cancel" underneath it reads fine for that.
+        if (!string.IsNullOrWhiteSpace(cancelLabel))
+        {
+            var answered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var page = new OptionsSheetPage();
+
+            await Gate.WaitAsync();
+            try
+            {
+                BindConfirm(page, answered);
+                page.Sheet.OpenConfirm(title, message, okLabel, cancelLabel, destructive, () =>
+                {
+                    // Popped before the answer is handed over, same as Finish does, so a caller that
+                    // navigates on the strength of it does not navigate with the dialog still on top.
+                    if (answered.TrySetResult(true))
+                        _ = PopAsync(page);
+                });
+                await PushAsync(page);
+                return await answered.Task;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS options confirm failed: " + ex.Message);
+                await PopAsync(page);
+                return false;
+            }
+            finally
+            {
+                Gate.Release();
+            }
+        }
+
         var answer = await PickAsync(title, message, new[]
         {
             new OptionsSheetItem(okLabel, destructive ? "icon_close" : "icon_check", destructive: destructive)
@@ -87,7 +121,7 @@ public static class OptionsSheetHost
     ///     field, because "leave it blank to clear it" is a real answer.
     /// </summary>
     public static async Task<string> PromptAsync(string title, string subtitle, string initial, string hint,
-        int maxLength = 6)
+        int maxLength = 6, Keyboard? keyboard = null)
     {
         var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var page = new OptionsSheetPage();
@@ -101,7 +135,8 @@ public static class OptionsSheetHost
             // is what abandoning it looks like.
             page.Sheet.OpenPrompt(title, subtitle, initial, hint, maxLength,
                 true,
-                value => Finish(page, pending, value), () => Finish(page, pending, null));
+                value => Finish(page, pending, value), () => Finish(page, pending, null),
+                keyboard: keyboard);
             await PushAsync(page);
             return await pending.Task;
         }
@@ -198,6 +233,20 @@ public static class OptionsSheetHost
         page.Bind();
         page.RowChosen += (_, item) => Finish(page, pending, item?.Label);
         page.Dismissed += (_, _) => Finish(page, pending, null);
+    }
+
+    /// <summary>
+    ///     The same wiring for a question that answers itself: the commit carries the true, and the
+    ///     panel closing without a choice is the false.
+    /// </summary>
+    private static void BindConfirm(OptionsSheetPage page, TaskCompletionSource<bool> pending)
+    {
+        page.Bind();
+        page.Dismissed += (_, _) =>
+        {
+            if (pending.TrySetResult(false))
+                _ = PopAsync(page);
+        };
     }
 
     private static void Finish(OptionsSheetPage page, TaskCompletionSource<string> pending, string result)

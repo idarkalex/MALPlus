@@ -152,8 +152,32 @@ namespace MALPlus.XShared.ViewModels
                  ParentAbstraction.Notes = value.Trim(',');
                  RaisePropertyChanged(() => Notes);
                  RaisePropertyChanged(() => TagsControlVisibility);
+                 // HasTags is a computed property that a poster binds to, so it needs telling in
+                 // its own right. Notifying only the source is what leaves a recycled card showing
+                 // the tag icon of whatever entry used to occupy it.
+                 RaisePropertyChanged(() => HasTags);
              }
          }
+
+        /// <summary>
+        ///     MAL's free text note. <see cref="Notes" /> is the tag list, not this.
+        /// </summary>
+        public string Comment
+         {
+             get { return ParentAbstraction.Comment; }
+             set
+             {
+                 ParentAbstraction.Comment = value;
+                 RaisePropertyChanged(() => Comment);
+                 RaisePropertyChanged(() => HasNote);
+             }
+         }
+
+        /// <summary>True when the entry carries at least one tag. Bound by the poster card.</summary>
+        public bool HasTags => !string.IsNullOrWhiteSpace(Notes);
+
+        /// <summary>True when the entry carries a note. Bound by the poster card.</summary>
+        public bool HasNote => !string.IsNullOrWhiteSpace(Comment);
 
         public bool IsRewatching
         {
@@ -477,13 +501,33 @@ namespace MALPlus.XShared.ViewModels
         ///     The "status" half of a card badge, blank for entries the user does not follow: those
         ///     carry no status and the raw value would render as the meaningless "N/A".
         /// </summary>
-        public string LibraryBadgeAccent => IsOnMyList ? MyStatusBindShort : string.Empty;
+        public string LibraryBadgeAccent
+            => AnimeCardBadge.Status(IsOnMyList, () => MyStatusBindShort);
 
         /// <summary>
         ///     The "episodes watched" half of a card badge, blank for entries the user does not
         ///     follow, where it would render as the meaningless "0/?".
         /// </summary>
-        public string LibraryBadgeMain => IsOnMyList ? MyEpisodesBindShort : string.Empty;
+        /// <remarks>
+        ///     Off the list the total on its own is said instead, which is what a poster can honestly
+        ///     show about an entry nobody has started. That rule is written once, in
+        ///     <see cref="AnimeCardBadge" />, because the recommendation row and the poster cell have
+        ///     to agree.
+        /// </remarks>
+        public string LibraryBadgeMain
+            => AnimeCardBadge.Episodes(IsOnMyList, MyEpisodesFocused, AllEpisodesFocused);
+
+        /// <summary>
+        ///     The episode half of the calendar's counter pill.
+        /// </summary>
+        /// <remarks>
+        ///     A calendar card is about when something airs, so an entry the user does not follow
+        ///     shows the countdown alone: the watched/total pair says nothing about a series nobody
+        ///     has started, and its total on its own reads as a second countdown. The user's own
+        ///     entries keep the full badge: status, progress and the countdown.
+        /// </remarks>
+        public string CalendarBadgeMain
+            => IsOnMyList ? LibraryBadgeMain : string.Empty;
 
         public AnimeStatus MyStatus
         {
@@ -501,6 +545,7 @@ namespace MALPlus.XShared.ViewModels
                 // ones above left every poster on screen showing the old status until it was recycled.
                 RaisePropertyChanged(() => LibraryBadgeAccent);
                 RaisePropertyChanged(() => LibraryBadgeMain);
+                RaisePropertyChanged(() => CalendarBadgeMain);
             }
         }
 
@@ -593,6 +638,7 @@ namespace MALPlus.XShared.ViewModels
                 RaisePropertyChanged(() => MyEpisodesBind);
                 RaisePropertyChanged(() => MyEpisodesBindShort);
                 RaisePropertyChanged(() => LibraryBadgeMain);
+                RaisePropertyChanged(() => CalendarBadgeMain);
                 ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
                 ChangedWatched?.Invoke(this,value);
             }
@@ -622,6 +668,7 @@ namespace MALPlus.XShared.ViewModels
                 RaisePropertyChanged(() => MyEpisodesBindShort);
                 // Same reason as the status setter: the poster's badge binds the derived name.
                 RaisePropertyChanged(() => LibraryBadgeMain);
+                RaisePropertyChanged(() => CalendarBadgeMain);
                 AdjustIncrementButtonsVisibility();
                 ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
             }
@@ -1370,15 +1417,21 @@ public void ResetTitleCache()
                 return;
             _incrementing = true;
             LoadingUpdate = true;
-            var trigCompleted = true;
+            var askedStatus = false;
             if (MyStatus ==  AnimeStatus.PlanToWatch || MyStatus == AnimeStatus.Dropped ||
                 (!Settings.DontAskToMoveOnHoldEntries && MyStatus == AnimeStatus.OnHold))
             {
-                if (MyEpisodesFocused+1 != AllEpisodesFocused || AllEpisodesFocused == 0) //avoid double status change when show is going to be completed immediatelly
-                {
-                    trigCompleted = AllEpisodes > 1;
-                    PromptForStatusChange(AllEpisodes == 1 ? AnimeStatus.Completed : AnimeStatus.Watching);
-                }
+                // Finishing the series outranks being moved to watching, and it is the only thing asked
+                // when this tap is the one that completes it. The two were separate decisions before and
+                // a series of one episode got neither: the question about watching was skipped precisely
+                // on the tap that would have completed it, and the completion prompt was gated behind
+                // there being more than one episode, which is never true of a film or an ONA.
+                var willComplete = AllEpisodesFocused != 0 && MyEpisodesFocused + 1 == AllEpisodesFocused;
+                askedStatus = true;
+                if (willComplete)
+                    PromptForStatusChange(AnimeStatus.Completed);
+                else
+                    PromptForStatusChange(AnimeStatus.Watching);
             }
 
             MyEpisodesFocused++;
@@ -1404,7 +1457,10 @@ public void ResetTitleCache()
 
             ParentAbstraction.LastWatched = DateTime.Now;
 
-            if (trigCompleted && MyEpisodesFocused == AllEpisodesFocused && AllEpisodesFocused != 0)
+            // The prompt above already handled the completion for an entry that was off to be watched or
+            // dropped, and it asked it before the count changed so it could read the tap correctly.
+            // This is the other case: the entry was already following and this tap finished it.
+            if (!askedStatus && MyEpisodesFocused == AllEpisodesFocused && AllEpisodesFocused != 0)
                 PromptForStatusChange( AnimeStatus.Completed);
 
             LoadingUpdate = false;
@@ -1752,9 +1808,14 @@ public void ResetTitleCache()
                     ChangeStatus(to);
                     return;
                 }
+                // The old sheet asked "would you like to change current status?" over a "From / To" table, which
+                // made the reader work out the question before answering it. The status being moved to is
+                // already the only variable in the sentence, so it is the whole question now, and the
+                // two answers sit on one row where they read as the two sides of it.
+                var target = Utils.Utilities.StatusToString((int)to, !ParentAbstraction.RepresentsAnime);
                 ResourceLocator.MessageDialogProvider.ShowMessageDialogWithInput(
-                        $"From : {Utils.Utilities.StatusToString((int)MyStatus, !ParentAbstraction.RepresentsAnime, IsRewatching)}\nTo : {Utils.Utilities.StatusToString((int)to,!ParentAbstraction.RepresentsAnime)}",
-                        "Would you like to change current status?","Yes","No", async () =>
+                        "",
+                        $"Change status to {target.ToLowerInvariant()}?","Yes","No", async () =>
                         {
                             if (to == AnimeStatus.Completed && IsRewatching)
                             {

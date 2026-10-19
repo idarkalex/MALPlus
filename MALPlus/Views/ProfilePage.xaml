@@ -79,6 +79,10 @@
                                     FontFamily="InterBold" FontSize="16"
                                     BackgroundColor="#141d2b" TextColor="White"
                                     BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8" Padding="0" />
+                            <Button Text="MAL" Command="{Binding OpenMalProfileCommand}" WidthRequest="36" HeightRequest="36"
+                                    FontFamily="InterBold" FontSize="11"
+                                    BackgroundColor="#141d2b" TextColor="{StaticResource EmAccent}"
+                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8" Padding="0" />
                         </VerticalStackLayout>
                     </Grid>
                 </Border>
@@ -137,6 +141,77 @@
                          visible one is attached to the gesture, so the others cost nothing. -->
                     <ScrollView IsVisible="{Binding SelectedTab, Converter={StaticResource IntEq}, ConverterParameter=0}">
                         <VerticalStackLayout Spacing="14">
+                <!-- Profile details parsed from MAL (last online, gender, birthday, joined, etc.) -->
+                <Border BackgroundColor="{StaticResource EmSheet}"
+                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8" Padding="12"
+                        IsVisible="{Binding CurrentData.Details.Count, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="PROFILE DETAILS" FontFamily="InterBold" FontSize="10"
+                               TextColor="#A0FFFFFF" />
+                        <CollectionView ItemsSource="{Binding CurrentData.Details}"
+                                        SelectionMode="None"
+                                        HeightRequest="150">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="112,*" ColumnSpacing="12" Padding="0,4">
+                                        <Label Text="{Binding Item1}" FontFamily="InterSemiBold" FontSize="12"
+                                               TextColor="#B8C7D8" VerticalOptions="Center"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding Item2}" FontFamily="Inter" FontSize="13"
+                                               TextColor="{StaticResource BrushText}" VerticalOptions="Center"
+                                               HorizontalOptions="End" MaxLines="2"
+                                               LineBreakMode="TailTruncation" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Quick actions present on Drutol's profile -->
+                <Border BackgroundColor="{StaticResource EmSheet}"
+                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8" Padding="10">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="ACTIONS" FontFamily="InterBold" FontSize="10" TextColor="#A0FFFFFF" />
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                            <Button Grid.Column="0" Text="Anime list" Command="{Binding NavigateAnimeListCommand}"
+                                    FontFamily="InterSemiBold" FontSize="12"
+                                    BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
+                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8"
+                                    HeightRequest="34" Padding="4,0" />
+                            <Button Grid.Column="1" Text="Manga list" Command="{Binding NavigateMangaListCommand}"
+                                    FontFamily="InterSemiBold" FontSize="12"
+                                    BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
+                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8"
+                                    HeightRequest="34" Padding="4,0" />
+                            <Button Grid.Column="2" Text="History" Command="{Binding NavigateHistoryCommand}"
+                                    FontFamily="InterSemiBold" FontSize="12"
+                                    BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
+                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8"
+                                    HeightRequest="34" Padding="4,0" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                            <Button Grid.Column="0" Text="Compare" Command="{Binding NavigateComparisonCommand}"
+                                    FontFamily="InterSemiBold" FontSize="12"
+                                    BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
+                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8"
+                                    HeightRequest="34" Padding="4,0" />
+                            <Button Grid.Column="1" Text="Friends" Command="{Binding NavigateFriendsCommand}"
+                                    FontFamily="InterSemiBold" FontSize="12"
+                                    BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
+                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8"
+                                    HeightRequest="34" Padding="4,0" />
+                            <Button Grid.Column="2" Text="Open MAL" Command="{Binding OpenMalProfileCommand}"
+                                    FontFamily="InterSemiBold" FontSize="12"
+                                    BackgroundColor="#141d2b" TextColor="{StaticResource EmAccent}"
+                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8"
+                                    HeightRequest="34" Padding="4,0" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
                 <!-- About Me -->
                 <Border BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
@@ -409,9 +484,81 @@
 
                     <ScrollView IsVisible="{Binding SelectedTab, Converter={StaticResource IntEq}, ConverterParameter=3}">
                         <VerticalStackLayout Spacing="14">
-                <!-- Library statistics. Every number here was already being parsed off the
-                     MAL profile page and then thrown away; this is the first thing that
-                     actually shows it. -->
+                 <!-- Profile status breakdown, matching Drutol's stats page. -->
+                <Border BackgroundColor="{StaticResource EmSheet}"
+                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8" Padding="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="ANIME STATUS" FontFamily="InterBold" FontSize="10"
+                               TextColor="#A0FFFFFF" />
+                        <CollectionView ItemsSource="{Binding AnimeStatBars}" SelectionMode="None"
+                                        HeightRequest="180">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="82,260,42,48" ColumnSpacing="8" Padding="0,4">
+                                        <Label Text="{Binding Label}" FontFamily="Inter" FontSize="12"
+                                               TextColor="#B8C7D8" VerticalOptions="Center" />
+                                        <Border Grid.Column="1" BackgroundColor="#1AFFFFFF"
+                                                StrokeThickness="0" StrokeShape="RoundRectangle 6"
+                                                WidthRequest="260" HeightRequest="20"
+                                                HorizontalOptions="Start" VerticalOptions="Center">
+                                            <Border BackgroundColor="{Binding BarColor}"
+                                                    StrokeThickness="0" StrokeShape="RoundRectangle 6"
+                                                    WidthRequest="{Binding Width}" HeightRequest="20"
+                                                    HorizontalOptions="Start" VerticalOptions="Center">
+                                                <Label Text="{Binding Percent}" FontFamily="InterBold" FontSize="10"
+                                                       TextColor="White" HorizontalOptions="Center"
+                                                       VerticalOptions="Center" />
+                                            </Border>
+                                        </Border>
+                                        <Label Grid.Column="2" Text="{Binding Value}" FontFamily="InterBold" FontSize="12"
+                                               TextColor="{StaticResource BrushText}" HorizontalOptions="End"
+                                               VerticalOptions="Center" />
+                                        <Label Grid.Column="3" Text="{Binding Percent}" FontFamily="Inter" FontSize="11"
+                                               TextColor="#B8C7D8" HorizontalOptions="End"
+                                               VerticalOptions="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                        <Label Text="MANGA STATUS" FontFamily="InterBold" FontSize="10"
+                               TextColor="#A0FFFFFF" Margin="0,8,0,0" />
+                        <CollectionView ItemsSource="{Binding MangaStatBars}" SelectionMode="None"
+                                        HeightRequest="180">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="82,260,42,48" ColumnSpacing="8" Padding="0,4">
+                                        <Label Text="{Binding Label}" FontFamily="Inter" FontSize="12"
+                                               TextColor="#B8C7D8" VerticalOptions="Center" />
+                                        <Border Grid.Column="1" BackgroundColor="#1AFFFFFF"
+                                                StrokeThickness="0" StrokeShape="RoundRectangle 6"
+                                                WidthRequest="260" HeightRequest="20"
+                                                HorizontalOptions="Start" VerticalOptions="Center">
+                                            <Border BackgroundColor="{Binding BarColor}"
+                                                    StrokeThickness="0" StrokeShape="RoundRectangle 6"
+                                                    WidthRequest="{Binding Width}" HeightRequest="20"
+                                                    HorizontalOptions="Start" VerticalOptions="Center">
+                                                <Label Text="{Binding Percent}" FontFamily="InterBold" FontSize="10"
+                                                       TextColor="White" HorizontalOptions="Center"
+                                                       VerticalOptions="Center" />
+                                            </Border>
+                                        </Border>
+                                        <Label Grid.Column="2" Text="{Binding Value}" FontFamily="InterBold" FontSize="12"
+                                               TextColor="{StaticResource BrushText}" HorizontalOptions="End"
+                                               VerticalOptions="Center" />
+                                        <Label Grid.Column="3" Text="{Binding Percent}" FontFamily="Inter" FontSize="11"
+                                               TextColor="#B8C7D8" HorizontalOptions="End"
+                                               VerticalOptions="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+                 <!-- Library statistics. Every number here was already being parsed off the
+                      MAL profile page and then thrown away; this is the first thing that
+                      actually shows it. -->
                 <Border BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 8" Padding="14">

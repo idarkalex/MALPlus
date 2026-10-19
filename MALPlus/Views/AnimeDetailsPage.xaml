@@ -97,13 +97,32 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnRecommendationTapped" CommandParameter="{Binding .}" />
                 </Border.GestureRecognizers>
-                <Grid ColumnDefinitions="130,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-                    <controls:AnimePosterCard Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
-                                               WidthRequest="130" HeightRequest="195"
+<Grid ColumnDefinitions="130,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                                    <!-- The common poster card, not a private one. It used to be
+                                         forced to a 130 width and turned its title overlay off, so it
+                                         was the only poster in the app with no chips and no counter
+                                         pill on it. The width goes with the column now and the badge
+                                         bar is switched on, which is what puts the airing countdown
+                                         back on the recommendation.
+                                         The episode half goes through the same rule as every other
+                                         card: a recommendation is not on the user's list, so it reads
+                                         the total on its own, and the countdown rides along when
+                                         there is one.
+                                         No ScoreTag here on purpose: the recommendations endpoint
+                                         returns title, image, type and nothing else, so it would be
+                                         a dead binding. Fetching a mean for every recommendation is a
+                                         dozen extra calls for a tab nobody reads that carefully.
+                                         The title stays a 16sp label in the column over here: a
+                                         synopsis row wants it bigger than a grid cell does. -->
+                                    <controls:AnimePosterCard Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
+                                               HorizontalOptions="Fill" HeightRequest="195"
                                                VerticalOptions="Start"
                                                PosterUrl="{Binding ImageUrl}"
                                                TitleOverlay="False"
                                                TypeTag="{Binding MediaType}"
+                                               BadgeVisible="True"
+                                               BadgeAccent="{Binding LibraryBadgeAccent}"
+                                               BadgeMain="{Binding LibraryBadgeMain}"
                                                BadgeExtra="{Binding AirDayTillBind}" />
                     <Label Grid.Row="0" Grid.Column="1" Text="{Binding Title}" FontFamily="InterBold" FontSize="16"
                            TextColor="{StaticResource BrushText}" MaxLines="3" LineBreakMode="TailTruncation"
@@ -208,21 +227,30 @@
         <!-- Staff is a 3 column grid, not the horizontal 64px-thumbnail row the characters
              use. A long staff list is mostly one-line entries ("Sound Director", "Episode
              Director") where the photo is the only expensive part, and three per row turns a
-             40 person list from 4000px of scrolling into 1300. -->
+             40 person list from 4000px of scrolling into 1300.
+             The photo is portrait and centred, and the text is under it rather than beside it.
+             Beside it was the original shape, and it does not fit three columns: the cell is about
+             108dp wide and the padding takes 24 of that, so a 72dp photo left roughly 12dp for the
+             name. The photo also used to have no width at all and filled the cell, which poured a
+             portrait into a landscape box and AspectFill cut most of the face off. -->
         <DataTemplate x:Key="StaffTemplate">
             <Border Margin="4" Style="{StaticResource PanelStyle}" Padding="8">
                 <VerticalStackLayout Spacing="5">
-                    <Border HeightRequest="96" StrokeShape="RoundRectangle 6"
+                    <Border WidthRequest="72" HeightRequest="96" HorizontalOptions="Center"
+                            StrokeShape="RoundRectangle 6"
                             Stroke="{StaticResource EmBorder}" StrokeThickness="1">
                         <Image Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
                                Aspect="AspectFill" />
                     </Border>
                     <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="12"
+                           HorizontalTextAlignment="Center"
                            TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
                     <Label Text="{Binding RoleLineOne}" FontFamily="InterSemiBold" FontSize="9"
+                           HorizontalTextAlignment="Center"
                            TextColor="#7AB4FF" MaxLines="1" LineBreakMode="TailTruncation"
                            IsVisible="{Binding HasRoleLineOne}" />
                     <Label Text="{Binding RoleLineTwo}" FontFamily="InterSemiBold" FontSize="9"
+                           HorizontalTextAlignment="Center"
                            TextColor="#7AB4FF" MaxLines="1" LineBreakMode="TailTruncation"
                            IsVisible="{Binding HasRoleLineTwo}" />
                 </VerticalStackLayout>
@@ -281,9 +309,29 @@
                             </VerticalStackLayout>
                         </Border>
 
+                        <!-- GENRES / STUDIOS / LINKS share one chip geometry, and the numbers are not free.
+                                 The gutter between chips has to live on the chip itself, because
+                                 FlexLayout has no Spacing of any kind. A margin of "0,0,6,6" put
+                                 that gutter on the last chip too, which read as a phantom chip at the
+                                 end of the last row, and left the box looking bottom heavy because
+                                 the row above sat at 12 and the row below at 18.
+                                 The fix is symmetric vertically (0,3,6,3) and a right padding of 6
+                                 against the chip's trailing 6, so the dead space at the end of a row
+                                 comes to the same 12 as the left edge and the box stops looking
+                                 padded on one side only.
+                                 The 10 and 14 are not a typo either: FlexLayout top aligns its
+                                 children inside a line that measures taller than the chip, which
+                                 leaves the row sitting high. Measured at 480dpi with equal 12s the
+                                 gap was 54px above and 44px below, so the padding is split to even
+                                 that out. Do not "tidy" any of these numbers.
+                                 NoWrap on the labels matters too, and not for wrapping: without it
+                                 the label measures for wrapping and a word that lands exactly on the
+                                 edge gets split, sending its last character to a second line that
+                                 MaxLines then throws away. That is how the Wikipedia chip rendered as
+                                 "Wikipedi". -->
                         <Label Text="GENRES" Style="{StaticResource SectionLabelStyle}"
                                IsVisible="{Binding GenresVisible}" />
-                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                        <Border Style="{StaticResource PanelStyle}" Padding="12,10,6,14"
                                 IsVisible="{Binding GenresVisible}">
                             <FlexLayout BindableLayout.ItemsSource="{Binding GenreChips}"
                                         Wrap="Wrap" Direction="Row" JustifyContent="Start"
@@ -295,14 +343,15 @@
                                              receives the touch on Android. Navigable chips get a real
                                              tint, themes stay flat because there is no list to open. -->
                                         <Border Stroke="#24405A" StrokeThickness="1" StrokeShape="RoundRectangle 6"
-                                                Padding="9,4" Margin="0,0,6,6"
+                                                Padding="9,4" Margin="0,3,6,3"
                                                 BackgroundColor="{Binding IsNavigable, Converter={StaticResource BoolColor}, ConverterParameter=#14293D}"
                                                 InputTransparent="{Binding IsNavigable, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnChipTapped" />
                                             </Border.GestureRecognizers>
-                                            <Label Text="{Binding Name}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="#D4E4F7" MaxLines="1" InputTransparent="True" />
+<Label Text="{Binding Name}" FontFamily="Inter" FontSize="12"
+                                                       TextColor="#D4E4F7" MaxLines="1" LineBreakMode="NoWrap"
+                                                       InputTransparent="True" />
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
@@ -311,7 +360,7 @@
 
                         <Label Text="STUDIOS" Style="{StaticResource SectionLabelStyle}"
                                IsVisible="{Binding StudiosVisible}" />
-                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                        <Border Style="{StaticResource PanelStyle}" Padding="12,10,6,14"
                                 IsVisible="{Binding StudiosVisible}">
                             <FlexLayout BindableLayout.ItemsSource="{Binding StudioChips}"
                                         Wrap="Wrap" Direction="Row" JustifyContent="Start"
@@ -319,14 +368,15 @@
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="vm:DetailChipViewModel">
                                         <Border Stroke="#24405A" StrokeThickness="1" StrokeShape="RoundRectangle 6"
-                                                Padding="9,4" Margin="0,0,6,6"
+                                                Padding="9,4" Margin="0,3,6,3"
                                                 BackgroundColor="{Binding IsNavigable, Converter={StaticResource BoolColor}, ConverterParameter=#14293D}"
                                                 InputTransparent="{Binding IsNavigable, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnChipTapped" />
                                             </Border.GestureRecognizers>
-                                            <Label Text="{Binding Name}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="#D4E4F7" MaxLines="1" InputTransparent="True" />
+<Label Text="{Binding Name}" FontFamily="Inter" FontSize="12"
+                                                       TextColor="#D4E4F7" MaxLines="1" LineBreakMode="NoWrap"
+                                                       InputTransparent="True" />
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
@@ -392,7 +442,7 @@
 
                         <Label Text="LINKS" Style="{StaticResource SectionLabelStyle}"
                                IsVisible="{Binding LinksVisible}" />
-                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                        <Border Style="{StaticResource PanelStyle}" Padding="12,10,6,14"
                                 IsVisible="{Binding LinksVisible}">
                             <FlexLayout BindableLayout.ItemsSource="{Binding LinkChips}"
                                         Wrap="Wrap" Direction="Row" JustifyContent="Start"
@@ -400,13 +450,13 @@
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate>
                                         <Border Stroke="#1E3A52" StrokeThickness="1" StrokeShape="RoundRectangle 6"
-                                                Padding="9,5" Margin="0,0,6,6">
+                                                Padding="9,5" Margin="0,3,6,3">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnExternalLinkTapped"
                                                                       CommandParameter="{Binding Url}" />
                                             </Border.GestureRecognizers>
-                                            <Label Text="{Binding Label}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="#8FB8E8" MaxLines="1" />
+<Label Text="{Binding Label}" FontFamily="Inter" FontSize="12"
+                                                TextColor="#8FB8E8" MaxLines="1" LineBreakMode="NoWrap" />
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
@@ -793,11 +843,10 @@
 
                                 <Label x:Name="StatusHeaderGroup" Grid.Row="0" Grid.Column="1"
                                        Text="STATUS" FontFamily="InterBold" FontSize="9" TextColor="#80FFFFFF" />
-                                <Button x:Name="StatusMetaGroup" Grid.Row="1" Grid.Column="1"
-                                        Text="{Binding MyStatusBind}" Clicked="OnStatusClicked"
-                                        IsEnabled="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
-                                        FontFamily="InterBold" FontSize="14" BackgroundColor="Transparent" TextColor="White"
-                                        BorderWidth="0" Padding="0" HeightRequest="20" HorizontalOptions="Start" />
+<Button x:Name="StatusMetaGroup" Grid.Row="1" Grid.Column="1"
+                                         Text="{Binding MyStatusBind}" Clicked="OnStatusClicked"
+                                         FontFamily="InterBold" FontSize="14" BackgroundColor="Transparent" TextColor="White"
+                                         BorderWidth="0" Padding="0" HeightRequest="20" HorizontalOptions="Start" />
 
                                 <Grid x:Name="LastAiredMetaGroup" Grid.Row="0" Grid.RowSpan="2" Grid.Column="2">
                                 <VerticalStackLayout Spacing="2">
@@ -830,33 +879,23 @@
                                     Padding="0" VerticalOptions="End" HeightRequest="32"
                                     IsVisible="{Binding IsEpisodeStepperVisible}">
                                 <Grid ColumnDefinitions="32,Auto,32" ColumnSpacing="0">
-                                    <!-- The minus is meaningless at zero and while the entry is not on
-                                         the list, so it is hidden rather than shown dead. -->
+                                    <!-- The minus is meaningless at zero, so it is hidden rather than
+                                         shown dead. It is no longer hidden for being off the list:
+                                         the pill is always the pill now, never a "start watching"
+                                         button, and the plus is what takes an entry on the list. -->
                                     <Button Grid.Column="0" Command="{Binding DecrementEpsCommand}"
-                                            IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
+                                            IsVisible="{Binding IsDecrementButtonEnabled}"
                                             FontFamily="InterBold" FontSize="16" Text="−"
                                             BackgroundColor="Transparent" TextColor="#80FFFFFF" BorderWidth="0" CornerRadius="0"
                                             WidthRequest="32" HeightRequest="32" Padding="0" />
                                     <Label Grid.Column="1" Text="{Binding MyEpisodesStepperBind}" FontFamily="InterBold" FontSize="13"
-                                           TextColor="White" VerticalOptions="Center" HorizontalOptions="Center" VerticalTextAlignment="Center" Padding="6,0"
-                                           IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                                           TextColor="White" VerticalOptions="Center" HorizontalOptions="Center" VerticalTextAlignment="Center" Padding="6,0">
                                         <Label.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnEpisodesCounterTapped" />
                                         </Label.GestureRecognizers>
                                     </Label>
-                                    <!-- Off the list the pill becomes the "start watching" control,
-                                         which is the route that used to be missing entirely. -->
-                                    <Border Grid.Column="1" IsVisible="{Binding AddAnimeVisibility}"
-                                            Padding="12,0" VerticalOptions="Center"
-                                            BackgroundColor="Transparent">
-                                        <Label Text="Start watching" FontFamily="InterBold" FontSize="12"
-                                               TextColor="White" VerticalOptions="Center" />
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnStepperStartTapped" />
-                                        </Border.GestureRecognizers>
-                                    </Border>
                                     <Button Grid.Column="2" Command="{Binding IncrementEpsCommand}"
-                                            IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
+                                            IsVisible="{Binding IsIncrementButtonEnabled}"
                                             FontFamily="InterBold" FontSize="16" Text="+"
                                             BackgroundColor="#0066FF" TextColor="White" BorderWidth="0" CornerRadius="0"
                                             WidthRequest="32" HeightRequest="32" Padding="0" />

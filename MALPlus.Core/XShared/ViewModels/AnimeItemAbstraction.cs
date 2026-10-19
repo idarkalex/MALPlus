@@ -165,6 +165,23 @@ namespace MALPlus.XShared.ViewModels
 
         private List<string> _tags;
 
+        /// <summary>
+        ///     MAL's free text note, kept apart from <see cref="Notes" />, which is the tag list.
+        /// </summary>
+        /// <remarks>
+        ///     Null rather than empty when the entry has never been loaded from a source that carries
+        ///     the note, because the update query treats those two differently on purpose.
+        /// </remarks>
+        public string Comment
+        {
+            get { return EntryData?.Comment; }
+            set
+            {
+                if (EntryData != null)
+                    EntryData.Comment = value;
+            }
+        }
+
         public List<string> Tags => _tags ?? (_tags = string.IsNullOrEmpty(Notes)
             ? new List<string>()
             : Notes.Contains(",")

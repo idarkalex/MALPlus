@@ -22,8 +22,11 @@
                     BadgeVisible="True"
                     BadgeAccent="{Binding LibraryBadgeAccent}"
                     BadgeMain="{Binding LibraryBadgeMain}"
-                    BadgeExtra="{Binding AirDayTillBind}"
-                    RankTag="{Binding RankBind}">
+BadgeExtra="{Binding AirDayTillBind}"
+                     RankTag="{Binding RankBind}"
+                     IndicatorsVisible="{Binding Source={x:Reference Root}, Path=ShowEntryIndicators}"
+                     TagsPresent="{Binding HasTags}"
+                     NotePresent="{Binding HasNote}">
                     <controls:AnimePosterCard.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnCellTapped" />
                     </controls:AnimePosterCard.GestureRecognizers>

@@ -200,11 +200,6 @@ public partial class AnimeListPage : ContentPage
         try
         {
             var query = ParseQuery(route);
-            // Captured before the property is cleared below. Reading it in the log instead printed an
-            // empty string every time, because the nulling happens earlier in this same method, and that
-            // is exactly the value this diagnostic exists to show.
-            var rawModeProperty = Mode;
-            var wasReturningFromDetails = _returningFromDetails;
             var mode = ResolveMode(query, out var modeFromQuery);
             // Consumed here, AFTER the resolve above rather than before it. Clearing it first meant
             // ResolveMode never saw the flag it is supposed to honour, and the panel was flattened to
@@ -263,7 +258,7 @@ Mode = null;
                 !(seasonalRoute && (routeSeason.Value != _shownSeason || routeYear.Value != _shownYear)) &&
                 (Vm.AnimeItems?.Count ?? 0) > 0;
             Android.Util.Log.Info("MALPLUS",
-                $"AnimeList apply route='{route ?? "(properties)"}' -> mode={mode} status={status} type={type} reset={forceReset} skip={alreadyShowing} applied=({_appliedMode},{_appliedStatus},{_appliedType}) propMode='{rawModeProperty}' last=({_lastMode},{_lastStatus}) back={wasReturningFromDetails}");
+                $"AnimeList apply route='{route ?? "(properties)"}' -> mode={mode} status={status} type={type} reset={forceReset} skip={alreadyShowing} applied=({_appliedMode},{_appliedStatus},{_appliedType})");
             if (alreadyShowing)
             {
 if (openStatusMenu)
@@ -404,6 +399,12 @@ Season? routeSeason = null, int? routeYear = null)
             var byStudio = _lastMode == (int)AnimeListWorkModes.AnimeByStudio;
             var isList = _lastMode == (int)AnimeListWorkModes.Anime || manga;
 
+            // The tag and note indicators are the only place they appear, and only here: they are
+            // facts about the user's own entry, which is exactly what this panel is. Manga has the
+            // same fields and deliberately does not show them.
+            if (AnimeGrid != null)
+                AnimeGrid.ShowEntryIndicators = _lastMode == (int)AnimeListWorkModes.Anime;
+
             // A genre or studio panel keeps the same bar, but it names the filter instead of a
             // status. Otherwise the bar said "Watching" over a grid of Drama, which is the one thing
             // it exists to prevent.
@@ -416,7 +417,12 @@ Season? routeSeason = null, int? routeYear = null)
             // themselves, so the tab bar is told to mark More instead. A genre or studio panel is
             // deliberately not in here: it is opened from a details page, it is part of the anime
             // section's own subject, and back from it leads back to that entry.
-            BottomNav?.SetSectionOverride(seasonal || topPanel ? "more" : null);
+            // Seasonal, Top and Adapted are opened from More and only borrowed this page to show
+            // themselves, so the tab bar is told to mark More instead. Genre and studio are not
+            // in here even though they are panels too: they are opened from a details page and
+            // back from them leads to that entry, so marking More would point the wrong way.
+            BottomNav?.SetSectionOverride(
+                PanelOriginOf(_lastMode) == PanelOrigin.More ? "more" : null);
             // Seasonal gets the same bar as the list, with the season and the year standing in for
             // the status word. There is no status to choose on this panel, and the bar exists to
             // name what the grid is holding, so naming the season is exactly its job.
@@ -497,14 +503,7 @@ Season? routeSeason = null, int? routeYear = null)
         {
             try
             {
-                var isSubPanel = _lastMode == (int)AnimeListWorkModes.SeasonalAnime ||
-                                 _lastMode == (int)AnimeListWorkModes.TopAnime ||
-                                 _lastMode == (int)AnimeListWorkModes.TopManga ||
-                                 _lastMode == (int)AnimeListWorkModes.MangaAdapted ||
-                                 _lastMode == (int)AnimeListWorkModes.AnimeByGenre ||
-                                 _lastMode == (int)AnimeListWorkModes.AnimeByStudio;
-
-                if (!isSubPanel)
+                if (PanelOriginOf(_lastMode) == PanelOrigin.None)
                 {
                     // Disarmed, not just unflagged. The flag is the page's belief about the dispatcher;
                     // clearing it while the callback is still registered left a live back handler pointing
@@ -559,28 +558,58 @@ Season? routeSeason = null, int? routeYear = null)
         /// in. Discover takes no such parameters.
         /// </para>
         /// </remarks>
+        /// <summary>Where a work mode came from, and therefore where its back gesture leads.</summary>
+        private enum PanelOrigin
+        {
+            /// <summary>Not a panel: the reader's own list.</summary>
+            None,
+
+            /// <summary>Opened from the More hub, so leaving it goes back to More.</summary>
+            More,
+
+            /// <summary>Opened from a details page, so leaving it goes back to that entry.</summary>
+            Entry
+        }
+
+        /// <summary>
+        ///     Where a work mode was opened from.
+        /// </summary>
+        /// <remarks>
+        ///     Every mode that borrows this page instead of being a list of the reader's own is described
+        ///     here and nowhere else. It used to be four places: the back callback, the context bar, the
+        ///     More highlight and the destination on leaving, each with its own grouping, and they had
+        ///     already drifted apart. Adding a ranking meant remembering all four, and missing one
+        ///     produced a different symptom each time rather than a compile error.
+        /// </remarks>
+        private static PanelOrigin PanelOriginOf(int mode) => (AnimeListWorkModes)mode switch
+        {
+            AnimeListWorkModes.SeasonalAnime => PanelOrigin.More,
+            AnimeListWorkModes.TopAnime => PanelOrigin.More,
+            AnimeListWorkModes.TopManga => PanelOrigin.More,
+            AnimeListWorkModes.MangaAdapted => PanelOrigin.More,
+            // A genre or a studio is reached from a chip on the entry itself, so its back leads there.
+            AnimeListWorkModes.AnimeByGenre => PanelOrigin.Entry,
+            AnimeListWorkModes.AnimeByStudio => PanelOrigin.Entry,
+            _ => PanelOrigin.None
+        };
+
+        /// <summary>
+        ///     Leaves a subpanel: back to More for the ones opened there, and to the entry for the ones
+        ///     opened from a details page.
+        /// </summary>
+        /// <remarks>
+        ///     It used to go to the tab picked in Settings, which for most readers is the Anime tab. That
+        ///     meant leaving a Seasonal panel dumped the reader into their library, and because the shell
+        ///     still had More behind it the gesture to get back there took a second swipe.
+        /// </remarks>
         private async Task GoToMainPageAsync()
         {
             DisarmPanelBack();
-            var mode = (AnimeListWorkModes)_lastMode;
-            Android.Util.Log.Info("MALPLUS", $"AnimeList leaving panel mode={mode} for the main page");
+            var origin = PanelOriginOf(_lastMode);
+            Android.Util.Log.Info("MALPLUS", $"AnimeList leaving panel mode={_lastMode} origin={origin}");
             try
             {
-                // A genre or studio panel was opened from a details page and belongs to that entry's
-                // stack, so back from it returns to the entry. Everything else here was opened from More
-                // and returns there.
-                //
-                // It used to go to the tab picked in Settings, which for most readers is the Anime tab.
-                // That meant leaving a Seasonal panel dumped the reader in their library, and because
-                // the stack still had More behind it the gesture to get back there took a second swipe.
-                // Going to More directly is one gesture, and it is where they were a moment earlier.
-                if (mode == AnimeListWorkModes.AnimeByGenre || mode == AnimeListWorkModes.AnimeByStudio)
-                {
-                    await Shell.Current.GoToAsync("..");
-                    return;
-                }
-
-                await Shell.Current.GoToAsync("///more");
+                await Shell.Current.GoToAsync(origin == PanelOrigin.Entry ? ".." : "///more");
             }
             catch (Exception ex)
             {
@@ -1978,28 +2007,37 @@ case AnimeListWorkModes.SeasonalAnime:
     private bool _detailsReturnManga;
 
     /// <summary>
-    ///     The way back from a details page this list opened: straight to this list, in the mode it was
+    ///     The way back from a details page this list opened: straight to this list, in the state it was
     ///     showing.
     /// </summary>
     /// <remarks>
     ///     Named rather than popped, because the shell cannot do it here. The four tabs are ShellContents
     ///     and a details page is pushed with a relative route, so the two are not parent and child as far
     ///     as the navigation stack is concerned, and a back gesture unwound two levels at once and left
-    ///     the panel entirely. Going back to the section root that was actually on screen also stops the
-    ///     Mode query from surviving into the next visit, which is what reopened the Anime tab still
-    ///     filtered by the season.
+    ///     the panel entirely.
+    ///     <para>
+    ///     The query is built by the same serialiser the panel used on its way in, from the same args.
+    ///     Building it here by hand is what dropped the type and sent an Upcoming panel back to the
+    ///     General ranking, and there was no reason for it to be a second implementation: anything the
+    ///     args carry round-trips from now on without a second place to remember.
+    ///     </para>
     /// </remarks>
     private void ReturnFromDetailsAsync()
     {
         var mode = _detailsReturnMode >= 0 ? _detailsReturnMode : (int)AnimeListWorkModes.Anime;
         var root = _detailsReturnManga ? "//manga" : "//anime";
-        Android.Util.Log.Info("MALPLUS", $"AnimeList returning from details to {root}?mode={mode}");
+        var query = MauiMainViewModel.BuildAnimeListQuery(
+            _detailsReturnManga ? PageIndex.PageMangaList : PageIndex.PageAnimeList,
+            BuildArgs(mode, _lastStatus));
+        Android.Util.Log.Info("MALPLUS", $"AnimeList returning from details to {root}{query}");
         _detailsReturnMode = -1;
         _ = MainThread.InvokeOnMainThreadAsync(async () =>
         {
             try
             {
-                await Shell.Current.GoToAsync($"{root}?mode={mode}&reset=1");
+                // reset=1 keeps this a real arrival rather than a no-op against the page already on
+                // screen, which is what makes ApplyRoute repaint instead of skipping.
+                await Shell.Current.GoToAsync($"{root}{query}&reset=1");
             }
             catch (Exception ex)
             {

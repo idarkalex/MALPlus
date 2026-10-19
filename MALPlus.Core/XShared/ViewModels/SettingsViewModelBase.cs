@@ -486,10 +486,24 @@ protected ICommand _requestNavigationCommand;
 
         public bool CalendarStartOnSummary => !Settings.CalendarStartOnToday;
 
-        public bool CalendarSwitchMonSun
+        /// <summary>
+        ///     "Start week on" reads as a choice, not a switch: the picker shows the day itself,
+        ///     which is what the row is about, and there is no second label to keep in step with
+        ///     it. Index 0 is Sunday (the default), 1 is Monday.
+        /// </summary>
+        public IReadOnlyList<string> CalendarWeekStartOptions { get; } = new[] { "Sunday", "Monday" };
+
+        public int CalendarWeekStartIndex
         {
-            get => !Settings.CalendarSwitchMonSun;
-            set => Settings.CalendarSwitchMonSun = !value;
+            get => Settings.CalendarSwitchMonSun ? 1 : 0;
+            set
+            {
+                var mondayFirst = value == 1;
+                if (Settings.CalendarSwitchMonSun == mondayFirst)
+                    return;
+                Settings.CalendarSwitchMonSun = mondayFirst;
+                RaisePropertyChanged();
+            }
         }
 
         public bool CalendarPullExactAiringTime

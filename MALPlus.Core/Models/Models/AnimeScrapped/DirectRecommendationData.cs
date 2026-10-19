@@ -15,6 +15,12 @@ namespace MALPlus.Models.Models.AnimeScrapped
         private bool _hasDescriptionBottom;
         private bool _hasDescriptionTop;
 
+        private string _mediaType;
+        private int _allEpisodes;
+        private int _myEpisodesForBadge;
+        private string _myStatusForBadge;
+        private bool _isOnMyList;
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private string _description;
@@ -35,8 +41,120 @@ namespace MALPlus.Models.Models.AnimeScrapped
         public int Id { get; set; }
         public string Title { get; set; }
         public RelatedItemType Type { get; set; }
-        public string MediaType { get; set; }
-        public string AirDayTillBind { get; set; }
+        public string AirDayTillBind
+        {
+            get => _airDayTillBind;
+            set
+            {
+                if (_airDayTillBind == value)
+                    return;
+                _airDayTillBind = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(BadgeExtra));
+            }
+        }
+
+        private string _airDayTillBind;
+
+        public bool IsOnMyList
+        {
+            get => _isOnMyList;
+            set
+            {
+                if (_isOnMyList == value)
+                    return;
+                _isOnMyList = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LibraryBadgeAccent));
+                OnPropertyChanged(nameof(LibraryBadgeMain));
+            }
+        }
+
+        public int MyEpisodesForBadge
+        {
+            get => _myEpisodesForBadge;
+            set
+            {
+                if (_myEpisodesForBadge == value)
+                    return;
+                _myEpisodesForBadge = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LibraryBadgeMain));
+            }
+        }
+
+        public string MyStatusForBadge
+        {
+            get => _myStatusForBadge;
+            set
+            {
+                if (_myStatusForBadge == value)
+                    return;
+                _myStatusForBadge = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LibraryBadgeAccent));
+                OnPropertyChanged(nameof(LibraryBadgeMain));
+            }
+        }
+
+        /// <remarks>
+        ///     Notifying, because the metadata arrives after the card is already on screen: the
+        ///     recommendation tab shows the scraper's rows straight away and fills the format and the
+        ///     count in behind them. A plain auto property left the type chip and the counter blank on
+        ///     every row the enrichment reached late.
+        /// </remarks>
+        public string MediaType
+        {
+            get => _mediaType;
+            set
+            {
+                if (_mediaType == value)
+                    return;
+                _mediaType = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>
+        ///     Total episodes or chapters of the recommended entry, 0 when unknown.
+        /// </summary>
+        /// <remarks>
+        ///     Read from the same payload that supplies <see cref="MediaType" />, so the episode half
+        ///     of the card badge costs nothing extra. Recommendations are not library entries, so there
+        ///     is no watched count for them: the badge rule in <see cref="Utils.AnimeCardBadge" />
+        ///     decides what a poster says about an entry the user does not follow.
+        /// </remarks>
+        public int AllEpisodes
+        {
+            get => _allEpisodes;
+            set
+            {
+                if (_allEpisodes == value)
+                    return;
+                _allEpisodes = value;
+                // The badge is what the cell binds, not this property, so the computed name has to be
+                // raised by hand or the card keeps drawing the count it had when the row was built.
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LibraryBadgeMain));
+            }
+        }
+
+        /// <summary>
+        ///     The badge's episode half, by the same rule the poster cell uses.
+        /// </summary>
+        public string LibraryBadgeAccent
+            => MALPlus.XShared.Utils.AnimeCardBadge.Status(IsOnMyList, () => MyStatusForBadge);
+
+        /// <summary>
+        ///     The badge's episode half, by the same rule the poster cell uses.
+        /// </summary>
+public string LibraryBadgeMain
+            => IsOnMyList
+                ? MALPlus.XShared.Utils.AnimeCardBadge.Episodes(true,
+                    MyEpisodesForBadge, AllEpisodes)
+                : string.Empty;
+        /// <summary>Never blank on a recommendation row: the status there is the entry's own.</summary>
+        public string BadgeExtra => AirDayTillBind;
 
         public string DescriptionTop
         {

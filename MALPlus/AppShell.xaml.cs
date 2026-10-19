@@ -49,6 +49,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("forumboard", typeof(ForumsBoardPage));
         Routing.RegisterRoute("forumtopic", typeof(ForumsTopicPage));
         Routing.RegisterRoute("forumnewtopic", typeof(ForumNewTopicPage));
+        Routing.RegisterRoute("forumreply", typeof(ForumReplyPage));
         Routing.RegisterRoute("history", typeof(HistoryPage));
         Routing.RegisterRoute("feeds", typeof(FeedsPage));
         Routing.RegisterRoute("friends", typeof(FriendsPage));

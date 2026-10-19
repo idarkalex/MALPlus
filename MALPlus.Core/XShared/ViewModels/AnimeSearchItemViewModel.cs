@@ -28,6 +28,7 @@ namespace MALPlus.XShared.ViewModels
         public string StartDate { get; set; }
         public string EndDate { get; set; }
         public string Notes { get; set; }
+    public string Comment { get; set; }
         public bool IsRewatching { get; set; }
         public string AlaternateTitle { get; }
         public int MyVolumes { get; set; }

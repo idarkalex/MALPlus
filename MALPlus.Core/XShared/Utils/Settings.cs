@@ -551,7 +551,7 @@ namespace MALPlus.XShared.Utils
 
         public static bool CalendarStartOnToday
         {
-            get => (bool)(ApplicationDataService["CalendarStartOnToday"] ?? false);
+            get => (bool)(ApplicationDataService["CalendarStartOnToday"] ?? true);
             set => ApplicationDataService["CalendarStartOnToday"] = value;
         }
 

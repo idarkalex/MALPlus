@@ -55,6 +55,7 @@ public class MainActivity : MauiAppCompatActivity
         DisarmBackNavCallback();
         _armedBackNavCallback = new BackNavCallback(activity);
         activity.OnBackPressedDispatcher.AddCallback(activity, _armedBackNavCallback);
+        Android.Util.Log.Info("MALPlus Back", "backnav armed");
     }
 
     /// <summary>
@@ -64,6 +65,7 @@ public class MainActivity : MauiAppCompatActivity
     {
         if (_armedBackNavCallback == null)
             return;
+        Android.Util.Log.Info("MALPlus Back", "backnav disarmed");
         _armedBackNavCallback.Enabled = false;
         _armedBackNavCallback = null;
     }
@@ -79,17 +81,18 @@ public class MainActivity : MauiAppCompatActivity
 
         public override void HandleOnBackPressed()
         {
+            var handled = false;
             try
             {
-                if (Services.Navigation.BackRouter.TryGoBack())
-                {
-                    return;
-                }
+                handled = Services.Navigation.BackRouter.TryGoBack();
             }
             catch (Exception ex)
             {
                 Android.Util.Log.Warn("MALPLUS", "back-nav callback failed: " + ex.GetType().Name);
             }
+            Android.Util.Log.Info("MALPlus Back", $"backnav handled={handled}");
+            if (handled)
+                return;
 
             // Nobody has anything to go back to, so this becomes the Shell's press. Left disabled
             // rather than re-enabled, so a stale entry does not keep intercepting later presses just
@@ -244,12 +247,14 @@ public override void HandleOnBackPressed()
         DisarmMenuBackCallback();
         _menuBackCallback = new MenuBackCallback(activity, onBack);
         activity.OnBackPressedDispatcher.AddCallback(activity, _menuBackCallback);
+        Android.Util.Log.Info("MALPlus Back", "menu-back armed");
     }
 
     public static void DisarmMenuBackCallback()
     {
         if (_menuBackCallback == null)
             return;
+        Android.Util.Log.Info("MALPlus Back", "menu-back disarmed");
         // Disabled rather than removed: this binding of AndroidX.Activity exposes addCallback but not
         // removeCallback, and the dispatcher skips disabled callbacks, so this is equivalent apart from
         // the dead entry.
@@ -272,6 +277,7 @@ public override void HandleOnBackPressed()
 
         public override void HandleOnBackPressed()
         {
+            Android.Util.Log.Info("MALPlus Back", "menu-back handled");
             try
             {
                 _onBack();

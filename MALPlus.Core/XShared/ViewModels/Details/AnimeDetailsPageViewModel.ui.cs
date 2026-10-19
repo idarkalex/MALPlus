@@ -43,11 +43,17 @@ namespace MALPlus.XShared.ViewModels.Details
         /// </summary>
         public bool IsEpisodeStepperVisible => true;
 
-        /// <summary>
-        ///     What the counter in the hero reads. Away from the list there is no count to show, so
-        ///     it says so rather than pretending the entry is at zero episodes watched.
-        /// </summary>
-        public string MyEpisodesStepperBind => AddAnimeVisibility ? "Not on list" : MyEpisodesBind;
+/// <summary>
+    ///     What the counter in the hero reads.
+    /// </summary>
+    /// <remarks>
+    ///     Always the count, including off the list, where it is a plain 0/12. It used to read "Not
+    ///     on list" there, and that was worse than the alternative for two reasons: the pill is the
+    ///     one control that is always visible, so saying it is off the list twice went against having
+    ///     a status field already saying so, and a 0 is the honest reading of an entry the user has
+    ///     not started. The plus next to it is what changes it.
+    /// </remarks>
+    public string MyEpisodesStepperBind => MyEpisodesBind;
 
         /// <summary>
         ///     The plus button doubles as "start this entry" while it is off the list.
@@ -69,9 +75,21 @@ namespace MALPlus.XShared.ViewModels.Details
             }
         }
 
-        public string MyStatusBind => Utils.Utilities.StatusToString((int)MyStatus, !AnimeMode, IsRewatching);
+        /// <summary>
+        ///     What the hero's STATUS field reads.
+        /// </summary>
+        /// <remarks>
+        ///     Off the list it says so, rather than falling through to the enum. With no entry
+        ///     behind it, <see cref="MyStatus" /> answers AllOrAiring, which is the filter meaning of
+        ///     "All" and printed as such next to STATUS on an entry nobody follows. An entry just
+        ///     deleted reads the same way, which is the point: removing it leaves nothing behind to
+        ///     say anything else.
+        /// </remarks>
+        public string MyStatusBind => AddAnimeVisibility
+            ? "Not on list"
+            : Utils.Utilities.StatusToString((int)MyStatus, !AnimeMode, IsRewatching);
 
-        public string StatusDisplayBind => AddAnimeVisibility ? "Not on list" : MyStatusBind;
+        public string StatusDisplayBind => MyStatusBind;
 
         private AnimeStatus MyStatus
         {
@@ -545,15 +563,19 @@ namespace MALPlus.XShared.ViewModels.Details
         public bool AddAnimeVisibility
         {
             get { return _addAnimeVisibility; }
-            set
-            {
-                _addAnimeVisibility = value;
-                RaisePropertyChanged(() => AddAnimeVisibility);
-                // The stepper reads one of two strings depending on this flag, so it has to be told when
-                // the flag turns over: coming back from adding an entry to the list was the other half of
-                // the pill showing whatever the previous entry said.
-                RaisePropertyChanged(() => MyEpisodesStepperBind);
-            }
+set
+                {
+                    _addAnimeVisibility = value;
+                    RaisePropertyChanged(() => AddAnimeVisibility);
+                    // The stepper reads one of two strings depending on this flag, so it has to be told when
+                    // the flag turns over: coming back from adding an entry to the list was the other half of
+                    // the pill showing whatever the previous entry said.
+                    RaisePropertyChanged(() => MyEpisodesStepperBind);
+                    // MyStatusBind reads this flag too, and the hero's STATUS field is bound to it.
+                    // Adding or removing an entry has to redraw that word too, not only the counter.
+                    RaisePropertyChanged(() => MyStatusBind);
+                    RaisePropertyChanged(() => StatusDisplayBind);
+                }
         }
 
         private ICommand _saveImageCommand;

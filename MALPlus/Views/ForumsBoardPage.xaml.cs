@@ -19,6 +19,7 @@ namespace MALPlus.Views;
 [QueryProperty(nameof(AnimeId), "anime")]
 [QueryProperty(nameof(AnimeTitle), "title")]
 [QueryProperty(nameof(IsManga), "manga")]
+[QueryProperty(nameof(Page), "page")]
 public partial class ForumsBoardPage : ContentPage, System.ComponentModel.INotifyPropertyChanged
 {
     private bool _canStartTopicHere;
@@ -30,6 +31,7 @@ public partial class ForumsBoardPage : ContentPage, System.ComponentModel.INotif
     public string AnimeId { get; set; }
     public string AnimeTitle { get; set; }
     public string IsManga { get; set; }
+    public string Page { get; set; }
 
     private ForumBoardViewModel Vm => (ForumBoardViewModel)BindingContext;
 
@@ -45,17 +47,27 @@ public partial class ForumsBoardPage : ContentPage, System.ComponentModel.INotif
     /// </summary>
     private ForumsBoardNavigationArgs BuildArgs()
     {
+        var pageNumber = 0;
+        if (!int.TryParse(Page, out pageNumber))
+            pageNumber = 0;
         if (int.TryParse(AnimeId, out var id) && id > 0)
             return new ForumsBoardNavigationArgs(id,
                 string.IsNullOrWhiteSpace(AnimeTitle) ? "Forum" : Uri.UnescapeDataString(AnimeTitle),
-                !string.Equals(IsManga, "true", StringComparison.OrdinalIgnoreCase));
+                !string.Equals(IsManga, "true", StringComparison.OrdinalIgnoreCase),
+                pageNumber);
         int.TryParse(BoardId, out var board);
-        return new ForumsBoardNavigationArgs((ForumBoards)board);
+        return new ForumsBoardNavigationArgs((ForumBoards)board, pageNumber);
     }
 
-protected override async void OnAppearing()
+    protected override async void OnAppearing()
   {
       base.OnAppearing();
+#if ANDROID
+      // The Shell's own back handler pops the whole section instead of the board page, which drops
+      // the reader out of the forum entirely. Same takeover SeasonThemesPage uses: while this board
+      // is on screen, back is one pop.
+      global::MALPlus.MainActivity.ArmMenuBackCallback(() => _ = Shell.Current.GoToAsync(".."));
+#endif
       if (_initialized) return;
       _initialized = true;
       try
@@ -88,22 +100,19 @@ protected override async void OnAppearing()
         catch { }
     }
 
-    private async void OnTopicRowTapped(object sender, TappedEventArgs e)
+    private void OnTopicRowTapped(object sender, TappedEventArgs e)
     {
         try
         {
             if (e.Parameter is ForumTopicEntryViewModel item)
-                await NavigateToTopicAsync(item);
+            {
+                Vm.LoadTopic(item);
+            }
         }
         catch
         {
         }
     }
-
-private static async Task NavigateToTopicAsync(ForumTopicEntryViewModel item)
-  {
-      await Shell.Current.GoToAsync($"forumtopic?id={item.Data.Id}");
-  }
 
   /// <summary>
   ///     Only an entry's own board accepts a new topic. The global boards map to a ForumBoards
@@ -113,16 +122,22 @@ private static async Task NavigateToTopicAsync(ForumTopicEntryViewModel item)
 
   private async void OnNewTopicTapped(object sender, TappedEventArgs e)
   {
-      if (!int.TryParse(AnimeId, out var id) || id <= 0)
+      if (int.TryParse(AnimeId, out var animeId) && animeId > 0)
       {
-          await DisplayAlert("New topic",
-              "Topics can only be started from an anime or manga discussion board.", "OK");
+          var manga = string.Equals(IsManga, "true", StringComparison.OrdinalIgnoreCase);
+          var title = string.IsNullOrWhiteSpace(AnimeTitle) ? "" : Uri.EscapeDataString(AnimeTitle);
+          await Shell.Current.GoToAsync(
+              $"forumnewtopic?anime={animeId}&title={title}&manga={(manga ? "true" : "false")}");
           return;
       }
 
-      var manga = string.Equals(IsManga, "true", StringComparison.OrdinalIgnoreCase);
-      var title = string.IsNullOrWhiteSpace(AnimeTitle) ? "" : Uri.EscapeDataString(AnimeTitle);
-      await Shell.Current.GoToAsync(
-          $"forumnewtopic?anime={id}&title={title}&manga={(manga ? "true" : "false")}");
+      if (int.TryParse(BoardId, out var boardId) && boardId > 0)
+      {
+          await Shell.Current.GoToAsync($"forumnewtopic?board={boardId}");
+          return;
+      }
+
+      await DisplayAlert("New topic",
+          "Topics can only be started from an anime or manga discussion board.", "OK");
   }
 }

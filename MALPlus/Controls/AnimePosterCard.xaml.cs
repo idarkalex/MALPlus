@@ -56,6 +56,24 @@ public partial class AnimePosterCard : ContentView
     public static readonly BindableProperty HasBadgeExtraProperty =
         BindableProperty.Create(nameof(HasBadgeExtra), typeof(bool), typeof(AnimePosterCard), false);
 
+    public static readonly BindableProperty IsAiringExtraProperty =
+        BindableProperty.Create(nameof(IsAiringExtra), typeof(bool), typeof(AnimePosterCard), false);
+
+    public bool IsAiringExtra
+    {
+        get => (bool)GetValue(IsAiringExtraProperty);
+        private set => SetValue(IsAiringExtraProperty, value);
+    }
+
+    public static readonly BindableProperty HasBadgeExtraTopProperty =
+        BindableProperty.Create(nameof(HasBadgeExtraTop), typeof(bool), typeof(AnimePosterCard), false);
+
+    public bool HasBadgeExtraTop
+    {
+        get => (bool)GetValue(HasBadgeExtraTopProperty);
+        private set => SetValue(HasBadgeExtraTopProperty, value);
+    }
+
     public bool HasBadgeExtra
     {
         get => (bool)GetValue(HasBadgeExtraProperty);
@@ -68,10 +86,95 @@ public partial class AnimePosterCard : ContentView
         card.HasBadge = !string.IsNullOrWhiteSpace(card.BadgeAccent)
                         || !string.IsNullOrWhiteSpace(card.BadgeMain)
                         || !string.IsNullOrWhiteSpace(card.BadgeExtra);
-        // The dot only earns its place when there is something on both sides of it.
+        card.IsAiringExtra = string.Equals(card.BadgeExtra?.Trim(), "Airing now", StringComparison.OrdinalIgnoreCase);
+        // The dot only earns its place when there is something on both sides of it. The countdown
+        // itself shows either way, because on the calendar it is all a non-listed entry has: it
+        // used to be gated behind a neighbour, which left those cards with an empty bubble.
         card.HasBadgeExtra = !string.IsNullOrWhiteSpace(card.BadgeExtra)
-                             && (!string.IsNullOrWhiteSpace(card.BadgeAccent)
-                                 || !string.IsNullOrWhiteSpace(card.BadgeMain));
+                              && (!string.IsNullOrWhiteSpace(card.BadgeAccent)
+                                  || !string.IsNullOrWhiteSpace(card.BadgeMain))
+                              && !card.IsAiringExtra;
+        card.HasBadgeExtraTop = !string.IsNullOrWhiteSpace(card.BadgeExtra) && !card.IsAiringExtra;
+    }
+
+    /// <summary>
+    ///     Whether this panel is one where the tag and note indicators belong at all.
+    /// </summary>
+    /// <remarks>
+    ///     Off by default and the grid has to ask for them. These are per library entry facts, so
+    ///     they mean nothing on a search result or a recommendation, and only the anime library list
+    ///     wants them.
+    /// </remarks>
+    public static readonly BindableProperty IndicatorsVisibleProperty =
+        BindableProperty.Create(nameof(IndicatorsVisible), typeof(bool), typeof(AnimePosterCard), false,
+            propertyChanged: OnIndicatorChanged);
+
+    public bool IndicatorsVisible
+    {
+        get => (bool)GetValue(IndicatorsVisibleProperty);
+        set => SetValue(IndicatorsVisibleProperty, value);
+    }
+
+    /// <summary>True when the entry carries at least one tag.</summary>
+    public static readonly BindableProperty TagsPresentProperty =
+        BindableProperty.Create(nameof(TagsPresent), typeof(bool), typeof(AnimePosterCard), false,
+            propertyChanged: OnIndicatorChanged);
+
+    public bool TagsPresent
+    {
+        get => (bool)GetValue(TagsPresentProperty);
+        set => SetValue(TagsPresentProperty, value);
+    }
+
+    /// <summary>True when the entry carries a note.</summary>
+    public static readonly BindableProperty NotePresentProperty =
+        BindableProperty.Create(nameof(NotePresent), typeof(bool), typeof(AnimePosterCard), false,
+            propertyChanged: OnIndicatorChanged);
+
+    public bool NotePresent
+    {
+        get => (bool)GetValue(NotePresentProperty);
+        set => SetValue(NotePresentProperty, value);
+    }
+
+    public static readonly BindableProperty HasTagIndicatorProperty =
+        BindableProperty.Create(nameof(HasTagIndicator), typeof(bool), typeof(AnimePosterCard), false);
+
+    public bool HasTagIndicator
+    {
+        get => (bool)GetValue(HasTagIndicatorProperty);
+        private set => SetValue(HasTagIndicatorProperty, value);
+    }
+
+    public static readonly BindableProperty HasNoteIndicatorProperty =
+        BindableProperty.Create(nameof(HasNoteIndicator), typeof(bool), typeof(AnimePosterCard), false);
+
+    public bool HasNoteIndicator
+    {
+        get => (bool)GetValue(HasNoteIndicatorProperty);
+        private set => SetValue(HasNoteIndicatorProperty, value);
+    }
+
+    public static readonly BindableProperty HasAnyIndicatorProperty =
+        BindableProperty.Create(nameof(HasAnyIndicator), typeof(bool), typeof(AnimePosterCard), false);
+
+    /// <summary>True when at least one of the two is showing, so the row is only there for them.</summary>
+    public bool HasAnyIndicator
+    {
+        get => (bool)GetValue(HasAnyIndicatorProperty);
+        private set => SetValue(HasAnyIndicatorProperty, value);
+    }
+
+    /// <summary>
+    ///     Recomputes the two indicators from the three inputs, the same way the counter pill is
+    ///     derived from its three strings rather than each one carrying its own visibility.
+    /// </summary>
+    private static void OnIndicatorChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        var card = (AnimePosterCard)bindable;
+        card.HasTagIndicator = card.IndicatorsVisible && card.TagsPresent;
+        card.HasNoteIndicator = card.IndicatorsVisible && card.NotePresent;
+        card.HasAnyIndicator = card.HasTagIndicator || card.HasNoteIndicator;
     }
 
     /// <summary>

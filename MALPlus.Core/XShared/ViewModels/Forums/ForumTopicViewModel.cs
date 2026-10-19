@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -228,9 +228,24 @@ namespace MALPlus.XShared.ViewModels.Forums
                 _currentPage = Math.Max(1, value);
                 var allPages = Math.Max(1, CurrentTopicData?.AllPages ?? _currentPage);
                 AvailablePages.Clear();
-                var start = _currentPage <= 2 ? 1 : _currentPage - 2;
-                for (int i = start; i <= start + 4 && i <= allPages; i++)
-                    AvailablePages.Add(new Tuple<int, bool>(i, i == _currentPage));
+
+                if (allPages <= 4)
+                {
+                    for (int i = 1; i <= allPages; i++)
+                        AvailablePages.Add(new Tuple<int, bool>(i, i == _currentPage));
+                }
+                else
+                {
+                    var numberPages = new List<int> { 1, 2, allPages - 1, allPages };
+                    foreach (var page in numberPages.Distinct().OrderBy(p => p))
+                    {
+                        AvailablePages.Add(new Tuple<int, bool>(page, page == _currentPage));
+                        if (page == 2 && numberPages.Contains(allPages - 1) && allPages - 1 > 3)
+                            AvailablePages.Add(new Tuple<int, bool>(0, false));
+                    }
+                }
+
+                HasPagedEllipsis = allPages > 4;
                 RaisePropertyChanged(() => CurrentPage);
                 RaisePropertyChanged(() => PageText);
                 RaisePropertyChanged(() => CanPreviousPage);
@@ -239,6 +254,18 @@ namespace MALPlus.XShared.ViewModels.Forums
         }
 
         public ObservableCollection<Tuple<int, bool>> AvailablePages { get; } = new ObservableCollection<Tuple<int, bool>>();
+
+        private bool _hasPagedEllipsis;
+
+        public bool HasPagedEllipsis
+        {
+            get => _hasPagedEllipsis;
+            set
+            {
+                _hasPagedEllipsis = value;
+                RaisePropertyChanged(() => HasPagedEllipsis);
+            }
+        }
 
 
         public bool LoadingTopic
@@ -439,23 +466,30 @@ namespace MALPlus.XShared.ViewModels.Forums
                                                          }
                                                      }));
 
-        public ICommand CreateReplyCommand => _createReplyCommand ?? (_createReplyCommand = new RelayCommand(
+        public async Task<bool> SendReplyAsync()
+{
+    if (CurrentTopicData?.Id == null || string.IsNullOrWhiteSpace(ReplyMessage))
+        return false;
+    if(await ForumTopicQueries.CreateMessage(CurrentTopicData.Id,ReplyMessage))
+    {
+        ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.CreatedReply);
+        ReplyMessage = string.Empty;
+        if (CurrentTopicData.Messages != null && CurrentTopicData.Messages.Count % 50 == 0)
+            CurrentPage++;
+        await LoadCurrentTopicPageAsync(true, true);
+        return true;
+    }
+    else
+    {
+        ResourceLocator.MessageDialogProvider.ShowMessageDialog("Unable to send your reply","Something went wrong");
+        return false;
+    }
+}
+
+public ICommand CreateReplyCommand => _createReplyCommand ?? (_createReplyCommand = new RelayCommand(
                                                   async () =>
                                                   {
-                                                      if (CurrentTopicData?.Id == null || string.IsNullOrWhiteSpace(ReplyMessage))
-                                                          return;
-                                                      if(await ForumTopicQueries.CreateMessage(CurrentTopicData.Id,ReplyMessage))
-                                                      {
-                                                          ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.CreatedReply);
-                                                          ReplyMessage = string.Empty;
-                                                          if (CurrentTopicData.Messages != null && CurrentTopicData.Messages.Count % 50 == 0)
-                                                              CurrentPage++;
-                                                          await LoadCurrentTopicPageAsync(true, true);
-                                                      }
-                                                      else
-                                                      {
-                                                          ResourceLocator.MessageDialogProvider.ShowMessageDialog("Unable to send your reply","Something went wrong");
-                                                      }
+                                                      await SendReplyAsync();
                                                   }));
 
         public ICommand NavigateMessagingCommand
@@ -704,3 +738,4 @@ namespace MALPlus.XShared.ViewModels.Forums
         }
     }
 }
+

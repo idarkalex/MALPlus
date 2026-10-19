@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
@@ -26,6 +26,7 @@
                     <VerticalStackLayout Padding="16,4,16,20" Spacing="10">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                             <Button Text="Previous" Command="{Binding PreviousPageCommand}"
+                                    IsVisible="{Binding CanPreviousPage}"
                                     IsEnabled="{Binding CanPreviousPage}"
                                     FontFamily="InterSemiBold" FontSize="12"
                                     BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
@@ -33,8 +34,14 @@
                                     HeightRequest="36" Padding="10,0" />
                             <Label Grid.Column="1" Text="{Binding PageText}" FontFamily="InterSemiBold"
                                    FontSize="12" TextColor="{StaticResource EmAccent}"
-                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                                   TextDecorations="Underline"
+                                   HorizontalOptions="Center" VerticalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnPageJumpTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
                             <Button Grid.Column="2" Text="Next" Command="{Binding NextPageCommand}"
+                                    IsVisible="{Binding CanNextPage}"
                                     IsEnabled="{Binding CanNextPage}"
                                     FontFamily="InterSemiBold" FontSize="12"
                                     BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
@@ -51,9 +58,11 @@
                                             FontFamily="InterSemiBold" FontSize="12"
                                             BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
                                             BorderColor="#29FFFFFF" BorderWidth="1"
-                                            Command="{Binding Source={x:Reference Page}, Path=BindingContext.LoadPageCommand}"
-                                            CommandParameter="{Binding Item1}">
+                                            Clicked="OnPageChipClicked">
                                         <Button.Triggers>
+                                            <DataTrigger TargetType="Button" Binding="{Binding Item1}" Value="0">
+                                                <Setter Property="Text" Value="..." />
+                                            </DataTrigger>
                                             <DataTrigger TargetType="Button" Binding="{Binding Item2}" Value="True">
                                                 <Setter Property="BackgroundColor" Value="#0066FF" />
                                                 <Setter Property="TextColor" Value="White" />
@@ -74,45 +83,53 @@
                                   Source="{Binding PageHtml, Converter={StaticResource HtmlSource}}"
                                   HeightRequest="1" MinimumHeightRequest="1"
                                   BackgroundColor="{StaticResource EmSheet}"
+                                  Navigating="OnTopicWebViewNavigating"
                                   Navigated="OnTopicWebViewNavigated" />
                     </VerticalStackLayout>
                 </ScrollView>
             </RefreshView>
 
-            <Grid Grid.Row="2" Padding="12,8,12,12" BackgroundColor="#051522">
-                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                    <Editor Grid.Row="0" Text="{Binding ReplyMessage, Mode=TwoWay}"
-                            Placeholder="Write a reply (BBCode supported)..."
-                            FontFamily="Inter" FontSize="13" HeightRequest="80"
-                            BackgroundColor="{StaticResource EmBackground}"
-                            TextColor="{StaticResource BrushText}"
-                            PlaceholderColor="#80FFFFFF"
-                            AutoSize="Disabled" />
-                    <!-- The new-topic composer could preview its BBCode; the reply box could not,
-                         so the only way to check the formatting was to post it and read it back. -->
-                    <Button Grid.Row="1" Text="{Binding ReplyPreviewToggleText}" Clicked="OnReplyPreviewClicked"
-                            HorizontalOptions="Start"
-                            FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="Transparent" TextColor="{StaticResource EmAccent}"
-                            Padding="0,4" HeightRequest="28" />
-                    <Border Grid.Row="2" IsVisible="{Binding ReplyPreviewVisible}"
-                            BackgroundColor="{StaticResource EmSheet}"
-                            Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                            StrokeShape="RoundRectangle 8" Padding="10"
-                            MaximumHeightRequest="200">
-                        <ScrollView>
-                            <WebView x:Name="ReplyPreviewWebView" HeightRequest="180"
-                                     BackgroundColor="Transparent"
-                                     Navigated="OnReplyPreviewNavigated" />
-                        </ScrollView>
-                    </Border>
-                    <Button Grid.Row="1" Text="Post Reply" Command="{Binding CreateReplyCommand}"
-                            HorizontalOptions="End"
-                            FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="#0066FF" TextColor="White"
-                            CornerRadius="8" HeightRequest="32" Padding="12,0" />
-                </Grid>
-            </Grid>
+            <Border Grid.Row="2" Padding="12,8,12,12" BackgroundColor="#051522" StrokeThickness="0">
+                <Button Text="Reply" Clicked="OnOpenReplyPageTapped"
+                        HorizontalOptions="Fill"
+                        FontFamily="InterSemiBold" FontSize="14"
+                        BackgroundColor="#0066FF" TextColor="White"
+                        CornerRadius="8" HeightRequest="42" />
+            </Border>
+        </Grid>
+
+        <Grid x:Name="ReplyOverlay" IsVisible="False" BackgroundColor="#80000000" Padding="16">
+            <ScrollView VerticalOptions="Center" HorizontalOptions="Center" WidthRequest="360">
+
+
+                <Border StrokeThickness="1" StrokeShape="RoundRectangle 12" BackgroundColor="{StaticResource EmSheet}" Stroke="{StaticResource EmBorder}">
+                    <VerticalStackLayout Spacing="10" Padding="16">
+                        <Label Text="Reply" FontFamily="InterBold" FontSize="18" TextColor="{StaticResource BrushText}" />
+                        <Editor x:Name="ReplyOverlayEditor" HeightRequest="180" Text="{Binding ReplyMessage, Mode=TwoWay}"
+                                BackgroundColor="{StaticResource EmBackground}" TextColor="{StaticResource BrushText}"
+                                Placeholder="Write a reply (BBCode supported)..." AutoSize="Disabled" />
+                        <FlexLayout Wrap="Wrap" AlignItems="Center" JustifyContent="Start">
+                            <Button Text="B" Clicked="OnFormatBBCodeTapped" CommandParameter="b" FontFamily="InterBold" Margin="2" />
+                            <Button Text="I" Clicked="OnFormatBBCodeTapped" CommandParameter="i" FontAttributes="Italic" Margin="2" />
+                            <Button Text="U" Clicked="OnFormatBBCodeTapped" CommandParameter="u" Margin="2" />
+                            <Button Text="S" Clicked="OnFormatBBCodeTapped" CommandParameter="s" Margin="2" />
+                            <Button Text="URL" Clicked="OnInsertUrlTapped" Margin="2" />
+                            <Button Text="Img" Clicked="OnInsertImageTapped" Margin="2" />
+                            <Button Text="Quote" Clicked="OnInsertQuoteTapped" Margin="2" />
+                            <Button Text="Spoiler" Clicked="OnFormatBBCodeTapped" CommandParameter="spoiler" Margin="2" />
+                            <Button Text="Code" Clicked="OnFormatBBCodeTapped" CommandParameter="code" Margin="2" />
+                            <Button Text="List" Clicked="OnInsertListTapped" Margin="2" />
+                            <Button Text="Color" Clicked="OnInsertColorTapped" Margin="2" />
+                        </FlexLayout>
+                        <Button Text="Preview" Clicked="OnReplyOverlayPreviewTapped" BackgroundColor="Transparent" TextColor="{StaticResource EmAccent}" />
+                        <WebView x:Name="ReplyOverlayPreview" HeightRequest="180" IsVisible="False" BackgroundColor="Transparent" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Button Text="Cancel" Clicked="OnHideReplyOverlayTapped" BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}" />
+                            <Button Grid.Column="1" Text="Post Reply" Clicked="OnSendReplyOverlayTapped" BackgroundColor="#0066FF" TextColor="White" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+            </ScrollView>
         </Grid>
     </Grid>
 </ContentPage>

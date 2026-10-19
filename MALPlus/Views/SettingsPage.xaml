@@ -108,14 +108,13 @@ Allow adult content removes the filter from the catalogue, your library and sear
                         <Switch Grid.Column="1" IsToggled="{Binding CalendarIncludePlanned}"
                                 OnColor="{StaticResource EmAccent}" />
                     </Grid>
-                    <!-- Says what the switch does. The getter is a negation of Sunday-first, so the
-                         row used to read "Monday" while putting Sunday first: a label carried over
-                         from the old build, where it said "Make Sunday first day of the week". -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Start week on Sunday" FontFamily="Inter" FontSize="14"
+                        <Label Grid.Column="0" Text="Start week on:" FontFamily="Inter" FontSize="14"
                                TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding CalendarSwitchMonSun}"
-                                OnColor="{StaticResource EmAccent}" />
+                        <Picker Grid.Column="1" ItemsSource="{Binding CalendarWeekStartOptions}"
+                                SelectedIndex="{Binding CalendarWeekStartIndex, Mode=TwoWay}"
+                                TitleColor="#A0FFFFFF" TextColor="{StaticResource BrushText}"
+                                WidthRequest="120" HorizontalOptions="End" />
                     </Grid>
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="Open on today's day" FontFamily="Inter" FontSize="14"

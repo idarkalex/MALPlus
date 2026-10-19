@@ -405,6 +405,8 @@ namespace MALPlus.XShared.ViewModels.Forums
                     Topics = topics.ForumTopicEntries.Select(entry => new ForumTopicEntryViewModel(entry)).ToList();
                     _allPages = topics.Pages;
                     CurrentPage = page;
+                    if (PrevArgs != null)
+                        PrevArgs.PageNumber = page;
                 }
                 EmptyNoticeVisibility = !Topics.Any();
                 // MAL serves its board markup empty to the .NET/Android client, so an

@@ -52,6 +52,15 @@ namespace MALPlus.XShared.ViewModels.Main
         private string _prevListSource;
         private int _prevStatus = -1;
 
+        /// <summary>
+        ///     What the grid is actually showing, as opposed to what was last fetched. The fetch memo
+        ///     cannot be trusted on its own here: the panels reuse this page and repaint it without
+        ///     ever recording a fetch, so "already loaded" said true while a ranking was on screen.
+        ///     -1 means nothing has been drawn yet, which never matches and so never short-circuits.
+        /// </summary>
+        private AnimeListWorkModes _displayedMode = (AnimeListWorkModes)(-1);
+        private int _displayedStatus = -1;
+
         private string _prevQuery = "";
         private AnimeStatus _prevAnimeStatus;
         private bool _invalidatePreviousSearchResults;
@@ -656,8 +665,6 @@ namespace MALPlus.XShared.ViewModels.Main
 
             var status = GetDesiredStatus();
 
-            System.Diagnostics.Debug.WriteLine($"MALPLUS rows: mode={WorkMode} status={status} allAnime={_animeLibraryDataStorage.AllLoadedAnimeItemAbstractions?.Count} allManga={_animeLibraryDataStorage.AllLoadedMangaItemAbstractions?.Count} authAnime={_animeLibraryDataStorage.AllLoadedAuthAnimeItems?.Count} authManga={_animeLibraryDataStorage.AllLoadedAuthMangaItems?.Count} drawn={AnimeItems?.Count} listSource={ListSource} user={Credentials.UserName} auth={Credentials.Authenticated}");
-
             IEnumerable<AnimeItemAbstraction> items;
             if (queryCondition && !_invalidatePreviousSearchResults &&
                 WasPreviousQuery &&
@@ -925,6 +932,13 @@ namespace MALPlus.XShared.ViewModels.Main
             _animeItemsSet = new List<AnimeItemAbstraction>();
             _animeItemsSet.AddRange(items);
             _drainWholeList = true;
+
+            // Recorded here, at the one point every reuse of this page goes through, so the early
+            // return in FetchDataCore can tell "already on screen" from "already fetched". A panel
+            // repainting this grid is exactly what invalidates the fetch memo.
+            _displayedMode = WorkMode;
+            _displayedStatus = (int)status;
+
             //});
             //If we have items then we should hide EmptyNotice
             EmptyNoticeVisibility = _animeItemsSet.Count == 0;
@@ -2006,8 +2020,19 @@ catch (Exception)
             // The status filter is part of the request, not just the source: ListSource only holds
             // the user name, so without it here every status change looked like the request that
             // was already loaded and returned early with the spinner left on.
+            //
+            // AND what is actually drawn has to match too. The memo above records what was asked
+            // for, but the panels overwrite the grid through a different path that never touches
+            // it, so coming back from Seasonal or a Top list it still claimed the library was
+            // loaded, took the early return and repainted nothing. The grid came up empty until
+            // a manual refresh. Written as a separate condition rather than as "clear the memo
+            // when entering a panel" because that would be one more list of panel modes to
+            // remember when a new one is added, and this one cannot be forgotten: any reuse of
+            // this page goes through RefreshList, which sets it.
             var sameRequest = !force && _prevListSource == ListSource && _prevWorkMode == requestedMode &&
-                              _prevStatus == (int)GetDesiredStatus();
+                              _prevStatus == (int)GetDesiredStatus() &&
+                              _displayedMode == requestedMode &&
+                              _displayedStatus == (int)GetDesiredStatus();
             if (sameRequest)
             {
                 // Nothing to fetch, so nothing will lower the spinner the caller already raised.

@@ -1300,7 +1300,13 @@ RaisePropertyChanged(() => GeneralSeason);
         #region IncrementDecrementRelay
 
         public bool IsIncrementButtonEnabled
-            => (_animeItemReference as AnimeItemViewModel)?.IncrementEpsVisibility == true;
+            // Off the list there is no item behind this property yet, so reading the item would hide
+            // the plus on exactly the entries where it is the only way in. The pill is no longer a
+            // "start watching" button, so it has to leave the plus visible or the stepper stops
+            // working there altogether.
+            => AddAnimeVisibility
+                ? Credentials.Authenticated
+                : (_animeItemReference as AnimeItemViewModel)?.IncrementEpsVisibility == true;
 
         public bool IsDecrementButtonEnabled
             => (_animeItemReference as AnimeItemViewModel)?.DecrementEpsVisibility == true;
@@ -1319,8 +1325,14 @@ RaisePropertyChanged(() => GeneralSeason);
         ///     nothing visibly wrong. That is why the plus and the minus sometimes did nothing at all.
         /// </remarks>
         public ICommand IncrementEpsCommand => _incrementEpsCommand ?? (_incrementEpsCommand =
-            new RelayCommand(() =>
+            new RelayCommand(async () =>
             {
+                // Off the list, the plus is the way in. The pill used to turn into a "start watching"
+                // button in that state, so counting an episode meant leaving the stepper, and an entry
+                // with a progress of one could not be made from the page that shows the progress.
+                if (AddAnimeVisibility && !await AddAnimeAsync())
+                    return;
+
                 (_animeItemReference as AnimeItemViewModel)?.IncrementWatchedCommand.Execute(null);
                 RaisePropertyChanged(() => IsIncrementButtonEnabled);
                 RaisePropertyChanged(() => IsDecrementButtonEnabled);
@@ -1510,6 +1522,69 @@ RaisePropertyChanged(() => GeneralSeason);
             LoadingUpdate = false;
         }
 
+        /// <summary>
+        ///     Saves the free text note to MAL.
+        /// </summary>
+        /// <remarks>
+        ///     Separate from <see cref="ChangeNotes" /> because <c>Notes</c> is the tag list, and the
+        ///     two are separate fields on MAL's own edit form.
+        /// </remarks>
+        public async Task ChangeCommentAsync(string value)
+        {
+            if (_animeItemReference == null)
+                return;
+
+            LoadingUpdate = true;
+            // Set on the item, not only here: the poster card binds HasNote and the list behind the
+            // details page has to redraw its icons without being reopened.
+            _animeItemReference.Comment = value ?? "";
+            await GetAppropriateUpdateQuery().GetRequestResponse();
+            LoadingUpdate = false;
+            RaisePropertyChanged(() => Comment);
+            RaisePropertyChanged(() => HasComment);
+        }
+
+        /// <summary>MAL's free text note for this entry, empty when there is none.</summary>
+        public string Comment => _animeItemReference?.Comment ?? "";
+
+        /// <summary>Bound by the poster card. True once the entry carries a note.</summary>
+        public bool HasComment => !string.IsNullOrWhiteSpace(Comment);
+
+        /// <summary>
+        ///     The tags as the single comma joined field MAL stores them in.
+        /// </summary>
+        public string TagsText => _animeItemReference?.Notes ?? "";
+
+        /// <summary>
+        ///     Saves the whole tag list in one go.
+        /// </summary>
+        /// <remarks>
+        ///     The per tag commands already existed and still do, but editing the field the way MAL
+        ///     shows it is one write rather than a remove plus an append for every word typed.
+        /// </remarks>
+        public async Task ChangeTagsAsync(string value)
+        {
+            if (_animeItemReference == null)
+                return;
+
+            var cleaned = string.Join(",",
+                (value ?? "")
+                    .Split(',')
+                    .Select(t => t.Trim())
+                    .Where(t => t.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
+
+            LoadingUpdate = true;
+            _animeItemReference.Notes = cleaned;
+            await GetAppropriateUpdateQuery().GetRequestResponse();
+            LoadingUpdate = false;
+            RaisePropertyChanged(() => TagsText);
+            RaisePropertyChanged(() => HasTags);
+        }
+
+        /// <summary>Bound by the poster card. True once the entry carries at least one tag.</summary>
+        public bool HasTags => !string.IsNullOrWhiteSpace(_animeItemReference?.Notes);
+
         private async void ChangeRewatching(bool state)
         {
             LoadingUpdate = true;
@@ -1608,17 +1683,22 @@ RaisePropertyChanged(() => GeneralSeason);
 
                 if (_animeItemReference is AnimeItemViewModel reference)
                 {
-                    if (prevEps == 0 && AllEpisodes > 1 && MyEpisodes != AllEpisodes &&
-                        (MyStatus == AnimeStatus.PlanToWatch || MyStatus == AnimeStatus.Dropped ||
-                         (!Settings.DontAskToMoveOnHoldEntries && MyStatus == AnimeStatus.OnHold)))
+                    // Same rule as the stepper: completing the series outranks being moved to
+                    // watching, and a one episode series used to be excluded from the watching
+                    // question by the AllEpisodes > 1 test, so it fell through to the completed one
+                    // only when it was already the case. Completion is now decided first and asked
+                    // once, whichever state the entry was in.
+                    var completedNow = AllEpisodes != 0 && MyEpisodes == AllEpisodes;
+                    if (completedNow)
                     {
-                        reference.PromptForStatusChange(AnimeStatus.Watching);
+                        reference.PromptForStatusChange(AnimeStatus.Completed);
                         RaisePropertyChanged(() => MyStatusBind);
                     }
-                    else if (MyEpisodes == AllEpisodes && AllEpisodes != 0)
+                    else if (prevEps == 0 && MyEpisodes != AllEpisodes &&
+                             (MyStatus == AnimeStatus.PlanToWatch || MyStatus == AnimeStatus.Dropped ||
+                              (!Settings.DontAskToMoveOnHoldEntries && MyStatus == AnimeStatus.OnHold)))
                     {
-
-                        reference.PromptForStatusChange(AnimeStatus.Completed);
+                        reference.PromptForStatusChange(AnimeStatus.Watching);
                         RaisePropertyChanged(() => MyStatusBind);
                     }
                     if (Settings.SelectedApiType == ApiType.Hummingbird)
@@ -1683,6 +1763,36 @@ RaisePropertyChanged(() => GeneralSeason);
 
         private async void AddAnime()
         {
+            await AddAnimeAsync();
+        }
+
+        /// <summary>
+        ///     Puts the entry on the list and answers whether it worked.
+        /// </summary>
+        /// <remarks>
+        ///     Public so a caller can wait for it. <see cref="AddAnimeCommand" /> is async void, and
+        ///     anything that has to happen after the entry exists has to be able to happen after the
+        ///     entry really is there: the add finishes by pushing its own update built from
+        ///     <c>Settings.DefaultStatusAfterAdding</c>, so a status set alongside it is overwritten.
+        /// </remarks>
+        public async Task<bool> AddToListAsync()
+        {
+            if (!AddAnimeVisibility)
+                return true;
+            return await AddAnimeAsync();
+        }
+
+        /// <summary>
+        ///     Puts the entry on the list, and says whether it worked.
+        /// </summary>
+        /// <remarks>
+        ///     A Task because the stepper's plus needs it: off the list, counting an episode is the
+        ///     thing that puts the entry on, so it has to be able to wait for the add to land before
+        ///     it increments anything. The old wrapper could not be waited on and incrementing through
+        ///     it counted into an entry that did not exist yet.
+        /// </remarks>
+        private async Task<bool> AddAnimeAsync()
+        {
             LoadingUpdate = true;
             IsAddAnimeButtonEnabled = false;
             var response = AnimeMode
@@ -1691,7 +1801,7 @@ RaisePropertyChanged(() => GeneralSeason);
             LoadingUpdate = false;
             IsAddAnimeButtonEnabled = true;
             if (Settings.SelectedApiType == ApiType.Mal && !response.Contains("Created") && AnimeMode)
-                return;
+                return false;
             AddAnimeVisibility = false;
             AnimeType typeA;
             MangaType typeM;
@@ -1768,6 +1878,10 @@ RaisePropertyChanged(() => GeneralSeason);
             PopulateStartEndDates();
             RaisePropertyChanged(() => StartDateTimeOffset);
             RaisePropertyChanged(() => EndDateTimeOffset);
+            // The new item has never run the visibility pass, so its plus is still dead and the
+            // stepper stays a counter with nothing to change it. Run it before the notifications,
+            // because they only re-read the flags the pass sets.
+            (_animeItemReference as AnimeItemViewModel)?.AdjustIncrementButtonsVisibility();
             RaisePropertyChanged(() => IsIncrementButtonEnabled);
             RaisePropertyChanged(() => IncrementEpsCommand);
             RaisePropertyChanged(() => DecrementEpsCommand);
@@ -1776,6 +1890,8 @@ RaisePropertyChanged(() => GeneralSeason);
                 await new AnimeUpdateQuery(_animeItemReference).GetRequestResponse();
             else
                 await new MangaUpdateQuery(_animeItemReference).GetRequestResponse();
+
+            return true;
         }
 
         public void CurrentAnimeHasBeenAddedToList(IAnimeData reference)
@@ -1809,13 +1925,42 @@ RaisePropertyChanged(() => GeneralSeason);
                     LoadingUpdate = false;
                     IsRemoveAnimeButtonEnabled = true;
 
-                   _animeLibraryDataStorage.RemoveAnimeEntry(
-                        (_animeItemReference as AnimeItemViewModel).ParentAbstraction);
+                    // The counters, the score, the note and the tags are all entry state, and leaving
+                    // them behind is what made the hero keep saying "Plan to watch" with a stale episode
+                    // count next to it: AddAnimeVisibility turned the word over, but nothing below it
+                    // was cleared. Reached the same way an entry that was never added starts.
+                    var item = _animeItemReference as AnimeItemViewModel;
+                    if (item != null)
+                    {
+                        item.MyEpisodes = 0;
+                        item.MyScore = 0;
+                        item.Comment = string.Empty;
+                        item.Notes = string.Empty;
+                        item.ParentAbstraction.LastWatched = DateTime.MinValue;
+                    }
 
-                    (_animeItemReference as AnimeItemViewModel).SetAuthStatus(false, true);
+                    _animeLibraryDataStorage.RemoveAnimeEntry(
+                        item?.ParentAbstraction);
+
+                    item?.SetAuthStatus(false, true);
                     AddAnimeVisibility = true;
                     IsAddAnimeButtonEnabled = true;
                     MyDetailsVisibility = false;
+
+                    // Everything the hero and the cards bind, told in one go. Each of these is computed
+                    // from the state just cleared, and a computed property that nothing notifies keeps
+                    // painting the value it had until the cell happens to be recycled.
+                    RaisePropertyChanged(() => MyEpisodes);
+                    RaisePropertyChanged(() => MyEpisodesBind);
+                    RaisePropertyChanged(() => MyEpisodesStepperBind);
+                    RaisePropertyChanged(() => MyScore);
+                    RaisePropertyChanged(() => MyScoreBind);
+                    RaisePropertyChanged(() => IsMyScoreSet);
+                    RaisePropertyChanged(() => Comment);
+                    RaisePropertyChanged(() => HasComment);
+                    RaisePropertyChanged(() => TagsText);
+                    RaisePropertyChanged(() => HasTags);
+                    UpdateAnimeReferenceUiBindings(Id);
                 });
         }
 
@@ -2836,6 +2981,14 @@ RaisePropertyChanged(() => ProducersVisible);
                     foreach (var item in recomm)
                     {
                         item.AirDayTillBind = ComputeAirCountdown(item.Id);
+                        var libraryMatch = _animeLibraryDataStorage?.AllLoadedAuthAnimeItems?
+                            .FirstOrDefault(x => x.RepresentsAnime && (x.MalId == item.Id || x.Id == item.Id));
+                        var libraryViewModel = libraryMatch?.ViewModel;
+                        item.IsOnMyList = libraryMatch != null;
+                        item.MyEpisodesForBadge = libraryMatch?.MyEpisodes ?? 0;
+                        item.MyStatusForBadge = item.IsOnMyList
+                            ? libraryViewModel?.MyStatusBindShort
+                            : string.Empty;
                     }
 
                     Recommendations.ReplaceRange(recomm);

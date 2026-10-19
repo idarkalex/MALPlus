@@ -43,6 +43,9 @@ namespace MALPlus.Models.Models.Library
         public int Type { get; set; }
         public DateTime LastWatched { get; set; } = DateTime.MinValue;
         public string Notes { get; set; }
+
+        /// <summary>MAL's free text note. See <see cref="ILibraryData.Comment" />.</summary>
+        public string Comment { get; set; }
         public bool IsRewatching { get; set; }
         public string AlternateTitle { get; set; }
         public AnimePriority Priority { get; set; }

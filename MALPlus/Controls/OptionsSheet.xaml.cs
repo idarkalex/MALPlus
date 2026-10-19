@@ -54,11 +54,14 @@ public partial class OptionsSheet : ContentView
 public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<OptionsSheetItem> items,
         string cancelLabel = "Cancel")
     {
-        var list = items?.ToList() ?? new List<OptionsSheetItem>();
-        if (!string.IsNullOrWhiteSpace(cancelLabel) &&
-            !list.Any(item => string.Equals(item.Label, cancelLabel, StringComparison.Ordinal)))
-            list.Add(new OptionsSheetItem(cancelLabel, "icon_close"));
-        Present(title, subtitle, list, compact: true, onBack: null, withClose: true);
+        // No Cancel row. This panel presents with a close button in its header, which is already the
+        // way out, so the row underneath was a second control for the same thing on every card opened
+        // this way. It read worst on the status picker, where it put a full row between the last
+        // choice and the bottom edge of the screen.
+        // cancelLabel is kept so the callers that still pass one keep compiling; it no longer draws
+        // anything.
+        Present(title, subtitle, items?.ToList() ?? new List<OptionsSheetItem>(),
+            compact: true, onBack: null, withClose: true);
     }
 
     /// <summary>
@@ -71,7 +74,8 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     ///     cancellation.
     /// </remarks>
     public void OpenPrompt(string title, string subtitle, string initial, string hint, int maxLength,
-        bool withClose, Action<string> onSave, Action onCancel)
+        bool withClose, Action<string> onSave, Action onCancel, bool multiline = false,
+        Keyboard? keyboard = null)
     {
         try
         {
@@ -96,48 +100,215 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 SubtitleLabel.IsVisible = true;
             }
 
+            View field;
+            if (multiline)
+            {
+                // A note is paragraphs, not a score. The single line Entry this shares with the
+                // other prompts is 48dp tall with a numeric keyboard, which is unusable for one and
+                // hides all but the first line of what was written.
+                field = new Editor
+                {
+                    Text = initial ?? string.Empty,
+                    Keyboard = Keyboard.Text,
+                    MaxLength = maxLength,
+                    FontFamily = "InterMedium",
+                    FontSize = 15,
+                    TextColor = Colors.White,
+                    Placeholder = hint ?? string.Empty,
+                    PlaceholderColor = Color.FromArgb("#66FFFFFF"),
+                    BackgroundColor = Colors.Transparent,
+                    HeightRequest = 150
+                };
+            }
+            else
+            {
+                field = new Entry
+                {
+                    Text = initial ?? string.Empty,
+                    // Numeric is the default because every caller that used to reach here wanted it.
+                    // A text field that opens a numeric keyboard silently swallows every letter
+                    // typed into it, which is how the tag prompt looked broken rather than wrong.
+                    Keyboard = keyboard ?? Keyboard.Numeric,
+                    MaxLength = maxLength,
+                    FontFamily = "InterMedium",
+                    FontSize = 15,
+                    TextColor = Colors.White,
+                    Placeholder = hint ?? string.Empty,
+                    PlaceholderColor = Color.FromArgb("#66FFFFFF"),
+                    BackgroundColor = Colors.Transparent,
+                    ClearButtonVisibility = ClearButtonVisibility.Never
+                };
+            }
+
             var entry = new Border
             {
                 BackgroundColor = Color.FromArgb("#0A1F2E"),
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-                Padding = new Thickness(12, 0),
-                HeightRequest = 48,
+                Padding = new Thickness(12, multiline ? 8 : 0),
+                HeightRequest = multiline ? 150 : 48,
                 Stroke = Color.FromArgb("#1F94A3B8"),
                 StrokeThickness = 1
-            };
-            var field = new Entry
-            {
-                Text = initial ?? string.Empty,
-                Keyboard = Keyboard.Numeric,
-                MaxLength = maxLength,
-                FontFamily = "InterMedium",
-                FontSize = 15,
-                TextColor = Colors.White,
-                Placeholder = hint ?? string.Empty,
-                PlaceholderColor = Color.FromArgb("#66FFFFFF"),
-                BackgroundColor = Colors.Transparent,
-                ClearButtonVisibility = ClearButtonVisibility.Never
             };
             entry.Content = field;
 
             ItemsHost.Clear();
             ItemsHost.Add(entry);
 
-            var capturedField = field;
             var capturedSave = onSave;
+            // The field is a View because it is either an Entry or an Editor, and View has no Text.
+            // Read through whichever one it turned out to be at the moment the row is tapped, which
+            // is also when the answer is decided.
+            Func<string> readField = () => field switch
+            {
+                Editor editor => editor.Text,
+                Entry entryControl => entryControl.Text,
+                _ => string.Empty
+            };
             var capturedCancel = onCancel;
             // Ordinary rows, and deliberately so: the panel closes the same way it does for a choice
             // and the answer is whatever was in the field when the row was tapped. An empty field is a
             // real answer and is handed over as such, which is why this does not come back through
             // Closed: that one cannot tell a commit from an abandonment.
             ItemsHost.Add(BuildRow(new OptionsSheetItem("Save", "icon_check",
-                action: () => capturedSave(capturedField.Text))));
+                action: () => capturedSave(readField()))));
 
             IsVisible = true;
         }
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS options sheet prompt failed: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    ///     A question with two answers, and both of them in the same row.
+    /// </summary>
+    /// <remarks>
+    ///     A confirm used to be built by handing <see cref="OpenCompactWithSubtitle" /> a list of
+    ///     ordinary rows, which stacks them. That reads as a menu rather than a question, and it is
+    ///     worse when the caller has a real label for each answer: the two labels then land in two
+    ///     rows with a full row height between them, so "Yes" and "No" do not look like the two sides
+    ///     of one decision.
+    /// </remarks>
+    public void OpenConfirm(string title, string subtitle, string okLabel, string cancelLabel,
+        bool destructive = false, Action onConfirm = null)
+    {
+        try
+        {
+            ApplyCompactShape();
+
+            Header.IsVisible = true;
+            CloseButton.IsVisible = false;
+            TitleLabel.Text = title ?? "";
+            // Same size the prompts use: the smaller one is for a title that has a subtitle under it.
+            TitleLabel.FontSize = string.IsNullOrWhiteSpace(subtitle) ? 16 : 15;
+            if (string.IsNullOrWhiteSpace(subtitle))
+            {
+                SubtitleLabel.Text = "";
+                SubtitleLabel.IsVisible = false;
+                SubtitleLabel.MaxLines = 1;
+                SubtitleLabel.LineBreakMode = LineBreakMode.TailTruncation;
+            }
+            else
+            {
+                SubtitleLabel.Text = subtitle;
+                SubtitleLabel.IsVisible = true;
+                // The question under the title is a sentence, not a caption. It was declared for one
+                // line with a tail, so every confirmation that said anything longer than the card's
+                // width lost the end of itself behind an ellipsis: "Are you sure about deleting this
+                // entry fro...". Wrapped, with a ceiling so a long one still cannot take the card over.
+                SubtitleLabel.MaxLines = 4;
+                SubtitleLabel.LineBreakMode = LineBreakMode.WordWrap;
+            }
+
+            var capturedConfirm = onConfirm;
+
+            // Returns the Border itself, not a View, so the caller can place it in a column: SetColumn needs
+            // an IView and the declared return type was hiding that.
+            Border MakeButton(string label, bool commit, bool danger, bool cancels)
+            {
+                // A centred label, no icon chip. The rows in the sheet carry a 32dp chip because they
+                // are full width, but two of them side by side leaves each about 128dp, and a chip plus
+                // a 12dp gap in there costs 44 of it. That is why "I'm sure" was cut at "I'm sur":
+                // the label had no room left. Here the label fills the button and is centred, and the
+                // accent carries the answer rather than a block of colour.
+                var labelColor = danger ? Color.FromArgb("#F87171") : commit ? Color.FromArgb("#0066FF") : Colors.White;
+
+                var border = new Border
+                {
+                    BackgroundColor = Color.FromArgb("#0A1F2E"),
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+                    Padding = new Thickness(12, 0),
+                    HeightRequest = 48,
+                    HorizontalOptions = LayoutOptions.Fill
+                };
+
+                border.Content = new Label
+                {
+                    Text = label,
+                    FontFamily = danger ? "InterSemiBold" : "InterMedium",
+                    FontSize = 15,
+                    TextColor = labelColor,
+                    HorizontalTextAlignment = TextAlignment.Center,
+                    VerticalTextAlignment = TextAlignment.Center,
+                    LineBreakMode = LineBreakMode.TailTruncation,
+                    MaxLines = 1,
+                    InputTransparent = true
+                };
+
+                var tap = new TapGestureRecognizer();
+                tap.Tapped += (_, _) =>
+                {
+                    // The commit has to close as a choice, for the same reason Choose marks it: a
+                    // plain Dismiss raises Closed, and a host listening to that answers the question
+                    // with "no" a moment before the commit gets to answer it with yes.
+                    if (cancels)
+                    {
+                        Dismiss();
+                    }
+                    else
+                    {
+                        ClosingByChoice = true;
+                        Dismiss();
+                        ClosingByChoice = false;
+                        capturedConfirm?.Invoke();
+                    }
+                };
+                border.GestureRecognizers.Add(tap);
+                return border;
+            }
+
+            // No margin above: the panel's own padding already opens the card, and a second one here
+            // is the gap that made this panel look emptier than the prompts beside it.
+            // Two equal columns, so the pair spans it the way the rows span the sheet's panel. Measured
+            // as a stack, the two sat together in the middle with the card's width either side of them,
+            // which read as a narrower card than the prompt above it came from.
+            // Two equal columns, so the pair spans the card the way the rows span the sheet's panel.
+            // Measured as a stack, the two sat together in the middle with the card's width either
+            // side of them, which read as a narrower card than the prompt above it came from.
+            var row = new Grid
+            {
+                ColumnSpacing = 8,
+                ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("*") }
+            };
+            var okButton = MakeButton(okLabel, true, destructive, false);
+            var cancelButton = MakeButton(cancelLabel, false, false, true);
+            // Set on the buttons themselves before they go in: in MAUI an element added to a Grid
+            // without a column goes to column 0, so both would otherwise stack in the left one and the
+            // confirm row would come out as a single button.
+            Microsoft.Maui.Controls.Grid.SetColumn(okButton, 0);
+            Microsoft.Maui.Controls.Grid.SetColumn(cancelButton, 1);
+            row.Add(okButton);
+            row.Add(cancelButton);
+
+            ItemsHost.Clear();
+            ItemsHost.Add(row);
+
+            IsVisible = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS options sheet confirm failed: " + ex.Message);
         }
     }
 
@@ -148,8 +319,41 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         Panel.WidthRequest = 264;
         Panel.Margin = new Thickness(0);
         Panel.StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(20) };
-        RowsScroll.MaximumHeightRequest = 520;
+        // A centred card carries its own breathing room: the sheet shape gets it from being flush to
+        // the bottom of the screen, and the rows host below only ever padded its sides.
+        //
+        // These four numbers are the card's css, in one place, for every panel that uses this shape:
+        // the confirms, the note and tag prompts, and everything raised through OptionsSheetHost.
+        // They are tight on purpose. An earlier pass put 12 above and 18 below to even out a header
+        // margin that has since changed, and the result was a card that read as empty at both ends.
+        Panel.Padding = new Thickness(0, 14, 0, 8);
+        Header.Margin = new Thickness(20, 0, 12, 8);
+
+        // The header and everything in it hang from the top of the card rather than sitting wherever
+        // the 32dp close button happens to land. Measured on a device with the header's own layout
+        // untouched, the panel's border sat 45dp above the title, and cutting 10dp of padding only
+        // took it to 35dp: the block was being centred in a header taller than the text in it, so
+        // the empty band was above the title rather than beside it.
+        Header.VerticalOptions = LayoutOptions.Start;
+        TitleLabel.VerticalOptions = LayoutOptions.Start;
+        SubtitleLabel.VerticalOptions = LayoutOptions.Start;
+        CloseButton.VerticalOptions = LayoutOptions.Start;
+
+        // The drag handle belongs to the sheet shape, and hiding the BoxView is not enough to take its
+        // row with it. IsVisible=false, HeightRequest=0 and Margin=0 together all left the row 24dp
+        // tall on a device: the uiautomator tree still reported it, occupying exactly the band that
+        // was measured above the title. The row itself has to collapse, so it is the row's height
+        // that goes, not the bar's.
         Handle.IsVisible = false;
+        PanelGrid.RowDefinitions[0].Height = new GridLength(0);
+
+        // A hairline so the card reads as a surface rather than as a slightly different patch of the
+        // background. #29FFFFFF is the same weight the chips and the details action bar use; EmBorder
+        // (#1E3A52) is the theme's own line and is too close to the fill to separate anything.
+        Panel.Stroke = Color.FromArgb("#29FFFFFF");
+        Panel.StrokeThickness = 1;
+
+        RowsScroll.MaximumHeightRequest = 520;
     }
 
     private void Present(string title, string subtitle, IEnumerable<OptionsSheetItem> items, bool compact,
@@ -159,12 +363,11 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         {
             if (compact)
             {
-                Panel.HorizontalOptions = LayoutOptions.Center;
-                Panel.VerticalOptions = LayoutOptions.Center;
-                Panel.WidthRequest = 264;
-                Panel.Margin = new Thickness(0);
-                Panel.StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(20) };
-                RowsScroll.MaximumHeightRequest = 520;
+                // One shape, one place. This used to be a second copy of ApplyCompactShape inline,
+                // which is how the compact padding ended up surviving into the sheet: the else branch
+                // below never reset it, so opening a prompt and then the overflow left the full sheet
+                // wearing the card's padding.
+                ApplyCompactShape();
                 Handle.IsVisible = false;
             }
             else
@@ -172,12 +375,24 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 Panel.HorizontalOptions = LayoutOptions.Fill;
                 Panel.VerticalOptions = LayoutOptions.End;
                 Panel.WidthRequest = -1;
-                // Flush to the bottom edge. The 58dp lift was for the list page's navigation bar, and
-                // on a page with no bar it left the sheet floating.
+                // Flush to the bottom edge. The 58dp lift was for the list page's navigation bar, and on
+                // a page with no bar it left the sheet floating. Measured on device, the panel then ends
+                // at the last row of pixels of the screen, so there is nothing left to take off.
                 Panel.Margin = new Thickness(0);
                 Panel.StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(28, 28, 0, 0) };
+                // Flush to the bottom means flush to the bottom, and none of the card's chrome comes
+                // with it: the centred shape's padding, its hairline and its header margin are all
+                // restored to the XAML values here. Without this, opening a prompt and then the
+                // overflow left the full sheet lifted off the screen edge and wearing a border.
+                Panel.Padding = new Thickness(0);
+                Panel.Stroke = Colors.Transparent;
+                Panel.StrokeThickness = 0;
+                Header.Margin = new Thickness(20, 6, 12, 10);
                 RowsScroll.MaximumHeightRequest = 620;
                 Handle.IsVisible = true;
+                // The card collapses the handle's row rather than the handle, so the sheet has to give
+                // that row its height back. Prompts and the overflow share this control.
+                PanelGrid.RowDefinitions[0].Height = GridLength.Auto;
             }
 
             // The subtitle lives inside the header's own grid, so a panel carrying one has to show the header
