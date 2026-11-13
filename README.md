@@ -22,10 +22,15 @@
 ## ✨ Features
 
 - 🎨 **Fluid Dark-First Interface:** Built specifically for Android with native `ViewPager2` tab navigation, smooth swipe gestures between libraries, and an interactive bottom bar that stays anchored across root sections.
-- ⚡ **Offline Seed Bundle:** Ships with an offline database containing **over 500 popular and currently airing anime titles** pre-populated with details, synopsis, and episode lists. Browse instantly on cold start without waiting for network requests.
+- 🧭 **Exclusive Discovery Hub *(Experimental / WIP)*:** Explore unique discovery tools found only in MAL+:
+  - **"Because You Liked..." Recommendations:** Tailored algorithmic suggestions based on titles in your personal library.
+  - **Season Openings & Endings (OP/ED):** Browse and stream theme songs for all current seasonal anime via AnimeThemes.
+  - **Random Gem Finder:** Unearth high-scoring hidden gems and overlooked classics with configurable score and genre filters.
+  - **Music Theme Roulette:** Play random creditless OP/ED music videos on demand.
+  - **Adapted to Anime:** Unique curated manga filter showing exclusively manga series that have received an anime adaptation.
 - 🎵 **Integrated AnimeThemes Player:** Native video and audio playback for Opening (OP) and Ending (ED) themes powered by **AndroidX Media3 (ExoPlayer)** directly within anime details.
 - 📚 **Full Library Management:** Seamless two-way sync with MyAnimeList. Update scores, watched episodes, reading volumes, status tags, rewatching progress, and private notes.
-- 🔍 **Rich Discovery & Seasonal Archives:** Explore seasonal rankings, trending titles, top anime, top manga, and the unique *"Adapted to Anime"* manga section.
+- 🏷️ **Customizable Poster Cards:** Personalize your list view with format chips (TV, OVA, Movie...), score display modes (community rating, personal score, or hidden), and release season tags (Winter 2026, etc.).
 - 📅 **Broadcast Calendar & Airing Countdowns:** Keep track of upcoming episodes with accurate broadcast countdowns calculated dynamically from release timestamps.
 - 💬 **Native Forums Browser:** Read and participate in MyAnimeList community discussions natively—featuring quote trees, reply composers, and page navigation.
 - 🔄 **Integrated In-App Updater:** Daily background update checks and one-tap manual checks that notify you when a new release is available with full changelog view.
