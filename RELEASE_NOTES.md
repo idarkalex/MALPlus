@@ -1,11 +1,8 @@
-# MAL+ v0.7.2 (Beta)
+# MAL+ v0.7.3 (Beta)
 
-Seamless in-app update overhaul and profile experience improvements.
+Pre-bundled studio icons for instant loading, in-app updater progress enhancements, and performance optimizations.
 
 ### Highlights
-- **In-App Updater Overhaul**: Native APK download and direct package installation flow with Android FileProvider without leaving the app.
-- **Startup Update Checks**: Background update check on cold start with courtesy throttling.
-- **Profile Experience**: Redesigned modern stats dashboard with vibrant status indicators and proportional breakdown.
-- **Profile Details**: Fixed text overlap in profile sidebar information and cleaned up redundant action buttons.
-- **Profile History**: Added dedicated History tab with full chronological log indicator and 3-week activity notice.
-- **Friends in Profile**: Fixed reactive friend list binding and added automatic fallback queries.
+- **Instant Studios Icons**: Pre-bundled 614 anime studio logos directly into the app package as lightweight WebP thumbnails (~540 KB total) so the Studios tab loads instantly with zero network delay and no 429 rate limits.
+- **In-App Updater Enhancements**: Live download progress bar and status indicator inside the update dialog, seamless installation resume after granting unknown app install permissions, and download concurrency locks.
+- **Performance & Fluidity**: Zero-allocation scroll warming in poster grids, static color palette caching across popups and menus to reduce GC pressure, and memoized disk cache paths.

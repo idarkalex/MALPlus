@@ -20,6 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="XShared\**\*.cs"
              Exclude="XShared\bin\**;XShared\obj\**;XShared\Properties\**;XShared\Utils\PreserveAtribute.cs"
              Link="XShared\%(RecursiveDir)%(Filename)%(Extension)" />

@@ -28,6 +28,14 @@ public class StringToImageSourceConverter : IValueConverter
         if (LocalSources.TryGetValue(url, out var local))
             return local;
 
+        // If the value is already a direct local file path (e.g. seeded studio icon), return it immediately.
+        if (File.Exists(url))
+        {
+            var direct = new FileImageSource { File = url };
+            LocalSources[url] = direct;
+            return direct;
+        }
+
         // With a stable cache name the file can already be on disk from a previous
         // session, so serve it immediately instead of going back to the network.
         // Cache path calculation is memoized to avoid JNI calls to FileSystem and repeated SHA1 hashing.

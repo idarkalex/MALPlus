@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -56,6 +57,52 @@ namespace MALPlus.XShared.Utils
 
         private static string MapFile => Path.Combine(CacheDirectory, "producers.json");
 
+        private static bool _seeded;
+
+        /// <summary>
+        ///     Unpacks the pre-bundled studio logo icons (614 WebP thumbnails) from embedded resources
+        ///     to local disk cache on first access so studios render instantly with 0 network calls.
+        /// </summary>
+        private static void EnsureSeeded()
+        {
+            if (_seeded)
+                return;
+            lock (_gate)
+            {
+                if (_seeded)
+                    return;
+                try
+                {
+                    Directory.CreateDirectory(CacheDirectory);
+                    var existingFiles = Directory.GetFiles(CacheDirectory, "*.webp");
+                    if (existingFiles.Length < 100)
+                    {
+                        using var stream = typeof(StudioIconCache).Assembly.GetManifestResourceStream("MALPlus.Core.Resources.studios.zip");
+                        if (stream != null)
+                        {
+                            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+                            foreach (var entry in archive.Entries)
+                            {
+                                var dest = Path.Combine(CacheDirectory, entry.Name);
+                                if (!File.Exists(dest))
+                                {
+                                    entry.ExtractToFile(dest, overwrite: true);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("MALPLUS studio seed extraction failed: " + ex);
+                }
+                finally
+                {
+                    _seeded = true;
+                }
+            }
+        }
+
         /// <summary>
         ///     The logo for a studio, or an empty string while it is still being fetched or when
         ///     there is none. Reading this also starts a fetch, which is what makes it on demand for
@@ -67,9 +114,25 @@ namespace MALPlus.XShared.Utils
                 return "";
             if (_resolved.TryGetValue(malId, out var known))
                 return known;
+
+            EnsureSeeded();
+
+            var localWebp = Path.Combine(CacheDirectory, $"{malId}.webp");
+            if (File.Exists(localWebp))
+            {
+                _resolved[malId] = localWebp;
+                return localWebp;
+            }
+
             lock (_gate)
             {
-                if (_mapLoaded && _map.TryGetValue(malId, out var mapped))
+                if (!_mapLoaded)
+                {
+                    _map = LoadMap();
+                    _mapLoaded = true;
+                }
+
+                if (_map.TryGetValue(malId, out var mapped))
                 {
                     _resolved[malId] = mapped;
                     return mapped;
@@ -182,7 +245,14 @@ namespace MALPlus.XShared.Utils
                 {
                     url = ReadLogo(await TenraiClient.GetDataAsync($"producers/{malId}"));
                     if (!string.IsNullOrEmpty(url))
+                    {
                         WriteCachedFile(malId, url);
+                        lock (_gate)
+                        {
+                            _map[malId] = url;
+                            SaveMap(_map);
+                        }
+                    }
                 }
             }
             catch (Exception)
@@ -227,10 +297,27 @@ namespace MALPlus.XShared.Utils
         {
             try
             {
-                if (!File.Exists(MapFile))
-                    return new Dictionary<int, string>();
-                return JsonSerializer.Deserialize<Dictionary<int, string>>(File.ReadAllText(MapFile))
-                       ?? new Dictionary<int, string>();
+                if (File.Exists(MapFile))
+                {
+                    return JsonSerializer.Deserialize<Dictionary<int, string>>(File.ReadAllText(MapFile))
+                           ?? new Dictionary<int, string>();
+                }
+
+                // If not written to local cache yet, load seeded producers.json from embedded resources
+                using var stream = typeof(StudioIconCache).Assembly.GetManifestResourceStream("MALPlus.Core.Resources.producers.json");
+                if (stream != null)
+                {
+                    using var reader = new StreamReader(stream);
+                    var json = reader.ReadToEnd();
+                    var seeded = JsonSerializer.Deserialize<Dictionary<int, string>>(json);
+                    if (seeded != null && seeded.Count > 0)
+                    {
+                        SaveMap(seeded);
+                        return seeded;
+                    }
+                }
+
+                return new Dictionary<int, string>();
             }
             catch (Exception)
             {
