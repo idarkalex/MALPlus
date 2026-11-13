@@ -42,7 +42,7 @@ Always use the incremental build script at the repository root:
 ## 📋 Contribution Guidelines
 
 1. **Branches and commits:**
-   - Active development takes place on the `maui11` branch.
+   - Active development takes place on the `main` branch.
    - Keep commits focused on a single change with descriptive messages.
 2. **Privacy and telemetry:**
    - MAL+ is **100% private and local**. No third-party analytics, crash beacons, or tracking libraries are permitted.
