@@ -57,6 +57,8 @@ public partial class LogInPage : ContentPage
     private string _autoUser = string.Empty;
     private string _autoPass = string.Empty;
     private CancellationTokenSource _autoCts;
+    private volatile bool _consentInFlight;
+    private volatile bool _consentClicked;
 
     private LogInViewModel Vm => (LogInViewModel)BindingContext;
 
@@ -132,6 +134,8 @@ public partial class LogInPage : ContentPage
             _autoMode = true;
             _autoSubmitted = false;
             _oauthInFlight = false;
+            _consentInFlight = false;
+            _consentClicked = false;
             LoginForm.IsEnabled = false;
             ShowBusy(true, "Connecting to MyAnimeList…");
 #if ANDROID
@@ -202,6 +206,7 @@ public partial class LogInPage : ContentPage
             var platform = AuthWebView?.Handler?.PlatformView as global::Android.Webkit.WebView;
             if (platform == null)
                 return;
+            global::Android.Webkit.WebView.SetWebContentsDebuggingEnabled(true);
             var settings = platform.Settings;
             if (settings != null && settings.UserAgentString != DesktopUserAgent)
                 settings.UserAgentString = DesktopUserAgent;
@@ -349,6 +354,24 @@ public partial class LogInPage : ContentPage
                 if (!_oauthInFlight && !url.Contains("oauth") && !url.Contains("dialog") && !url.Contains("submission"))
                 {
                     _ = InspectAndFailIfErrorAsync();
+                }
+                if (url.Contains("dialog/authorization") && _autoMode && !_consentClicked && !_consentInFlight)
+                {
+                    _consentInFlight = true;
+                    _ = AcceptConsentOrFallBackAsync();
+                }
+                if (url.Contains("submission/authorization"))
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var dom = await MainThread.InvokeOnMainThreadAsync(() => AuthWebView.EvaluateJavaScriptAsync(
+                                "(function(){ return (document.title||'') + ' >> ' + (document.body ? document.body.innerText.slice(0, 300) : ''); })()"));
+                            Probe("SUBMISSION DOM: " + dom);
+                        }
+                        catch { }
+                    });
                 }
                 return;
             }
@@ -737,20 +760,67 @@ public partial class LogInPage : ContentPage
 
     private async Task AcceptConsentOrFallBackAsync()
     {
-        for (var attempt = 0; attempt < 6; attempt++)
+        try
         {
-            if (!_autoMode)
+            for (var attempt = 0; attempt < 10; attempt++)
+            {
+                if (!_autoMode || _consentClicked)
+                    return;
+                if (attempt > 0)
+                    await Task.Delay(400);
+                if (!_autoMode || _consentClicked)
+                    return;
+                if (await TryApproveConsentAsync())
+                {
+                    _consentClicked = true;
+                    return;
+                }
+            }
+            if (!_autoMode || _consentClicked)
                 return;
-            await Task.Delay(1200);
-            if (await TryClickButtonAsync("consent", "allow", "authorize", "accept", "continue"))
-                return;
+            _autoCts?.Cancel();
+            OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
+            OverlayHint.IsVisible = true;
+            WebOverlay.IsVisible = true;
         }
-        if (!_autoMode)
-            return;
-        _autoCts?.Cancel();
-        OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
-        OverlayHint.IsVisible = true;
-        WebOverlay.IsVisible = true;
+        catch (Exception ex)
+        {
+            Probe("AcceptConsent ex: " + ex.Message);
+        }
+        finally
+        {
+            _consentInFlight = false;
+        }
+    }
+
+    private async Task<bool> TryApproveConsentAsync()
+    {
+        try
+        {
+            if (_consentClicked)
+                return false;
+
+            const string js = @"(function(){
+                var btn = document.querySelector('input[value=""Allow""], button.button--primary, input.button--primary')
+                       || Array.from(document.querySelectorAll('input[type=submit],button,a.btn')).find(b => ((b.value||b.innerText||'').trim().toLowerCase() === 'allow'));
+                if (!btn || btn.disabled || btn.getAttribute('data-malplus-clicked'))
+                    return 'notfound';
+                var action = document.querySelector('input[name=""action_type""]');
+                if (action) action.value = 'approve_authz';
+                btn.setAttribute('data-malplus-clicked', '1');
+                btn.click();
+                return 'clicked:allow';
+            })();";
+
+            var result = await MainThread.InvokeOnMainThreadAsync(() => AuthWebView.EvaluateJavaScriptAsync(js));
+            Probe("consent click=" + result);
+            return result != null && result.StartsWith("clicked", StringComparison.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            Probe("TryApproveConsent error: " + ex.Message);
+            return false;
+        }
     }
 
     /// <summary>
@@ -985,6 +1055,8 @@ public partial class LogInPage : ContentPage
             _autoVerdictReached = false;
             _leftLoginForm = null;
             _navigationInFlight = false;
+            _consentInFlight = false;
+            _consentClicked = false;
             try
             {
                 Vm.PasswordInput = string.Empty;
@@ -1114,6 +1186,8 @@ public partial class LogInPage : ContentPage
                 _autoCts?.Cancel();
                 _autoMode = false;
                 _autoSubmitted = false;
+                _consentInFlight = false;
+                _consentClicked = false;
                 _autoUser = string.Empty;
                 _autoPass = string.Empty;
                 try
@@ -1204,8 +1278,7 @@ public partial class LogInPage : ContentPage
                     return;
                 }
             }
-            if (url.StartsWith("https://myanimelist.net/v1/oauth2/authorize")
-                || url.StartsWith("https://myanimelist.net/dialog/"))
+            if (url.StartsWith("https://myanimelist.net/v1/oauth2/authorize"))
             {
                 // In auto-mode, if credentials were not submitted, a leftover session hijacked the redirect.
                 // Purge the jar cleanly and reload the form.
@@ -1224,10 +1297,32 @@ public partial class LogInPage : ContentPage
 
                 if (_autoMode)
                 {
-                    // The credentials were accepted, so MyAnimeList is only asking to let
-                    // MAL+ use the account. Accept for them and keep our own UI on screen.
                     ShowBusy(true, "Connecting your account…");
-                    _ = AcceptConsentOrFallBackAsync();
+                }
+                return;
+            }
+
+            if (url.StartsWith("https://myanimelist.net/dialog/"))
+            {
+                if (_autoMode && !_autoSubmitted)
+                {
+                    Probe("consent reached without submit: stale session. Purging and reloading form.");
+                    _oauthInFlight = false;
+                    ForgetMalSession();
+#if ANDROID
+                    global::Android.Webkit.CookieManager.Instance.RemoveSessionCookies(null);
+                    global::Android.Webkit.CookieManager.Instance.Flush();
+#endif
+                    _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
+                    return;
+                }
+
+                if (_autoMode)
+                {
+                    // The credentials were accepted, so MyAnimeList is only asking to let
+                    // MAL+ use the account. Keep our UI busy while dialog/authorization loads;
+                    // OnAuthNavigated will trigger the approval once the DOM is ready.
+                    ShowBusy(true, "Connecting your account…");
                 }
                 else
                 {
