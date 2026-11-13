@@ -81,14 +81,28 @@
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
                 <CollectionView.Footer>
-                    <!-- The page grew on its own as the reader approached the end, so there is no
-                         button to press. What is left is a small spinner at the very bottom, bound to
-                         the flag that only the extra page raises: reading more used to go through the
-                         flag behind the full page overlay, which put a black scrim over a list that
-                         was already readable. -->
-                    <ActivityIndicator IsRunning="{Binding LoadingMore}" Color="{StaticResource EmAccent}"
-                                       WidthRequest="24" HeightRequest="24" Margin="0,12,0,20"
-                                       IsVisible="{Binding LoadingMore}" />
+                    <VerticalStackLayout Spacing="8" Padding="16,12,16,36" HorizontalOptions="Center">
+                        <!-- Loading spinner when reading another page -->
+                        <ActivityIndicator IsRunning="{Binding LoadingMore}" Color="{StaticResource EmAccent}"
+                                           WidthRequest="24" HeightRequest="24" Margin="0,4"
+                                           IsVisible="{Binding LoadingMore}" />
+
+                        <!-- End of History Card -->
+                        <Border BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                StrokeShape="RoundRectangle 10" Padding="16,12"
+                                IsVisible="{Binding LoadingVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                            <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                                <HorizontalStackLayout Spacing="6" HorizontalOptions="Center">
+                                    <Image Source="icon_check" WidthRequest="14" HeightRequest="14" VerticalOptions="Center" />
+                                    <Label Text="You're all caught up" FontFamily="InterBold" FontSize="13"
+                                           TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <Label Text="MyAnimeList preserves activity logs for up to 3 weeks."
+                                       FontFamily="Inter" FontSize="11" TextColor="#8899A6"
+                                       HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
                 </CollectionView.Footer>
             </CollectionView>
             </Grid>

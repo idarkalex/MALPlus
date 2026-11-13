@@ -165,14 +165,6 @@
                         </Grid>
                         <BoxView x:Name="TopAnimeDivider" IsVisible="False" HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
 
-                        <Grid HeightRequest="44" ColumnDefinitions="Auto,*" ColumnSpacing="16" Padding="16,0">
-                            <Grid.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnRecommendationsTapped" />
-                            </Grid.GestureRecognizers>
-                            <Image Grid.Column="0" Source="icon_recom" Style="{StaticResource RowIcon}" />
-                            <Label Grid.Column="1" Text="Recommendations" Style="{StaticResource RowLabel}" />
-                        </Grid>
-
                         <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
                         <Grid HeightRequest="44" ColumnDefinitions="Auto,*" ColumnSpacing="16" Padding="16,0">
                             <Grid.GestureRecognizers>
@@ -252,7 +244,7 @@
                                 <TapGestureRecognizer Tapped="OnRecommendationsTapped" />
                             </Grid.GestureRecognizers>
                             <Image Grid.Column="0" Source="icon_recom" Style="{StaticResource RowIcon}" />
-                            <Label Grid.Column="1" Text="Recommendations" Style="{StaticResource RowLabel}" />
+                            <Label Grid.Column="1" Text="MAL Recommendations" Style="{StaticResource RowLabel}" />
                         </Grid>
 
                         <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
+using MALPlus.Models.Models.AnimeScrapped;
 using MALPlus.Models.Models.MalSpecific;
 using MALPlus.XShared.Comm.Profile;
 using MALPlus.XShared.Interfaces;
@@ -124,9 +125,9 @@ namespace MALPlus.XShared.ViewModels.Main
                 var data = await BuildHistoryPage(args, 0);
                 History = data;
                 _historyOffset = CountEntries(data);
-                // A page with nothing on it means there is nothing after it either, and the button is
-                // then dead rather than fetching the same empty page again for ever.
-                _historyHasMore = _historyOffset > 0;
+                // MyAnimeList history endpoint /history/{user} returns all activity within its 3-week window.
+                _historyHasMore = false;
+                RaisePropertyChanged(() => HistoryHasMore);
             }
             finally
             {
@@ -137,12 +138,6 @@ namespace MALPlus.XShared.ViewModels.Main
         /// <summary>
         ///     Reads the next page of history and adds it to what is already shown.
         /// </summary>
-        /// <remarks>
-        ///     MAL's own history page has no documented limit, so this asks for the entries after the ones
-        ///     already on screen and reports what came back. If the server ignores the offset, the page
-        ///     simply shows the same first entries again and the reader is told there is nothing more,
-        ///     rather than the app pretending it paginated.
-        /// </remarks>
         public async Task<bool> LoadMoreHistory()
         {
             if (!_historyHasMore || LoadingMore)
@@ -160,24 +155,42 @@ namespace MALPlus.XShared.ViewModels.Main
                     return false;
                 }
 
-                // Appended to the days already on screen rather than replacing them, which is the whole
-                // point of asking for another page. The dictionary instance and the lists inside it are
-                // left as they are: the page reads this straight after, and handing it a brand new
-                // dictionary would only make the next rebuild start from a different object.
                 var merged = History;
+                bool anyNew = false;
                 if (merged == null)
                 {
                     merged = page;
+                    anyNew = true;
                 }
                 else
                 {
                     foreach (var pair in page)
                     {
                         if (merged.TryGetValue(pair.Key, out var existing))
-                            existing.AddRange(pair.Value);
+                        {
+                            var existingIds = new HashSet<int>(existing.Where(x => x?.Item1 != null).Select(x => x.Item1.Id));
+                            foreach (var item in pair.Value)
+                            {
+                                if (item?.Item1 != null && existingIds.Add(item.Item1.Id))
+                                {
+                                    existing.Add(item);
+                                    anyNew = true;
+                                }
+                            }
+                        }
                         else
+                        {
                             merged[pair.Key] = pair.Value;
+                            anyNew = true;
+                        }
                     }
+                }
+
+                if (!anyNew)
+                {
+                    _historyHasMore = false;
+                    RaisePropertyChanged(() => HistoryHasMore);
+                    return false;
                 }
 
                 _historyOffset += CountEntries(page);
@@ -219,8 +232,21 @@ namespace MALPlus.XShared.ViewModels.Main
                         var distinctIds = history[key].Select(entry => entry.Id).Distinct();
                         foreach (var distinctId in distinctIds)
                         {
+                            var firstEntry = history[key].First(entry => entry.Id == distinctId);
                             var vm = await ViewModelLocator.AnimeList.TryRetrieveAuthenticatedAnimeItem(distinctId,
-                                history[key].First(entry => entry.Id == distinctId).IsAnime) as AnimeItemViewModel;
+                                firstEntry.IsAnime) as AnimeItemViewModel;
+
+                            if (vm == null)
+                            {
+                                var seasonal = new SeasonalAnimeData
+                                {
+                                    Id = distinctId,
+                                    Title = firstEntry.Title ?? $"Title #{distinctId}",
+                                    ImgUrl = firstEntry.ImgUrl ?? ""
+                                };
+                                var abstraction = new AnimeItemAbstraction(seasonal, firstEntry.IsAnime);
+                                vm = new AnimeItemViewModel(seasonal, abstraction);
+                            }
 
                             entries.Add(new Tuple<AnimeItemViewModel, List<MalProfileHistoryEntry>>(vm,
                                 history[key].Where(entry => entry.Id == distinctId).ToList()));
@@ -239,25 +265,33 @@ namespace MALPlus.XShared.ViewModels.Main
                 {
                     await _animeLibraryDataStorage.EnsureOthersLibraryLoadedAsync(args.Source);
                     var others = _animeLibraryDataStorage.OthersAbstractions[args.Source];
-                foreach (var key in history.Keys)
+                    foreach (var key in history.Keys)
                     {
                         List<Tuple<AnimeItemViewModel, List<MalProfileHistoryEntry>>> entries =
                             new List<Tuple<AnimeItemViewModel, List<MalProfileHistoryEntry>>>();
                         var distinctIds = history[key].Select(entry => entry.Id).Distinct();
                         foreach (var distinctId in distinctIds)
                         {
-                            bool anime =
-                                history[key].
-                                    First(entry => entry.Id == distinctId).IsAnime;
+                            var firstEntry = history[key].First(entry => entry.Id == distinctId);
+                            bool anime = firstEntry.IsAnime;
                             var vm = anime
-                                ? others.Item1.FirstOrDefault(abstraction => abstraction.Id == distinctId)
-                                : others.Item2.FirstOrDefault(abstraction => abstraction.Id == distinctId);
+                                ? others.Item1.FirstOrDefault(abstraction => abstraction.Id == distinctId)?.ViewModel
+                                : others.Item2.FirstOrDefault(abstraction => abstraction.Id == distinctId)?.ViewModel;
 
-                            if (vm != null)
+                            if (vm == null)
                             {
-                                entries.Add(new Tuple<AnimeItemViewModel, List<MalProfileHistoryEntry>>(
-                                    vm.ViewModel, history[key].Where(entry => entry.Id == distinctId).ToList()));
+                                var seasonal = new SeasonalAnimeData
+                                {
+                                    Id = distinctId,
+                                    Title = firstEntry.Title ?? $"Title #{distinctId}",
+                                    ImgUrl = firstEntry.ImgUrl ?? ""
+                                };
+                                var abstraction = new AnimeItemAbstraction(seasonal, anime);
+                                vm = new AnimeItemViewModel(seasonal, abstraction);
                             }
+
+                            entries.Add(new Tuple<AnimeItemViewModel, List<MalProfileHistoryEntry>>(
+                                vm, history[key].Where(entry => entry.Id == distinctId).ToList()));
                         }
                         data.Add(key, entries);
                     }

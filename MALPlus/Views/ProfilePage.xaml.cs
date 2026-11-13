@@ -14,43 +14,6 @@ public partial class ProfilePage : ContentPage
 
     private ProfilePageViewModel Vm => (ProfilePageViewModel)BindingContext;
 
-    private void OnAddFriendClicked(object sender, EventArgs e)
-    {
-        try
-        {
-            Vm.SendFriendRequestCommand?.Execute(null);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine("MALPLUS add friend failed: " + ex.Message);
-        }
-    }
-
-    /// <summary>
-    ///     Switches the four profile tabs. The tab index is a plain number the view model raises,
-    ///     and each pane's IsVisible is bound to it through the equality converter, so nothing
-    ///     here has to touch the panes themselves.
-    /// </summary>
-    private void OnProfileTabTapped(object sender, TappedEventArgs e)
-    {
-        if (e?.Parameter is not string raw || !int.TryParse(raw, out var index))
-            return;
-        Vm.SelectedTab = index;
-        ApplyProfileTabColors();
-    }
-
-    private void ApplyProfileTabColors()
-    {
-        if (TabGeneral == null || TabFavourites == null || TabRecent == null || TabStats == null)
-            return;
-        var selected = Vm?.SelectedTab ?? 0;
-        var tabs = new[] { TabGeneral, TabFavourites, TabRecent, TabStats };
-        for (var i = 0; i < tabs.Length; i++)
-            tabs[i].TextColor = i == selected
-                ? Color.FromArgb("#0066FF")
-                : Color.FromArgb("#B3FFFFFF");
-    }
-
     public ProfilePage()
     {
         InitializeComponent();
@@ -60,27 +23,36 @@ public partial class ProfilePage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        System.Diagnostics.Debug.WriteLine("MALPLUS ProfilePage OnAppearing");
         if (_initialized)
             return;
         _initialized = true;
 
+        var user = TargetUser ?? Credentials.UserName;
         var args = new ProfilePageNavigationArgs
         {
-            TargetUser = TargetUser ?? Credentials.UserName
+            TargetUser = user
         };
-        System.Diagnostics.Debug.WriteLine("MALPLUS ProfilePage calling LoadProfileData");
+
         try
         {
             await Vm.LoadProfileData(args);
-            System.Diagnostics.Debug.WriteLine("MALPLUS ProfilePage LoadProfileData completed");
-            // LoadProfileData resets the tab to 0 for a new profile, so the colours are read back
-            // here rather than assumed.
             ApplyProfileTabColors();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine("MALPLUS Profile Init failed: " + ex);
+        }
+    }
+
+    private async void OnBackClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            await Shell.Current.GoToAsync("..");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS Profile back failed: " + ex.Message);
         }
     }
 
@@ -93,6 +65,7 @@ public partial class ProfilePage : ContentPage
             {
                 TargetUser = TargetUser ?? Credentials.UserName
             }, force: true);
+            ApplyProfileTabColors();
         }
         catch (Exception ex)
         {
@@ -100,107 +73,136 @@ public partial class ProfilePage : ContentPage
         }
     }
 
-    private async void OnRefreshClicked(object sender, EventArgs e)
+    private void OnTabButtonClicked(object sender, EventArgs e)
     {
-        try
+        if (sender is Button btn && btn.CommandParameter is string raw && int.TryParse(raw, out var index))
         {
-            if (Vm == null) return;
-            await Vm.LoadProfileData(new ProfilePageNavigationArgs
-            {
-                TargetUser = TargetUser ?? Credentials.UserName
-            }, force: true);
+            Vm.SelectedTab = index;
+            ApplyProfileTabColors();
         }
-        catch (Exception ex) { Console.WriteLine("MALPLUS refresh btn failed: " + ex.Message); }
     }
 
-    private async void OnCompareClicked(object sender, EventArgs e)
+    private void ApplyProfileTabColors()
+    {
+        if (TabBtnGeneral == null || TabBtnHistory == null || TabBtnFavourites == null || TabBtnStats == null)
+            return;
+
+        var selected = Vm?.SelectedTab ?? 0;
+        var buttons = new[] { TabBtnGeneral, TabBtnHistory, TabBtnFavourites, TabBtnStats };
+        var accentColor = Application.Current?.Resources?.TryGetValue("EmAccent", out var acc) == true && acc is Color c
+            ? c
+            : Color.FromArgb("#0066FF");
+
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            var active = i == selected;
+            buttons[i].BackgroundColor = active ? accentColor : Color.FromArgb("#141D2B");
+            buttons[i].TextColor = active ? Colors.White : Color.FromArgb("#8899A6");
+        }
+    }
+
+    private void OnAddFriendClicked(object sender, EventArgs e)
     {
         try
         {
-            var user = TargetUser ?? Credentials.UserName;
-            if (string.IsNullOrEmpty(user)) return;
-            await Shell.Current.GoToAsync($"listcomparison?user={Uri.EscapeDataString(user)}");
+            Vm.SendFriendRequestCommand?.Execute(null);
         }
-        catch (Exception ex) { Console.WriteLine("MALPLUS compare failed: " + ex.Message); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS add friend failed: " + ex.Message);
+        }
     }
+
+    #region Action Handlers
 
     private async void OnHistoryClicked(object sender, EventArgs e)
     {
         try
         {
             var user = TargetUser ?? Credentials.UserName;
-            if (string.IsNullOrEmpty(user)) return;
-            await Shell.Current.GoToAsync($"history?user={Uri.EscapeDataString(user)}");
+            await Shell.Current.GoToAsync($"history?user={Uri.EscapeDataString(user ?? "")}");
         }
-        catch (Exception ex) { Console.WriteLine("MALPLUS history failed: " + ex.Message); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS History nav failed: " + ex.Message);
+        }
     }
 
-    private async void OnFavAnimeTapped(object sender, SelectionChangedEventArgs e)
+    private void OnOpenMalClicked(object sender, EventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is AnimeItemViewModel item)
+        try
         {
-            ((CollectionView)sender).SelectedItem = null;
+            Vm.OpenMalProfileCommand?.Execute(null);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS Open MAL failed: " + ex.Message);
+        }
+    }
+
+    #endregion
+
+    #region Item Taps
+
+    private async void OnFavAnimeItemTapped(object sender, TappedEventArgs e)
+    {
+        if (e?.Parameter is AnimeItemViewModel item)
+        {
             await Shell.Current.GoToAsync(
                 $"animedetails?id={item.Id}&title={Uri.EscapeDataString(item.Title ?? "")}");
         }
     }
 
-    private async void OnFavMangaTapped(object sender, SelectionChangedEventArgs e)
+    private async void OnFavMangaItemTapped(object sender, TappedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is AnimeItemViewModel item)
+        if (e?.Parameter is AnimeItemViewModel item)
         {
-            ((CollectionView)sender).SelectedItem = null;
             await Shell.Current.GoToAsync(
                 $"animedetails?id={item.Id}&title={Uri.EscapeDataString(item.Title ?? "")}&manga=true");
         }
     }
 
-    private async void OnFavCharacterTapped(object sender, SelectionChangedEventArgs e)
+    private async void OnFavCharacterItemTapped(object sender, TappedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is FavouriteViewModel item &&
-            int.TryParse(item.Data.Id, out int id))
+        if (e?.Parameter is FavouriteViewModel item && int.TryParse(item.Data.Id, out int id))
         {
-            ((CollectionView)sender).SelectedItem = null;
             await Shell.Current.GoToAsync($"character?id={id}");
         }
     }
 
-    private async void OnFavStaffTapped(object sender, SelectionChangedEventArgs e)
+    private async void OnFavStaffItemTapped(object sender, TappedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is FavouriteViewModel item &&
-            int.TryParse(item.Data.Id, out int id))
+        if (e?.Parameter is FavouriteViewModel item && int.TryParse(item.Data.Id, out int id))
         {
-            ((CollectionView)sender).SelectedItem = null;
             await Shell.Current.GoToAsync($"staff?id={id}");
         }
     }
 
-    private async void OnRecentAnimeTapped(object sender, SelectionChangedEventArgs e)
+    private async void OnRecentAnimeItemTapped(object sender, TappedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is AnimeItemViewModel item)
+        if (e?.Parameter is AnimeItemViewModel item)
         {
-            ((CollectionView)sender).SelectedItem = null;
             await Shell.Current.GoToAsync(
                 $"animedetails?id={item.Id}&title={Uri.EscapeDataString(item.Title ?? "")}");
         }
     }
 
-    private async void OnRecentMangaTapped(object sender, SelectionChangedEventArgs e)
+    private async void OnRecentMangaItemTapped(object sender, TappedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is AnimeItemViewModel item)
+        if (e?.Parameter is AnimeItemViewModel item)
         {
-            ((CollectionView)sender).SelectedItem = null;
             await Shell.Current.GoToAsync(
                 $"animedetails?id={item.Id}&title={Uri.EscapeDataString(item.Title ?? "")}&manga=true");
         }
     }
 
-    private async void OnFriendTapped(object sender, SelectionChangedEventArgs e)
+    private async void OnFriendItemTapped(object sender, TappedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is MALPlus.Models.Models.MalUser user)
+        if (e?.Parameter is MALPlus.Models.Models.MalUser user && !string.IsNullOrEmpty(user.Name))
         {
-            ((CollectionView)sender).SelectedItem = null;
             await Shell.Current.GoToAsync($"profile?user={Uri.EscapeDataString(user.Name)}");
         }
     }
+
+    #endregion
 }

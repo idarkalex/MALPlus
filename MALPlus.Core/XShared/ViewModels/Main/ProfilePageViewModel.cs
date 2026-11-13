@@ -27,6 +27,7 @@ public sealed class ProfilePageViewModel : ViewModelBase
         public string Label { get; set; }
         public int Value { get; set; }
         public string Percent { get; set; }
+        public double Fraction { get; set; }
         public double Width { get; set; }
         public string BarColor { get; set; }
     }
@@ -66,7 +67,16 @@ public sealed class ProfilePageViewModel : ViewModelBase
             }
         }
 
-        public List<MalUser> MyFriends { get; set; }
+        private List<MalUser> _myFriends;
+        public List<MalUser> MyFriends
+        {
+            get => _myFriends;
+            set
+            {
+                _myFriends = value;
+                RaisePropertyChanged(() => MyFriends);
+            }
+        }
 
         public ObservableCollection<MalComment> MalComments
         {
@@ -97,6 +107,22 @@ public sealed class ProfilePageViewModel : ViewModelBase
                 RaisePropertyChanged(() => FavouriteStaff);
             }
         }
+
+        public bool HasNoFavourites =>
+            (FavAnime == null || FavAnime.Count == 0) &&
+            (FavManga == null || FavManga.Count == 0) &&
+            (FavouriteCharacters == null || FavouriteCharacters.Count == 0) &&
+            (FavouriteStaff == null || FavouriteStaff.Count == 0);
+
+        public bool HasNoRecentUpdates =>
+            (RecentAnime == null || RecentAnime.Count == 0) &&
+            (RecentManga == null || RecentManga.Count == 0) &&
+            (MyFriends == null || MyFriends.Count == 0) &&
+            (MalComments == null || MalComments.Count == 0);
+
+        public bool HasNoHistory =>
+            (RecentAnime == null || RecentAnime.Count == 0) &&
+            (RecentManga == null || RecentManga.Count == 0);
 
         public event EmptyEventHander OnInitialized;
 
@@ -206,7 +232,19 @@ if (_currUser == null || _currUser != args.TargetUser || force)
                             list.Add((data as AnimeItemViewModel).ParentAbstraction.ViewModel);
                     }
                     RecentManga = list;
-                    MyFriends = CurrentData.Friends;
+                    if (CurrentData.Friends == null || CurrentData.Friends.Count == 0)
+                    {
+                        try
+                        {
+                            var friendsList = await new FriendsQuery(args.TargetUser ?? Credentials.UserName).GetFriends();
+                            if (friendsList != null && friendsList.Count > 0)
+                                CurrentData.Friends = friendsList.Select(f => f.User).ToList();
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                    MyFriends = CurrentData.Friends ?? new List<MalUser>();
 
                     CountTime(ResourceLocator.AnimeLibraryDataStorage.AllLoadedAuthAnimeItems);
                 }
@@ -218,7 +256,19 @@ if (_currUser == null || _currUser != args.TargetUser || force)
                     RecentAnime = await ResolveOtherUserItems(CurrentData.RecentAnime, true);
                     RecentManga = await ResolveOtherUserItems(CurrentData.RecentManga, false);
                     LoadingOhersLibrariesProgressVisiblity = false;
-                    MyFriends = CurrentData.Friends;
+                    if (CurrentData.Friends == null || CurrentData.Friends.Count == 0)
+                    {
+                        try
+                        {
+                            var friendsList = await new FriendsQuery(args.TargetUser ?? Credentials.UserName).GetFriends();
+                            if (friendsList != null && friendsList.Count > 0)
+                                CurrentData.Friends = friendsList.Select(f => f.User).ToList();
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                    MyFriends = CurrentData.Friends ?? new List<MalUser>();
 
                     var animeTime = TimeSpan.FromDays(CurrentData.AnimeDays);
                     ApproxTimeSpentOnAnime = FormatTime(animeTime);
@@ -268,6 +318,9 @@ if (_currUser == null || _currUser != args.TargetUser || force)
                 EmptyFavMangaNoticeVisibility = FavManga.Count == 0;
                 EmptyFavPeopleNoticeVisibility = CurrentData.FavouritePeople.Count == 0;
                 EmptyCommentsNoticeVisibility = CurrentData.Comments.Count == 0;
+                RaisePropertyChanged(() => HasNoFavourites);
+                RaisePropertyChanged(() => HasNoRecentUpdates);
+                RaisePropertyChanged(() => HasNoHistory);
                 OnInitialized?.Invoke();
 
                 if(CurrentData.Cached)
@@ -377,11 +430,13 @@ if (_currUser == null || _currUser != args.TargetUser || force)
             return items.Select(item =>
             {
                 var percent = total == 0 ? 0 : (double)item.Value / total * 100d;
+                var frac = total == 0 ? 0 : (double)item.Value / total;
                 return new StatBarItem
                 {
                     Label = item.Label,
                     Value = item.Value,
                     Percent = percent > 0 ? $"{percent:0}%" : "0%",
+                    Fraction = frac,
                     Width = Math.Max(item.Value == 0 ? 0 : 3, 260d * item.Value / total),
                     BarColor = ColorConverter(item.ColorHex)
                 };

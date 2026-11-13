@@ -55,6 +55,7 @@ public class MauiMainViewModel : MainViewModelBase
     {
         string route = null;
         string query = null;
+        bool isPushedList = false;
 
         switch (index)
         {
@@ -65,7 +66,16 @@ public class MauiMainViewModel : MainViewModelBase
             case PageIndex.PageMangaList:
             case PageIndex.PageTopManga:
             case PageIndex.PageMangaAdapted:
-                route = IsMangaWorkMode(index, args) ? "///manga" : "///anime";
+                isPushedList = (Shell.Current?.Navigation?.NavigationStack?.Count > 1) ||
+                                   (args is AnimeListPageNavigationArgs aArgs && !string.IsNullOrEmpty(aArgs.ListSource));
+                if (isPushedList)
+                {
+                    route = "animelist";
+                }
+                else
+                {
+                    route = IsMangaWorkMode(index, args) ? "///manga" : "///anime";
+                }
                 query = BuildAnimeListQuery(index, args);
                 break;
             case PageIndex.PageDiscover:
@@ -159,12 +169,16 @@ public class MauiMainViewModel : MainViewModelBase
                 break;
             case PageIndex.PageHistory:
                 route = "history";
+                if (args is HistoryNavigationArgs ha && !string.IsNullOrEmpty(ha.Source))
+                    query = $"?user={Uri.EscapeDataString(ha.Source)}";
                 break;
             case PageIndex.PageFeeds:
                 route = "feeds";
                 break;
             case PageIndex.PageFriends:
                 route = "friends";
+                if (args is FriendsPageNavArgs fa && fa.TargetUser?.Name != null)
+                    query = $"?user={Uri.EscapeDataString(fa.TargetUser.Name)}";
                 break;
             case PageIndex.PageWallpapers:
                 route = "wallpapers";
@@ -252,7 +266,7 @@ public class MauiMainViewModel : MainViewModelBase
             {
                 if (Shell.Current != null)
                 {
-                    if (IsListRootPage(index))
+                    if (IsListRootPage(index) && !isPushedList)
                         Views.AnimeListPage.SetPendingRootRoute(final);
                     await Shell.Current.GoToAsync(final);
                     if (Shell.Current.CurrentPage is Views.AnimeListPage listPage)
@@ -307,6 +321,8 @@ public class MauiMainViewModel : MainViewModelBase
             {
                 if (a.StatusIndex.HasValue)
                     sb.Append("&status=").Append(a.StatusIndex.Value);
+                if (!string.IsNullOrEmpty(a.ListSource))
+                    sb.Append("&user=").Append(Uri.EscapeDataString(a.ListSource));
             }
             // Preserve the specific top/adapted type.
             string type = null;

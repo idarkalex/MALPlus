@@ -5,9 +5,11 @@ using MALPlus.XShared.Utils;
 
 namespace MALPlus.Views;
 
+[QueryProperty(nameof(TargetUser), "user")]
 public partial class FriendsPage : ContentPage
 {
     private bool _initialized;
+    public string TargetUser { get; set; }
 
     private FriendsPageViewModel Vm => (FriendsPageViewModel)BindingContext;
 
@@ -24,7 +26,7 @@ public partial class FriendsPage : ContentPage
         _initialized = true;
         try
         {
-            Vm.NavigatedTo(new FriendsPageNavArgs { TargetUser = new MALPlus.Models.Models.MalUser { Name = Credentials.UserName } });
+            Vm.NavigatedTo(new FriendsPageNavArgs { TargetUser = new MALPlus.Models.Models.MalUser { Name = TargetUser ?? Credentials.UserName } });
             for (int i = 0; i < 60; i++)
             {
                 await Task.Delay(200);

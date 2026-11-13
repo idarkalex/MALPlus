@@ -368,11 +368,33 @@ namespace MALPlus.XShared.Comm.Profile
                         {
                             foreach (var htmlNode in sideInfo)
                             {
-                                var left = WebUtility.HtmlDecode(htmlNode.FirstChild.InnerText);
-                                if (left == "Supporter")
-                                    continue;
-                                current.Details.Add(new Tuple<string, string>(left,
-                                    WebUtility.HtmlDecode(htmlNode.LastChild.InnerText)));
+                                var spans = htmlNode.Descendants("span").ToList();
+                                string left = null;
+                                string right = null;
+                                if (spans.Count >= 2)
+                                {
+                                    left = WebUtility.HtmlDecode(spans[0].InnerText)?.Trim();
+                                    right = WebUtility.HtmlDecode(spans[1].InnerText)?.Trim();
+                                }
+                                else if (spans.Count == 1)
+                                {
+                                    left = WebUtility.HtmlDecode(spans[0].InnerText)?.Trim();
+                                    var full = WebUtility.HtmlDecode(htmlNode.InnerText)?.Trim();
+                                    if (!string.IsNullOrEmpty(full) && !string.IsNullOrEmpty(left) && full.StartsWith(left))
+                                        right = full.Substring(left.Length).Trim();
+                                }
+                                else
+                                {
+                                    var first = htmlNode.ChildNodes.FirstOrDefault(n => !string.IsNullOrWhiteSpace(n.InnerText));
+                                    var last = htmlNode.ChildNodes.LastOrDefault(n => !string.IsNullOrWhiteSpace(n.InnerText));
+                                    left = WebUtility.HtmlDecode(first?.InnerText)?.Trim();
+                                    right = WebUtility.HtmlDecode(last?.InnerText)?.Trim();
+                                }
+
+                                if (!string.IsNullOrEmpty(left) && left != "Supporter" && !string.IsNullOrEmpty(right) && left != right)
+                                {
+                                    current.Details.Add(new Tuple<string, string>(left, right));
+                                }
                             }
                         }
                         catch (Exception)
@@ -405,16 +427,43 @@ namespace MALPlus.XShared.Comm.Profile
                 if (!updateFavsOnly)
                     try
                     {
-                        var friends = doc.FirstOfDescendantsWithClass("div", "user-friends pt4 pb12").Descendants("a");
-                        foreach (var friend in friends)
+                        var friendsDiv = doc.DocumentNode.Descendants("div")
+                            .FirstOrDefault(d => (d.GetAttributeValue("class", "")).Contains("user-friends"));
+                        if (friendsDiv != null)
                         {
-                            var curr = new MalUser();
-                            var styleString = friend.Attributes["data-bg"].Value;
-                            curr.ImgUrl = styleString.Replace("/r/76x120", "");
-                            curr.ImgUrl = curr.ImgUrl.Substring(0, curr.ImgUrl.IndexOf('?'));
+                            var friends = friendsDiv.Descendants("a")
+                                .Where(a => (a.GetAttributeValue("class", "")).Contains("icon-friend") ||
+                                            (a.GetAttributeValue("href", "")).Contains("/profile/"));
+                            foreach (var friend in friends)
+                            {
+                                var curr = new MalUser();
+                                curr.Name = WebUtility.HtmlDecode(friend.InnerText?.Trim());
+                                if (string.IsNullOrEmpty(curr.Name))
+                                    curr.Name = WebUtility.HtmlDecode(friend.GetAttributeValue("title", "")?.Trim());
 
-                            curr.Name = friend.InnerText;
-                            current.Friends.Add(curr);
+                                var bg = friend.GetAttributeValue("data-bg", "") ?? "";
+                                if (string.IsNullOrEmpty(bg))
+                                    bg = friend.GetAttributeValue("data-src", "") ?? "";
+                                if (string.IsNullOrEmpty(bg))
+                                    bg = friend.GetAttributeValue("src", "") ?? "";
+                                if (string.IsNullOrEmpty(bg))
+                                {
+                                    var style = friend.GetAttributeValue("style", "") ?? "";
+                                    var match = System.Text.RegularExpressions.Regex.Match(style, @"url\(['""]?(.*?)['""]?\)");
+                                    if (match.Success) bg = match.Groups[1].Value;
+                                }
+
+                                if (!string.IsNullOrEmpty(bg))
+                                {
+                                    bg = bg.Replace("/r/76x120", "");
+                                    var qIdx = bg.IndexOf('?');
+                                    if (qIdx > 0) bg = bg.Substring(0, qIdx);
+                                    curr.ImgUrl = bg;
+                                }
+
+                                if (!string.IsNullOrEmpty(curr.Name))
+                                    current.Friends.Add(curr);
+                            }
                         }
                     }
                     catch (Exception)

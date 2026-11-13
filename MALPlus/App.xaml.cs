@@ -122,7 +122,7 @@ base.OnStart();
             _ = Task.Run(async () =>
             {
                 await Task.Delay(3000);
-                await AppUpdateService.CheckDailyUpdateAsync();
+                await AppUpdateService.CheckStartupUpdateAsync();
             });
         });
     }

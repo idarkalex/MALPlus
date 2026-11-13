@@ -34,6 +34,18 @@ public partial class HistoryPage : ContentPage
         InitializeComponent();
         BindingContext = ViewModelLocator.History;
         HistoryList.ItemsSource = FlatHistory;
+
+        Vm.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(Vm.History))
+            {
+                MainThread.BeginInvokeOnMainThread(() => AppendHistory(replace: false));
+            }
+            else if (e.PropertyName == nameof(Vm.LoadingVisibility) && !Vm.LoadingVisibility)
+            {
+                MainThread.BeginInvokeOnMainThread(() => RebuildHistory());
+            }
+        };
     }
 
     protected override async void OnAppearing()
@@ -180,7 +192,7 @@ public partial class HistoryPage : ContentPage
     ///     read while one is in flight, so however many scroll events arrive there is never more than one
     ///     outstanding request.
     /// </remarks>
-    private void OnHistoryScrolled(object sender, ItemsViewScrolledEventArgs e)
+    private async void OnHistoryScrolled(object sender, ItemsViewScrolledEventArgs e)
     {
         try
         {
@@ -188,7 +200,14 @@ public partial class HistoryPage : ContentPage
                 return;
             if (FlatHistory.Count - e.LastVisibleItemIndex - 1 > 8)
                 return;
-            Vm.LoadMoreCommand?.Execute(null);
+            if (Vm.LoadingMore || !Vm.HistoryHasMore)
+                return;
+
+            var loaded = await Vm.LoadMoreHistory();
+            if (loaded)
+            {
+                MainThread.BeginInvokeOnMainThread(() => AppendHistory(replace: false));
+            }
         }
         catch
         {

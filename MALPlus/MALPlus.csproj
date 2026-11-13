@@ -11,8 +11,8 @@
     <Nullable>disable</Nullable>
     <ApplicationTitle>MAL+</ApplicationTitle>
     <ApplicationId>com.idarkalex.malplus</ApplicationId>
-    <ApplicationDisplayVersion>0.7.1</ApplicationDisplayVersion>
-    <ApplicationVersion>202</ApplicationVersion>
+    <ApplicationDisplayVersion>0.7.2</ApplicationDisplayVersion>
+    <ApplicationVersion>203</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">android-arm64</RuntimeIdentifier>
     <AndroidPackageFormats>apk</AndroidPackageFormats>

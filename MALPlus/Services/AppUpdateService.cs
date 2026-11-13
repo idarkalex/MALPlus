@@ -1,32 +1,39 @@
 using System;
+using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
+using MALPlus.Controls;
 using MALPlus.XShared.Comm;
 using MALPlus.XShared.Utils;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Storage;
 
 namespace MALPlus.Services;
 
 public static class AppUpdateService
 {
-    public static async Task CheckDailyUpdateAsync()
+    private static DateTime? _lastStartupCheckUtc;
+
+    public static async Task CheckStartupUpdateAsync()
     {
         try
         {
-            var lastCheck = Settings.LastUpdateCheckUtc;
-            if (lastCheck.HasValue && lastCheck.Value.Date >= DateTime.UtcNow.Date)
+            // Courtesy throttle: don't check more than once every 15 minutes during quick app switches/restarts
+            if (_lastStartupCheckUtc.HasValue && (DateTime.UtcNow - _lastStartupCheckUtc.Value).TotalMinutes < 15)
             {
-                AppLog.Debug("Update", $"Daily update check skipped: already checked on {lastCheck.Value:yyyy-MM-dd}");
+                AppLog.Debug("Update", $"Startup update check throttled (last checked {_lastStartupCheckUtc.Value:HH:mm:ss} UTC)");
                 return;
             }
 
+            _lastStartupCheckUtc = DateTime.UtcNow;
             Settings.LastUpdateCheckUtc = DateTime.UtcNow;
-            AppLog.Info("Update", "Performing daily background update check...");
+            AppLog.Info("Update", "Performing startup background update check...");
 
             var query = new AppUpdateQuery();
             var info = await query.GetUpdateInfo();
             if (info == null)
             {
-                AppLog.Info("Update", "Daily check completed: no new release found.");
+                AppLog.Info("Update", "Startup check completed: no new release found.");
                 return;
             }
 
@@ -50,7 +57,7 @@ public static class AppUpdateService
         }
         catch (Exception ex)
         {
-            AppLog.Warn("Update", $"Daily update check failed: {ex.Message}");
+            AppLog.Warn("Update", $"Startup update check failed: {ex.Message}");
         }
     }
 
@@ -89,17 +96,137 @@ public static class AppUpdateService
         var shouldUpdate = await OptionsSheetHost.ShowUpdateAsync(info);
         if (shouldUpdate && !string.IsNullOrWhiteSpace(info.DownloadUrl))
         {
-            try
+            AppLog.Info("Update", $"User confirmed update to v{info.Version}. URL: {info.DownloadUrl}");
+            if (info.DownloadUrl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
             {
-                AppLog.Info("Update", $"Opening update URL: {info.DownloadUrl}");
-                await Launcher.Default.OpenAsync(new Uri(info.DownloadUrl));
+                await DownloadAndInstallApkAsync(info.DownloadUrl, info.Version);
             }
-            catch (Exception ex)
+            else
             {
-                AppLog.Error("Update", $"Failed to launch update URL: {ex.Message}", ex);
+                try
+                {
+                    await Launcher.Default.OpenAsync(new Uri(info.DownloadUrl));
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Error("Update", $"Failed to launch update URL: {ex.Message}", ex);
+                }
             }
         }
     }
+
+    private static async Task DownloadAndInstallApkAsync(string downloadUrl, string version)
+    {
+        try
+        {
+#if ANDROID
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                Android.Widget.Toast.MakeText(
+                    Android.App.Application.Context,
+                    $"Downloading MAL+ v{version}...",
+                    Android.Widget.ToastLength.Long)?.Show();
+            });
+#endif
+
+            var cacheDir = FileSystem.CacheDirectory;
+            var apkPath = Path.Combine(cacheDir, $"malplus_{version}.apk");
+
+            if (File.Exists(apkPath))
+            {
+                try { File.Delete(apkPath); } catch { }
+            }
+
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MALPlus-Android");
+            using var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            await using (var stream = await response.Content.ReadAsStreamAsync())
+            await using (var fileStream = new FileStream(apkPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await stream.CopyToAsync(fileStream);
+            }
+
+#if ANDROID
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                Android.Widget.Toast.MakeText(
+                    Android.App.Application.Context,
+                    "Download finished. Starting installer...",
+                    Android.Widget.ToastLength.Short)?.Show();
+            });
+
+            InstallApk(apkPath);
+#else
+            await Launcher.Default.OpenAsync(new Uri(downloadUrl));
+#endif
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Update", "DownloadAndInstallApkAsync failed, opening browser fallback", ex);
+#if ANDROID
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                Android.Widget.Toast.MakeText(
+                    Android.App.Application.Context,
+                    $"Download failed: {ex.Message}. Opening browser...",
+                    Android.Widget.ToastLength.Long)?.Show();
+            });
+#endif
+            try
+            {
+                await Launcher.Default.OpenAsync(new Uri(downloadUrl));
+            }
+            catch { }
+        }
+    }
+
+#if ANDROID
+    private static void InstallApk(string apkPath)
+    {
+        try
+        {
+            var context = Android.App.Application.Context;
+            var file = new Java.IO.File(apkPath);
+            if (!file.Exists())
+            {
+                AppLog.Error("Update", $"APK file does not exist at {apkPath}");
+                return;
+            }
+
+            var uri = AndroidX.Core.Content.FileProvider.GetUriForFile(
+                context,
+                $"{context.PackageName}.fileprovider",
+                file);
+
+            var intent = new Android.Content.Intent(Android.Content.Intent.ActionView);
+            intent.SetDataAndType(uri, "application/vnd.android.package-archive");
+            intent.AddFlags(Android.Content.ActivityFlags.GrantReadUriPermission);
+            intent.AddFlags(Android.Content.ActivityFlags.NewTask);
+            intent.AddFlags(Android.Content.ActivityFlags.ClearTop);
+
+            if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.O)
+            {
+                if (!context.PackageManager.CanRequestPackageInstalls())
+                {
+                    AppLog.Warn("Update", "CanRequestPackageInstalls is false, opening settings for unknown app sources");
+                    var settingsIntent = new Android.Content.Intent(Android.Provider.Settings.ActionManageUnknownAppSources);
+                    settingsIntent.SetData(Android.Net.Uri.Parse($"package:{context.PackageName}"));
+                    settingsIntent.AddFlags(Android.Content.ActivityFlags.NewTask);
+                    context.StartActivity(settingsIntent);
+                    return;
+                }
+            }
+
+            context.StartActivity(intent);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Update", "InstallApk failed", ex);
+        }
+    }
+#endif
 
     public static async Task ShowCurrentChangelogAsync()
     {

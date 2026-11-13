@@ -128,6 +128,15 @@ $buildArguments = @(
     "-clp:ErrorsOnly"
 )
 
+$releaseKeystore = "D:\Descargas\malplus-release.keystore"
+if (Test-Path $releaseKeystore) {
+    $buildArguments += "-p:AndroidKeyStore=true"
+    $buildArguments += "-p:AndroidSigningKeyStore=$releaseKeystore"
+    $buildArguments += "-p:AndroidSigningStorePass=MalPlus2026ReleaseKey!"
+    $buildArguments += "-p:AndroidSigningKeyAlias=malplus"
+    $buildArguments += "-p:AndroidSigningKeyPass=MalPlus2026ReleaseKey!"
+}
+
 if ($FastDeploy) {
     Write-Host ""
     Write-Host "[2/3] build + fast deploy" -ForegroundColor Yellow
@@ -183,6 +192,17 @@ if ($SkipInstall) {
 
     $sizeMb = [math]::Round($apk.Length / 1MB, 1)
     Write-Host "      $($apk.Name) ($sizeMb MB)"
+    $releaseKs = "D:\Descargas\malplus-release.keystore"
+    if (Test-Path $releaseKs) {
+        $apksignerBat = "C:\Program Files (x86)\Android\android-sdk\build-tools\35.0.0\apksigner.bat"
+        if (-not (Test-Path $apksignerBat)) {
+            $found = Get-ChildItem -Path $env:ANDROID_HOME -Recurse -Filter "apksigner.bat" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $apksignerBat = $found.FullName }
+        }
+        if ($apksignerBat -and (Test-Path $apksignerBat)) {
+            & $apksignerBat sign --ks $releaseKs --ks-pass "pass:MalPlus2026ReleaseKey!" --ks-key-alias "malplus" --key-pass "pass:MalPlus2026ReleaseKey!" $apk.FullName 2>&1 | Out-Null
+        }
+    }
 
     # Drop any cached runtime state so the first launch is a real cold start.
     & $adb -s $Device shell am force-stop $package | Out-Null

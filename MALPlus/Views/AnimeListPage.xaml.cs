@@ -19,9 +19,12 @@ namespace MALPlus.Views;
     [QueryProperty(nameof(Reset), "reset")]
     [QueryProperty(nameof(RouteSeason), "season")]
     [QueryProperty(nameof(RouteYear), "year")]
+    [QueryProperty(nameof(SourceUser), "user")]
 public partial class AnimeListPage : ContentPage, ITabSwipeHost
 {
     internal string RootRoute { get; set; }
+    public string SourceUser { get; set; }
+    private string _appliedUser;
 
     private static string _pendingRootRoute;
     private static DateTime _pendingRootRouteAt;
@@ -486,6 +489,12 @@ Mode = null;
             Type = null;
             RouteSeason = null;
             RouteYear = null;
+            var targetUser = QueryValue(query, "user", SourceUser);
+            SourceUser = null;
+            if (!string.IsNullOrEmpty(targetUser))
+            {
+                Vm.ListSource = targetUser;
+            }
 
             // Seasonal only: a route can name the season it wants to open, and it is read BEFORE the
             // already-showing check so that a route asking for a season other than the one on screen
@@ -503,6 +512,7 @@ Mode = null;
                 _appliedMode == mode &&
                 _appliedStatus == status &&
                 string.Equals(_appliedType, type, StringComparison.Ordinal) &&
+                string.Equals(_appliedUser, targetUser, StringComparison.OrdinalIgnoreCase) &&
                 !(seasonalRoute && (routeSeason.Value != _shownSeason || routeYear.Value != _shownYear)) &&
                 (Vm.AnimeItems?.Count ?? 0) > 0;
             Android.Util.Log.Info("MALPLUS",
@@ -521,6 +531,7 @@ Mode = null;
             _appliedMode = mode;
             _appliedStatus = status;
             _appliedType = type;
+            _appliedUser = targetUser;
             _lastMode = mode;
             _lastStatus = status;
             // The magnifier scopes itself to whatever the panel is showing, so text left over from

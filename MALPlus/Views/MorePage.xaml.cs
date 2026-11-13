@@ -464,17 +464,18 @@ public partial class MorePage : ContentPage, ITabSwipeHost
         }
         ViewModelLocator.GeneralMain.Navigate(page, args);
 
-        // This used to end on the NavMgr, whose stack has no reader on MAUI at all: the registration
-        // was written and then never consulted, which is why backing out of any page opened from here
-        // did not return to More. The destination now goes somewhere the back gesture actually looks.
-        ViewModelLocator.NavMgr.DeregisterBackNav();
-        MALPlus.Services.Navigation.BackRouter.Register(PageIndex.PageMore);
+        // Only arm BackRouter for root panels that borrow the anime/manga tabs without pushing
+        // onto the navigation stack. Pushed pages (Profile, Settings, Forums, etc.) naturally pop
+        // through Shell's back dispatcher and must NOT trigger BackRouter.
+        if (page == PageIndex.PageSeasonal || page == PageIndex.PageTopAnime ||
+            page == PageIndex.PageTopManga || page == PageIndex.PageMangaAdapted)
+        {
+            ViewModelLocator.NavMgr.DeregisterBackNav();
+            MALPlus.Services.Navigation.BackRouter.Register(PageIndex.PageMore);
 #if ANDROID
-        // Registered here rather than at startup: the dispatcher runs the most recently added enabled
-        // callback first and the Shell adds its own after OnCreate returns, so one added back then sits
-        // behind the Shell's and never sees the press.
-        global::MALPlus.MainActivity.ArmBackNavCallback();
+            global::MALPlus.MainActivity.ArmBackNavCallback();
 #endif
+        }
     }
 
     #endregion

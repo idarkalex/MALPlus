@@ -56,7 +56,7 @@ namespace MALPlus.Models.Models
         public MalUser User { get; } = new MalUser();
         public string ProfileMemId { get; set; }
         public List<Tuple<string, string>> Details { get; } = new List<Tuple<string, string>>();
-        public List<MalUser> Friends { get;} = new List<MalUser>();
+        public List<MalUser> Friends { get; set; } = new List<MalUser>();
         public List<MalComment> Comments { get; set; } = new List<MalComment>();
 
 

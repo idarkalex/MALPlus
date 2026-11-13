@@ -13,16 +13,18 @@ namespace MALPlus.XShared.Comm.Profile
     public class ProfileHistoryQuery : Query
     {
         private string _source;
+        private string _type;
 
         /// <summary>
         ///     How many entries into the history to start, for reading the next page.
         /// </summary>
         private int _offset;
 
-        public ProfileHistoryQuery(string source, int offset = 0)
+        public ProfileHistoryQuery(string source, int offset = 0, string type = null)
         {
             _source = source;
             _offset = offset;
+            _type = type;
         }
 
         public async Task<Dictionary<string, List<MalProfileHistoryEntry>>> GetProfileHistory()
@@ -31,11 +33,10 @@ namespace MALPlus.XShared.Comm.Profile
             try
             {
                 var client = await ResourceLocator.MalHttpContextProvider.GetHttpContextAsync();
-                // Offset is appended only when there is one, so the first request is byte for byte the
-                // request the page used to make and a reader who never scrolls sees no difference.
+                var typePart = string.IsNullOrEmpty(_type) ? "" : "/" + _type.ToLowerInvariant();
                 var offsetPart = _offset < 1 ? "" : "?offset=" + _offset;
-                var raw = await (await client.GetAsync(
-                    Uri.EscapeUriString($"https://myanimelist.net/history/{_source}{offsetPart}"))).Content.ReadAsStringAsync();
+                var url = $"https://myanimelist.net/history/{_source}{typePart}{offsetPart}";
+                var raw = await (await client.GetAsync(Uri.EscapeUriString(url))).Content.ReadAsStringAsync();
                 if (string.IsNullOrEmpty(raw))
                     return null;
                 var doc = new HtmlDocument();
@@ -44,33 +45,63 @@ namespace MALPlus.XShared.Comm.Profile
                 {
                     try
                     {
-                        //so this is one big table if it contains only on chld it means that it's day/week header so
                         if (historyRow.FirstOrDefaultOfDescendantsWithClass("div", "normal_header") != null)
                         {
-                            if (historyRow.InnerText.Trim() == "&nbsp;")
+                            var headerText = historyRow.InnerText.Trim();
+                            if (headerText == "&nbsp;" || string.IsNullOrWhiteSpace(headerText))
                                 continue;
-                            output.Add(historyRow.InnerText.Trim(), new List<MalProfileHistoryEntry>());
+                            if (!output.ContainsKey(headerText))
+                                output.Add(headerText, new List<MalProfileHistoryEntry>());
                         }
                         else
                         {
-                            var current = new MalProfileHistoryEntry();
+                            var link = historyRow.Descendants("a").FirstOrDefault();
+                            if (link == null)
+                                continue;
 
-                            var link = historyRow.Descendants("a").First();
-                            current.Id = int.Parse(link.Attributes["href"].Value.Split('=').Last());
-                            current.IsAnime = link.Attributes["href"].Value.Contains("/anime");
-                            current.WatchedEpisode = int.Parse(historyRow.Descendants("strong").First().InnerText);
-                            current.Date = historyRow.Descendants("td").Last().InnerText.Replace("Edit","").Replace("&nbsp;", "").Trim(); //skip "Edit" button
+                            var href = link.GetAttributeValue("href", "");
+                            if (string.IsNullOrEmpty(href))
+                                continue;
+
+                            var current = new MalProfileHistoryEntry();
+                            current.Title = WebUtility.HtmlDecode(link.InnerText?.Trim());
+                            current.IsAnime = href.Contains("/anime");
+
+                            var idMatch = System.Text.RegularExpressions.Regex.Match(href, @"(?:id=|\/(?:anime|manga)\/)(\d+)");
+                            if (idMatch.Success && int.TryParse(idMatch.Groups[1].Value, out var parsedId))
+                            {
+                                current.Id = parsedId;
+                            }
+                            else if (int.TryParse(href.Split('=').Last(), out var fallbackId))
+                            {
+                                current.Id = fallbackId;
+                            }
+
+                            if (current.Id == 0)
+                                continue;
+
+                            var strong = historyRow.Descendants("strong").FirstOrDefault();
+                            if (strong != null && int.TryParse(strong.InnerText?.Trim(), out var ep))
+                                current.WatchedEpisode = ep;
+
+                            var dateCell = historyRow.Descendants("td").LastOrDefault();
+                            if (dateCell != null)
+                                current.Date = dateCell.InnerText.Replace("Edit", "").Replace("&nbsp;", "").Trim();
+
+                            if (output.Count == 0)
+                                output["Recent"] = new List<MalProfileHistoryEntry>();
+
                             output.Last().Value.Add(current);
                         }
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
                         //html
                     }
 
                 }
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 //malsth
             }
