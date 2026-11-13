@@ -38,6 +38,10 @@
                              Clicked="OnManualLoginClicked"
                              FontFamily="Inter" FontSize="12" BackgroundColor="Transparent"
                              TextColor="{StaticResource EmAccent}" />
+            <Button x:Name="ResetSessionButton" Text="Having trouble? Reset web session"
+                    Clicked="OnResetSessionClicked"
+                    FontFamily="Inter" FontSize="11" BackgroundColor="Transparent"
+                    TextColor="#80FFFFFF" Margin="0,-6,0,0" />
             <Button Text="Create account on myanimelist.net" Command="{Binding NavigateRegister}"
                     FontFamily="Inter" FontSize="12" BackgroundColor="Transparent"
                     TextColor="{StaticResource EmAccent}" />
@@ -46,9 +50,14 @@
     <Grid x:Name="WebOverlay" IsVisible="False" BackgroundColor="#051522"
           VerticalOptions="Fill" HorizontalOptions="Fill">
         <Grid RowDefinitions="Auto,Auto,*">
-            <Button Text="Close" Clicked="OnWebCloseClicked"
-                    FontFamily="InterSemiBold" FontSize="14"
-                    HorizontalOptions="End" Margin="0,8,8,0" />
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Padding="12,8,12,4">
+                <Button Text="Clear Session" Clicked="OnWebClearSessionClicked"
+                        FontFamily="InterSemiBold" FontSize="12" BackgroundColor="Transparent"
+                        TextColor="{StaticResource EmAccent}" />
+                <Button Grid.Column="2" Text="Close" Clicked="OnWebCloseClicked"
+                        FontFamily="InterSemiBold" FontSize="13" BackgroundColor="{StaticResource EmSheet}"
+                        TextColor="{StaticResource BrushText}" CornerRadius="8" Padding="14,6" />
+            </Grid>
             <Label x:Name="OverlayHint" Grid.Row="1" IsVisible="False"
                    Text="Review and tap Allow to connect MAL+ to your account"
                    FontFamily="Inter" FontSize="13"

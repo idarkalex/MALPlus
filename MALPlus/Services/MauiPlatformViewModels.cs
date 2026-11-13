@@ -6,6 +6,7 @@ using MALPlus.XShared.Comm.Anime;
 using MALPlus.XShared.Delegates;
 using MALPlus.XShared.Interfaces;
 using MALPlus.XShared.NavArgs;
+using MALPlus.XShared.Utils;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Main;
 
@@ -66,8 +67,9 @@ public class MauiMainViewModel : MainViewModelBase
             case PageIndex.PageMangaList:
             case PageIndex.PageTopManga:
             case PageIndex.PageMangaAdapted:
-                isPushedList = (Shell.Current?.Navigation?.NavigationStack?.Count > 1) ||
-                                   (args is AnimeListPageNavigationArgs aArgs && !string.IsNullOrEmpty(aArgs.ListSource));
+                isPushedList = (args is AnimeListPageNavigationArgs aArgs &&
+                               !string.IsNullOrEmpty(aArgs.ListSource) &&
+                               !string.Equals(aArgs.ListSource, Credentials.UserName, StringComparison.OrdinalIgnoreCase));
                 if (isPushedList)
                 {
                     route = "animelist";
@@ -266,6 +268,16 @@ public class MauiMainViewModel : MainViewModelBase
             {
                 if (Shell.Current != null)
                 {
+                    // When navigating to a root section, clear any pushed pages (e.g. LogInPage, Settings)
+                    // so we return cleanly to root and restore the shared bottom bar.
+                    if (!isPushedList && Shell.Current.Navigation?.NavigationStack != null)
+                    {
+                        while (Shell.Current.Navigation.NavigationStack.Count > 1)
+                        {
+                            await Shell.Current.Navigation.PopAsync(false);
+                        }
+                    }
+
                     if (IsListRootPage(index) && !isPushedList)
                         Views.AnimeListPage.SetPendingRootRoute(final);
                     await Shell.Current.GoToAsync(final);

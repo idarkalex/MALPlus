@@ -31,5 +31,10 @@ namespace MALPlus.Adapters
         ///     problem and the total one have different right answers.
         /// </summary>
         void ClearMalLoginBlocker();
+
+        /// <summary>
+        ///     Completely purges all cookies and storage from the web jar.
+        /// </summary>
+        void PurgeAllWebCookies();
     }
 }

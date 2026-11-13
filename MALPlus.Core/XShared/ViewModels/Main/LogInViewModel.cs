@@ -368,6 +368,9 @@ namespace MALPlus.XShared.ViewModels.Main
                         //
                     }
 
+                    ResourceLocator.AnimeLibraryDataStorage.Reset();
+                    ResourceLocator.DataCacheService.ClearAnimeListData();
+                    ViewModelLocator.AnimeList.ResetData();
                     ViewModelLocator.AnimeList.ListSource = Credentials.UserName;
                     ViewModelLocator.GeneralMain.HideOffContentCommand.Execute(null);
                     await DataCache.ClearApiRelatedCache();

@@ -176,6 +176,21 @@ namespace MALPlus.XShared.Utils
         }
 
         /// <summary>
+        ///     Completely purges all cookies from the WebView.
+        /// </summary>
+        public static void PurgeAllWebCookies()
+        {
+            try
+            {
+                ResourceLocator.MalWebSessionCleaner?.PurgeAllWebCookies();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS web session purge failed: " + ex.GetType().Name);
+            }
+        }
+
+        /// <summary>
         ///     True when anything at all is still stored for this account: either the session is live,
         ///     or the vault still holds a credential whose session went stale.
         ///     <para>

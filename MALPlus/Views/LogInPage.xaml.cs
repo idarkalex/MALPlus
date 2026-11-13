@@ -346,7 +346,10 @@ public partial class LogInPage : ContentPage
                     _ = DiagnoseReturnToLoginAsync();
                     return;
                 }
-                _ = InspectAndFailIfErrorAsync();
+                if (!_oauthInFlight && !url.Contains("oauth") && !url.Contains("dialog") && !url.Contains("submission"))
+                {
+                    _ = InspectAndFailIfErrorAsync();
+                }
                 return;
             }
             if (_autoSubmitted)
@@ -381,6 +384,9 @@ public partial class LogInPage : ContentPage
     {
         try
         {
+            if (_oauthInFlight)
+                return;
+
             var js = "(function(){"
                 + "var t=(document.title||'')+' '+(document.body?document.body.innerText:'');"
                 + "if(/400\\s*bad request|bad request|403|forbidden|too many requests|access denied|error occurred/i.test(t))return 'error';"
@@ -390,10 +396,10 @@ public partial class LogInPage : ContentPage
             Probe("page check=" + result);
             if (result == null || !result.Contains("error"))
                 return;
-            if (!_autoMode)
+            if (!_autoMode || _oauthInFlight)
                 return;
             WebOverlay.IsVisible = false;
-            FailAuto("Wrong username or password.");
+            FailAuto("Could not complete sign in with MyAnimeList. Try signing in on their site.");
         }
         catch (Exception ex)
         {
@@ -783,6 +789,41 @@ public partial class LogInPage : ContentPage
         return (value ?? string.Empty).Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", string.Empty).Replace("\r", string.Empty);
     }
 
+    private async void OnResetSessionClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            ShowBusy(true, "Resetting session…");
+            Credentials.ClearMalWebSession();
+            Credentials.PurgeAllWebCookies();
+            ResetToForm(null);
+            await LoadCleanLoginFormAsync(CancellationToken.None);
+            ShowStatus("Session reset. You can sign in now.");
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Session reset failed.");
+        }
+        finally
+        {
+            ShowBusy(false, StatusLabel.Text);
+        }
+    }
+
+    private async void OnWebClearSessionClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            Credentials.ClearMalWebSession();
+            Credentials.PurgeAllWebCookies();
+            ShowStatus("Session cleared.");
+            await LoadCleanLoginFormAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
     /// <summary>
     ///     Closing the site overlay always lands back on the form with both routes offered. The
     ///     site button used to be a single control that hid itself while the overlay was open, so
@@ -1041,6 +1082,8 @@ public partial class LogInPage : ContentPage
             // MyAnimeList accepting the credentials sends it straight into its own OAuth
             // redirect. Anything after that point is the sign in succeeding, not a form to fill.
             if (url.Contains("/v1/oauth2/authorize", StringComparison.OrdinalIgnoreCase) ||
+                url.Contains("dialog/authorization", StringComparison.OrdinalIgnoreCase) ||
+                url.Contains("submission/authorization", StringComparison.OrdinalIgnoreCase) ||
                 url.Contains("maloauth", StringComparison.OrdinalIgnoreCase))
                 _oauthInFlight = true;
 
@@ -1061,7 +1104,12 @@ public partial class LogInPage : ContentPage
             }
             if (url.Contains("maloauth"))
             {
-                var match = System.Text.RegularExpressions.Regex.Matches(url, ".*maloauth\\?code=(.*)\\&.*");
+                // Robust extraction of 'code' query parameter regardless of position
+                string code = null;
+                var match = System.Text.RegularExpressions.Regex.Match(url, @"[?&]code=([^&#]+)");
+                if (match.Success)
+                    code = Uri.UnescapeDataString(match.Groups[1].Value);
+
                 var hadAuto = _autoMode;
                 _autoCts?.Cancel();
                 _autoMode = false;
@@ -1077,7 +1125,7 @@ public partial class LogInPage : ContentPage
                 {
                 }
                 MainThread.BeginInvokeOnMainThread(() => WebOverlay.IsVisible = false);
-                if (match.Count > 0)
+                if (!string.IsNullOrEmpty(code))
                 {
                     e.Cancel = true;
                     Probe("oauth code captured");
@@ -1085,7 +1133,7 @@ public partial class LogInPage : ContentPage
                     // is done, so the jar is guaranteed to hold the MAL session.
                     CaptureSessionCookies("maloauth callback");
                     ShowBusy(true, "Signing you in…");
-                    Vm.SignIn(_cookies ?? string.Empty, match[0].Groups[1].Value);
+                    Vm.SignIn(_cookies ?? string.Empty, code);
                 }
                 else
                 {
@@ -1108,72 +1156,107 @@ public partial class LogInPage : ContentPage
             if (url == "https://myanimelist.net/" || url == "https://myanimelist.net/#"
                 || url.StartsWith("https://myanimelist.net/#"))
             {
-                // Only ever a consequence of the user pressing Sign in. Without this gate a
-                // leftover MAL_SESSION cookie redirects the root here, the app answers by
-                // starting the OAuth dance on its own, accepts the consent and hands back a token
-                // for whichever account that cookie belonged to: signing in nobody typed anything.
-                // Every sign-in has to start from _autoMode.
-                if (!_autoMode)
-                    return;
+                if (_autoMode)
+                {
+                    if (_oauthInFlight)
+                        return;
 
-                // And never in the middle of the form itself. MyAnimeList bounces the submit
-                // through the site root on its way to the OAuth page, so this used to fire while
-                // AutoFillAndSubmitAsync was still working: the OAuth round trip started, the page
-                // navigated back to login.php, the autofill found no fields mid-flight and the
-                // whole attempt died with a message that said nothing useful. One sign-in, one
-                // OAuth start.
-                if (_oauthInFlight)
-                    return;
+                    // If auto-mode reached the site root without submitting credentials,
+                    // an old session in the cookie jar hijacked the login form redirect.
+                    // Purge the stale session and reload the clean login form.
+                    if (!_autoSubmitted)
+                    {
+                        Probe("Auto-mode reached home without submit (stale session). Purging jar and reloading form.");
+                        ForgetMalSession();
+#if ANDROID
+                        global::Android.Webkit.CookieManager.Instance.RemoveSessionCookies(null);
+                        global::Android.Webkit.CookieManager.Instance.Flush();
+#endif
+                        _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
+                        return;
+                    }
 
-                e.Cancel = true;
-                CaptureSessionCookies();
-                AuthWebView.Source = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
-                    + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
-                    + "state=signin&"
-                    + $"code_challenge={Vm.PkceChallenge}&"
-                    + "code_challenge_method=plain";
-                return;
+                    e.Cancel = true;
+                    CaptureSessionCookies();
+                    AuthWebView.Source = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
+                        + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
+                        + "state=signin&"
+                        + $"code_challenge={Vm.PkceChallenge}&"
+                        + "code_challenge_method=plain";
+                    return;
+                }
+                else
+                {
+                    // In manual mode (Use the MyAnimeList site instead):
+                    // Landing on the home page means the user logged in on the website!
+                    // Proceed immediately to OAuth authorization so they can connect MAL+.
+                    Probe("Manual mode reached home page. Starting OAuth flow.");
+                    e.Cancel = true;
+                    CaptureSessionCookies();
+                    _oauthInFlight = true;
+                    OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
+                    OverlayHint.IsVisible = true;
+                    AuthWebView.Source = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
+                        + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
+                        + "state=signin&"
+                        + $"code_challenge={Vm.PkceChallenge}&"
+                        + "code_challenge_method=plain";
+                    return;
+                }
             }
             if (url.StartsWith("https://myanimelist.net/v1/oauth2/authorize")
                 || url.StartsWith("https://myanimelist.net/dialog/"))
             {
-                // Approving this is what hands MAL+ a session, so it may only happen after the
-                // credentials the user typed were actually submitted and accepted.
-                //
-                // The URL alone does not prove that. A MAL_SESSION cookie left in the jar makes
-                // login.php redirect straight to the OAuth page, the automatic pass never filled
-                // anything, and the app used to wave the consent through for an account nobody
-                // signed into during this session. _autoSubmitted is the record that a submit
-                // happened; without it there is nothing to consent to.
+                // In auto-mode, if credentials were not submitted, a leftover session hijacked the redirect.
+                // Purge the jar cleanly and reload the form.
                 if (_autoMode && !_autoSubmitted)
                 {
-                    Probe("consent NOT auto-approved: no credentials were submitted");
+                    Probe("consent reached without submit: stale session. Purging and reloading form.");
                     _oauthInFlight = false;
-                    FailAuto("MyAnimeList still has a session open. Sign out first, then sign in again.");
+                    ForgetMalSession();
+#if ANDROID
+                    global::Android.Webkit.CookieManager.Instance.RemoveSessionCookies(null);
+                    global::Android.Webkit.CookieManager.Instance.Flush();
+#endif
+                    _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
                     return;
                 }
 
                 if (_autoMode)
                 {
                     // The credentials were accepted, so MyAnimeList is only asking to let
-                    // MAL+ use the account. The user never sees this page: accept for them
-                    // and keep our own login UI on screen. If the click does not land we
-                    // fall back to showing MAL's page rather than hanging forever.
+                    // MAL+ use the account. Accept for them and keep our own UI on screen.
                     ShowBusy(true, "Connecting your account…");
                     _ = AcceptConsentOrFallBackAsync();
                 }
+                else
+                {
+                    // In manual mode, display the OAuth consent screen with hint to tap Allow
+                    OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
+                    OverlayHint.IsVisible = true;
+                }
                 return;
             }
-            if (url == "https://myanimelist.net/register.php"
+
+            if (url.StartsWith("https://myanimelist.net/submission/")
+                || url.Contains("submission/authorization"))
+            {
+                Probe("OAuth submission in progress: " + url);
+                _oauthInFlight = true;
+                return;
+            }
+
+            // Allow all legitimate MAL URLs and auth providers so nothing in the auth flow is blocked
+            if (url.Contains("myanimelist.net")
                 || url.Contains("consent") || url.Contains("quantcast") || url.Contains("sourcepoint")
                 || url.Contains("privacy-mgmt") || url.Contains("trustarc") || url.Contains("cookielaw")
                 || url.Contains("google") || url.Contains("facebook") || url.Contains("apple")
-                || url.StartsWith("https://api.twitter") || url.StartsWith("https://myanimelist.net/sns/")
-                || url.StartsWith("https://accounts.google") || url.StartsWith("https://accounts.youtube")
-                || url.StartsWith("https://myanimelist.net/login.php"))
+                || url.StartsWith("https://api.twitter") || url.StartsWith("https://accounts.google")
+                || url.StartsWith("https://accounts.youtube"))
             {
                 return;
             }
+
             e.Cancel = true;
             AuthWebView.Source = "https://myanimelist.net/login.php";
         }
