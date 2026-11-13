@@ -5,26 +5,18 @@
              x:Class="MALPlus.Views.DiscoverPage"
              BackgroundColor="{StaticResource EmBackground}">
 
-    <Grid RowDefinitions="Auto,*">
-        <!-- No title: the page is a grid of destinations and nothing said what the page was. The row
-             stays for the spinner, which is the only feedback the multi result tiles give while they
-             are fetching. -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,12,16,4" ColumnSpacing="12">
-            <ActivityIndicator x:Name="HeaderSpinner" Grid.Column="1" Color="#0066FF"
-                               WidthRequest="22" HeightRequest="22" IsRunning="False" />
-        </Grid>
-
-        <ScrollView Grid.Row="1">
-            <!-- The bottom inset clears the navigation bar, which floats over this scroll rather
-                 than taking a row of its own. -->
-            <VerticalStackLayout Padding="12,8,12,96">
+    <Grid>
+        <ScrollView>
+            <!-- Content fills from the top edge with generous vertical spacing between button rows to cover the screen.
+                 The bottom inset clears the floating navigation bar. -->
+            <VerticalStackLayout Padding="10,4,10,96">
                 <!-- The buttons are the capsules from the artwork, blue canvas already erased. Six
                      explicit Auto rows on purpose: without them every tile placed at Grid.Row 1 or
                      lower falls outside the row collection and silently does not draw. -->
                 <Grid x:Name="TileGrid"
                       ColumnDefinitions="*,*"
                       RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
-                      ColumnSpacing="10" RowSpacing="16">
+                      ColumnSpacing="12" RowSpacing="22">
                     <controls:DiscoverTileButton Grid.Row="0" Grid.Column="0"
                                                  Source="discover_btn_search"
                                                  AutomationId="DiscoverSearch" SemanticProperties.Description="Search"
@@ -78,6 +70,12 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <controls:BottomNavBar x:Name="BottomNav" Grid.Row="1" VerticalOptions="End" />
+        <!-- Floating ActivityIndicator in top-right corner, non-blocking touch target -->
+        <ActivityIndicator x:Name="HeaderSpinner" Color="#0066FF"
+                           WidthRequest="22" HeightRequest="22" IsRunning="False"
+                           HorizontalOptions="End" VerticalOptions="Start"
+                           Margin="0,8,16,0" ZIndex="10" InputTransparent="True" />
+
+        <controls:BottomNavBar x:Name="BottomNav" VerticalOptions="End" />
     </Grid>
 </ContentPage>
