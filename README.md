@@ -54,7 +54,7 @@ You can download the latest installable APK directly from the **[Releases](https
 
 1. Download `com.idarkalex.malplus.apk` from the latest release.
 2. Open the downloaded file on your Android device (ensure *"Install unknown apps"* permission is granted).
-3. Sign in with your MyAnimeList account (or explore publicly without an account).
+3. Sign in with your MyAnimeList account to sync your library and access all features.
 
 ---
 
