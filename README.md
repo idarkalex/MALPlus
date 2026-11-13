@@ -36,7 +36,9 @@
 ## 📱 Preview & Screenshots
 
 <p align="center">
-  <img src="images/android-preview.png" alt="MAL+ Screenshots" width="85%" />
+  <img src="images/preview-library.png" alt="Library View" width="330px" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="images/preview-details.png" alt="Anime Details Hero" width="330px" />
 </p>
 
 ---
