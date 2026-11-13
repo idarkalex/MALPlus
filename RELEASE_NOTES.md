@@ -1,8 +1,7 @@
-# MAL+ v0.7.3 (Beta)
-
-Pre-bundled studio icons for instant loading, in-app updater progress enhancements, and performance optimizations.
+Seamless in-app updates, instant studio search, profile dashboard, and UI performance optimizations.
 
 ### Highlights
-- **Instant Studios Icons**: Pre-bundled 614 anime studio logos directly into the app package as lightweight WebP thumbnails (~540 KB total) so the Studios tab loads instantly with zero network delay and no 429 rate limits.
-- **In-App Updater Enhancements**: Live download progress bar and status indicator inside the update dialog, seamless installation resume after granting unknown app install permissions, and download concurrency locks.
-- **Performance & Fluidity**: Zero-allocation scroll warming in poster grids, static color palette caching across popups and menus to reduce GC pressure, and memoized disk cache paths.
+- **In-App Updater Overhaul**: Native APK download with live in-dialog progress bar, automatic resume after granting install permissions, and APK cache reuse.
+- **Instant Studios Icons**: 614 anime studio logos pre-bundled in lightweight WebP format (~540 KB) for instant offline loading with zero network delay and no 429 rate limits.
+- **Profile Experience**: Redesigned modern stats dashboard with vibrant status indicators, dedicated History tab, reactive Friends list, and cleaner layout.
+- **Performance & Fluidity**: Zero-allocation poster scroll warming, static color palette caching across popups and menus to eliminate GC pauses, and memoized disk cache paths.
