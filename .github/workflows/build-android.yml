@@ -35,7 +35,6 @@ jobs:
         with:
           # .NET 11 for Android is still an RC, so the preview channel is required.
           dotnet-version: 11.0.x
-          allow-prerelease: true
 
       - name: Install MAUI Android workload
         shell: pwsh
@@ -67,15 +66,28 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "SDK cache hit: ${{ steps.cache-sdk.outputs.cache-hit }}"
-          $sdk = "C:\Program Files (x86)\Android\android-sdk"
-           # android-37 is still preview-only, hence --channel=1.
-           $required = @("platforms\android-37", "build-tools\36.0.0")
+          $sdk = $env:ANDROID_HOME
+          if (-not $sdk) { $sdk = "C:\Program Files (x86)\Android\android-sdk" }
+          # android-37 is still preview-only, hence --channel=1.
+          $required = @("platforms\android-37", "build-tools\36.0.0")
           $missing = $required | Where-Object { -not (Test-Path (Join-Path $sdk $_)) }
           if (-not $missing) {
             Write-Host "Android platforms already present, skipping install"
           } else {
-            $sdkmanager = Get-ChildItem -Path $sdk -Recurse -Filter "sdkmanager.bat" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+            $candidates = @(
+              "$sdk\cmdline-tools\latest\bin\sdkmanager.bat",
+              "$sdk\cmdline-tools\12.0\bin\sdkmanager.bat",
+              "$sdk\cmdline-tools\11.0\bin\sdkmanager.bat",
+              "$sdk\cmdline-tools\8.0\bin\sdkmanager.bat",
+              "$sdk\tools\bin\sdkmanager.bat"
+            )
+            $sdkmanager = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
             if (-not $sdkmanager) {
+              $found = Get-ChildItem -Path "$sdk\cmdline-tools" -Filter "sdkmanager.bat" -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($found) { $sdkmanager = $found.FullName }
+            }
+            if (-not $sdkmanager) {
+              Write-Host "Downloading command-line tools..."
               if (-not (Test-Path $sdk)) { New-Item -ItemType Directory -Path $sdk -Force | Out-Null }
               $zip = "$env:TEMP\cmdtools.zip"
               Invoke-WebRequest -Uri "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip" -OutFile $zip -UseBasicParsing
@@ -86,10 +98,13 @@ jobs:
               Copy-Item "$tmp\cmdline-tools\*" "$sdk\cmdline-tools\latest" -Recurse -Force
               $sdkmanager = "$sdk\cmdline-tools\latest\bin\sdkmanager.bat"
             }
-            Write-Host "Using sdkmanager: $($sdkmanager.FullName)"
-            "y" | & $sdkmanager.FullName --licenses 2>&1 | Out-Null
-             & $sdkmanager.FullName --install "platforms;android-37" "build-tools;36.0.0" --channel=1 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "sdkmanager install failed" }
+            Write-Host "Using sdkmanager: $sdkmanager"
+            $y = 1..30 | ForEach-Object { "y" }
+            Write-Host "Accepting licenses..."
+            $y | & $sdkmanager --licenses 2>&1 | Out-Null
+            Write-Host "Installing packages..."
+            $y | & $sdkmanager --channel=1 --install "platforms;android-37" "build-tools;36.0.0"
+            if ($LASTEXITCODE -ne 0) { throw "sdkmanager install failed with exit code $LASTEXITCODE" }
             Write-Host "Installed platforms:"
             Get-ChildItem "$sdk\platforms" -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
           }
@@ -130,12 +145,15 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          # .NET 11 for Android needs JDK 21, and the patch level that setup-java installs
-          # changes over time, so the directory is resolved instead of hardcoded.
-          $jdk = Get-ChildItem "C:\Program Files (x86)\Android\openjdk" -Directory -ErrorAction SilentlyContinue |
-                 Where-Object { $_.Name -like "jdk-21*" } | Select-Object -First 1
-          if (-not $jdk) { throw "No JDK 21 found under the Android openjdk directory" }
-          $jdkPath = $jdk.FullName
+          # .NET 11 for Android needs JDK 21. setup-java sets $env:JAVA_HOME;
+          # fall back to local Android openjdk directory if running locally.
+          $jdkPath = $env:JAVA_HOME
+          if (-not $jdkPath -or -not (Test-Path $jdkPath)) {
+            $jdk = Get-ChildItem "C:\Program Files (x86)\Android\openjdk" -Directory -ErrorAction SilentlyContinue |
+                   Where-Object { $_.Name -like "jdk-21*" } | Select-Object -First 1
+            if ($jdk) { $jdkPath = $jdk.FullName }
+          }
+          if (-not $jdkPath) { throw "No JDK 21 found" }
           Write-Host "Using JDK: $jdkPath"
           $buildArgs = @(
             "MALPlus\MALPlus.csproj",
