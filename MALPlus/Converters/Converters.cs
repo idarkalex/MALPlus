@@ -17,6 +17,8 @@ public class StringToImageSourceConverter : IValueConverter
     // Poster variant already on disk, so the decoded copy does not have to survive the view.
     private static readonly ConcurrentDictionary<string, FileImageSource> LocalSources = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, byte> DownloadStarted = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, string> UrlToPath = new(StringComparer.Ordinal);
+    private static readonly Lazy<string> CacheDir = new(() => FileSystem.CacheDirectory);
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
@@ -28,7 +30,8 @@ public class StringToImageSourceConverter : IValueConverter
 
         // With a stable cache name the file can already be on disk from a previous
         // session, so serve it immediately instead of going back to the network.
-        var path = Path.Combine(FileSystem.CacheDirectory, CacheFileFor(url));
+        // Cache path calculation is memoized to avoid JNI calls to FileSystem and repeated SHA1 hashing.
+        var path = UrlToPath.GetOrAdd(url, static u => Path.Combine(CacheDir.Value, CacheFileFor(u)));
         if (File.Exists(path))
         {
             var cached = new FileImageSource { File = path };
@@ -145,15 +148,6 @@ public class BoolToVisibilityConverter : IValueConverter
             {
                 if (parameter is string param && param == "nonempty")
                     return !string.IsNullOrWhiteSpace(s);
-                if (parameter is string param2 && param2 == "hasitems")
-                {
-                    if (value is System.Collections.IEnumerable list)
-                    {
-                        foreach (var _ in list)
-                            return true;
-                    }
-                    return false;
-                }
                 if (parameter is string param3 && param3 == "longtext")
                     return s.Length > 200;
                 if (parameter is string param4 && param4 == "spoiler")
@@ -161,6 +155,19 @@ public class BoolToVisibilityConverter : IValueConverter
                 if (parameter is string param5 && param5 == "voice")
                     return s.Contains("voice", StringComparison.OrdinalIgnoreCase) || s.Contains("seiyuu", StringComparison.OrdinalIgnoreCase) || s.Contains("voice actor", StringComparison.OrdinalIgnoreCase) || s.Contains("seiyu", StringComparison.OrdinalIgnoreCase);
                 return !string.IsNullOrEmpty(s);
+            }
+            if (parameter is string paramHasItems && paramHasItems == "hasitems")
+            {
+                if (value is int itemCount)
+                    return itemCount > 0;
+                if (value is System.Collections.ICollection col)
+                    return col.Count > 0;
+                if (value is System.Collections.IEnumerable list)
+                {
+                    foreach (var _ in list)
+                        return true;
+                }
+                return false;
             }
             if (value is bool b)
             {
@@ -170,8 +177,6 @@ public class BoolToVisibilityConverter : IValueConverter
             }
             if (value is int count)
             {
-                if (parameter is string param && param == "hasitems")
-                    return count > 0;
                 return count != 0;
             }
             if (value is System.Enum en)

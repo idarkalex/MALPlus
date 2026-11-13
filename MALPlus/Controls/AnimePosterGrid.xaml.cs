@@ -113,17 +113,40 @@ public partial class AnimePosterGrid : ContentView
 
         // Only anime air. A manga card is skipped outright rather than queued behind the gate for
         // a lookup that can never return anything.
-        var pending = source.Cast<object>()
-            .OfType<AnimeItemViewModel>()
-            .Where(item => item.ParentAbstraction != null && item.ParentAbstraction.RepresentsAnime)
-            .ToList();
-        if (pending.Count == 0)
-            return;
+        // We iterate only the active window [ _airWarmed .. target ] directly instead of filtering
+        // and allocating a new List of the entire collection on every scroll frame.
+        if (source is IList list)
+        {
+            var count = list.Count;
+            if (count == 0 || _airWarmed >= count)
+                return;
 
-        var target = Math.Min(pending.Count, _airWarmed + AirWarmWindow);
-        for (var i = _airWarmed; i < target; i++)
-            pending[i].RefreshTimeTillNextAirInBackground();
-        _airWarmed = target;
+            var target = Math.Min(count, _airWarmed + AirWarmWindow);
+            for (var i = _airWarmed; i < target; i++)
+            {
+                if (list[i] is AnimeItemViewModel item && item.ParentAbstraction?.RepresentsAnime == true)
+                    item.RefreshTimeTillNextAirInBackground();
+            }
+            _airWarmed = target;
+        }
+        else
+        {
+            int index = 0;
+            int warmed = _airWarmed;
+            int target = warmed + AirWarmWindow;
+            foreach (var obj in source)
+            {
+                if (index >= target)
+                    break;
+                if (index >= warmed)
+                {
+                    if (obj is AnimeItemViewModel item && item.ParentAbstraction?.RepresentsAnime == true)
+                        item.RefreshTimeTillNextAirInBackground();
+                }
+                index++;
+            }
+            _airWarmed = Math.Min(index, target);
+        }
     }
 
     /// <summary>
@@ -315,6 +338,7 @@ public partial class AnimePosterGrid : ContentView
         // The empty state has to be correct even before the control has a width, otherwise a grid
         // that never gets sized would stay hidden forever.
         var count = (ItemsView.ItemsSource as ICollection)?.Count
+                    ?? (ItemsView.ItemsSource as IList)?.Count
                     ?? (ItemsView.ItemsSource as IEnumerable)?.Cast<object>().Count()
                     ?? 0;
         IsEmpty = count == 0;

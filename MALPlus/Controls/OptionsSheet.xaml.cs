@@ -5,6 +5,41 @@ namespace MALPlus.Controls;
 
 public partial class OptionsSheet : ContentView
 {
+    // ── Cached colours / shapes ──────────────────────────────────────────────
+    // These are instantiated once and reused across every BuildRow() call.
+    // Before this, Color.FromArgb() was called for EVERY row on EVERY menu open,
+    // allocating dozens of short-lived objects per interaction and pressuring the GC.
+    private static readonly Color _colorSheet        = Color.FromArgb("#0A1F2E");
+    private static readonly Color _colorDestructive  = Color.FromArgb("#F87171");
+    private static readonly Color _colorMuted        = Color.FromArgb("#8FA8C0");
+    private static readonly Color _colorBorder       = Color.FromArgb("#29FFFFFF");
+    private static readonly Color _colorBackChip     = Color.FromArgb("#1A94A3B8");
+    private static readonly Color _colorNoteHint     = Color.FromArgb("#66FFFFFF");
+    private static readonly Color _colorConfirmOk    = Color.FromArgb("#0066FF");
+    private static readonly Color _colorConfirmBg    = Color.FromArgb("#0A1F2E");
+    private static readonly Color _colorUpdateNotes  = Color.FromArgb("#0A1F2E");
+    private static readonly Color _colorUpdateStroke = Color.FromArgb("#1E3A52");
+    private static readonly Color _colorUpdateText   = Color.FromArgb("#D4E4F7");
+    private static readonly Color _colorUpdateOk     = Color.FromArgb("#0066FF");
+    private static readonly Color _colorUpdateCancel = Color.FromArgb("#14293D");
+    private static readonly Color _colorUpdateCancelText = Color.FromArgb("#8FA8C0");
+    private static readonly Color _colorPromptBorder = Color.FromArgb("#1F94A3B8");
+    private static readonly Color _colorError        = Color.FromArgb("#FF5555");
+
+    // Chip tint cache: computed once per icon string rather than on every row build.
+    private static readonly Dictionary<string, Color> _chipTintCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Color _chipTintForum     = Color.FromArgb("#1A60A5FA");
+    private static readonly Color _chipTintVideo     = Color.FromArgb("#1AC084FC");
+    private static readonly Color _chipTintTag       = Color.FromArgb("#1A2DD4BF");
+    private static readonly Color _chipTintScore     = Color.FromArgb("#1AFBBF24");
+    private static readonly Color _chipTintEpisodes  = Color.FromArgb("#1A818CF8");
+    private static readonly Color _chipTintPriority  = Color.FromArgb("#1A38BDF8");
+    private static readonly Color _chipTintStatus    = Color.FromArgb("#1A34D399");
+    private static readonly Color _chipTintBrowser   = Color.FromArgb("#1A38BDF8");
+    private static readonly Color _chipTintCopy      = Color.FromArgb("#1A94A3B8");
+    private static readonly Color _chipTintDestructive = Color.FromArgb("#26F87171");
+    private static readonly Color _chipTintDefault   = Color.FromArgb("#1A0066FF");
+    // ── End cached colours / shapes ─────────────────────────────────────────
     /// <summary>Raised after a row is chosen, with that row.</summary>
     public event EventHandler<OptionsSheetItem> ItemChosen;
 
@@ -115,7 +150,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     FontSize = 15,
                     TextColor = Colors.White,
                     Placeholder = hint ?? string.Empty,
-                    PlaceholderColor = Color.FromArgb("#66FFFFFF"),
+                    PlaceholderColor = _colorNoteHint,
                     BackgroundColor = Colors.Transparent,
                     HeightRequest = 150
                 };
@@ -134,7 +169,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     FontSize = 15,
                     TextColor = Colors.White,
                     Placeholder = hint ?? string.Empty,
-                    PlaceholderColor = Color.FromArgb("#66FFFFFF"),
+                    PlaceholderColor = _colorNoteHint,
                     BackgroundColor = Colors.Transparent,
                     ClearButtonVisibility = ClearButtonVisibility.Never
                 };
@@ -142,11 +177,11 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
 
             var entry = new Border
             {
-                BackgroundColor = Color.FromArgb("#0A1F2E"),
+                BackgroundColor = _colorSheet,
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
                 Padding = new Thickness(12, multiline ? 8 : 0),
                 HeightRequest = multiline ? 150 : 48,
-                Stroke = Color.FromArgb("#1F94A3B8"),
+                Stroke = _colorPromptBorder,
                 StrokeThickness = 1
             };
             entry.Content = field;
@@ -255,11 +290,11 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 // a 12dp gap in there costs 44 of it. That is why "I'm sure" was cut at "I'm sur":
                 // the label had no room left. Here the label fills the button and is centred, and the
                 // accent carries the answer rather than a block of colour.
-                var labelColor = danger ? Color.FromArgb("#F87171") : commit ? Color.FromArgb("#0066FF") : Colors.White;
+                var labelColor = danger ? _colorDestructive : commit ? _colorConfirmOk : Colors.White;
 
                 var border = new Border
                 {
-                    BackgroundColor = Color.FromArgb("#0A1F2E"),
+                    BackgroundColor = _colorConfirmBg,
                     StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
                     Padding = new Thickness(12, 0),
                     HeightRequest = 48,
@@ -368,8 +403,8 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             {
                 var notesBorder = new Border
                 {
-                    BackgroundColor = Color.FromArgb("#0A1F2E"),
-                    Stroke = Color.FromArgb("#1E3A52"),
+                    BackgroundColor = _colorUpdateNotes,
+                    Stroke = _colorUpdateStroke,
                     StrokeThickness = 1,
                     StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
                     Padding = new Thickness(12, 10),
@@ -384,7 +419,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                         Text = notes,
                         FontFamily = "Inter",
                         FontSize = 12,
-                        TextColor = Color.FromArgb("#D4E4F7"),
+                        TextColor = _colorUpdateText,
                         LineBreakMode = LineBreakMode.WordWrap
                     }
                 };
@@ -394,10 +429,10 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
 
             Border MakeButton(string label, bool commit, bool cancels)
             {
-                var labelColor = commit ? Colors.White : Color.FromArgb("#8FA8C0");
+                var labelColor = commit ? Colors.White : _colorUpdateCancelText;
                 var border = new Border
                 {
-                    BackgroundColor = commit ? Color.FromArgb("#0066FF") : Color.FromArgb("#14293D"),
+                    BackgroundColor = commit ? _colorUpdateOk : _colorUpdateCancel,
                     StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
                     Padding = new Thickness(10, 0),
                     HeightRequest = 44,
@@ -446,7 +481,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                             var spinner = new ActivityIndicator
                             {
                                 IsRunning = true,
-                                Color = Color.FromArgb("#0066FF"),
+                                Color = _colorUpdateOk,
                                 HeightRequest = 32,
                                 WidthRequest = 32,
                                 HorizontalOptions = LayoutOptions.Center
@@ -455,8 +490,8 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                             var progressBar = new ProgressBar
                             {
                                 Progress = 0,
-                                ProgressColor = Color.FromArgb("#0066FF"),
-                                BackgroundColor = Color.FromArgb("#14293D"),
+                                ProgressColor = _colorUpdateOk,
+                                BackgroundColor = _colorUpdateCancel,
                                 HeightRequest = 8,
                                 HorizontalOptions = LayoutOptions.Fill
                             };
@@ -466,7 +501,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                                 Text = "Connecting to server...",
                                 FontFamily = "InterMedium",
                                 FontSize = 12,
-                                TextColor = Color.FromArgb("#8FA8C0"),
+                                TextColor = _colorUpdateCancelText,
                                 HorizontalTextAlignment = TextAlignment.Center
                             };
 
@@ -509,7 +544,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                                         spinner.IsVisible = false;
                                         progressBar.IsVisible = false;
                                         statusLabel.Text = $"Download failed: {ex.Message}";
-                                        statusLabel.TextColor = Color.FromArgb("#FF5555");
+                                        statusLabel.TextColor = _colorError;
                                         CloseButton.IsVisible = true;
 
                                         var closeBtn = MakeButton("Close", false, true);
@@ -602,7 +637,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         // A hairline so the card reads as a surface rather than as a slightly different patch of the
         // background. #29FFFFFF is the same weight the chips and the details action bar use; EmBorder
         // (#1E3A52) is the theme's own line and is too close to the fill to separate anything.
-        Panel.Stroke = Color.FromArgb("#29FFFFFF");
+        Panel.Stroke = _colorBorder;
         Panel.StrokeThickness = 1;
 
         RowsScroll.MaximumHeightRequest = 520;
@@ -682,7 +717,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             {
                 var back = new Border
                 {
-                    BackgroundColor = Color.FromArgb("#0A1F2E"),
+                    BackgroundColor = _colorSheet,
                     StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
                     Padding = new Thickness(12, 0),
                     HeightRequest = 48
@@ -693,7 +728,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     WidthRequest = 32,
                     HeightRequest = 32,
                     StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
-                    BackgroundColor = Color.FromArgb("#1A94A3B8"),
+                    BackgroundColor = _colorBackChip,
                     Padding = new Thickness(0)
                 };
                 backChip.Content = new Image
@@ -712,7 +747,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     Text = "Back",
                     FontFamily = "InterMedium",
                     FontSize = 15,
-                    TextColor = Color.FromArgb("#8FA8C0"),
+                    TextColor = _colorMuted,
                     VerticalOptions = LayoutOptions.Center
                 });
                 back.Content = backContent;
@@ -757,12 +792,9 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     /// </summary>
     private View BuildRow(OptionsSheetItem item)
     {
-        var sheet = Color.FromArgb("#0A1F2E");
-        var destructive = Color.FromArgb("#F87171");
-
         var border = new Border
         {
-            BackgroundColor = sheet,
+            BackgroundColor = _colorSheet,
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
             Padding = new Thickness(12, 0),
             HeightRequest = 48
@@ -805,7 +837,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             // Semibold on the destructive row, medium on the rest, matching the mockup.
             FontFamily = item.Destructive ? "InterSemiBold" : "InterMedium",
             FontSize = 15,
-            TextColor = item.Destructive ? destructive : Colors.White,
+            TextColor = item.Destructive ? _colorDestructive : Colors.White,
             VerticalOptions = LayoutOptions.Center
         });
         grid.Add(rowContent);
@@ -817,7 +849,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 Text = item.Value,
                 FontFamily = "InterMedium",
                 FontSize = 11,
-                TextColor = Color.FromArgb("#8FA8C0"),
+                TextColor = _colorMuted,
                 VerticalOptions = LayoutOptions.Center
             };
             Grid.SetColumn(value, 1);
@@ -857,32 +889,40 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     private static Color ChipTint(OptionsSheetItem item)
     {
         if (item.Destructive)
-            return Color.FromArgb("#26F87171");
+            return _chipTintDestructive;
         var icon = item.Icon ?? "";
+        if (icon.Length == 0)
+            return _chipTintDefault;
+        if (_chipTintCache.TryGetValue(icon, out var cached))
+            return cached;
+        Color result;
         if (icon.Contains("forum", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1A60A5FA");
-        if (icon.Contains("video", StringComparison.OrdinalIgnoreCase) ||
+            result = _chipTintForum;
+        else if (icon.Contains("video", StringComparison.OrdinalIgnoreCase) ||
             icon.Contains("play", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1AC084FC");
-        if (icon.Contains("tag", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1A2DD4BF");
-        if (icon.Contains("score", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1AFBBF24");
-        if (icon.Contains("episodes", StringComparison.OrdinalIgnoreCase) ||
+            result = _chipTintVideo;
+        else if (icon.Contains("tag", StringComparison.OrdinalIgnoreCase))
+            result = _chipTintTag;
+        else if (icon.Contains("score", StringComparison.OrdinalIgnoreCase))
+            result = _chipTintScore;
+        else if (icon.Contains("episodes", StringComparison.OrdinalIgnoreCase) ||
             icon.Contains("watched", StringComparison.OrdinalIgnoreCase) ||
             icon.Contains("read", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1A818CF8");
-        if (icon.Contains("priority", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1A38BDF8");
-        if (icon.Contains("status", StringComparison.OrdinalIgnoreCase) ||
+            result = _chipTintEpisodes;
+        else if (icon.Contains("priority", StringComparison.OrdinalIgnoreCase))
+            result = _chipTintPriority;
+        else if (icon.Contains("status", StringComparison.OrdinalIgnoreCase) ||
             icon.Contains("list", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1A34D399");
-        if (icon.Contains("browser", StringComparison.OrdinalIgnoreCase) ||
+            result = _chipTintStatus;
+        else if (icon.Contains("browser", StringComparison.OrdinalIgnoreCase) ||
             icon.Contains("search", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1A38BDF8");
-        if (icon.Contains("copy", StringComparison.OrdinalIgnoreCase))
-            return Color.FromArgb("#1A94A3B8");
-        return Color.FromArgb("#1A0066FF");
+            result = _chipTintBrowser;
+        else if (icon.Contains("copy", StringComparison.OrdinalIgnoreCase))
+            result = _chipTintCopy;
+        else
+            result = _chipTintDefault;
+        _chipTintCache[icon] = result;
+        return result;
     }
 
     private void Choose(OptionsSheetItem item)
