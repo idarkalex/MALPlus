@@ -13,6 +13,8 @@ namespace MALPlus.Services;
 public static class AppUpdateService
 {
     private static DateTime? _lastStartupCheckUtc;
+    private static readonly SemaphoreSlim _downloadLock = new(1, 1);
+    private static string _pendingInstallApkPath;
 
     public static async Task CheckStartupUpdateAsync()
     {
@@ -93,15 +95,13 @@ public static class AppUpdateService
 
     private static async Task PromptUpdateAsync(AppUpdateInfo info)
     {
-        var shouldUpdate = await OptionsSheetHost.ShowUpdateAsync(info);
-        if (shouldUpdate && !string.IsNullOrWhiteSpace(info.DownloadUrl))
+        if (info == null || string.IsNullOrWhiteSpace(info.DownloadUrl))
+            return;
+
+        if (!info.DownloadUrl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
         {
-            AppLog.Info("Update", $"User confirmed update to v{info.Version}. URL: {info.DownloadUrl}");
-            if (info.DownloadUrl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
-            {
-                await DownloadAndInstallApkAsync(info.DownloadUrl, info.Version);
-            }
-            else
+            var shouldUpdate = await OptionsSheetHost.ShowUpdateAsync(info);
+            if (shouldUpdate)
             {
                 try
                 {
@@ -112,73 +112,110 @@ public static class AppUpdateService
                     AppLog.Error("Update", $"Failed to launch update URL: {ex.Message}", ex);
                 }
             }
+            return;
         }
+
+        AppLog.Info("Update", $"Showing update prompt for v{info.Version}. URL: {info.DownloadUrl}");
+        await OptionsSheetHost.ShowUpdateAsync(info, async (reportProgress) =>
+        {
+            return await DownloadAndInstallApkAsync(info.DownloadUrl, info.Version, reportProgress);
+        });
     }
 
-    private static async Task DownloadAndInstallApkAsync(string downloadUrl, string version)
+    private static async Task<bool> DownloadAndInstallApkAsync(
+        string downloadUrl,
+        string version,
+        Action<double, string> onProgress = null)
     {
+        if (!await _downloadLock.WaitAsync(0))
+        {
+            AppLog.Warn("Update", "A download is already in progress, ignoring duplicate request.");
+            return false;
+        }
+
         try
         {
-#if ANDROID
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                Android.Widget.Toast.MakeText(
-                    Android.App.Application.Context,
-                    $"Downloading MAL+ v{version}...",
-                    Android.Widget.ToastLength.Long)?.Show();
-            });
-#endif
-
             var cacheDir = FileSystem.CacheDirectory;
             var apkPath = Path.Combine(cacheDir, $"malplus_{version}.apk");
 
             if (File.Exists(apkPath))
             {
+                var existingLength = new FileInfo(apkPath).Length;
+                if (existingLength > 20 * 1024 * 1024)
+                {
+                    AppLog.Info("Update", $"Found complete valid APK at {apkPath} ({existingLength:N0} bytes), installing directly.");
+                    onProgress?.Invoke(1.0, "Ready to install. Starting installer...");
+                    await Task.Delay(350);
+#if ANDROID
+                    InstallApk(apkPath);
+#else
+                    await Launcher.Default.OpenAsync(new Uri(downloadUrl));
+#endif
+                    return true;
+                }
                 try { File.Delete(apkPath); } catch { }
             }
+
+            onProgress?.Invoke(0.0, "Connecting to GitHub Releases...");
+            AppLog.Info("Update", $"Starting download: {downloadUrl} -> {apkPath}");
 
             using var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MALPlus-Android");
             using var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
 
+            var totalBytes = response.Content.Headers.ContentLength;
             await using (var stream = await response.Content.ReadAsStreamAsync())
             await using (var fileStream = new FileStream(apkPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                await stream.CopyToAsync(fileStream);
+                var buffer = new byte[81920];
+                long totalRead = 0;
+                int read;
+                var lastReport = DateTime.UtcNow;
+
+                while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer, 0, read);
+                    totalRead += read;
+
+                    if ((DateTime.UtcNow - lastReport).TotalMilliseconds >= 200)
+                    {
+                        lastReport = DateTime.UtcNow;
+                        if (totalBytes.HasValue && totalBytes.Value > 0)
+                        {
+                            var fraction = (double)totalRead / totalBytes.Value;
+                            var mbRead = totalRead / (1024.0 * 1024.0);
+                            var mbTotal = totalBytes.Value / (1024.0 * 1024.0);
+                            onProgress?.Invoke(fraction, $"{mbRead:F1} / {mbTotal:F1} MB ({(int)(fraction * 100)}%)");
+                        }
+                        else
+                        {
+                            var mbRead = totalRead / (1024.0 * 1024.0);
+                            onProgress?.Invoke(-1, $"{mbRead:F1} MB downloaded");
+                        }
+                    }
+                }
             }
 
-#if ANDROID
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                Android.Widget.Toast.MakeText(
-                    Android.App.Application.Context,
-                    "Download finished. Starting installer...",
-                    Android.Widget.ToastLength.Short)?.Show();
-            });
+            AppLog.Info("Update", $"Download completed successfully ({new FileInfo(apkPath).Length:N0} bytes).");
+            onProgress?.Invoke(1.0, "Download finished. Starting installer...");
+            await Task.Delay(300);
 
+#if ANDROID
             InstallApk(apkPath);
 #else
             await Launcher.Default.OpenAsync(new Uri(downloadUrl));
 #endif
+            return true;
         }
         catch (Exception ex)
         {
-            AppLog.Error("Update", "DownloadAndInstallApkAsync failed, opening browser fallback", ex);
-#if ANDROID
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                Android.Widget.Toast.MakeText(
-                    Android.App.Application.Context,
-                    $"Download failed: {ex.Message}. Opening browser...",
-                    Android.Widget.ToastLength.Long)?.Show();
-            });
-#endif
-            try
-            {
-                await Launcher.Default.OpenAsync(new Uri(downloadUrl));
-            }
-            catch { }
+            AppLog.Error("Update", "DownloadAndInstallApkAsync failed", ex);
+            throw;
+        }
+        finally
+        {
+            _downloadLock.Release();
         }
     }
 
@@ -210,7 +247,18 @@ public static class AppUpdateService
             {
                 if (!context.PackageManager.CanRequestPackageInstalls())
                 {
-                    AppLog.Warn("Update", "CanRequestPackageInstalls is false, opening settings for unknown app sources");
+                    AppLog.Warn("Update", "CanRequestPackageInstalls is false, saving pending path and opening settings for unknown app sources");
+                    _pendingInstallApkPath = apkPath;
+                    Preferences.Default.Set("pending_update_apk_path", apkPath);
+
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        Android.Widget.Toast.MakeText(
+                            context,
+                            "Please allow MAL+ to install updates, then return to the app.",
+                            Android.Widget.ToastLength.Long)?.Show();
+                    });
+
                     var settingsIntent = new Android.Content.Intent(Android.Provider.Settings.ActionManageUnknownAppSources);
                     settingsIntent.SetData(Android.Net.Uri.Parse($"package:{context.PackageName}"));
                     settingsIntent.AddFlags(Android.Content.ActivityFlags.NewTask);
@@ -219,11 +267,48 @@ public static class AppUpdateService
                 }
             }
 
+            AppLog.Info("Update", $"Starting package installer intent for {uri}...");
+            _pendingInstallApkPath = null;
+            Preferences.Default.Remove("pending_update_apk_path");
             context.StartActivity(intent);
         }
         catch (Exception ex)
         {
             AppLog.Error("Update", "InstallApk failed", ex);
+        }
+    }
+
+    public static void ResumePendingInstallIfAny()
+    {
+        try
+        {
+            var pendingPath = _pendingInstallApkPath;
+            if (string.IsNullOrEmpty(pendingPath))
+            {
+                pendingPath = Preferences.Default.Get("pending_update_apk_path", string.Empty);
+            }
+
+            if (string.IsNullOrEmpty(pendingPath) || !File.Exists(pendingPath))
+                return;
+
+            var context = Android.App.Application.Context;
+            if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.O)
+            {
+                if (!context.PackageManager.CanRequestPackageInstalls())
+                {
+                    AppLog.Debug("Update", "ResumePendingInstall: CanRequestPackageInstalls is still false.");
+                    return;
+                }
+            }
+
+            AppLog.Info("Update", $"ResumePendingInstall: Permission granted! Resuming pending install for {pendingPath}");
+            _pendingInstallApkPath = null;
+            Preferences.Default.Remove("pending_update_apk_path");
+            InstallApk(pendingPath);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Update", "ResumePendingInstallIfAny failed", ex);
         }
     }
 #endif

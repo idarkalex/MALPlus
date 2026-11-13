@@ -336,7 +336,9 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     }
 
     public void OpenUpdate(string title, string subtitle, string notes, string okLabel, string cancelLabel,
-        Action onConfirm = null)
+        Func<Action<double, string>, Task<bool>> onPerformUpdate = null,
+        Action onConfirm = null,
+        Action onCancel = null)
     {
         try
         {
@@ -421,6 +423,105 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     if (cancels)
                     {
                         Dismiss();
+                        onCancel?.Invoke();
+                    }
+                    else if (onPerformUpdate != null)
+                    {
+                        try
+                        {
+                            ItemsHost.Clear();
+                            Header.IsVisible = true;
+                            CloseButton.IsVisible = false;
+                            TitleLabel.Text = title ?? "Updating MAL+";
+                            SubtitleLabel.Text = "Downloading update package...";
+                            SubtitleLabel.IsVisible = true;
+
+                            var progressStack = new VerticalStackLayout
+                            {
+                                Spacing = 10,
+                                Padding = new Thickness(4, 12, 4, 12),
+                                HorizontalOptions = LayoutOptions.Fill
+                            };
+
+                            var spinner = new ActivityIndicator
+                            {
+                                IsRunning = true,
+                                Color = Color.FromArgb("#0066FF"),
+                                HeightRequest = 32,
+                                WidthRequest = 32,
+                                HorizontalOptions = LayoutOptions.Center
+                            };
+
+                            var progressBar = new ProgressBar
+                            {
+                                Progress = 0,
+                                ProgressColor = Color.FromArgb("#0066FF"),
+                                BackgroundColor = Color.FromArgb("#14293D"),
+                                HeightRequest = 8,
+                                HorizontalOptions = LayoutOptions.Fill
+                            };
+
+                            var statusLabel = new Label
+                            {
+                                Text = "Connecting to server...",
+                                FontFamily = "InterMedium",
+                                FontSize = 12,
+                                TextColor = Color.FromArgb("#8FA8C0"),
+                                HorizontalTextAlignment = TextAlignment.Center
+                            };
+
+                            progressStack.Add(spinner);
+                            progressStack.Add(progressBar);
+                            progressStack.Add(statusLabel);
+                            ItemsHost.Add(progressStack);
+
+                            Action<double, string> reportProgress = (fraction, status) =>
+                            {
+                                MainThread.BeginInvokeOnMainThread(() =>
+                                {
+                                    if (fraction >= 0)
+                                        progressBar.Progress = Math.Clamp(fraction, 0.0, 1.0);
+                                    if (!string.IsNullOrWhiteSpace(status))
+                                        statusLabel.Text = status;
+                                });
+                            };
+
+                            Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    var success = await onPerformUpdate(reportProgress);
+                                    if (success)
+                                    {
+                                        MainThread.BeginInvokeOnMainThread(() =>
+                                        {
+                                            ClosingByChoice = true;
+                                            Dismiss();
+                                            ClosingByChoice = false;
+                                        });
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    MainThread.BeginInvokeOnMainThread(() =>
+                                    {
+                                        spinner.IsRunning = false;
+                                        spinner.IsVisible = false;
+                                        progressBar.IsVisible = false;
+                                        statusLabel.Text = $"Download failed: {ex.Message}";
+                                        statusLabel.TextColor = Color.FromArgb("#FF5555");
+                                        CloseButton.IsVisible = true;
+
+                                        var closeBtn = MakeButton("Close", false, true);
+                                        ItemsHost.Add(closeBtn);
+                                    });
+                                }
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("MALPLUS OpenUpdate download transition failed: " + ex.Message);
+                        }
                     }
                     else
                     {

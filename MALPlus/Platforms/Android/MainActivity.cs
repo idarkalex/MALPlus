@@ -158,6 +158,12 @@ public class MainActivity : MauiAppCompatActivity
     ///     what the policy wants, which is what keeps this from looping against itself: assigning
     ///     RequestedOrientation raises a configuration change even when the value does not move.
     /// </remarks>
+    protected override void OnResume()
+    {
+        base.OnResume();
+        MALPlus.Services.AppUpdateService.ResumePendingInstallIfAny();
+    }
+
     public override void OnConfigurationChanged(global::Android.Content.Res.Configuration newConfig)
     {
         base.OnConfigurationChanged(newConfig);

@@ -119,7 +119,8 @@ public static class OptionsSheetHost
     /// <summary>
     ///     Displays a release update dialog with changelog and actions to update or postpone.
     /// </summary>
-    public static async Task<bool> ShowUpdateAsync(XShared.Comm.AppUpdateInfo info)
+    public static async Task<bool> ShowUpdateAsync(XShared.Comm.AppUpdateInfo info,
+        Func<Action<double, string>, Task<bool>> onPerformUpdate = null)
     {
         if (info == null)
             return false;
@@ -137,9 +138,29 @@ public static class OptionsSheetHost
                 info.ReleaseNotes,
                 "Update",
                 "Later",
+                onPerformUpdate: onPerformUpdate != null ? async (report) =>
+                {
+                    try
+                    {
+                        var ok = await onPerformUpdate(report);
+                        answered.TrySetResult(ok);
+                        _ = PopAsync(page);
+                        return ok;
+                    }
+                    catch
+                    {
+                        answered.TrySetResult(false);
+                        throw;
+                    }
+                } : null,
                 onConfirm: () =>
                 {
                     if (answered.TrySetResult(true))
+                        _ = PopAsync(page);
+                },
+                onCancel: () =>
+                {
+                    if (answered.TrySetResult(false))
                         _ = PopAsync(page);
                 });
 
