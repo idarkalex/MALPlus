@@ -35,6 +35,7 @@
     <_MauiForceXamlCForDebug>true</_MauiForceXamlCForDebug>
     <!-- The SDK here is an RC of .NET 11, so the EOL check fires on every build. -->
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
     <!-- Dev-loop only: the MAUI/XAML analyzers cost real time per build and every
          warning they raise is already surfaced by the Release/CI build. -->
     <RunAnalyzersDuringBuild Condition="'$(Configuration)' == 'Debug'">false</RunAnalyzersDuringBuild>

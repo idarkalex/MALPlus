@@ -109,9 +109,6 @@ jobs:
             Get-ChildItem "$sdk\platforms" -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
           }
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v3
-
       - name: Restore NuGet packages
         shell: pwsh
         run: |
@@ -156,25 +153,26 @@ jobs:
           if (-not $jdkPath) { throw "No JDK 21 found" }
           Write-Host "Using JDK: $jdkPath"
           $buildArgs = @(
+            "build",
             "MALPlus\MALPlus.csproj",
-            "/t:SignAndroidPackage",
-            "/p:Configuration=Release",
-            "/p:RuntimeIdentifier=android-arm64",
-            "/p:AndroidPackageFormats=apk",
-            "/p:AndroidSdkDirectory=C:\Program Files (x86)\Android\android-sdk",
-            "/p:JavaSdkDirectory=$jdkPath",
-            "/p:EmbedAssembliesIntoApk=true",
-            "/m",
-            "/p:UseSharedCompilation=true"
+            "-t:SignAndroidPackage",
+            "-f", "net11.0-android37.0",
+            "-c", "Release",
+            "-r", "android-arm64",
+            "-p:AndroidPackageFormats=apk",
+            "-p:AndroidSdkDirectory=C:\Program Files (x86)\Android\android-sdk",
+            "-p:JavaSdkDirectory=$jdkPath",
+            "-p:EmbedAssembliesIntoApk=true",
+            "-m"
           )
           if ($env:ANDROID_KEYSTORE_BASE64) {
-            $buildArgs += "/p:AndroidKeyStore=true"
-            $buildArgs += "/p:AndroidSigningKeyStore=$env:RUNNER_TEMP\keystore.jks"
-            $buildArgs += "/p:AndroidSigningStorePass=$env:ANDROID_KEYSTORE_PASSWORD"
-            $buildArgs += "/p:AndroidSigningKeyAlias=$env:ANDROID_KEY_ALIAS"
-            $buildArgs += "/p:AndroidSigningKeyPass=$env:ANDROID_KEYSTORE_PASSWORD"
+            $buildArgs += "-p:AndroidKeyStore=true"
+            $buildArgs += "-p:AndroidSigningKeyStore=$env:RUNNER_TEMP\keystore.jks"
+            $buildArgs += "-p:AndroidSigningStorePass=$env:ANDROID_KEYSTORE_PASSWORD"
+            $buildArgs += "-p:AndroidSigningKeyAlias=$env:ANDROID_KEY_ALIAS"
+            $buildArgs += "-p:AndroidSigningKeyPass=$env:ANDROID_KEYSTORE_PASSWORD"
           }
-          & msbuild @buildArgs > "$env:RUNNER_TEMP\msbuild.txt" 2>&1
+          & dotnet @buildArgs > "$env:RUNNER_TEMP\msbuild.txt" 2>&1
           $err = $LASTEXITCODE
           if ($env:ANDROID_KEYSTORE_BASE64) {
             $log = Get-Content "$env:RUNNER_TEMP\msbuild.txt" -Raw
