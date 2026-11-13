@@ -61,6 +61,8 @@ namespace MALPlus.XShared.ViewModels
                 MyStartDate = entry.MyStartDate;
                 MyEndDate = entry.MyEndDate;
                 GlobalScore = entry.GlobalScore;
+                if (!string.IsNullOrEmpty(entry.AirStartDate))
+                    AirStartDate = entry.AirStartDate;
             }
 
             if (ResourceLocator.AiringInfoProvider.TryGetAiringDay(id ?? Id, out DayOfWeek day))
@@ -77,6 +79,9 @@ namespace MALPlus.XShared.ViewModels
                 VolatileData = data;
                 LoadedVolatile = true;
             }
+
+            if (string.IsNullOrEmpty(VolatileData.AirStartDate) && !string.IsNullOrEmpty(entry?.AirStartDate))
+                VolatileData.AirStartDate = entry.AirStartDate;
 
             if (VolatileData.GlobalScore <= 0)
                 GlobalScore = entry?.GlobalScore ?? 0;

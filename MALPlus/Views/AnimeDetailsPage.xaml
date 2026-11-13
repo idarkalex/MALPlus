@@ -61,8 +61,18 @@
                            VerticalOptions="Center" />
                     <Label Grid.Column="2" Text="✓" FontFamily="InterBold" FontSize="13" TextColor="#2E9E5B"
                            MaxLines="1" VerticalOptions="Center" IsVisible="{Binding IsWatched}" />
-                    <Label Grid.Column="3" Text="{Binding AiredLabel}" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF"
-                           MaxLines="1" VerticalOptions="Center" />
+                    <VerticalStackLayout Grid.Column="3" VerticalOptions="Center" HorizontalOptions="End" Spacing="2">
+                        <Label Text="{Binding AiredLabel}" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF"
+                               HorizontalTextAlignment="End" MaxLines="1" />
+                        <Border IsVisible="{Binding Filler}" BackgroundColor="#26FF4444" Stroke="#80FF4444" StrokeThickness="1"
+                                StrokeShape="RoundRectangle 3" Padding="4,1" HorizontalOptions="End">
+                            <Label Text="Filler" FontFamily="InterBold" FontSize="9" TextColor="#FF6666" HorizontalTextAlignment="Center" />
+                        </Border>
+                        <Border IsVisible="{Binding Recap}" BackgroundColor="#26FFAA00" Stroke="#80FFAA00" StrokeThickness="1"
+                                StrokeShape="RoundRectangle 3" Padding="4,1" HorizontalOptions="End">
+                            <Label Text="Recap" FontFamily="InterBold" FontSize="9" TextColor="#FFB84D" HorizontalTextAlignment="Center" />
+                        </Border>
+                    </VerticalStackLayout>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -122,6 +132,7 @@
                                                TypeTag="{Binding MediaType}"
                                                BadgeVisible="True"
                                                BadgeAccent="{Binding LibraryBadgeAccent}"
+                                               BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
                                                BadgeMain="{Binding LibraryBadgeMain}"
                                                BadgeExtra="{Binding AirDayTillBind}" />
                     <Label Grid.Row="0" Grid.Column="1" Text="{Binding Title}" FontFamily="InterBold" FontSize="16"
@@ -272,7 +283,8 @@
                          opening the page, below the fold. Everything the hero already prints (year,
                          episode count, score, status, type, next air) is filtered out of the rows
                          in the view model, so nothing is said twice. -->
-                    <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
+                    <VerticalStackLayout x:Name="OverviewPanel"
+                                         IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
                                          Padding="12,4,12,32" Spacing="0">
                         <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralLoadingVisible}"
                                 Style="{StaticResource PanelStyle}" Padding="18" Margin="0,12,0,0">
@@ -286,6 +298,24 @@
                                 Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="{Binding Source={x:Reference DetailsPage}, Path=GeneralErrorText}"
                                    Style="{StaticResource StateTextStyle}" />
+                        </Border>
+
+                        <Label Text="ALTERNATIVE TITLES" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding AltTitlesVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding AltTitlesVisible}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding AltTitleRows}" Spacing="0">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
+                                            <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="#8FA8C0" MaxLines="1" />
+                                            <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="{StaticResource BrushText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
                         </Border>
 
                         <Label Text="SYNOPSIS" Style="{StaticResource SectionLabelStyle}"
@@ -450,36 +480,19 @@
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate>
                                         <Border Stroke="#1E3A52" StrokeThickness="1" StrokeShape="RoundRectangle 6"
-                                                Padding="9,5" Margin="0,3,6,3">
+                                                Padding="11,5" Margin="0,3,6,3">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnExternalLinkTapped"
                                                                       CommandParameter="{Binding Url}" />
                                             </Border.GestureRecognizers>
-<Label Text="{Binding Label}" FontFamily="Inter" FontSize="12"
-                                                TextColor="#8FB8E8" MaxLines="1" LineBreakMode="NoWrap" />
+                                            <Label Text="{Binding Label}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="#8FB8E8" MaxLines="1" LineBreakMode="NoWrap" />
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </FlexLayout>
                         </Border>
 
-                        <Label Text="ALT. TITLES" Style="{StaticResource SectionLabelStyle}"
-                               IsVisible="{Binding AltTitlesVisible}" />
-                        <Border Style="{StaticResource PanelStyle}" Padding="12"
-                                IsVisible="{Binding AltTitlesVisible}">
-                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding AltTitleRows}" Spacing="0">
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
-                                            <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="#8FA8C0" MaxLines="1" />
-                                            <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="{StaticResource BrushText}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </VerticalStackLayout>
-                        </Border>
                     </VerticalStackLayout>
 
                     <!-- OP/ED got its own tab because it is the one part of a details page people
@@ -487,7 +500,8 @@
                          them are listed: the list is short and a "+N more" would only hide things.
                          A row is a Border with a coloured leading edge, since opening and ending
                          used to be identical chips and the only difference was a text colour. -->
-                    <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
+                    <VerticalStackLayout x:Name="OpEdPanel"
+                                         IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=2}"
                                          Padding="12,4,12,32" Spacing="0">
                         <Label Text="OPENING" Style="{StaticResource SectionLabelStyle}"
                                IsVisible="{Binding OpEdVisible}" />
@@ -536,9 +550,24 @@
                          device, a phantom ViewGroup of 208px stayed between the tab strip and the
                          first card, so these tabs opened with roughly twice the gap the others
                          have. Same content, no dead space. -->
-                    <Grid IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
+                    <Grid x:Name="EpisodesPanel"
+                          IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
+                          RowDefinitions="Auto,*"
                           Padding="0,8,0,32">
-                        <CollectionView IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesContentVisible}"
+                        <HorizontalStackLayout Grid.Row="0" Margin="14,0,14,6" HorizontalOptions="End"
+                                               IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasFillerEpisodes}">
+                            <Border Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                    BackgroundColor="#1AFFFFFF" Padding="10,4" InputTransparent="False">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnToggleFillerTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="{Binding Source={x:Reference DetailsPage}, Path=FilterFillerButtonText}"
+                                       FontFamily="InterMedium" FontSize="11" TextColor="{StaticResource BrushText}"
+                                       InputTransparent="True" />
+                            </Border>
+                        </HorizontalStackLayout>
+                        <CollectionView Grid.Row="1"
+                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedEpisodes}"
                                         ItemTemplate="{StaticResource EpisodeTemplate}"
                                         RemainingItemsThreshold="6">
@@ -546,19 +575,19 @@
                                 <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
                             </CollectionView.ItemsLayout>
                         </CollectionView>
-                        <Border IsVisible="{Binding LoadingEpisodes}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
+                        <Border Grid.Row="1" IsVisible="{Binding LoadingEpisodes}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                                 <ActivityIndicator IsRunning="{Binding LoadingEpisodes}" Color="#0066FF"
                                                    WidthRequest="22" HeightRequest="22" />
                                 <Label Text="Loading episodes..." Style="{StaticResource StateTextStyle}" />
                             </HorizontalStackLayout>
                         </Border>
-                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesErrorVisible}"
+                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesErrorVisible}"
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="{Binding Source={x:Reference DetailsPage}, Path=EpisodesErrorText}"
                                    Style="{StaticResource StateTextStyle}" />
                         </Border>
-                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesEmptyVisible}"
+                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesEmptyVisible}"
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No episodes available." Style="{StaticResource StateTextStyle}" />
                         </Border>
@@ -568,7 +597,8 @@
                          episode list is: BindableLayout builds a real view per item the moment the
                          tab becomes visible, and doing that synchronously on the tap is what made
                          switching tabs feel like it hung. -->
-                    <Grid IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
+                    <Grid x:Name="ReviewsPanel"
+                          IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
                           Padding="0,8,0,32">
                         <CollectionView IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedReviews}"
@@ -596,7 +626,8 @@
                         </Border>
                     </Grid>
 
-                    <Grid IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
+                    <Grid x:Name="RecommendationsPanel"
+                          IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
                           Padding="0,8,0,32">
                         <CollectionView IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedRecommendations}"
@@ -624,7 +655,8 @@
                         </Border>
                     </Grid>
 
-                    <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=5}"
+                    <VerticalStackLayout x:Name="RelatedPanel"
+                                         IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=5}"
                                          Padding="8,8,8,32" Spacing="6">
                         <Border IsVisible="{Binding LoadingRelated}" Margin="4,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
@@ -678,7 +710,8 @@
                                 HeightRequest="40" Padding="18,0" />
                     </VerticalStackLayout>
 
-                    <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=6}"
+                    <VerticalStackLayout x:Name="CharactersPanel"
+                                         IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=6}"
                                          Padding="0,8,0,32" Spacing="6">
                         <Border IsVisible="{Binding LoadingCharactersVisibility}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
@@ -712,7 +745,8 @@
                                         SelectionChanged="OnCharacterItemSelected" />
                     </VerticalStackLayout>
 
-                    <VerticalStackLayout IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=7}"
+                    <VerticalStackLayout x:Name="StaffPanel"
+                                         IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=7}"
                                          Padding="0,8,0,32" Spacing="6">
                         <Border IsVisible="{Binding LoadingCharactersVisibility}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">

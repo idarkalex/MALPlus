@@ -25,7 +25,8 @@ public partial class RecommendationsPage : ContentPage
         _initialized = true;
         try
         {
-            Vm.CurrentWorkMode = RecommendationsPageWorkMode.Anime;
+            UpdateTabStyles(RecommendationsPageWorkMode.TopAnime);
+            Vm.CurrentWorkMode = RecommendationsPageWorkMode.TopAnime;
             await WaitForLoad();
         }
         catch (Exception ex)
@@ -57,17 +58,18 @@ public partial class RecommendationsPage : ContentPage
             return;
         try
         {
-            var anime = Vm.CurrentWorkMode == RecommendationsPageWorkMode.Anime;
+            var isAnime = Vm.CurrentWorkMode == RecommendationsPageWorkMode.TopAnime ||
+                          Vm.CurrentWorkMode == RecommendationsPageWorkMode.Anime;
             var titleQs = Uri.EscapeDataString(model.Title ?? string.Empty);
 
             MALPlus.Services.MauiDetailsNavigationHandoff.Set(
                 new AnimeDetailsPageNavigationArgs(model.Id, model.Title, null, null, null)
                 {
-                    AnimeMode = anime,
+                    AnimeMode = isAnime,
                     Source = PageIndex.PageRecomendations
                 });
 
-            var query = anime ? string.Empty : "&manga=true";
+            var query = isAnime ? string.Empty : "&manga=true";
             await Shell.Current.GoToAsync($"animedetails?id={model.Id}&title={titleQs}{query}");
         }
         catch (Exception ex)
@@ -92,20 +94,37 @@ public partial class RecommendationsPage : ContentPage
         {
             if (sender is Button b && b.CommandParameter is string s)
             {
-                var anime = s == "Anime";
-                Vm.CurrentWorkMode = anime
-                    ? RecommendationsPageWorkMode.Anime
-                    : RecommendationsPageWorkMode.Manga;
+                var mode = s switch
+                {
+                    "TopAnime" => RecommendationsPageWorkMode.TopAnime,
+                    "Anime" => RecommendationsPageWorkMode.Anime,
+                    "TopManga" => RecommendationsPageWorkMode.TopManga,
+                    "Manga" => RecommendationsPageWorkMode.Manga,
+                    _ => RecommendationsPageWorkMode.TopAnime
+                };
 
-                AnimeTab.BackgroundColor = anime ? Color.FromArgb("#0066FF") : Colors.Transparent;
-                AnimeTab.TextColor = anime ? Colors.White : Color.FromArgb("#FFFFFF");
-                MangaTab.BackgroundColor = anime ? Colors.Transparent : Color.FromArgb("#0066FF");
-                MangaTab.TextColor = anime ? Color.FromArgb("#FFFFFF") : Colors.White;
+                Vm.CurrentWorkMode = mode;
+                UpdateTabStyles(mode);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine("MALPlus rec mode switch failed: " + ex.Message);
         }
+    }
+
+    private void UpdateTabStyles(RecommendationsPageWorkMode activeMode)
+    {
+        SetTabStyle(TopAnimeTab, activeMode == RecommendationsPageWorkMode.TopAnime);
+        SetTabStyle(RecentAnimeTab, activeMode == RecommendationsPageWorkMode.Anime);
+        SetTabStyle(TopMangaTab, activeMode == RecommendationsPageWorkMode.TopManga);
+        SetTabStyle(RecentMangaTab, activeMode == RecommendationsPageWorkMode.Manga);
+    }
+
+    private void SetTabStyle(Button btn, bool isActive)
+    {
+        if (btn == null) return;
+        btn.BackgroundColor = isActive ? Color.FromArgb("#0066FF") : Colors.Transparent;
+        btn.TextColor = isActive ? Colors.White : Color.FromArgb("#80FFFFFF");
     }
 }

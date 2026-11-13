@@ -30,9 +30,9 @@
                                                  AutomationId="DiscoverSearch" SemanticProperties.Description="Search"
                                                  Tapped="OnSearchTapped" />
                     <controls:DiscoverTileButton Grid.Row="0" Grid.Column="1"
-                                                 Source="discover_btn_trending"
-                                                 AutomationId="DiscoverTrending" SemanticProperties.Description="Trending"
-                                                 Tapped="OnTrendingTapped" />
+                                                 Source="discover_btn_news"
+                                                 AutomationId="DiscoverNews" SemanticProperties.Description="News"
+                                                 Tapped="OnNewsTapped" />
                     <controls:DiscoverTileButton Grid.Row="1" Grid.Column="0"
                                                  Source="discover_btn_upcoming"
                                                  AutomationId="DiscoverUpcoming" SemanticProperties.Description="Upcoming"
@@ -59,25 +59,25 @@
                                                  AutomationId="DiscoverRandomGem" SemanticProperties.Description="Random gem"
                                                  Tapped="OnGemTapped" />
                     <controls:DiscoverTileButton Grid.Row="3" Grid.Column="1"
-                                                 Source="discover_btn_news"
-                                                 AutomationId="DiscoverNews" SemanticProperties.Description="News"
-                                                 Tapped="OnNewsTapped" />
+                                                 Source="discover_btn_trending"
+                                                 AutomationId="DiscoverTrending" SemanticProperties.Description="Trending"
+                                                 Tapped="OnTrendingTapped" />
                     <controls:DiscoverTileButton Grid.Row="4" Grid.Column="0"
-                                                 Source="discover_btn_recommend"
-                                                 AutomationId="DiscoverRecommendations" SemanticProperties.Description="Because you liked"
-                                                 Tapped="OnBecauseYouLikedTapped" />
+                                                 Source="discover_btn_theme"
+                                                 AutomationId="DiscoverRandomTheme" SemanticProperties.Description="Random theme"
+                                                 Tapped="OnRandomThemeTapped" />
                     <controls:DiscoverTileButton Grid.Row="4" Grid.Column="1"
                                                  Source="discover_btn_season_oped"
                                                  AutomationId="DiscoverSeasonThemes" SemanticProperties.Description="Season openings and endings"
                                                  Tapped="OnSeasonThemesTapped" />
                     <controls:DiscoverTileButton Grid.Row="5" Grid.Column="0"
-                                                 Source="discover_btn_theme"
-                                                 AutomationId="DiscoverRandomTheme" SemanticProperties.Description="Random theme"
-                                                 Tapped="OnRandomThemeTapped" />
+                                                 Source="discover_btn_recommend"
+                                                 AutomationId="DiscoverRecommendations" SemanticProperties.Description="Because you liked"
+                                                 Tapped="OnBecauseYouLikedTapped" />
                 </Grid>
             </VerticalStackLayout>
         </ScrollView>
 
-        <controls:BottomNavBar Grid.Row="1" VerticalOptions="End" />
+        <controls:BottomNavBar x:Name="BottomNav" Grid.Row="1" VerticalOptions="End" />
     </Grid>
 </ContentPage>

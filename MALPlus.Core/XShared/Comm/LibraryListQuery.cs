@@ -106,6 +106,9 @@ namespace MALPlus.XShared.Comm
                                             var animeResponse = await client.GetAsync(
                                                 $"https://api.myanimelist.net/v2/users/{_source}/animelist?fields=" +
                                                 $"title," +
+                                                $"alternative_titles," +
+                                                $"start_date," +
+                                                $"start_season," +
                                                 $"status," +
                                                 $"media_type," +
                                                 $"num_episodes," +
@@ -151,20 +154,41 @@ namespace MALPlus.XShared.Comm
                                             foreach (var node in anime.data)
                                             {
                                                 var item = node.node;
-                                                var title = "";
+                                                var title = item.title;
                                                 string alternateTitle = null;
-                                                title = item.title;
 
-                                                if (Settings.PreferEnglishTitles &&
-                                                    ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(
-                                                        item.id, true, out var engTitle))
+                                                if (!string.IsNullOrWhiteSpace(item.alternative_titles?.en))
                                                 {
-                                                    alternateTitle = title;
-                                                    title = engTitle;
+                                                    ResourceLocator.EnglishTitlesProvider.AddOrUpdate(item.id, true, item.alternative_titles.en);
+                                                    alternateTitle = item.alternative_titles.en;
+                                                }
+                                                else if (ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(item.id, true, out var engTitle))
+                                                {
+                                                    alternateTitle = engTitle;
+                                                }
+
+                                                if (Settings.PreferEnglishTitles && !string.IsNullOrWhiteSpace(alternateTitle))
+                                                {
+                                                    title = alternateTitle;
+                                                    alternateTitle = item.title;
                                                 }
 
                                                 try
                                                 {
+                                                    var airStartDate = item.start_date;
+                                                    if (string.IsNullOrEmpty(airStartDate) && item.start_season != null && item.start_season.year > 0)
+                                                    {
+                                                        var m = item.start_season.season?.ToLower() switch
+                                                        {
+                                                            "winter" => "01",
+                                                            "spring" => "04",
+                                                            "summer" => "07",
+                                                            "fall" => "10",
+                                                            _ => "01"
+                                                        };
+                                                        airStartDate = $"{item.start_season.year}-{m}-01";
+                                                    }
+
                                                     output.Add(new AnimeLibraryItemData
                                                     {
                                                         Title = title,
@@ -185,7 +209,17 @@ namespace MALPlus.XShared.Comm
                                                         LastWatched = node.list_status.updated_at,
                                                         AlternateTitle = alternateTitle,
                                                         Priority = (AnimePriority)node.list_status?.priority,
+                                                        AirStartDate = airStartDate,
                                                     });
+
+                                                    if (!string.IsNullOrEmpty(airStartDate))
+                                                    {
+                                                        DataCache.RegisterVolatileData(item.id, new VolatileDataCache
+                                                        {
+                                                            GlobalScore = item.mean,
+                                                            AirStartDate = airStartDate
+                                                        });
+                                                    }
                                                 }
                                                 catch (Exception e)
                                                 {
@@ -207,6 +241,8 @@ namespace MALPlus.XShared.Comm
                                             var mangaResponse = await client.GetAsync(
                                                 $"https://api.myanimelist.net/v2/users/{_source}/mangalist?fields=" +
                                                 $"title," +
+                                                $"alternative_titles," +
+                                                $"start_date," +
                                                 $"status," +
                                                 $"media_type," +
                                                 $"num_chapters," +
@@ -237,16 +273,23 @@ namespace MALPlus.XShared.Comm
                                             foreach (var node in manga.data)
                                             {
                                                 var item = node.node;
-                                                var title = "";
+                                                var title = item.title;
                                                 string alternateTitle = null;
-                                                title = item.title;
 
-                                                if (Settings.PreferEnglishTitles &&
-                                                    ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(
-                                                        item.id, false, out var engTitle))
+                                                if (!string.IsNullOrWhiteSpace(item.alternative_titles?.en))
                                                 {
-                                                    alternateTitle = title;
-                                                    title = engTitle;
+                                                    ResourceLocator.EnglishTitlesProvider.AddOrUpdate(item.id, false, item.alternative_titles.en);
+                                                    alternateTitle = item.alternative_titles.en;
+                                                }
+                                                else if (ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(item.id, false, out var engTitle))
+                                                {
+                                                    alternateTitle = engTitle;
+                                                }
+
+                                                if (Settings.PreferEnglishTitles && !string.IsNullOrWhiteSpace(alternateTitle))
+                                                {
+                                                    title = alternateTitle;
+                                                    alternateTitle = item.title;
                                                 }
 
                                                 try
@@ -273,7 +316,8 @@ namespace MALPlus.XShared.Comm
                                                         MyEndDate = FixDate(node.list_status.finish_date),
                                                         AlternateTitle = alternateTitle,
                                                         LastWatched = node.list_status.updated_at,
-                                                        Priority = (AnimePriority)node.list_status.priority
+                                                        Priority = (AnimePriority)node.list_status.priority,
+                                                        AirStartDate = item.start_date
                                                     });
                                                 }
                                                 catch (Exception e)
@@ -682,9 +726,23 @@ namespace MALPlus.XShared.Comm
 
         }
 
+        public class AlternativeTitles
+        {
+            public List<string> synonyms { get; set; }
+            public string en { get; set; }
+            public string ja { get; set; }
+        }
+
+        public class StartSeason
+        {
+            public int year { get; set; }
+            public string season { get; set; }
+        }
+
         public class Node
         {
             public int id { get; set; }
+            public AlternativeTitles alternative_titles { get; set; }
             public string title { get; set; }
             public MainPicture main_picture { get; set; }
             public string status { get; set; }
@@ -692,6 +750,8 @@ namespace MALPlus.XShared.Comm
             public int num_episodes { get; set; }
             public int num_chapters { get; set; }
             public int num_volumes { get; set; }
+            public string start_date { get; set; }
+            public StartSeason start_season { get; set; }
 
             /// <summary>
             ///     Community mean, requested through fields=. Without it the payload carries no score at

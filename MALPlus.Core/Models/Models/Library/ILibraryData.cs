@@ -25,6 +25,7 @@ namespace MALPlus.Models.Models.Library
         DateTime LastWatched { get; set; }
         string MyStartDate { get; set; }
         string MyEndDate { get; set; }
+        string AirStartDate { get; set; }
         string Notes { get; set; }
 
         /// <summary>

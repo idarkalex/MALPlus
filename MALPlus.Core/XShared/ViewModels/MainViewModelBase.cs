@@ -68,14 +68,15 @@ namespace MALPlus.XShared.ViewModels
                 if (info == null)
                     return null;
 
-                var version = new Version(info.Version);
-                var currentVersion = new Version(ResourceLocator.ChangelogProvider.CurrentVersion);
-
-                if (version > currentVersion)
+                if (Version.TryParse(info.Version, out var version) &&
+                    Version.TryParse(ResourceLocator.ChangelogProvider.CurrentVersion, out var currentVersion))
                 {
-                    UpdateInfo = info;
-                    UpdateAvailable = true;
-                    return info;
+                    if (version > currentVersion)
+                    {
+                        UpdateInfo = info;
+                        UpdateAvailable = true;
+                        return info;
+                    }
                 }
             }
             catch

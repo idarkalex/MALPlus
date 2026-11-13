@@ -88,6 +88,7 @@
                                                     TypeTag="{Binding TypeTag}"
                                                     BadgeVisible="True"
                                                     BadgeAccent="{Binding LibraryBadgeAccent}"
+                                                    BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
                                                     BadgeMain="{Binding CalendarBadgeMain}"
                                                     BadgeExtra="{Binding AirDayTillBind}" />
                                             </Grid>

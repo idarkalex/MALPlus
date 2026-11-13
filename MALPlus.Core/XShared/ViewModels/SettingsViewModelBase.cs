@@ -217,17 +217,144 @@ protected ICommand _requestNavigationCommand;
             set
             {
                 Settings.DisplaySeasonWithType = value;
-                foreach (var animeListAnimeItem in ViewModelLocator.AnimeList.AnimeItems)
+                RaisePropertyChanged(() => DisplaySeasonWithType);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
+        public bool ShowFormatTag
+        {
+            get => Settings.ShowFormatTag;
+            set
+            {
+                Settings.ShowFormatTag = value;
+                RaisePropertyChanged(() => ShowFormatTag);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
+        public int PosterScoreDisplayIndex
+        {
+            get => Settings.PosterScoreDisplay;
+            set
+            {
+                if (value < 0 || value > 2) return;
+                Settings.PosterScoreDisplay = value;
+                RaisePropertyChanged(() => PosterScoreDisplayIndex);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
+        public string[] PosterScoreDisplayOptions { get; } = new[]
+        {
+            "Community score (Mean)",
+            "Personal score (Your rating)",
+            "Hidden (No score chip)"
+        };
+
+        public static long SettingsRevision { get; private set; } = 1;
+        public static bool ResetDataOnNextAppearance { get; set; }
+
+        public static void InvalidateSettings(bool resetData = false, bool refreshTitles = false)
+        {
+            SettingsRevision++;
+            if (resetData)
+            {
+                ResetDataOnNextAppearance = true;
+                try
                 {
-                    animeListAnimeItem.RaisePropertyChanged(() => animeListAnimeItem.Type);
+                    ResourceLocator.AnimeLibraryDataStorage?.Reset();
+                    ViewModelLocator.AnimeList?.ResetData();
                 }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("MALPLUS reset data failed: " + ex.Message);
+                }
+            }
+
+            RefreshAllLoadedCards(refreshTitles);
+        }
+
+        public static void RefreshAllLoadedCards(bool refreshTitles = true)
+        {
+            try
+            {
+                var animeListVm = ViewModelLocator.AnimeList;
+                if (animeListVm != null)
+                {
+                    if (animeListVm.DisplayedItems != null)
+                    {
+                        foreach (var item in animeListVm.DisplayedItems)
+                            item?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                    if (animeListVm.AnimeItems != null)
+                    {
+                        foreach (var item in animeListVm.AnimeItems)
+                            item?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                    animeListVm.InvalidatePreviews();
+                }
+
+                var storage = ResourceLocator.AnimeLibraryDataStorage;
+                if (storage != null)
+                {
+                    if (storage.AllLoadedAnimeItemAbstractions != null)
+                    {
+                        foreach (var abs in storage.AllLoadedAnimeItemAbstractions)
+                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                    if (storage.AllLoadedMangaItemAbstractions != null)
+                    {
+                        foreach (var abs in storage.AllLoadedMangaItemAbstractions)
+                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                    if (storage.AllLoadedAuthAnimeItems != null)
+                    {
+                        foreach (var abs in storage.AllLoadedAuthAnimeItems)
+                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                    if (storage.AllLoadedAuthMangaItems != null)
+                    {
+                        foreach (var abs in storage.AllLoadedAuthMangaItems)
+                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                    if (storage.AllLoadedSeasonalAnimeItems != null)
+                    {
+                        foreach (var abs in storage.AllLoadedSeasonalAnimeItems)
+                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                }
+
+                var searchVm = ViewModelLocator.SearchPage;
+                if (searchVm != null)
+                {
+                    if (searchVm.AnimeSearchItemViewModels != null)
+                    {
+                        foreach (var item in searchVm.AnimeSearchItemViewModels)
+                            item?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                    if (searchVm.MangaSearchItemViewModels != null)
+                    {
+                        foreach (var item in searchVm.MangaSearchItemViewModels)
+                            item?.RefreshCardDisplayProperties(refreshTitles);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS RefreshAllLoadedCards failed: " + ex.Message);
             }
         }
 
         public bool AutoDescendingSorting
         {
             get => Settings.AutoDescendingSorting;
-            set => Settings.AutoDescendingSorting = value;
+            set
+            {
+                Settings.AutoDescendingSorting = value;
+                RaisePropertyChanged(() => AutoDescendingSorting);
+                InvalidateSettings(resetData: true, refreshTitles: false);
+            }
         }
 
         public bool PullHigherQualityImages
@@ -390,13 +517,23 @@ protected ICommand _requestNavigationCommand;
         public bool CalendarIncludeWatching
         {
             get => Settings.CalendarIncludeWatching;
-            set => Settings.CalendarIncludeWatching = value;
+            set
+            {
+                Settings.CalendarIncludeWatching = value;
+                RaisePropertyChanged(() => CalendarIncludeWatching);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
         }
 
         public bool CalendarIncludePlanned
         {
             get => Settings.CalendarIncludePlanned;
-            set => Settings.CalendarIncludePlanned = value;
+            set
+            {
+                Settings.CalendarIncludePlanned = value;
+                RaisePropertyChanged(() => CalendarIncludePlanned);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
         }
 
         public bool CalendarShowAllAiring
@@ -415,7 +552,10 @@ protected ICommand _requestNavigationCommand;
             set
             {
                 if (int.TryParse(value, out var parsed) && parsed > 0)
+                {
                     Settings.CalendarMaxItems = parsed;
+                    InvalidateSettings(resetData: false, refreshTitles: false);
+                }
                 else
                     RaisePropertyChanged();
             }
@@ -437,6 +577,7 @@ protected ICommand _requestNavigationCommand;
                 RaisePropertyChanged();
                 RaisePropertyChanged(() => CalendarTimeZoneIndex);
                 RaisePropertyChanged(() => CalendarTimeZoneLabel);
+                InvalidateSettings(resetData: false, refreshTitles: false);
             }
         }
 
@@ -475,13 +616,23 @@ protected ICommand _requestNavigationCommand;
         public bool CalendarStartOnToday
         {
             get => Settings.CalendarStartOnToday;
-            set => Settings.CalendarStartOnToday = value;
+            set
+            {
+                Settings.CalendarStartOnToday = value;
+                RaisePropertyChanged();
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
         }
 
         public bool CalendarRemoveEmptyDays
         {
             get => Settings.CalendarRemoveEmptyDays;
-            set => Settings.CalendarRemoveEmptyDays = value;
+            set
+            {
+                Settings.CalendarRemoveEmptyDays = value;
+                RaisePropertyChanged();
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
         }
 
         public bool CalendarStartOnSummary => !Settings.CalendarStartOnToday;
@@ -503,6 +654,7 @@ protected ICommand _requestNavigationCommand;
                     return;
                 Settings.CalendarSwitchMonSun = mondayFirst;
                 RaisePropertyChanged();
+                InvalidateSettings(resetData: false, refreshTitles: false);
             }
         }
 
@@ -560,35 +712,19 @@ protected ICommand _requestNavigationCommand;
             set => Settings.ArticlesDisplayScrollBar = value;
         }
 
-public bool PreferEnglishTitles
-    {
-        get => Settings.PreferEnglishTitles;
-        set
+        public bool PreferEnglishTitles
         {
-            if (Settings.PreferEnglishTitles == value)
-                return;
+            get => Settings.PreferEnglishTitles;
+            set
+            {
+                if (Settings.PreferEnglishTitles == value)
+                    return;
 
-            // The titles now resolve when a card searches Title, rather than when the library was
-            // fetched, so what has to be re-read is every card currently on screen. Without this the
-            // switch had no visible effect at all until the reader navigated somewhere and came back.
-Settings.PreferEnglishTitles = value;
-
-    // The titles now resolve when a card searches Title, rather than when the library was
-    // fetched, so what has to be re-read is every card currently on screen. Without this the
-    // switch had no visible effect at all until the reader navigated somewhere and came back.
-    //
-    // Walked live rather than through ToList: the copy of a full library is its own cost, and the
-    // list is not being mutated from here. RefreshEnglishTitle raises only for the cards whose
-    // text actually moves.
-    var items = ViewModelLocator.AnimeList?.AnimeItems;
-    if (items == null)
-    return;
-    foreach (var item in items)
-    {
-    item?.RefreshEnglishTitle();
-    }
-    }
-    }
+                Settings.PreferEnglishTitles = value;
+                RaisePropertyChanged(() => PreferEnglishTitles);
+                InvalidateSettings(resetData: false, refreshTitles: true);
+            }
+        }
 
         /// <summary>
         ///     Which content tiers the app is allowed to show. Defaults to the strictest, which is what
@@ -616,9 +752,13 @@ Settings.PreferEnglishTitles = value;
             {
                 if (value < (int)ContentFilterMode.Safe || value > (int)ContentFilterMode.Unfiltered)
                     value = (int)ContentFilterMode.Safe;
-                Settings.ContentFilter = (ContentFilterMode)value;
-                RaisePropertyChanged(() => ContentFilterIndex);
-                RaisePropertyChanged(() => ContentFilter);
+                if (Settings.ContentFilter != (ContentFilterMode)value)
+                {
+                    Settings.ContentFilter = (ContentFilterMode)value;
+                    RaisePropertyChanged(() => ContentFilterIndex);
+                    RaisePropertyChanged(() => ContentFilter);
+                    InvalidateSettings(resetData: true, refreshTitles: false);
+                }
             }
         }
 
@@ -736,6 +876,7 @@ Settings.PreferEnglishTitles = value;
             set
             {
                 Settings.MangaFocusVolumes = value;
+                InvalidateSettings(resetData: false, refreshTitles: false);
                 foreach (var item in ResourceLocator.AnimeLibraryDataStorage.AllLoadedMangaItemAbstractions.Concat(
                     ResourceLocator.AnimeLibraryDataStorage.OthersAbstractions.Select(pair => pair.Value)
                         .SelectMany(tuple => tuple.Item2)))

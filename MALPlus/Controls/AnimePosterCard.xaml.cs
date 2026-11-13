@@ -22,12 +22,18 @@ public partial class AnimePosterCard : ContentView
     public static readonly BindableProperty ScoreTagProperty =
         BindableProperty.Create(nameof(ScoreTag), typeof(string), typeof(AnimePosterCard), default(string));
 
+    public static readonly BindableProperty SeasonTagProperty =
+        BindableProperty.Create(nameof(SeasonTag), typeof(string), typeof(AnimePosterCard), default(string));
+
     public static readonly BindableProperty BadgeVisibleProperty =
         BindableProperty.Create(nameof(BadgeVisible), typeof(bool), typeof(AnimePosterCard), false);
 
     public static readonly BindableProperty BadgeAccentProperty =
         BindableProperty.Create(nameof(BadgeAccent), typeof(string), typeof(AnimePosterCard), default(string),
             propertyChanged: OnBadgeChanged);
+
+    public static readonly BindableProperty BadgeAccentColorProperty =
+        BindableProperty.Create(nameof(BadgeAccentColor), typeof(Color), typeof(AnimePosterCard), Color.FromArgb("#4ADE80"));
 
     public static readonly BindableProperty BadgeMainProperty =
         BindableProperty.Create(nameof(BadgeMain), typeof(string), typeof(AnimePosterCard), default(string),
@@ -293,6 +299,12 @@ public partial class AnimePosterCard : ContentView
         set => SetValue(ScoreTagProperty, value);
     }
 
+    public string SeasonTag
+    {
+        get => (string)GetValue(SeasonTagProperty);
+        set => SetValue(SeasonTagProperty, value);
+    }
+
     public bool BadgeVisible
     {
         get => (bool)GetValue(BadgeVisibleProperty);
@@ -303,6 +315,12 @@ public partial class AnimePosterCard : ContentView
     {
         get => (string)GetValue(BadgeAccentProperty);
         set => SetValue(BadgeAccentProperty, value);
+    }
+
+    public Color BadgeAccentColor
+    {
+        get => (Color)GetValue(BadgeAccentColorProperty);
+        set => SetValue(BadgeAccentColorProperty, value);
     }
 
     public string BadgeMain

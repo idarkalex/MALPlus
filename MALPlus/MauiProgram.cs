@@ -29,6 +29,16 @@ public static class MauiProgram
 
         MauiViewModelLocator.RegisterDependencies();
 
+#if ANDROID
+        Microsoft.Maui.Handlers.LabelHandler.Mapper.AppendToMapping("FixSingleLineNoWrap", (handler, view) =>
+        {
+            if (view is Label label && label.LineBreakMode == LineBreakMode.NoWrap)
+            {
+                handler.PlatformView.SetSingleLine(true);
+            }
+        });
+#endif
+
         return builder.Build();
     }
 }

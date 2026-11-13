@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "Releases & APK Downloads"
+    url: "https://github.com/idarkalex/MALPlus/releases"
+    about: "Download official signed APK builds for each release."
+  - name: "Original Drutol MALClient Repository"
+    url: "https://github.com/Drutol/MALClient"
+    about: "Original UWP/Xamarin repository foundation."

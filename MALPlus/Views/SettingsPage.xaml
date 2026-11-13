@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-  <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              x:Name="SettingsPageRoot"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
@@ -10,222 +10,343 @@
     </ContentPage.Resources>
 
     <ScrollView>
-        <VerticalStackLayout Padding="16,12,16,32" Spacing="14">
+        <VerticalStackLayout Padding="16,12,16,36" Spacing="14">
 
             <Label Text="Settings" FontFamily="InterBold" FontSize="22"
                    TextColor="{StaticResource BrushText}" />
 
-            <!-- General -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="GENERAL" FontFamily="InterBold" FontSize="11"
+            <!-- General & Display -->
+            <Border Style="{StaticResource PanelStyle}" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="GENERAL &amp; DISPLAY" FontFamily="InterBold" FontSize="11"
                            TextColor="#A0FFFFFF" />
+
+                    <!-- Prefer English titles -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Prefer English titles" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Prefer English titles" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Use English localized titles when available instead of Japanese Romaji"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Switch Grid.Column="1" IsToggled="{Binding PreferEnglishTitles}"
-                                OnColor="{StaticResource EmAccent}" />
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                     </Grid>
 
-                    <!-- Content is a three-way choice and not a switch, because a switch cannot
-                         express the middle option that is the point of this setting. Measured over one
-                         band of the top anime ranking: the source's own filter removes every entry rated
-                         "R+ - Mild Nudity" (twelve, among them Tokyo Godfathers, Evangelion Movie 2 and
-                         Berserk III) while letting through fifty nine rated "R - 17+". So it is keyed on
-                         the content rating and cuts the mild tier, not the explicit one. Three states
-                         drawn from that rating are answerable; on/off is not, because switching it off
-                         only ever means "including hentai".
-
-                         One picker rather than two switches for the same reason: two toggles for one
-                         three-valued decision can be set in a combination that means nothing. -->
-                    <Label Text="CONTENT" FontFamily="InterBold" FontSize="11"
-                           TextColor="#A0FFFFFF" Margin="0,10,0,0" />
-                    <Picker x:Name="ContentFilterPicker" Title="Content"
-                            FontFamily="Inter" FontSize="14"
-                            TextColor="{StaticResource BrushText}"
-                            SelectedIndex="{Binding ContentFilterIndex, Mode=TwoWay}" />
-                    <Label Text="Safe hides mild nudity. Mature keeps it and drops the explicit tier.
-Allow adult content removes the filter from the catalogue, your library and search."
-                          FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
-                </VerticalStackLayout>
-            </Border>
-
-            <!-- Homepage -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="HOMEPAGE" FontFamily="InterBold" FontSize="11"
-                           TextColor="#A0FFFFFF" />
+                    <!-- Show format chip -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Lock display mode" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding LockDisplayMode}"
-                                OnColor="{StaticResource EmAccent}" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Show media format chip" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Display format chip on posters (TV, Movie, OVA, Manga, etc.)"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding ShowFormatTag}"
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                     </Grid>
+
+                    <!-- Score chip display mode -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Show season with type" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Score chip on posters" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Display community rating, personal rating, or hide score chip"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
+                        <Picker Grid.Column="1" Title="Score chip" WidthRequest="185"
+                                ItemsSource="{Binding PosterScoreDisplayOptions}"
+                                SelectedIndex="{Binding PosterScoreDisplayIndex, Mode=TwoWay}"
+                                TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- Show season chip -->
+                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Show release season chip" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Display release season chip beneath score on anime posters (e.g. 'Fall 24')"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Switch Grid.Column="1" IsToggled="{Binding DisplaySeasonWithType}"
-                                OnColor="{StaticResource EmAccent}" />
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                     </Grid>
+
+                    <!-- Default start page -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Start page" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <!-- The picker had no ItemsSource and no SelectedItem, so the setting was
-                             unreachable from the UI even though App.xaml.cs honoured it: the
-                             stored value could only ever be the "anime" default. -->
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Default start page" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Screen opened automatically when launching the app"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Picker Grid.Column="1" Title="Start page" WidthRequest="130"
                                 ItemsSource="{Binding StartPageOptions}"
                                 SelectedItem="{Binding StartPageOption, Mode=TwoWay}"
-                                TextColor="{StaticResource BrushText}" />
+                                TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- Content rating filter -->
+                    <VerticalStackLayout Spacing="4" Margin="0,4,0,0">
+                        <Label Text="Content rating filter" FontFamily="Inter" FontSize="14"
+                               TextColor="{StaticResource BrushText}" />
+                        <Label Text="Filter mature or adult content across search, discovery, and library"
+                               FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        <Picker x:Name="ContentFilterPicker" Title="Content filter"
+                                FontFamily="Inter" FontSize="14"
+                                TextColor="{StaticResource BrushText}"
+                                SelectedIndex="{Binding ContentFilterIndex, Mode=TwoWay}"
+                                Margin="0,2,0,0" />
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Tracking & Library -->
+            <Border Style="{StaticResource PanelStyle}" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="TRACKING &amp; LIBRARY" FontFamily="InterBold" FontSize="11"
+                           TextColor="#A0FFFFFF" />
+
+                    <!-- Prompt for score on completion -->
+                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Prompt for score on completion" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Automatically ask for a score (1–10) when moving an entry to Completed"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding DisplayScoreDialogAfterCompletion}"
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- Auto set start date -->
+                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Auto set start date" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Automatically set today as start date when moving to Watching or Reading"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding SetStartDateOnWatching}"
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- Auto set finish date -->
+                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Auto set finish date" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Automatically set today as finish date when moving an entry to Completed"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding SetEndDateOnCompleted}"
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- Manga progress by volumes -->
+                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Manga progress by volumes" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Track and display read volumes instead of chapters for manga"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding MangaFocusVolumes}"
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- Default descending sort -->
+                    <Grid ColumnDefinitions="*,Auto" Padding="0,4">
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Default to descending sort" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Order library lists by highest score or newest date first"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding AutoDescendingSorting}"
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>
 
-             <!-- Feeds: removed. Nothing read the stored preference, in this build or the old one,
-                  so the switch changed nothing about which profiles' activity was shown. -->
-
-
-            <!-- Calendar -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="CALENDAR" FontFamily="InterBold" FontSize="11"
+            <!-- Broadcast Calendar -->
+            <Border Style="{StaticResource PanelStyle}" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="BROADCAST CALENDAR" FontFamily="InterBold" FontSize="11"
                            TextColor="#A0FFFFFF" />
+
+                    <!-- Include Watching -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Include watching" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Include Watching" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Show anime currently in your Watching list on their airing days"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Switch Grid.Column="1" IsToggled="{Binding CalendarIncludeWatching}"
-                                OnColor="{StaticResource EmAccent}" />
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                     </Grid>
+
+                    <!-- Include Planned -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Include planned" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Include Plan to Watch" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Show anime in your Plan to Watch list on their airing days"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Switch Grid.Column="1" IsToggled="{Binding CalendarIncludePlanned}"
-                                OnColor="{StaticResource EmAccent}" />
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                     </Grid>
+
+                    <!-- Start week on -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Start week on:" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Start week on" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="First day column shown in the weekly calendar"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Picker Grid.Column="1" ItemsSource="{Binding CalendarWeekStartOptions}"
                                 SelectedIndex="{Binding CalendarWeekStartIndex, Mode=TwoWay}"
                                 TitleColor="#A0FFFFFF" TextColor="{StaticResource BrushText}"
-                                WidthRequest="120" HorizontalOptions="End" />
+                                WidthRequest="120" HorizontalOptions="End" VerticalOptions="Center" />
                     </Grid>
+
+                    <!-- Open on today's day -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Open on today's day" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Jump to current day" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Automatically scroll to today's column when opening the calendar"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Switch Grid.Column="1" IsToggled="{Binding CalendarStartOnToday}"
-                                OnColor="{StaticResource EmAccent}" />
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                     </Grid>
+
+                    <!-- Hide empty days -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Hide days with nothing airing" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Hide empty days" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Omit calendar days with no scheduled broadcasts"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Switch Grid.Column="1" IsToggled="{Binding CalendarRemoveEmptyDays}"
-                                OnColor="{StaticResource EmAccent}" />
+                                OnColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                     </Grid>
+
+                    <!-- Max series per day -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Max series in My List" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Maximum series per day" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Limit the number of series displayed under each day column"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
                         <Entry Grid.Column="1" Text="{Binding CalendarMaxItems}" Keyboard="Numeric"
                                WidthRequest="72" FontFamily="Inter" FontSize="14"
                                TextColor="{StaticResource BrushText}"
                                BackgroundColor="{StaticResource EmBackground}"
-                               PlaceholderColor="#A0FFFFFF" />
+                               PlaceholderColor="#A0FFFFFF" VerticalOptions="Center" />
                     </Grid>
-                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                         <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
-                             <Label Text="Broadcast time zone" FontFamily="Inter" FontSize="14"
-                                    TextColor="{StaticResource BrushText}" />
-                             <Label Text="Which day an airing is filed under" FontFamily="Inter" FontSize="11"
-                                    TextColor="#A0FFFFFF" />
-                         </VerticalStackLayout>
-                         <!-- Title is not decoration here: a Picker with nothing selected renders as an
-                              empty box, which is why this row looked like it had no value at all.
-                              The label under it reads what the stored choice actually is, since the Picker
-                              itself only shows the option text once one has been tapped.
-                              ItemDisplayBinding is left out on purpose. The options override ToString, so
-                              the binding was only a second path to the same text, and it is the one that
-                              renders nothing when it does not resolve. -->
-                         <VerticalStackLayout Grid.Column="1" Spacing="2" HorizontalOptions="End"
-                                              WidthRequest="180">
-                             <Picker ItemsSource="{Binding CalendarTimeZoneOptions}"
-                                     SelectedIndex="{Binding CalendarTimeZoneIndex, Mode=TwoWay}"
-                                     Title="Time zone"
-                                     TitleColor="#A0FFFFFF" TextColor="{StaticResource BrushText}" />
-                             <Label Text="{Binding CalendarTimeZoneLabel}" FontFamily="Inter" FontSize="11"
-                                    TextColor="#A0FFFFFF" HorizontalOptions="End" />
-                         </VerticalStackLayout>
-                     </Grid>
-                 </VerticalStackLayout>
-             </Border>
 
-             <!-- Notifications: removed. Every manager behind this row was an empty stub, so the
-                  switch could not start or stop anything, and there is no notifications page for it
-                  to lead to. Left in place it was a row that did nothing at all. -->
-
-             <!-- Articles: removed. Nothing in the app read the stored preference, so the switch
-                  never changed where a link went. -->
-
-
-            <!-- Forums -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="FORUMS" FontFamily="InterBold" FontSize="11"
-                           TextColor="#A0FFFFFF" />
+                    <!-- Broadcast time zone -->
                     <Grid ColumnDefinitions="*,Auto" Padding="0,4">
-                        <Label Grid.Column="0" Text="Pull peek posts on startup" FontFamily="Inter" FontSize="14"
-                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                        <Switch Grid.Column="1" IsToggled="{Binding PullPeekPostsOnStartup}"
-                                OnColor="{StaticResource EmAccent}" />
+                        <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                            <Label Text="Broadcast time zone" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource BrushText}" />
+                            <Label Text="Time zone used to align airing times into day columns"
+                                   FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" HorizontalOptions="End"
+                                             WidthRequest="180">
+                            <Picker ItemsSource="{Binding CalendarTimeZoneOptions}"
+                                    SelectedIndex="{Binding CalendarTimeZoneIndex, Mode=TwoWay}"
+                                    Title="Time zone"
+                                    TitleColor="#A0FFFFFF" TextColor="{StaticResource BrushText}" />
+                            <Label Text="{Binding CalendarTimeZoneLabel}" FontFamily="Inter" FontSize="11"
+                                   TextColor="#A0FFFFFF" HorizontalOptions="End" />
+                        </VerticalStackLayout>
                     </Grid>
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Cache -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
-                 <VerticalStackLayout Spacing="8">
-                     <Label Text="CACHE" FontFamily="InterBold" FontSize="11"
-                            TextColor="#A0FFFFFF" />
-                     <Label x:Name="CacheCountLabel" Text="No cached files yet"
-                            FontFamily="Inter" FontSize="13" TextColor="#80FFFFFF" />
+            <!-- Cache & Storage -->
+            <Border Style="{StaticResource PanelStyle}" Padding="16">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="CACHE &amp; STORAGE" FontFamily="InterBold" FontSize="11"
+                           TextColor="#A0FFFFFF" />
+                    <Label x:Name="CacheCountLabel" Text="No cached files yet"
+                           FontFamily="Inter" FontSize="13" TextColor="#80FFFFFF" />
+                    <Label Text="Removes locally cached API responses and metadata to force a fresh fetch."
+                           FontFamily="Inter" FontSize="11" TextColor="#A0FFFFFF" />
                     <Button Text="Clear caches" Clicked="OnClearCachesClicked"
                             FontFamily="InterSemiBold" FontSize="13"
                             BackgroundColor="#FF6B00" TextColor="White"
-                            CornerRadius="8" HeightRequest="36" Padding="14,0"
-                            HorizontalOptions="Start" />
+                            CornerRadius="8" HeightRequest="38" Padding="16,0"
+                            HorizontalOptions="Start" Margin="0,4,0,0" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Diagnostics & Logs -->
+            <Border Style="{StaticResource PanelStyle}" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="DIAGNOSTICS &amp; LOGS" FontFamily="InterBold" FontSize="11"
+                           TextColor="#A0FFFFFF" />
+                    <Label Text="100% local on-device logging. Zero telemetry, tracking, or personal data are ever sent over the network."
+                           FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
+                    <Label x:Name="LogSizeLabel" Text="Local logs active"
+                           FontFamily="InterMedium" FontSize="13" TextColor="{StaticResource BrushText}" />
+                    <HorizontalStackLayout Spacing="10" Margin="0,4,0,0">
+                        <Button Text="Export logs" Clicked="OnExportLogsClicked"
+                                FontFamily="InterSemiBold" FontSize="13"
+                                BackgroundColor="#0066FF" TextColor="White"
+                                CornerRadius="8" HeightRequest="38" Padding="16,0" />
+                        <Button Text="Clear logs" Clicked="OnClearLogsClicked"
+                                FontFamily="InterSemiBold" FontSize="13"
+                                BackgroundColor="#14293D" TextColor="#F87171"
+                                CornerRadius="8" HeightRequest="38" Padding="14,0" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Updates -->
+            <Border Style="{StaticResource PanelStyle}" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="UPDATES" FontFamily="InterBold" FontSize="11"
+                           TextColor="#A0FFFFFF" />
+                    <Label x:Name="VersionLabel" Text="MAL+ v0.7.0 (Build 201)"
+                           FontFamily="InterMedium" FontSize="14" TextColor="{StaticResource BrushText}" />
+                    <HorizontalStackLayout Spacing="10" Margin="0,4,0,0">
+                        <Button Text="Check for updates" Clicked="OnCheckUpdatesClicked"
+                                FontFamily="InterSemiBold" FontSize="13"
+                                BackgroundColor="#0066FF" TextColor="White"
+                                CornerRadius="8" HeightRequest="38" Padding="16,0" />
+                        <Button Text="View release notes" Clicked="OnViewChangelogClicked"
+                                FontFamily="InterSemiBold" FontSize="13"
+                                BackgroundColor="#14293D" TextColor="#8FB8E8"
+                                CornerRadius="8" HeightRequest="38" Padding="14,0" />
+                    </HorizontalStackLayout>
                 </VerticalStackLayout>
             </Border>
 
             <!-- About -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
+            <Border Style="{StaticResource PanelStyle}" Padding="16">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="ABOUT" FontFamily="InterBold" FontSize="11"
                            TextColor="#A0FFFFFF" />
-<Label Text="MAL+ MAUI" FontFamily="InterBold" FontSize="14"
-                             TextColor="{StaticResource BrushText}" />
-                      <Label Text="A .NET MAUI port of MALClient by Drutol, forked by idarkalex"
-                             FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
-                      <Label Text="Released under the GNU GPL v3"
-                              FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF" />
+                    <Label Text="MAL+ for Android" FontFamily="InterBold" FontSize="15"
+                           TextColor="{StaticResource BrushText}" />
+                    <Label Text="A modern, high-performance MyAnimeList client built with .NET 11 and .NET MAUI. Port of MALClient by Drutol, maintained and modernized by idarkalex."
+                           FontFamily="Inter" FontSize="12" TextColor="#B0C4DE" />
+                    <Label Text="Powered by Tenrai API &amp; AnimeThemes. Released under the GNU General Public License v3."
+                           FontFamily="Inter" FontSize="11" TextColor="#708090" />
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Account: signing out is the only way to get back to the login form, and the
-                 website session cookies that the community sections need are dropped with it. -->
-            <Border BackgroundColor="{StaticResource EmSheet}"
-                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8" Padding="14">
+            <!-- Account -->
+            <Border Style="{StaticResource PanelStyle}" Padding="16">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="ACCOUNT" FontFamily="InterBold" FontSize="11"
                            TextColor="#A0FFFFFF" />

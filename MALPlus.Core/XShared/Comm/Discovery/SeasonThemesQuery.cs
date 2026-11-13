@@ -35,11 +35,12 @@ namespace MALPlus.XShared.Comm.Discovery
         ///     a row with a poster and nothing beside it, so a season still reads as the season it is.
         ///     </para>
         /// </remarks>
-        public static async Task<List<SeasonThemeRow>> GetSeasonRowsAsync(int year, string season)
+        public static async Task<SeasonThemeRowsResult> GetSeasonRowsAsync(int year, string season)
         {
-            var rows = new List<SeasonThemeRow>();
+            var result = new SeasonThemeRowsResult();
+            var rows = result.Rows;
             if (string.IsNullOrEmpty(season))
-                return rows;
+                return result;
 
             // MAL first, because it decides which entries exist and in what order, and it is the only
             // one of the two that carries artwork.
@@ -77,9 +78,10 @@ namespace MALPlus.XShared.Comm.Discovery
             // One request reads the whole season's themes AND each entry's MAL id, so the rows below
             // resolve through the same function everything else uses and hit the cache rather than
             // each spending a lookup of its own.
-            var themes = await GetSeasonThemesAsync(year, season);
+            var (themes, themesFailed) = await GetSeasonThemesAsync(year, season);
+            result.ThemesFailed = themesFailed;
             if (themes.Count == 0)
-                return rows;
+                return result;
 
             var byMalId = new Dictionary<int, List<AnimeThemeRow>>();
             foreach (var theme in themes)
@@ -102,7 +104,7 @@ namespace MALPlus.XShared.Comm.Discovery
                     .ToList();
             }
 
-            return rows;
+            return result;
         }
         /// <summary>
         ///     Reads the whole season of themes from AnimeThemes, in one request.
@@ -117,52 +119,60 @@ namespace MALPlus.XShared.Comm.Discovery
         ///     every entry the season returns carries one.
         ///     </para>
         /// </remarks>
-        private static async Task<List<AnimeThemeRow>> GetSeasonThemesAsync(int year, string season)
+        private static async Task<(List<AnimeThemeRow> Themes, bool Failed)> GetSeasonThemesAsync(
+            int year, string season)
         {
             var output = new List<AnimeThemeRow>();
             try
             {
-                var url =
-                    "https://api.animethemes.moe/anime" +
-                    $"?filter[season]={Uri.EscapeDataString(Capitalize(season))}&filter[year]={year}" +
-                    "&page[size]=100" +
-                    "&include=animethemes.song,animethemes.song.artists,animethemes.animethemeentries.videos,resources";
+                var seasonEnum = (season ?? "").Trim().ToUpperInvariant();
+                if (seasonEnum != "WINTER" && seasonEnum != "SPRING" && seasonEnum != "SUMMER" && seasonEnum != "FALL")
+                    seasonEnum = "FALL";
 
-                var json = await AnimeThemesHelper.GetRawAsync(url);
-                if (string.IsNullOrEmpty(json))
-                    return output;
+                var query = "{ animePagination(year: " + year + ", season: " + seasonEnum + ", first: 100) { " +
+                            "paginatorInfo { hasMorePages currentPage lastPage } " +
+                            "data { slug title { romaji english } resources { nodes { site externalId } } " +
+                            "animethemes { type sequence song { title { romaji native } performances { artist { name { main } } } } " +
+                            "animethemeentries { episodes nsfw videos { nodes { link } } } } } } }";
 
-                using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("anime", out var animeList) ||
+                using var doc = await AnimeThemesHelper.ExecuteGraphQlAsync(query);
+                if (doc == null || !doc.RootElement.TryGetProperty("data", out var data) ||
+                    !data.TryGetProperty("animePagination", out var pagination) ||
+                    pagination.ValueKind != JsonValueKind.Object ||
+                    !pagination.TryGetProperty("data", out var animeList) ||
                     animeList.ValueKind != JsonValueKind.Array)
-                    return output;
+                {
+                    Console.WriteLine("MALPlus SeasonThemes: animethemes GraphQL returned no body for " +
+                                      season + " " + year);
+                    return (output, true);
+                }
 
                 foreach (var anime in animeList.EnumerateArray())
                 {
-                    var name = anime.TryGetProperty("name", out var nameProp) &&
-                               nameProp.ValueKind == JsonValueKind.String
-                        ? nameProp.GetString()
-                        : string.Empty;
-
-                    // The MAL id, read off the entry's own reference rather than inferred from its
-                    // name. An entry with no reference cannot be placed on a card, and it is skipped
-                    // rather than guessed at.
-                    var malId = 0;
-                    if (anime.TryGetProperty("resources", out var resources) &&
-                        resources.ValueKind == JsonValueKind.Array)
+                    string name = null;
+                    if (anime.TryGetProperty("title", out var titleObj) && titleObj.ValueKind == JsonValueKind.Object)
                     {
-                        foreach (var resource in resources.EnumerateArray())
+                        if (titleObj.TryGetProperty("romaji", out var rProp) && rProp.ValueKind == JsonValueKind.String)
+                            name = rProp.GetString();
+                        else if (titleObj.TryGetProperty("english", out var eProp) && eProp.ValueKind == JsonValueKind.String)
+                            name = eProp.GetString();
+                    }
+
+                    var malId = 0;
+                    if (anime.TryGetProperty("resources", out var resObj) && resObj.ValueKind == JsonValueKind.Object &&
+                        resObj.TryGetProperty("nodes", out var nodesArr) && nodesArr.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var node in nodesArr.EnumerateArray())
                         {
-                            var site = resource.TryGetProperty("site", out var siteProp) &&
-                                       siteProp.ValueKind == JsonValueKind.String
-                                ? siteProp.GetString()
-                                : string.Empty;
-                            if (!string.Equals(site, "MyAnimeList", StringComparison.OrdinalIgnoreCase))
-                                continue;
-                            if (resource.TryGetProperty("external_id", out var idProp) &&
-                                idProp.ValueKind == JsonValueKind.Number)
-                                malId = idProp.GetInt32();
-                            break;
+                            var site = node.TryGetProperty("site", out var siteProp) && siteProp.ValueKind == JsonValueKind.String ? siteProp.GetString() : "";
+                            if (string.Equals(site, "MAL", StringComparison.OrdinalIgnoreCase) || string.Equals(site, "MyAnimeList", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (node.TryGetProperty("externalId", out var idProp) && idProp.ValueKind == JsonValueKind.Number)
+                                {
+                                    malId = idProp.GetInt32();
+                                    break;
+                                }
+                            }
                         }
                     }
 
@@ -175,49 +185,45 @@ namespace MALPlus.XShared.Comm.Discovery
 
                     foreach (var theme in themes.EnumerateArray())
                     {
-                        var isOpening = string.Equals(
-                            theme.TryGetProperty("type", out var typeProp) &&
-                            typeProp.ValueKind == JsonValueKind.String
-                                ? typeProp.GetString()
-                                : string.Empty,
-                            "OP",
-                            StringComparison.OrdinalIgnoreCase);
+                        var typeStr = theme.TryGetProperty("type", out var typeProp) && typeProp.ValueKind == JsonValueKind.String ? typeProp.GetString() : "OP";
+                        var isOpening = string.Equals(typeStr, "OP", StringComparison.OrdinalIgnoreCase);
 
                         var sequence = theme.TryGetProperty("sequence", out var seqProp) &&
                                        seqProp.ValueKind == JsonValueKind.Number
                             ? seqProp.GetInt32()
                             : 1;
 
-                        var song = theme.TryGetProperty("song", out var songProp) &&
-                                   songProp.ValueKind == JsonValueKind.Object
-                            ? songProp
-                            : default(JsonElement?);
-
-                        var songTitle = song.HasValue &&
-                                       song.Value.TryGetProperty("title", out var titleProp) &&
-                                       titleProp.ValueKind == JsonValueKind.String
-                            ? titleProp.GetString()
-                            : string.Empty;
-
+                        string songTitle = string.Empty;
                         var artists = new List<string>();
-                        if (song.HasValue &&
-                            song.Value.TryGetProperty("artists", out var artistList) &&
-                            artistList.ValueKind == JsonValueKind.Array)
+                        if (theme.TryGetProperty("song", out var song) && song.ValueKind == JsonValueKind.Object)
                         {
-                            foreach (var artist in artistList.EnumerateArray())
+                            if (song.TryGetProperty("title", out var titleProp) && titleProp.ValueKind == JsonValueKind.Object)
                             {
-                                if (artist.TryGetProperty("name", out var artistNameProp) &&
-                                    artistNameProp.ValueKind == JsonValueKind.String)
-                                    artists.Add(artistNameProp.GetString());
+                                if (titleProp.TryGetProperty("romaji", out var r) && r.ValueKind == JsonValueKind.String)
+                                    songTitle = r.GetString();
+                                else if (titleProp.TryGetProperty("native", out var n) && n.ValueKind == JsonValueKind.String)
+                                    songTitle = n.GetString();
+                            }
+
+                            if (song.TryGetProperty("performances", out var perfArr) && perfArr.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var perf in perfArr.EnumerateArray())
+                                {
+                                    if (perf.TryGetProperty("artist", out var artObj) && artObj.ValueKind == JsonValueKind.Object &&
+                                        artObj.TryGetProperty("name", out var artNameObj) && artNameObj.ValueKind == JsonValueKind.Object &&
+                                        artNameObj.TryGetProperty("main", out var mainProp) && mainProp.ValueKind == JsonValueKind.String)
+                                    {
+                                        var aName = mainProp.GetString();
+                                        if (!string.IsNullOrEmpty(aName))
+                                            artists.Add(aName);
+                                    }
+                                }
                             }
                         }
 
-                        // Entries, not themes, carry the videos and the nsfw mark, and there can be
-                        // several. Every one that resolves to a video becomes a row of its own, which
-                        // is what lets a theme with two variants show both.
                         if (!theme.TryGetProperty("animethemeentries", out var entries) ||
                             entries.ValueKind != JsonValueKind.Array)
-                            continue;
+                        continue;
 
                         foreach (var entry in entries.EnumerateArray())
                         {
@@ -229,22 +235,27 @@ namespace MALPlus.XShared.Comm.Discovery
                             var nsfw = entry.TryGetProperty("nsfw", out var nsfwProp) &&
                                       nsfwProp.ValueKind == JsonValueKind.True;
 
-                            var video = entry.TryGetProperty("videos", out var videoList) &&
-                                        videoList.ValueKind == JsonValueKind.Array
-                                ? videoList.EnumerateArray()
-                                    .Select(videoElement => videoElement.TryGetProperty("link", out var linkProp) &&
-                                                            linkProp.ValueKind == JsonValueKind.String
-                                        ? linkProp.GetString()
-                                        : string.Empty)
-                                    .FirstOrDefault(link => !string.IsNullOrEmpty(link))
-                                : null;
+                            string video = null;
+                            if (entry.TryGetProperty("videos", out var vidObj) && vidObj.ValueKind == JsonValueKind.Object &&
+                                vidObj.TryGetProperty("nodes", out var vidNodes) && vidNodes.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var node in vidNodes.EnumerateArray())
+                                {
+                                    var link = node.TryGetProperty("link", out var lProp) && lProp.ValueKind == JsonValueKind.String ? lProp.GetString() : null;
+                                    if (!string.IsNullOrEmpty(link))
+                                    {
+                                        video = link;
+                                        break;
+                                    }
+                                }
+                            }
 
                             if (string.IsNullOrEmpty(video))
                                 continue;
 
                             output.Add(new AnimeThemeRow
                             {
-                                AnimeName = name,
+                                AnimeName = name ?? string.Empty,
                                 MalId = malId,
                                 IsOpening = isOpening,
                                 Sequence = sequence,
@@ -257,12 +268,16 @@ namespace MALPlus.XShared.Comm.Discovery
                         }
                     }
                 }
+                return (output, false);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Console.WriteLine("MALPlus SeasonThemes: GraphQL season request failed for " +
+                                  season + " " + year + ": " + ex.GetType().Name + " " + ex.Message);
+                return (output, true);
             }
 
-            return output;
+            return (output, false);
         }
 
         private static Season ParseSeason(string season)
@@ -278,6 +293,21 @@ namespace MALPlus.XShared.Comm.Discovery
             => string.IsNullOrEmpty(value)
                 ? value
                 : char.ToUpperInvariant(value[0]) + value.Substring(1).ToLowerInvariant();
+    }
+
+    /// <summary>
+    ///     A season's rows, plus whether the themes half of the read failed.
+    /// </summary>
+    /// <remarks>
+    ///     The season list comes from MAL and survives an AnimeThemes outage, so the two halves
+    ///     fail separately. The flag is what lets the page keep the season on screen and offer a
+    ///     retry, instead of presenting an empty theme column as if it were the truth.
+    /// </remarks>
+    public sealed class SeasonThemeRowsResult
+    {
+        public List<SeasonThemeRow> Rows { get; } = new List<SeasonThemeRow>();
+
+        public bool ThemesFailed { get; set; }
     }
 
     /// <summary>

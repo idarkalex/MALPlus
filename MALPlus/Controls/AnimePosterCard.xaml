@@ -34,6 +34,15 @@
                        FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
             </Border>
 
+            <!-- Season chip (e.g. 'Fall 24'), 3rd tag under score -->
+            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+                    BackgroundColor="#0066FF" Stroke="Transparent"
+                    HorizontalOptions="Start"
+                    IsVisible="{Binding SeasonTag, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
+                <Label Text="{Binding SeasonTag, Source={x:Reference PosterCard}}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+            </Border>
+
             <VerticalStackLayout Spacing="0"
                                  HorizontalOptions="Start"
                                  BindableLayout.ItemsSource="{Binding ChipSource, Source={x:Reference PosterCard}}"
@@ -41,19 +50,17 @@
                                  IsVisible="{Binding ChipSource, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}" />
         </VerticalStackLayout>
 
-        <!-- One pill for the whole counter: status, episodes watched and the time left to the next
-             episode. These used to be two stacked pills, which read as two separate controls and
-             doubled the badge block on every card. -->
-        <Border BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
-                StrokeShape="RoundRectangle 12" Padding="6,3"
+        <!-- Top-right counter pill: status, episodes watched and countdown. Styled in solid blue matching the left chips -->
+        <Border BackgroundColor="#0066FF" Stroke="Transparent" StrokeThickness="0"
+                StrokeShape="RoundRectangle 6" Padding="6,2"
                 HorizontalOptions="End" VerticalOptions="Start"
                 Margin="0,6,6,0"
                 IsVisible="{Binding HasBadge, Source={x:Reference PosterCard}}">
             <VerticalStackLayout Spacing="2" HorizontalOptions="End">
-                <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
+                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
                     <Label Text="{Binding BadgeAccent, Source={x:Reference PosterCard}}"
                            FontFamily="InterBold" FontSize="9"
-                           TextColor="{StaticResource EmAccent}" VerticalOptions="Center"
+                           TextColor="{Binding BadgeAccentColor, Source={x:Reference PosterCard}}" VerticalOptions="Center"
                            IsVisible="{Binding BadgeAccent, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
                     <Label Text="{Binding BadgeMain, Source={x:Reference PosterCard}}"
                            FontFamily="InterBold" FontSize="9" TextColor="White" VerticalOptions="Center"
@@ -61,14 +68,14 @@
                     <BoxView WidthRequest="1" HeightRequest="10" Color="#59FFFFFF"
                              VerticalOptions="Center"
                              IsVisible="{Binding HasBadgeExtra, Source={x:Reference PosterCard}}" />
-<Label Text="{Binding BadgeExtra, Source={x:Reference PosterCard}}"
-                       FontFamily="InterBold" FontSize="9" TextColor="White"
-                       VerticalOptions="Center" MaxLines="1" LineBreakMode="TailTruncation"
-                       IsVisible="{Binding HasBadgeExtraTop, Source={x:Reference PosterCard}}" />
+                    <Label Text="{Binding BadgeExtra, Source={x:Reference PosterCard}}"
+                           FontFamily="InterBold" FontSize="9" TextColor="White"
+                           VerticalOptions="Center" MaxLines="1" LineBreakMode="TailTruncation"
+                           IsVisible="{Binding HasBadgeExtraTop, Source={x:Reference PosterCard}}" />
                 </HorizontalStackLayout>
                 <Label Text="{Binding BadgeExtra, Source={x:Reference PosterCard}}"
                        FontFamily="InterBold" FontSize="9"
-                       TextColor="{StaticResource EmAccent}"
+                       TextColor="#C0E0FF"
                        HorizontalOptions="End" VerticalOptions="Center"
                        MaxLines="1" LineBreakMode="TailTruncation"
                        IsVisible="{Binding IsAiringExtra, Source={x:Reference PosterCard}}" />

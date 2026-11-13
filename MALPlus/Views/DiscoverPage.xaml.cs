@@ -4,15 +4,17 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using MALPlus.Controls;
+using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Misc;
+using MALPlus.Services;
 using MALPlus.XShared.Comm.Discovery;
+using MALPlus.XShared.NavArgs;
 using MALPlus.XShared.Utils;
 using MALPlus.XShared.ViewModels;
-using MALPlus.Services;
 
 namespace MALPlus.Views;
 
-public partial class DiscoverPage : ContentPage
+public partial class DiscoverPage : ContentPage, ITabSwipeHost
 {
     private const string FilterPrefsKey = "MALPlus_DiscoveryRandomFilter_v1";
 
@@ -28,6 +30,9 @@ public partial class DiscoverPage : ContentPage
     {
         InitializeComponent();
     }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+        => BottomNav?.StepSection(direction) == true;
 
     private async Task<bool> GuardAsync()
     {
@@ -104,9 +109,31 @@ public partial class DiscoverPage : ContentPage
     ///     Discover saw nothing and the tile reported that the reader had no entry scored 8 or higher
     ///     when their list was full of them.
     /// </remarks>
-    private static List<AnimeItemAbstraction> MyAnimeLibrary()
-        => ResourceLocator.AnimeLibraryDataStorage?.AllLoadedAnimeItemAbstractions
-           ?? new List<AnimeItemAbstraction>();
+    /// <summary>
+    ///     The reader's own anime, ensuring the storage is loaded if opening Discover on cold start.
+    /// </summary>
+    private static async Task<List<AnimeItemAbstraction>> EnsureAnimeLibraryAsync()
+    {
+        var storage = ResourceLocator.AnimeLibraryDataStorage;
+        var items = storage?.AllLoadedAnimeItemAbstractions;
+        if (items != null && items.Count > 0)
+            return items;
+
+        if (Credentials.Authenticated && !string.IsNullOrWhiteSpace(Credentials.UserName))
+        {
+            try
+            {
+                await ViewModelLocator.AnimeList.FetchData(false, MALPlus.Models.Enums.AnimeListWorkModes.Anime);
+                items = ResourceLocator.AnimeLibraryDataStorage?.AllLoadedAnimeItemAbstractions;
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPlus Discover", "EnsureAnimeLibraryAsync: " + ex.Message);
+            }
+        }
+
+        return items ?? new List<AnimeItemAbstraction>();
+    }
 
     /// <summary>
     ///     Every id the reader already has, anime and manga alike, so recommendations leave it out.
@@ -121,14 +148,14 @@ public partial class DiscoverPage : ContentPage
         foreach (var abstraction in storage.AllLoadedAnimeItemAbstractions
                                           ?? new List<AnimeItemAbstraction>())
         {
-            if (abstraction != null)
+            if (abstraction != null && abstraction.MalId > 0)
                 ids.Add(abstraction.MalId);
         }
 
         foreach (var abstraction in storage.AllLoadedMangaItemAbstractions
                                           ?? new List<AnimeItemAbstraction>())
         {
-            if (abstraction != null)
+            if (abstraction != null && abstraction.MalId > 0)
                 ids.Add(abstraction.MalId);
         }
 
@@ -140,19 +167,67 @@ public partial class DiscoverPage : ContentPage
         if (!await GuardAsync()) return;
         try
         {
-            var anchors = new List<Tuple<int, string, int>>();
+            var library = await EnsureAnimeLibraryAsync();
             var inLibrary = MyAnimeLibraryIds();
-            foreach (var abstraction in MyAnimeLibrary())
+            var anchors = new List<RecommendationAnchor>();
+
+            foreach (var abstraction in library)
             {
                 if (abstraction?.EntryData is not MALPlus.Models.Models.Library.AnimeLibraryItemData data)
                     continue;
-                if (data.MyStatus == MALPlus.Models.Enums.AnimeStatus.Completed && data.MyScore >= 8)
-                    anchors.Add(Tuple.Create(abstraction.MalId, data.Title, (int)data.MyScore));
+
+                // Never recommend based on shows the user dropped or rated poorly
+                if (data.MyScore > 0 && data.MyScore <= 5)
+                    continue;
+                if (data.MyStatus == MALPlus.Models.Enums.AnimeStatus.Dropped)
+                    continue;
+                if (data.MyStatus == MALPlus.Models.Enums.AnimeStatus.PlanToWatch)
+                    continue;
+
+                int weight = 0;
+                // Tier 1: User rated 8, 9, or 10 -> Top priority
+                if (data.MyScore >= 8)
+                {
+                    weight = (int)(data.MyScore * 3); // 24 to 30
+                }
+                // Tier 2: User rated 6 or 7
+                else if (data.MyScore >= 6)
+                {
+                    weight = (int)(data.MyScore * 2); // 12 to 14
+                }
+                // Tier 3: Completed without numeric score -> High positive weight!
+                else if (data.MyStatus == MALPlus.Models.Enums.AnimeStatus.Completed)
+                {
+                    weight = 20;
+                }
+                // Tier 4: Watching / Rewatching with progress
+                else if (data.MyStatus == MALPlus.Models.Enums.AnimeStatus.Watching || data.IsRewatching)
+                {
+                    if (data.MyEpisodes >= 2)
+                        weight = 15;
+                }
+                // Tier 5: On hold with progress
+                else if (data.MyStatus == MALPlus.Models.Enums.AnimeStatus.OnHold && data.MyEpisodes >= 3)
+                {
+                    weight = 10;
+                }
+
+                if (weight > 0 && abstraction.MalId > 0)
+                {
+                    anchors.Add(new RecommendationAnchor
+                    {
+                        MalId = abstraction.MalId,
+                        Title = data.Title ?? abstraction.Title ?? string.Empty,
+                        Score = (int)data.MyScore,
+                        Weight = weight
+                    });
+                }
             }
+
             if (anchors.Count == 0)
             {
-                Console.WriteLine($"MALPLUS foryou: sin anclas (biblioteca={MyAnimeLibrary().Count} items)");
-                await Alert("You need at least one completed anime scored 8 or more in your list.");
+                Console.WriteLine($"MALPLUS foryou: sin anclas (biblioteca={library.Count} items)");
+                await Alert("Add or complete some anime in your list to get recommendations.");
                 return;
             }
 
@@ -163,7 +238,10 @@ public partial class DiscoverPage : ContentPage
             else
                 await ShowResults("For you", result);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus Discover", "OnBecauseYouLikedTapped: " + ex.Message);
+        }
         finally { Release(); }
     }
 
@@ -209,7 +287,15 @@ public partial class DiscoverPage : ContentPage
                 await Alert("No gems matched those filters this week.");
                 return;
             }
-            await ShowResults("Gem of the week", new List<DiscoveryItem> {gem});
+
+            MALPlus.Services.MauiDetailsNavigationHandoff.Set(
+                new AnimeDetailsPageNavigationArgs(gem.Id, gem.Title, null, null, null)
+                {
+                    AnimeMode = true,
+                    Source = PageIndex.PageDiscover
+                });
+            var title = Uri.EscapeDataString(gem.Title ?? string.Empty);
+            await Shell.Current.GoToAsync($"animedetails?id={gem.Id}&title={title}");
         }
         catch { }
         finally { Release(); }
@@ -236,7 +322,7 @@ public partial class DiscoverPage : ContentPage
     private async Task JumpToRandomAsync(bool manga)
     {
         var filter = await LoadFilterAsync(manga);
-        var items = await DiscoveryRandomQuery.GetAsync(manga, filter, 0, 0, 1);
+        var items = await DiscoveryRandomQuery.GetAsync(manga, filter, 0, 0, 1, excludeIds: MyAnimeLibraryIds());
         if (items.Count == 0)
         {
             await Alert("Nothing matched those filters.");
@@ -328,67 +414,95 @@ public partial class DiscoverPage : ContentPage
         List<OptionsSheetItem> ScoreRows()
             => new List<OptionsSheetItem>
             {
-                new("0 (any)", null, submenu: s =>
+                new("0 (any)", null, hideChevron: true, submenu: s =>
                 {
                     filter.MinScore = 0;
+                    filter.MaxScore = 0;
                     pending = "0";
                     _ = SaveFilterAsync(manga, filter);
                     BackToFilters();
                     return true;
                 }),
-                new("6", null, submenu: s =>
+                new("6+", null, hideChevron: true, submenu: s =>
                 {
                     filter.MinScore = 6;
-                    pending = "6";
+                    filter.MaxScore = 0;
+                    pending = "6+";
                     _ = SaveFilterAsync(manga, filter);
                     BackToFilters();
                     return true;
                 }),
-                new("7", null, submenu: s =>
+                new("7+", null, hideChevron: true, submenu: s =>
                 {
                     filter.MinScore = 7;
-                    pending = "7";
+                    filter.MaxScore = 0;
+                    pending = "7+";
                     _ = SaveFilterAsync(manga, filter);
                     BackToFilters();
                     return true;
                 }),
-                new("7.5", null, submenu: s =>
+                new("7.5+", null, hideChevron: true, submenu: s =>
                 {
                     filter.MinScore = 7.5;
-                    pending = "7.5";
+                    filter.MaxScore = 0;
+                    pending = "7.5+";
                     _ = SaveFilterAsync(manga, filter);
                     BackToFilters();
                     return true;
                 }),
-                new("8", null, submenu: s =>
+                new("8+", null, hideChevron: true, submenu: s =>
                 {
                     filter.MinScore = 8;
-                    pending = "8";
+                    filter.MaxScore = 0;
+                    pending = "8+";
                     _ = SaveFilterAsync(manga, filter);
                     BackToFilters();
                     return true;
                 }),
-                new("8.5", null, submenu: s =>
+                new("8.5+", null, hideChevron: true, submenu: s =>
                 {
                     filter.MinScore = 8.5;
-                    pending = "8.5";
+                    filter.MaxScore = 0;
+                    pending = "8.5+";
                     _ = SaveFilterAsync(manga, filter);
                     BackToFilters();
                     return true;
                 }),
-                new("9", null, submenu: s =>
+                new("9+", null, hideChevron: true, submenu: s =>
                 {
                     filter.MinScore = 9;
-                    pending = "9";
+                    filter.MaxScore = 0;
+                    pending = "9+";
                     _ = SaveFilterAsync(manga, filter);
                     BackToFilters();
+                    return true;
+                }),
+                new("Custom range...", "icon_edit", hideChevron: true, submenu: s =>
+                {
+                    var initial = filter.MinScore > 0 && filter.MaxScore > 0
+                        ? $"{filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} - {filter.MaxScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}"
+                        : filter.MinScore > 0
+                            ? filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
+                            : "";
+                    s.OpenPrompt("Custom score", "e.g. 7.5 - 9.5 or 8.0", initial, "7.5 - 9.5", 20, true,
+                        onSave: val =>
+                        {
+                            ParseScoreRange(val, out var min, out var max);
+                            filter.MinScore = min;
+                            filter.MaxScore = max;
+                            _ = SaveFilterAsync(manga, filter);
+                            BackToFilters();
+                        },
+                        onCancel: BackToFilters,
+                        keyboard: Keyboard.Text,
+                        closeOnSave: false);
                     return true;
                 })
             };
 
         List<OptionsSheetItem> YearRows() => new List<OptionsSheetItem>
         {
-            new("Any", null, submenu: s =>
+            new("Any", null, hideChevron: true, submenu: s =>
             {
                 filter.MinYear = 0;
                 filter.MaxYear = 0;
@@ -397,7 +511,16 @@ public partial class DiscoverPage : ContentPage
                 BackToFilters();
                 return true;
             }),
-            new("2015+", null, submenu: s =>
+            new("2020+", null, hideChevron: true, submenu: s =>
+            {
+                filter.MinYear = 2020;
+                filter.MaxYear = 0;
+                pending = "2020+";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            }),
+            new("2015+", null, hideChevron: true, submenu: s =>
             {
                 filter.MinYear = 2015;
                 filter.MaxYear = 0;
@@ -406,7 +529,7 @@ public partial class DiscoverPage : ContentPage
                 BackToFilters();
                 return true;
             }),
-            new("2010+", null, submenu: s =>
+            new("2010+", null, hideChevron: true, submenu: s =>
             {
                 filter.MinYear = 2010;
                 filter.MaxYear = 0;
@@ -415,22 +538,63 @@ public partial class DiscoverPage : ContentPage
                 BackToFilters();
                 return true;
             }),
-            new("2000+", null, submenu: s =>
+            new("2000s", null, hideChevron: true, submenu: s =>
             {
                 filter.MinYear = 2000;
-                filter.MaxYear = 0;
-                pending = "2000+";
+                filter.MaxYear = 2009;
+                pending = "2000s";
                 _ = SaveFilterAsync(manga, filter);
                 BackToFilters();
                 return true;
             }),
-            new("Before 2000", null, submenu: s =>
+            new("90s", null, hideChevron: true, submenu: s =>
             {
-                filter.MinYear = 1960;
-                filter.MaxYear = 0;
+                filter.MinYear = 1990;
+                filter.MaxYear = 1999;
+                pending = "90s";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            }),
+            new("80s", null, hideChevron: true, submenu: s =>
+            {
+                filter.MinYear = 1980;
+                filter.MaxYear = 1989;
+                pending = "80s";
+                _ = SaveFilterAsync(manga, filter);
+                BackToFilters();
+                return true;
+            }),
+            new("Before 2000", null, hideChevron: true, submenu: s =>
+            {
+                filter.MinYear = 0;
+                filter.MaxYear = 1999;
                 pending = "Before 2000";
                 _ = SaveFilterAsync(manga, filter);
                 BackToFilters();
+                return true;
+            }),
+            new("Custom range...", "icon_edit", hideChevron: true, submenu: s =>
+            {
+                var initial = filter.MinYear > 0 && filter.MaxYear > 0
+                    ? (filter.MinYear == filter.MaxYear ? $"{filter.MinYear}" : $"{filter.MinYear} - {filter.MaxYear}")
+                    : filter.MinYear > 0
+                        ? $"{filter.MinYear}+"
+                        : filter.MaxYear > 0
+                            ? $"< {filter.MaxYear + 1}"
+                            : "";
+                s.OpenPrompt("Custom year range", "e.g. 1995 - 2000 or 1998", initial, "1995 - 2000", 20, true,
+                    onSave: val =>
+                    {
+                        ParseYearRange(val, out var min, out var max);
+                        filter.MinYear = min;
+                        filter.MaxYear = max;
+                        _ = SaveFilterAsync(manga, filter);
+                        BackToFilters();
+                    },
+                    onCancel: BackToFilters,
+                    keyboard: Keyboard.Text,
+                    closeOnSave: false);
                 return true;
             })
         };
@@ -445,6 +609,7 @@ public partial class DiscoverPage : ContentPage
                 var on = filter.GenreIds.Contains(id);
                 rows.Add(new OptionsSheetItem(captured == 0 ? "Any" : DescribeGenre(captured),
                     on ? "icon_check" : null,
+                    hideChevron: true,
                     submenu: s =>
                     {
                         // Marks rather than commits, and the panel is drawn again from the new
@@ -459,7 +624,7 @@ public partial class DiscoverPage : ContentPage
                     }));
             }
 
-            rows.Add(new OptionsSheetItem("Done", "icon_check", submenu: s =>
+            rows.Add(new OptionsSheetItem("Done", "icon_check", hideChevron: true, submenu: s =>
             {
                 BackToFilters();
                 return true;
@@ -467,22 +632,28 @@ public partial class DiscoverPage : ContentPage
             return rows;
         }
 
-        List<OptionsSheetItem> BuildFilterRows()
+        string TypeLabel()
+        {
+            if (chosen.Count == 0 || AllMarked())
+                return "All";
+            var names = chosen.Select(f => char.ToUpperInvariant(f[0]) + f.Substring(1)).ToList();
+            if (names.Count <= 2)
+                return string.Join(" / ", names);
+            return $"{names.Count} chosen";
+        }
+
+        List<OptionsSheetItem> TypeRows()
         {
             var rows = new List<OptionsSheetItem>();
-            var allMarked = AllMarked();
+            var isAll = chosen.Count == 0 || AllMarked();
 
-            rows.Add(new OptionsSheetItem("All", allMarked ? "icon_check" : null, hideChevron: true, submenu: s =>
+            rows.Add(new OptionsSheetItem("All", isAll ? "icon_check" : null, hideChevron: true, submenu: s =>
             {
-                if (allMarked)
-                    chosen.Clear();
-                else
-                    foreach (var f in formats.Where(f => !string.IsNullOrEmpty(f)))
-                        chosen.Add(f);
-                filter.Formats = chosen.ToList();
+                chosen.Clear();
+                filter.Formats = new List<string>();
                 filter.Format = "";
                 _ = SaveFilterAsync(manga, filter);
-                BackToFilters();
+                s.OpenSubmenu("Type", TypeRows(), BackToFilters);
                 return true;
             }));
 
@@ -491,33 +662,66 @@ public partial class DiscoverPage : ContentPage
                 var value = formats[i];
                 if (string.IsNullOrEmpty(value))
                     continue;
-                // No chevron: these rows commit on tap and stay on the same level, so an arrow would
-                // promise a sub panel that does not exist.
-                rows.Add(new OptionsSheetItem(formatLabels[i], chosen.Contains(value) ? "icon_check" : null,
-                    hideChevron: true,
-                    submenu: s =>
+
+                var isChecked = !isAll && chosen.Contains(value);
+                var label = formatLabels[i];
+
+                rows.Add(new OptionsSheetItem(label, isChecked ? "icon_check" : null, hideChevron: true, submenu: s =>
+                {
+                    if (isAll)
+                    {
+                        chosen.Clear();
+                        chosen.Add(value);
+                    }
+                    else
                     {
                         if (!chosen.Remove(value))
                             chosen.Add(value);
-                        filter.Formats = chosen.ToList();
-                        filter.Format = "";
-                        _ = SaveFilterAsync(manga, filter);
-                        BackToFilters();
-                        return true;
-                    }));
-            }
 
-                        rows.Add(new OptionsSheetItem("Min score", null,
-                value: filter.MinScore <= 0
-                    ? "any"
-                    : filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
-                showChevron: true,
-                submenu: s =>
-                {
-                    s.OpenSubmenu("Minimum score", ScoreRows(), BackToFilters);
+                        var realFormats = formats.Where(f => !string.IsNullOrEmpty(f)).ToList();
+                        if (chosen.Count == 0 || realFormats.All(chosen.Contains))
+                            chosen.Clear();
+                    }
+
+                    filter.Formats = chosen.ToList();
+                    filter.Format = "";
+                    _ = SaveFilterAsync(manga, filter);
+                    s.OpenSubmenu("Type", TypeRows(), BackToFilters);
                     return true;
                 }));
-            rows.Add(new OptionsSheetItem("Years", null, value: YearLabel(filter), showChevron: true,
+            }
+
+            rows.Add(new OptionsSheetItem("Done", "icon_check", submenu: s =>
+            {
+                BackToFilters();
+                return true;
+            }));
+
+            return rows;
+        }
+
+        List<OptionsSheetItem> BuildFilterRows()
+        {
+            var rows = new List<OptionsSheetItem>();
+
+            rows.Add(new OptionsSheetItem("Type", null,
+                value: TypeLabel(),
+                hideChevron: true,
+                submenu: s =>
+                {
+                    s.OpenSubmenu("Type", TypeRows(), BackToFilters);
+                    return true;
+                }));
+
+            rows.Add(new OptionsSheetItem("Score", null,
+                value: ScoreLabel(filter),
+                hideChevron: true,
+                submenu: s =>
+                {
+                    s.OpenSubmenu("Score range", ScoreRows(), BackToFilters);
+                    return true;
+                }));
+            rows.Add(new OptionsSheetItem("Years", null, value: YearLabel(filter), hideChevron: true,
                 submenu: s =>
                 {
                     s.OpenSubmenu("Year range", YearRows(), BackToFilters);
@@ -525,7 +729,7 @@ public partial class DiscoverPage : ContentPage
                 }));
             rows.Add(new OptionsSheetItem("Genres", null,
                 value: filter.GenreIds.Count == 0 ? "any" : filter.GenreIds.Count + " chosen",
-                showChevron: true,
+                hideChevron: true,
                 submenu: s =>
                 {
                     s.OpenSubmenu("Genres", GenreRows(), BackToFilters);
@@ -539,6 +743,7 @@ public partial class DiscoverPage : ContentPage
                     filter.Format = "";
                     filter.Formats = new List<string>();
                     filter.MinScore = 0;
+                    filter.MaxScore = 0;
                     filter.MinYear = 0;
                     filter.MaxYear = 0;
                     filter.GenreIds.Clear();
@@ -560,8 +765,161 @@ public partial class DiscoverPage : ContentPage
             sheet => _filterSheet = sheet);
     }
 
-    private static string YearLabel(RandomFilter filter) =>
-        filter.MinYear <= 0 ? "any" : filter.MinYear + "+";
+    private static string ScoreLabel(RandomFilter filter)
+    {
+        if (filter.MinScore <= 0 && filter.MaxScore <= 0)
+            return "any";
+        if (filter.MinScore > 0 && filter.MaxScore > 0)
+            return $"{filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} - {filter.MaxScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}";
+        if (filter.MinScore > 0)
+            return $"{filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}+";
+        return $"< {filter.MaxScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}";
+    }
+
+    private static string YearLabel(RandomFilter filter)
+    {
+        if (filter.MinYear <= 0 && filter.MaxYear <= 0)
+            return "any";
+        if (filter.MinYear > 0 && filter.MaxYear > 0)
+            return filter.MinYear == filter.MaxYear ? $"{filter.MinYear}" : $"{filter.MinYear} - {filter.MaxYear}";
+        if (filter.MinYear > 0)
+            return $"{filter.MinYear}+";
+        return $"< {filter.MaxYear + 1}";
+    }
+
+    public static void ParseScoreRange(string input, out double minScore, out double maxScore)
+    {
+        minScore = 0;
+        maxScore = 0;
+        if (string.IsNullOrWhiteSpace(input))
+            return;
+
+        var clean = input.Trim();
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\s+(a|to)\s+", "-", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        clean = clean.Replace('/', '-');
+
+        if (clean.Contains('-'))
+        {
+            var parts = clean.Split('-', 2);
+            if (double.TryParse(parts[0].Trim().Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v1))
+                minScore = Math.Clamp(v1, 0, 10);
+            if (parts.Length > 1 && double.TryParse(parts[1].Trim().Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v2))
+                maxScore = Math.Clamp(v2, 0, 10);
+
+            if (minScore > 0 && maxScore > 0 && minScore > maxScore)
+                (minScore, maxScore) = (maxScore, minScore);
+            return;
+        }
+
+        clean = clean.TrimStart('>', '=', ' ').TrimEnd('+').Trim().Replace(',', '.');
+        if (double.TryParse(clean, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var single))
+        {
+            minScore = Math.Clamp(single, 0, 10);
+            maxScore = 0;
+        }
+    }
+
+    public static void ParseYearRange(string input, out int minYear, out int maxYear)
+    {
+        minYear = 0;
+        maxYear = 0;
+        if (string.IsNullOrWhiteSpace(input))
+            return;
+
+        var clean = input.Trim().ToLowerInvariant();
+        if (clean == "any" || clean == "0" || clean == "all")
+            return;
+
+        if (clean == "90s" || clean == "90's" || clean == "1990s")
+        {
+            minYear = 1990;
+            maxYear = 1999;
+            return;
+        }
+        if (clean == "80s" || clean == "80's" || clean == "1980s")
+        {
+            minYear = 1980;
+            maxYear = 1989;
+            return;
+        }
+        if (clean == "70s" || clean == "70's" || clean == "1970s")
+        {
+            minYear = 1970;
+            maxYear = 1979;
+            return;
+        }
+        if (clean == "2000s" || clean == "00s")
+        {
+            minYear = 2000;
+            maxYear = 2009;
+            return;
+        }
+        if (clean == "2010s" || clean == "10s")
+        {
+            minYear = 2010;
+            maxYear = 2019;
+            return;
+        }
+
+        if (clean.StartsWith("before ") || clean.StartsWith("<"))
+        {
+            var numStr = System.Text.RegularExpressions.Regex.Match(clean, @"\d{4}").Value;
+            if (int.TryParse(numStr, out var beforeYear))
+            {
+                minYear = 0;
+                maxYear = beforeYear - 1;
+                return;
+            }
+        }
+
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\s+(a|to)\s+", "-");
+        clean = clean.Replace('/', '-');
+
+        var matches = System.Text.RegularExpressions.Regex.Matches(clean, @"\b(19\d\d|20\d\d)\b");
+        if (matches.Count >= 2)
+        {
+            minYear = int.Parse(matches[0].Value);
+            maxYear = int.Parse(matches[1].Value);
+            if (minYear > maxYear)
+                (minYear, maxYear) = (maxYear, minYear);
+            return;
+        }
+        else if (matches.Count == 1)
+        {
+            var y = int.Parse(matches[0].Value);
+            if (clean.Contains("+") || clean.StartsWith("after") || clean.StartsWith(">"))
+            {
+                minYear = y;
+                maxYear = 0;
+            }
+            else if (clean.StartsWith("-"))
+            {
+                minYear = 0;
+                maxYear = y;
+            }
+            else
+            {
+                minYear = y;
+                maxYear = y;
+            }
+            return;
+        }
+
+        var anyDigits = System.Text.RegularExpressions.Regex.Matches(clean, @"\d+");
+        if (anyDigits.Count >= 2 && int.TryParse(anyDigits[0].Value, out var y1) && int.TryParse(anyDigits[1].Value, out var y2))
+        {
+            if (y1 < 100) y1 += (y1 > 30 ? 1900 : 2000);
+            if (y2 < 100) y2 += (y2 > 30 ? 1900 : 2000);
+            minYear = Math.Min(y1, y2);
+            maxYear = Math.Max(y1, y2);
+        }
+        else if (anyDigits.Count == 1 && int.TryParse(anyDigits[0].Value, out var ySingle))
+        {
+            if (ySingle < 100) ySingle += (ySingle > 30 ? 1900 : 2000);
+            minYear = ySingle;
+            maxYear = ySingle;
+        }
+    }
 
     private static string DescribeGenre(int id)
     {
@@ -630,10 +988,12 @@ public partial class DiscoverPage : ContentPage
             if (names.Count > 0)
                 parts.Add(string.Join("/", names));
         }
-        if (filter.MinScore > 0)
-            parts.Add("★" + filter.MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
-        if (filter.MinYear > 0)
-            parts.Add(filter.MinYear + "+");
+        var scoreStr = ScoreLabel(filter);
+        if (scoreStr != "any")
+            parts.Add("★" + scoreStr);
+        var yearStr = YearLabel(filter);
+        if (yearStr != "any")
+            parts.Add(yearStr);
         if (filter.GenreIds.Count > 0)
             parts.Add(filter.GenreIds.Count + " genres");
         return parts.Count == 0 ? "No filters" : string.Join(" · ", parts);

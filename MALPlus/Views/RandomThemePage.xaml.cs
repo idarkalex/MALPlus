@@ -255,44 +255,19 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            var json = await AnimeThemesHelper.GetRawAsync(
-                $"https://api.animethemes.moe/anime/{Uri.EscapeDataString(Slug ?? string.Empty)}?include=resources");
-            if (string.IsNullOrEmpty(json))
-                return;
-
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            var anime = doc.RootElement.TryGetProperty("anime", out var found) ? found : default;
-            if (anime.ValueKind != System.Text.Json.JsonValueKind.Object)
-                return;
-
-            if (anime.TryGetProperty("name", out var name) && name.ValueKind == System.Text.Json.JsonValueKind.String)
-                Anime = name.GetString();
-            if (anime.TryGetProperty("year", out var year) && year.ValueKind == System.Text.Json.JsonValueKind.Number)
-                _year = year.GetInt32();
-            if (anime.TryGetProperty("synopsis", out var synopsis) && synopsis.ValueKind == System.Text.Json.JsonValueKind.String)
-                _synopsis = synopsis.GetString();
-            if (anime.TryGetProperty("media_format", out var format) && format.ValueKind == System.Text.Json.JsonValueKind.String)
-                _mediaFormat = format.GetString();
-
-            // The MAL id, read off the entry's own reference. The random theme hands over a slug and
-            // nothing else, and until now the id was guessed by searching MAL for the name, which is
-            // the one thing that differs between the two sources. With the id there is nothing to guess.
-            if (anime.TryGetProperty("resources", out var resources) &&
-                resources.ValueKind == System.Text.Json.JsonValueKind.Array)
+            var meta = await AnimeThemesHelper.GetAnimeMetadataBySlugAsync(Slug ?? string.Empty);
+            if (meta != null)
             {
-                foreach (var resource in resources.EnumerateArray())
-                {
-                    var site = resource.TryGetProperty("site", out var siteProp) &&
-                               siteProp.ValueKind == System.Text.Json.JsonValueKind.String
-                        ? siteProp.GetString()
-                        : string.Empty;
-                    if (!string.Equals(site, "MyAnimeList", StringComparison.OrdinalIgnoreCase))
-                        continue;
-                    if (resource.TryGetProperty("external_id", out var idProp) &&
-                        idProp.ValueKind == System.Text.Json.JsonValueKind.Number)
-                        MalId = idProp.GetInt32();
-                    break;
-                }
+                if (!string.IsNullOrEmpty(meta.Name))
+                    Anime = meta.Name;
+                if (meta.Year > 0)
+                    _year = meta.Year;
+                if (!string.IsNullOrEmpty(meta.Synopsis))
+                    _synopsis = meta.Synopsis;
+                if (!string.IsNullOrEmpty(meta.MediaFormat))
+                    _mediaFormat = meta.MediaFormat;
+                if (meta.MalId > 0)
+                    MalId = meta.MalId;
             }
 
             foreach (var changed in new[] { nameof(AnimeName), nameof(AnimeYear), nameof(HasYear),

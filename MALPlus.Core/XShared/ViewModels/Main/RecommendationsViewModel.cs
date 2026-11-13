@@ -17,9 +17,13 @@ namespace MALPlus.XShared.ViewModels.Main
 {
     public enum RecommendationsPageWorkMode
     {
-        [EnumUtilities.Description("Anime Recommendations")]
+        [EnumUtilities.Description("Top Anime")]
+        TopAnime,
+        [EnumUtilities.Description("Recent Anime")]
         Anime,
-        [EnumUtilities.Description("Manga Recommendations")]
+        [EnumUtilities.Description("Top Manga")]
+        TopManga,
+        [EnumUtilities.Description("Recent Manga")]
         Manga,
         [EnumUtilities.Description("Anime Suggestions")]
         PersonalizedAnime,
@@ -38,8 +42,10 @@ namespace MALPlus.XShared.ViewModels.Main
         private bool _loading;
         private int _pivotItemIndex;
 
-        private List<RecommendationData> _recommendationAnimeItems;
-        private List<RecommendationData> _recommendationMangaItems;
+        private List<RecommendationData> _topAnimeItems;
+        private List<RecommendationData> _recentAnimeItems;
+        private List<RecommendationData> _topMangaItems;
+        private List<RecommendationData> _recentMangaItems;
 
         private List<AnimeItemViewModel> _personalizedAnimeItems;
         private List<AnimeItemViewModel> _personalizedMangaItems;
@@ -47,44 +53,80 @@ namespace MALPlus.XShared.ViewModels.Main
         private RecommendationsPageWorkMode _currentWorkMode;
         private ICommand _switchWorkModeCommand;
 
-
-        /// <summary>
-        ///     The loaded recommendations for the plain tabs, both halves of each pair kept whole.
-        /// </summary>
-        /// <remarks>
-        ///     These were a list of text pairs with no picture on them, and the covers the page had
-        ///     already been given were dropped. They now carry both entries' images, so the page can show
-        ///     the entry the recommendation hangs off and the entry being recommended, which is the
-        ///     whole point of the page.
-        /// </remarks>
-        public List<RecommendationData> RecommendationAnimeItems
+        public List<RecommendationData> TopAnimeItems
         {
-            get { return _recommendationAnimeItems; }
+            get => _topAnimeItems;
             set
             {
-                _recommendationAnimeItems = value;
-                CurrentIndex = 0;
+                _topAnimeItems = value;
+                if (CurrentWorkMode == RecommendationsPageWorkMode.TopAnime)
+                {
+                    CurrentIndex = 0;
+                    RaiseCurrentPair();
+                }
+                RaisePropertyChanged(() => TopAnimeItems);
+            }
+        }
+
+        public List<RecommendationData> RecommendationAnimeItems
+        {
+            get { return _recentAnimeItems; }
+            set
+            {
+                _recentAnimeItems = value;
+                if (CurrentWorkMode == RecommendationsPageWorkMode.Anime)
+                {
+                    CurrentIndex = 0;
+                    RaiseCurrentPair();
+                }
                 RaisePropertyChanged(() => RecommendationAnimeItems);
-                RaiseCurrentPair();
+            }
+        }
+
+        public List<RecommendationData> TopMangaItems
+        {
+            get => _topMangaItems;
+            set
+            {
+                _topMangaItems = value;
+                if (CurrentWorkMode == RecommendationsPageWorkMode.TopManga)
+                {
+                    CurrentIndex = 0;
+                    RaiseCurrentPair();
+                }
+                RaisePropertyChanged(() => TopMangaItems);
             }
         }
 
         public List<RecommendationData> RecommendationMangaItems
         {
-            get { return _recommendationMangaItems; }
+            get { return _recentMangaItems; }
             set
             {
-                _recommendationMangaItems = value;
-                CurrentIndex = 0;
+                _recentMangaItems = value;
+                if (CurrentWorkMode == RecommendationsPageWorkMode.Manga)
+                {
+                    CurrentIndex = 0;
+                    RaiseCurrentPair();
+                }
                 RaisePropertyChanged(() => RecommendationMangaItems);
-                RaiseCurrentPair();
             }
         }
 
-        private List<RecommendationData> CurrentItems =>
-            CurrentWorkMode == RecommendationsPageWorkMode.Anime
-                ? RecommendationAnimeItems
-                : RecommendationMangaItems;
+        private List<RecommendationData> CurrentItems
+        {
+            get
+            {
+                return CurrentWorkMode switch
+                {
+                    RecommendationsPageWorkMode.TopAnime => _topAnimeItems,
+                    RecommendationsPageWorkMode.Anime => _recentAnimeItems,
+                    RecommendationsPageWorkMode.TopManga => _topMangaItems,
+                    RecommendationsPageWorkMode.Manga => _recentMangaItems,
+                    _ => _topAnimeItems
+                };
+            }
+        }
 
         /// <summary>
         ///     The entry the recommendation is based on, the "If you liked..." half.
@@ -213,35 +255,31 @@ namespace MALPlus.XShared.ViewModels.Main
 
         private void BuildPair(RecommendationData data)
         {
-            DependentItem = ToItem(data, data.DependentId, data.DependentTitle, data.DependentImageUrl);
+            DependentItem = ToItem(data, data.DependentId, data.DependentTitle, data.DependentImageUrl, true);
             RecommendedItem =
-                ToItem(data, data.RecommendationId, data.RecommendationTitle, data.RecommendationImageUrl);
+                ToItem(data, data.RecommendationId, data.RecommendationTitle, data.RecommendationImageUrl, false);
         }
 
-        private AnimeItemViewModel ToItem(RecommendationData data, int id, string title, string imageUrl)
+        private AnimeItemViewModel ToItem(RecommendationData data, int id, string title, string imageUrl, bool isDependent)
         {
             if (id <= 0)
                 return null;
 
-            AnimeItemViewModel model;
-            if (data.IsAnime)
-                model = new AnimeItemAbstraction(false, new AnimeLibraryItemData
-                {
-                    Id = id,
-                    Title = title,
-                    ImgUrl = imageUrl
-                }).ViewModel;
-            else
-                model = new AnimeItemAbstraction(false, new MangaLibraryItemData
-                {
-                    Id = id,
-                    Title = title,
-                    ImgUrl = imageUrl
-                }).ViewModel;
+            var type = isDependent ? data.DependentType : data.RecommendationType;
+            var score = isDependent ? data.DependentScore : data.RecommendationScore;
+            var episodes = isDependent ? data.DependentAllEpisodes : data.RecommendationAllEpisodes;
 
-            // No "add to list" pill: this is a suggestion, not something the reader is tracking, and the
-            // card's own badge row is for list state.
-            model.UpdateButtonsVisibility = false;
+            var model = MALPlus.XShared.Utils.AnimeItemFactory.Create(
+                id,
+                title,
+                imageUrl,
+                type: type,
+                score: score,
+                allEpisodes: episodes,
+                isManga: !data.IsAnime);
+
+            if (model != null)
+                model.UpdateButtonsVisibility = false;
             return model;
         }
 
@@ -319,16 +357,38 @@ namespace MALPlus.XShared.ViewModels.Main
             {
                 switch (CurrentWorkMode)
                 {
-                    case RecommendationsPageWorkMode.Anime:
-                        if (RecommendationAnimeItems != null)
+                    case RecommendationsPageWorkMode.TopAnime:
+                        if (_topAnimeItems != null)
                         {
+                            CurrentIndex = 0;
+                            RaiseCurrentPair();
+                            RaisePropertyChanged(() => CurrentWorkMode);
+                            return;
+                        }
+                        break;
+                    case RecommendationsPageWorkMode.Anime:
+                        if (_recentAnimeItems != null)
+                        {
+                            CurrentIndex = 0;
+                            RaiseCurrentPair();
+                            RaisePropertyChanged(() => CurrentWorkMode);
+                            return;
+                        }
+                        break;
+                    case RecommendationsPageWorkMode.TopManga:
+                        if (_topMangaItems != null)
+                        {
+                            CurrentIndex = 0;
+                            RaiseCurrentPair();
                             RaisePropertyChanged(() => CurrentWorkMode);
                             return;
                         }
                         break;
                     case RecommendationsPageWorkMode.Manga:
-                        if (RecommendationMangaItems != null)
+                        if (_recentMangaItems != null)
                         {
+                            CurrentIndex = 0;
+                            RaiseCurrentPair();
                             RaisePropertyChanged(() => CurrentWorkMode);
                             return;
                         }
@@ -356,12 +416,19 @@ namespace MALPlus.XShared.ViewModels.Main
             Loading = true;
             try
             {
-                if (CurrentWorkMode == RecommendationsPageWorkMode.Anime ||
+                if (CurrentWorkMode == RecommendationsPageWorkMode.TopAnime ||
+                    CurrentWorkMode == RecommendationsPageWorkMode.Anime ||
+                    CurrentWorkMode == RecommendationsPageWorkMode.TopManga ||
                     CurrentWorkMode == RecommendationsPageWorkMode.Manga)
                 {
+                    var isAnime = CurrentWorkMode == RecommendationsPageWorkMode.TopAnime ||
+                                  CurrentWorkMode == RecommendationsPageWorkMode.Anime;
+                    var isTop = CurrentWorkMode == RecommendationsPageWorkMode.TopAnime ||
+                                CurrentWorkMode == RecommendationsPageWorkMode.TopManga;
+
                     List<RecommendationData> data = null;
                     await Task.Run(async () => data =
-                        await new AnimeRecomendationsQuery(CurrentWorkMode == RecommendationsPageWorkMode.Anime)
+                        await new AnimeRecomendationsQuery(isAnime, isTop)
                             .GetRecomendationsData());
 
                     // Reached only when the page waits for the list to appear, and it clears the
@@ -369,25 +436,27 @@ namespace MALPlus.XShared.ViewModels.Main
                     // overlay up over a searchable page, with the flag nothing was left to reset.
                     if (data == null)
                     {
-                        if (CurrentWorkMode == RecommendationsPageWorkMode.Anime)
-                            RecommendationAnimeItems = new List<RecommendationData>();
-                        else
-                            RecommendationMangaItems = new List<RecommendationData>();
-                        RaisePropertyChanged(() => PivotItemIndex);
-                        return;
+                        data = new List<RecommendationData>();
                     }
 
-                                        // The whole pair is kept. The page shows one recommendation at a time, so there is no
-                    // list of cards to flatten any more: it walks these pairs and shows both entries of
-                    // whichever one is on screen.
-                    if (CurrentWorkMode == RecommendationsPageWorkMode.Anime)
+                    switch (CurrentWorkMode)
                     {
-                        RecommendationAnimeItems = data;
+                        case RecommendationsPageWorkMode.TopAnime:
+                            _topAnimeItems = data;
+                            break;
+                        case RecommendationsPageWorkMode.Anime:
+                            _recentAnimeItems = data;
+                            break;
+                        case RecommendationsPageWorkMode.TopManga:
+                            _topMangaItems = data;
+                            break;
+                        case RecommendationsPageWorkMode.Manga:
+                            _recentMangaItems = data;
+                            break;
                     }
-                    else
-                    {
-                        RecommendationMangaItems = data;
-                    }
+
+                    CurrentIndex = 0;
+                    RaiseCurrentPair();
 
                     Console.WriteLine($"MALPLUS recsVM: modo={CurrentWorkMode} pares={(CurrentItems == null ? -1 : CurrentItems.Count)}");
                     RaisePropertyChanged(() => PivotItemIndex);

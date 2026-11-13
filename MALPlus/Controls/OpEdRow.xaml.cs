@@ -21,7 +21,8 @@ public partial class OpEdRow : ContentView
         nameof(Text), typeof(string), typeof(OpEdRow), string.Empty);
 
     public static readonly BindableProperty IsOpeningProperty = BindableProperty.Create(
-        nameof(IsOpening), typeof(bool), typeof(OpEdRow), true);
+        nameof(IsOpening), typeof(bool), typeof(OpEdRow), true,
+        propertyChanged: OnIsOpeningChanged);
 
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(
         nameof(Command), typeof(ICommand), typeof(OpEdRow), null);
@@ -30,11 +31,24 @@ public partial class OpEdRow : ContentView
         nameof(CommandParameter), typeof(object), typeof(OpEdRow), null);
 
     private static readonly Color OpeningAccent = Color.FromArgb("#0066FF");
-    private static readonly Color EndingAccent = Color.FromArgb("#FF6B00");
+    private static readonly Color EndingAccent = Color.FromArgb("#FF3B30");
+
+    private static void OnIsOpeningChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        if (bindable is OpEdRow row)
+        {
+            row.OnPropertyChanged(nameof(Accent));
+            if (row.AccentBar != null)
+                row.AccentBar.Color = row.Accent;
+        }
+    }
 
     public OpEdRow()
     {
         InitializeComponent();
+
+        if (AccentBar != null)
+            AccentBar.Color = Accent;
 
         var target = new Border
         {

@@ -841,7 +841,9 @@ private static string FormatCompact(int value)
             // Four is the number that still reads as a row of chips rather than a wall.
             foreach (var link in data.ExternalLinks.Where(l => l != null && !string.IsNullOrWhiteSpace(l.Url))
                          .Take(5))
+            {
                 LinkChips.Add(link);
+            }
         }
 
         private void FillAltTitles(AnimeGeneralDetailsData data)
@@ -2308,17 +2310,19 @@ RaisePropertyChanged(() => GeneralSeason);
         /// </summary>
         private async Task RunTabLoadOnce(string key, Func<Task> body)
         {
+            // Key by task name, current entry ID and mode so tasks from different anime never collide or hijack each other
+            var fullKey = $"{key}_{MalId}_{AnimeMode}";
             Task running;
             lock (_inFlightTabLoads)
             {
-                if (_inFlightTabLoads.TryGetValue(key, out var existing) && !existing.IsCompleted)
+                if (_inFlightTabLoads.TryGetValue(fullKey, out var existing) && !existing.IsCompleted)
                 {
                     running = existing;
                 }
                 else
                 {
                     running = body();
-                    _inFlightTabLoads[key] = running;
+                    _inFlightTabLoads[fullKey] = running;
                 }
             }
 
@@ -2330,8 +2334,8 @@ RaisePropertyChanged(() => GeneralSeason);
             {
                 lock (_inFlightTabLoads)
                 {
-                    if (_inFlightTabLoads.TryGetValue(key, out var current) && ReferenceEquals(current, running))
-                        _inFlightTabLoads.Remove(key);
+                    if (_inFlightTabLoads.TryGetValue(fullKey, out var current) && ReferenceEquals(current, running))
+                        _inFlightTabLoads.Remove(fullKey);
                 }
             }
         }
@@ -2708,7 +2712,10 @@ RaisePropertyChanged(() => ProducersVisible);
             foreach (var ep in source
                          .OrderByDescending(ep => ep.AiredDate ?? DateTime.MinValue)
                          .ThenByDescending(ep => ep.EpisodeId))
+            {
+                ep.IsWatched = ep.EpisodeId > 0 && ep.EpisodeId <= MyEpisodes;
                 Episodes.Add(ep);
+            }
             RaisePropertyChanged(() => Episodes);
             RaisePropertyChanged(() => EpisodesLoaded);
             // The hero's LAST AIRED used to be refreshed only after the FULL episode list
@@ -2718,164 +2725,196 @@ RaisePropertyChanged(() => ProducersVisible);
             UpdateLastAired();
         }
 
-        public async Task LoadEpisodes(bool force = false)
+        public Task LoadEpisodes(bool force = false)
         {
-            if (!AnimeMode) return;
-            if (LoadingEpisodes || (_loadedEpisodes && !force && Episodes.Count > 0)) return;
-            LoadingEpisodes = true;
-            try
+            if (!AnimeMode) return Task.CompletedTask;
+            if (_loadedEpisodes && !force && Episodes.Count > 0) return Task.CompletedTask;
+            var currentAnimeId = MalId;
+            return RunTabLoadOnce(nameof(LoadEpisodes), async () =>
             {
-                var isAiring = string.Equals(Status, "Currently Airing", StringComparison.CurrentCultureIgnoreCase);
-                var cached = force ? null : await DataCache.RetrieveAnimeEpisodes(MalId, isAiring);
-                List<AnimeEpisode> episodes = null;
-
-                // A long-runner has a dozen pages of episodes, so waiting for all of them left the
-                // tab blank for seconds. Pull the newest page first (two requests instead of
-                // twelve) and publish it, then let the full list land behind it.
-                if (!force && isAiring && (AllEpisodes > 60 || MalId == 21))
+                LoadingEpisodes = true;
+                try
                 {
-                    var head = await new AnimeEpisodesQuery().GetLastEpisodesWithScheduleAsync(MalId);
-                    if (head != null && head.Count > 0)
+                    var isAiring = string.Equals(Status, "Currently Airing", StringComparison.CurrentCultureIgnoreCase);
+                    var cached = force ? null : await DataCache.RetrieveAnimeEpisodes(currentAnimeId, isAiring);
+                    List<AnimeEpisode> episodes = null;
+
+                    // A long-runner has a dozen pages of episodes, so waiting for all of them left the
+                    // tab blank for seconds. Pull the newest page first (two requests instead of
+                    // twelve) and publish it, then let the full list land behind it.
+                    if (!force && isAiring && (AllEpisodes > 60 || currentAnimeId == 21))
                     {
-                        foreach (var ep in head)
-                            ep.IsWatched = ep.EpisodeId > 0 && ep.EpisodeId <= MyEpisodes;
-                        PublishEpisodes(head);
-                    }
-                }
-
-                // The forum thread index is an enrichment, not a prerequisite. It is an HTML scrape of
-                // the series' own MAL forum, and awaiting it before drawing anything is what held
-                // this tab hostage: rows that need nothing from it were waiting on a scrape that can
-                // take seconds. It runs in the background now and patches the discussion link onto the
-                // rows once it lands. A row without its thread is exactly what the app already did
-                // when a thread did not exist.
-                var forumTask = Task.Run(async () =>
-                {
-                    try
-                    {
-                        return await new AnimeEpisodeForumQuery(MalId, true).GetEpisodeTopicsAsync();
-                    }
-                    catch
-                    {
-                        return null;
-                    }
-                });
-
-                if (isAiring)
-                {
-                    episodes = await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force,
-                        onTenraiBatch: PublishEpisodes);
-                    if ((episodes == null || episodes.Count == 0) && cached != null && cached.Count > 0)
-                        episodes = cached;
-                }
-                else
-                {
-                    episodes = cached != null && cached.Count > 0 ? cached : await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(MalId, force);
-                }
-                var fromStale = false;
-
-                // serve the expired cache when the network failed, rather than a blank tab
-                // (never re-save it: resaving would reset the timestamp and break the daily refetch)
-                if (episodes == null || episodes.Count == 0)
-                {
-                    var stale = await DataCache.RetrieveAnimeEpisodesStale(MalId);
-                    if (stale != null && stale.Count > 0)
-                    {
-                        episodes = stale;
-                        fromStale = true;
-                    }
-                }
-
-                if (episodes == null || episodes.Count == 0)
-                {
-                    if (Episodes.Count > 0)
-                    {
-                        UpdateLastAired();
-                        RaisePropertyChanged(() => TimeTillNextAir);
-                    }
-                    return;
-                }
-
-                if (!fromStale && !ReferenceEquals(episodes, cached))
-                    await DataCache.SaveAnimeEpisodes(MalId, episodes);
-
-                // Only chapters that are known to have aired are listed. MAL has not created the last
-                // rows of a running cour yet, and the old answer was to project them from the cadence,
-                // which put rows on screen carrying a date nobody published. Bleach skipped five weeks,
-                // so the projection invented two episodes with the wrong week and marked them "est.".
-                // A short list of real chapters is the honest one: there is no fallback here, so a
-                // series with no schedule simply shows the episodes its own list already had.
-                var display = episodes;
-
-                // A running series is read from the newest downwards, which is the whole point of
-                // watching one: the episode that just went up has to be the first row. The query
-                // hands every list over oldest first, so the reversal belongs here, and only for a
-                // series still airing. Finished ones stay in reading order, which is what the long
-                // list of a completed show is actually for.
-                if (isAiring)
-                {
-                    display = display
-                        .OrderByDescending(ep => ep.AiredDate ?? DateTime.MinValue)
-                        .ThenByDescending(ep => ep.EpisodeId)
-                        .ToList();
-                }
-
-                foreach (var ep in display)
-                    ep.IsWatched = ep.EpisodeId > 0 && ep.EpisodeId <= MyEpisodes;
-                Episodes.Clear();
-                Episodes.AddRange(display);
-                _loadedEpisodes = true;
-                UpdateLastAired();
-                await UpdateLastAiredFromScheduleAsync();
-                RaisePropertyChanged(() => TimeTillNextAir);
-
-                // The discussion links are patched onto the rows that are already on screen rather
-                // than waited for. MalId is re-checked because this view model is a singleton: if the
-                // user moved on while the scrape was in flight, Episodes now belongs to another entry
-                // and patching by number would attach the wrong series' threads to it.
-                var loadedFor = MalId;
-                var topics = await forumTask;
-                if (topics != null && topics.Count > 0 && MalId == loadedFor)
-                {
-                    foreach (var ep in Episodes)
-                    {
-                        if (ep.EpisodeId > 0 && topics.TryGetValue((int)ep.EpisodeId, out var topic))
-                            ep.ForumUrl = topic;
-                    }
-                }
-
-                if (_animeItemReference is AnimeItemViewModel itemVm)
-                {
-                    DateTime? nextAirUnified = null;
-                    if (ResourceLocator.AiringInfoProvider.TryGetEntry(MalId, out var sched) && sched.Episodes != null && sched.Episodes.Count > 0)
-                    {
-                        var schedEps = sched.Episodes.Select(e => DateTimeOffset.FromUnixTimeSeconds(e.Timestamp).UtcDateTime).Where(d => d <= DateTime.UtcNow).OrderBy(d => d).ToList();
-                        if (schedEps.Count > 0)
+                        var head = await new AnimeEpisodesQuery().GetLastEpisodesWithScheduleAsync(currentAnimeId);
+                        if (head != null && head.Count > 0)
                         {
-                            var pseudo = schedEps.Select(d => new MALPlus.Models.Models.Anime.AnimeEpisode { AiredDate = d }).ToList();
-                            nextAirUnified = AirTimeUtils.ComputeNextAirFromEpisodes(pseudo, DateTime.UtcNow);
+                            if (MalId != currentAnimeId)
+                                return;
+                            foreach (var ep in head)
+                                ep.IsWatched = ep.EpisodeId > 0 && ep.EpisodeId <= MyEpisodes;
+                            PublishEpisodes(head);
                         }
                     }
-                    if (!nextAirUnified.HasValue && Episodes.Count > 0)
-                        nextAirUnified = AirTimeUtils.ComputeNextAirFromEpisodes(Episodes, DateTime.UtcNow);
-                    if (nextAirUnified.HasValue)
-                        itemVm.SetNextAirCache(nextAirUnified);
-                    else if (Episodes.Count == 0 && (sched == null || sched.Episodes == null || sched.Episodes.Count == 0))
+
+                    // The forum thread index is an enrichment for airing series where newest episodes
+                    // might lack topic links. It runs in the background and does NOT block the UI.
+                    Task<Dictionary<int, string>> forumTask = isAiring ? Task.Run(async () =>
                     {
-                        DataCache.UpdateVolatileDataWithNextAir(MalId, null);
-                        itemVm.TimeTillNextAirCache = "";
+                        try
+                        {
+                            return await new AnimeEpisodeForumQuery(currentAnimeId, true).GetEpisodeTopicsAsync();
+                        }
+                        catch
+                        {
+                            return null;
+                        }
+                    }) : null;
+
+                    if (isAiring)
+                    {
+                        episodes = await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(currentAnimeId, force,
+                            onTenraiBatch: batch =>
+                            {
+                                if (MalId == currentAnimeId)
+                                    PublishEpisodes(batch);
+                            });
+                        if ((episodes == null || episodes.Count == 0) && cached != null && cached.Count > 0)
+                            episodes = cached;
                     }
                     else
-                        itemVm.RefreshTimeTillNextAirInBackground();
+                    {
+                        if (cached != null && cached.Count > 0)
+                        {
+                            episodes = cached;
+                        }
+                        else
+                        {
+                            // For finished anime, Tenrai is complete and carries full titles, dates,
+                            // and forum topic URLs. Direct Tenrai fetch takes ~200ms without queueing
+                            // behind AniList rate limiters.
+                            episodes = await new AnimeEpisodesQuery().GetEpisodes(currentAnimeId, force);
+                            if (episodes == null || episodes.Count == 0)
+                                episodes = await new AnimeEpisodesQuery().GetEpisodesWithScheduleAsync(currentAnimeId, force);
+                        }
+                    }
+                    var fromStale = false;
+
+                    // serve the expired cache when the network failed, rather than a blank tab
+                    // (never re-save it: resaving would reset the timestamp and break the daily refetch)
+                    if (episodes == null || episodes.Count == 0)
+                    {
+                        var stale = await DataCache.RetrieveAnimeEpisodesStale(currentAnimeId);
+                        if (stale != null && stale.Count > 0)
+                        {
+                            episodes = stale;
+                            fromStale = true;
+                        }
+                    }
+
+                    // Guard: discard if the user navigated to another anime while this fetch was in progress
+                    if (MalId != currentAnimeId)
+                        return;
+
+                    if (episodes == null || episodes.Count == 0)
+                    {
+                        if (Episodes.Count > 0)
+                        {
+                            UpdateLastAired();
+                            RaisePropertyChanged(() => TimeTillNextAir);
+                        }
+                        return;
+                    }
+
+                    if (!fromStale && !ReferenceEquals(episodes, cached))
+                        await DataCache.SaveAnimeEpisodes(currentAnimeId, episodes);
+
+                    // Guard: verify we are still on the same anime before updating the observable collection
+                    if (MalId != currentAnimeId)
+                        return;
+
+                    // Only chapters that are known to have aired are listed.
+                    var display = episodes;
+
+                    // A running series is read from the newest downwards, which is the whole point of
+                    // watching one: the episode that just went up has to be the first row. The query
+                    // hands every list over oldest first, so the reversal belongs here, and only for a
+                    // series still airing. Finished ones stay in reading order.
+                    if (isAiring)
+                    {
+                        display = display
+                            .OrderByDescending(ep => ep.AiredDate ?? DateTime.MinValue)
+                            .ThenByDescending(ep => ep.EpisodeId)
+                            .ToList();
+                    }
+
+                    foreach (var ep in display)
+                        ep.IsWatched = ep.EpisodeId > 0 && ep.EpisodeId <= MyEpisodes;
+                    Episodes.Clear();
+                    Episodes.AddRange(display);
+                    _loadedEpisodes = true;
+                    UpdateLastAired();
+                    if (isAiring)
+                        await UpdateLastAiredFromScheduleAsync();
+                    RaisePropertyChanged(() => TimeTillNextAir);
+
+                    // Immediately dismiss the loading state so episodes show without delay
+                    LoadingEpisodes = false;
+
+                    // Forum thread links are patched in background without blocking the UI
+                    if (forumTask != null)
+                    {
+                        var loadedFor = currentAnimeId;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var topics = await forumTask;
+                                if (topics != null && topics.Count > 0 && MalId == loadedFor)
+                                {
+                                    foreach (var ep in Episodes)
+                                    {
+                                        if (ep.EpisodeId > 0 && topics.TryGetValue((int)ep.EpisodeId, out var topic))
+                                            ep.ForumUrl = topic;
+                                    }
+                                }
+                            }
+                            catch { }
+                        });
+                    }
+
+                    if (_animeItemReference is AnimeItemViewModel itemVm && MalId == currentAnimeId)
+                    {
+                        DateTime? nextAirUnified = null;
+                        if (ResourceLocator.AiringInfoProvider.TryGetEntry(currentAnimeId, out var sched) && sched.Episodes != null && sched.Episodes.Count > 0)
+                        {
+                            var schedEps = sched.Episodes.Select(e => DateTimeOffset.FromUnixTimeSeconds(e.Timestamp).UtcDateTime).Where(d => d <= DateTime.UtcNow).OrderBy(d => d).ToList();
+                            if (schedEps.Count > 0)
+                            {
+                                var pseudo = schedEps.Select(d => new MALPlus.Models.Models.Anime.AnimeEpisode { AiredDate = d }).ToList();
+                                nextAirUnified = AirTimeUtils.ComputeNextAirFromEpisodes(pseudo, DateTime.UtcNow);
+                            }
+                        }
+                        if (!nextAirUnified.HasValue && Episodes.Count > 0)
+                            nextAirUnified = AirTimeUtils.ComputeNextAirFromEpisodes(Episodes, DateTime.UtcNow);
+                        if (nextAirUnified.HasValue)
+                            itemVm.SetNextAirCache(nextAirUnified);
+                        else if (Episodes.Count == 0 && (sched == null || sched.Episodes == null || sched.Episodes.Count == 0))
+                        {
+                            DataCache.UpdateVolatileDataWithNextAir(currentAnimeId, null);
+                            itemVm.TimeTillNextAirCache = "";
+                        }
+                        else
+                            itemVm.RefreshTimeTillNextAirInBackground();
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-            }
-            finally
-            {
-                LoadingEpisodes = false;
-            }
+                catch (Exception ex)
+                {
+                }
+                finally
+                {
+                    if (MalId == currentAnimeId)
+                        LoadingEpisodes = false;
+                }
+            });
         }
 
         public Task LoadReviews(bool force = false)

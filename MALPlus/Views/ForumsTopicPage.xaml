@@ -16,92 +16,75 @@
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
 
-        <Grid RowDefinitions="Auto,*,Auto" IsVisible="{Binding LoadingTopic, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
-            <Label Grid.Row="0" Text="{Binding Header}" FontFamily="InterBold" FontSize="18"
-                   TextColor="{StaticResource BrushText}" Padding="16,12" MaxLines="2"
-                   LineBreakMode="TailTruncation" />
+        <Grid RowDefinitions="*,Auto" IsVisible="{Binding LoadingTopic, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+            <!-- Main topic content: WebView fills available height and scrolls natively -->
+            <Grid Grid.Row="0">
+                <RefreshView IsRefreshing="{Binding LoadingTopic, Mode=OneWay}" Refreshing="OnRefreshing">
+                    <WebView x:Name="TopicWebView"
+                             Source="{Binding PageHtml, Converter={StaticResource HtmlSource}}"
+                             BackgroundColor="{StaticResource EmBackground}"
+                             Navigating="OnTopicWebViewNavigating" />
+                </RefreshView>
 
-            <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingTopic, Mode=OneWay}" Refreshing="OnRefreshing">
-                <ScrollView x:Name="TopicScrollView" VerticalScrollBarVisibility="Never">
-                    <VerticalStackLayout Padding="16,4,16,20" Spacing="10">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
-                            <Button Text="Previous" Command="{Binding PreviousPageCommand}"
-                                    IsVisible="{Binding CanPreviousPage}"
-                                    IsEnabled="{Binding CanPreviousPage}"
-                                    FontFamily="InterSemiBold" FontSize="12"
-                                    BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
-                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8"
-                                    HeightRequest="36" Padding="10,0" />
-                            <Label Grid.Column="1" Text="{Binding PageText}" FontFamily="InterSemiBold"
-                                   FontSize="12" TextColor="{StaticResource EmAccent}"
-                                   TextDecorations="Underline"
-                                   HorizontalOptions="Center" VerticalOptions="Center">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnPageJumpTapped" />
-                                </Label.GestureRecognizers>
-                            </Label>
-                            <Button Grid.Column="2" Text="Next" Command="{Binding NextPageCommand}"
-                                    IsVisible="{Binding CanNextPage}"
-                                    IsEnabled="{Binding CanNextPage}"
-                                    FontFamily="InterSemiBold" FontSize="12"
-                                    BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
-                                    BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="8"
-                                    HeightRequest="36" Padding="10,0" />
-                        </Grid>
+                <Label Text="No messages" FontFamily="Inter" FontSize="13"
+                       TextColor="#80FFFFFF" HorizontalOptions="Center" VerticalOptions="Center"
+                       IsVisible="{Binding HasMessages, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
+                <Label Text="{Binding LoadError}" FontFamily="Inter" FontSize="13"
+                       TextColor="#FFB4B4" HorizontalOptions="Center" VerticalOptions="Center"
+                       IsVisible="{Binding HasLoadError}" />
+            </Grid>
 
-                        <FlexLayout BindableLayout.ItemsSource="{Binding AvailablePages}"
-                                    Wrap="Wrap" AlignItems="Center" JustifyContent="Center">
-                            <BindableLayout.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Text="{Binding Item1}" WidthRequest="38" HeightRequest="32" Margin="2"
-                                            Padding="0" CornerRadius="8"
-                                            FontFamily="InterSemiBold" FontSize="12"
-                                            BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}"
-                                            BorderColor="#29FFFFFF" BorderWidth="1"
-                                            Clicked="OnPageChipClicked">
-                                        <Button.Triggers>
-                                            <DataTrigger TargetType="Button" Binding="{Binding Item1}" Value="0">
-                                                <Setter Property="Text" Value="..." />
-                                            </DataTrigger>
-                                            <DataTrigger TargetType="Button" Binding="{Binding Item2}" Value="True">
-                                                <Setter Property="BackgroundColor" Value="#0066FF" />
-                                                <Setter Property="TextColor" Value="White" />
-                                            </DataTrigger>
-                                        </Button.Triggers>
-                                    </Button>
-                                </DataTemplate>
-                            </BindableLayout.ItemTemplate>
-                        </FlexLayout>
+            <!-- Bottom bar: Back button + Reply button on the left, pagination on the right -->
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="12,8,12,12" BackgroundColor="#051522" ColumnSpacing="8">
+                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="#141d2b"
+                        Stroke="#29FFFFFF" WidthRequest="42" HeightRequest="42" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnBackTapped" />
+                    </Border.GestureRecognizers>
+                    <Label Text="←" FontFamily="InterBold" FontSize="18" TextColor="{StaticResource BrushText}"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
 
-                        <Label Text="No messages" FontFamily="Inter" FontSize="13"
-                               TextColor="#80FFFFFF" HorizontalOptions="Center"
-                               IsVisible="{Binding HasMessages, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
-                        <Label Text="{Binding LoadError}" FontFamily="Inter" FontSize="13"
-                               TextColor="#FFB4B4" HorizontalOptions="Center"
-                               IsVisible="{Binding HasLoadError}" />
-                        <WebView x:Name="TopicWebView"
-                                  Source="{Binding PageHtml, Converter={StaticResource HtmlSource}}"
-                                  HeightRequest="1" MinimumHeightRequest="1"
-                                  BackgroundColor="{StaticResource EmSheet}"
-                                  Navigating="OnTopicWebViewNavigating"
-                                  Navigated="OnTopicWebViewNavigated" />
-                    </VerticalStackLayout>
-                </ScrollView>
-            </RefreshView>
-
-            <Border Grid.Row="2" Padding="12,8,12,12" BackgroundColor="#051522" StrokeThickness="0">
-                <Button Text="Reply" Clicked="OnOpenReplyPageTapped"
-                        HorizontalOptions="Fill"
+                <Button Grid.Column="1" Text="Reply" Clicked="OnOpenReplyPageTapped"
                         FontFamily="InterSemiBold" FontSize="14"
                         BackgroundColor="#0066FF" TextColor="White"
                         CornerRadius="8" HeightRequest="42" />
-            </Border>
+
+                <HorizontalStackLayout Grid.Column="2" Spacing="4" VerticalOptions="Center">
+                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 6" BackgroundColor="#141d2b"
+                            Stroke="#29FFFFFF" WidthRequest="36" HeightRequest="42"
+                            IsVisible="{Binding CanPreviousPage}" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPreviousPageTapped" />
+                        </Border.GestureRecognizers>
+                        <Label Text="‹" FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+
+                    <Border Padding="10,0" HeightRequest="42" BackgroundColor="#141d2b" Stroke="#29FFFFFF" StrokeThickness="1"
+                            StrokeShape="RoundRectangle 6" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPageJumpTapped" />
+                        </Border.GestureRecognizers>
+                        <Label Text="{Binding PageText}" FontFamily="InterSemiBold" FontSize="12"
+                               TextColor="{StaticResource EmAccent}" VerticalOptions="Center" HorizontalOptions="Center" />
+                    </Border>
+
+                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 6" BackgroundColor="#141d2b"
+                            Stroke="#29FFFFFF" WidthRequest="36" HeightRequest="42"
+                            IsVisible="{Binding CanNextPage}" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNextPageTapped" />
+                        </Border.GestureRecognizers>
+                        <Label Text="›" FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </HorizontalStackLayout>
+            </Grid>
         </Grid>
 
         <Grid x:Name="ReplyOverlay" IsVisible="False" BackgroundColor="#80000000" Padding="16">
             <ScrollView VerticalOptions="Center" HorizontalOptions="Center" WidthRequest="360">
-
-
                 <Border StrokeThickness="1" StrokeShape="RoundRectangle 12" BackgroundColor="{StaticResource EmSheet}" Stroke="{StaticResource EmBorder}">
                     <VerticalStackLayout Spacing="10" Padding="16">
                         <Label Text="Reply" FontFamily="InterBold" FontSize="18" TextColor="{StaticResource BrushText}" />

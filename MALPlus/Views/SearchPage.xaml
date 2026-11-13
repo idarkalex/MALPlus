@@ -237,6 +237,7 @@
                                         ScoreTag="{Binding CardScore}"
                                         BadgeVisible="True"
                                         BadgeAccent="{Binding CardBadgeAccent}"
+                                        BadgeAccentColor="{Binding CardBadgeAccentColor}"
                                         BadgeMain="{Binding CardBadgeMain}">
                                         <controls:AnimePosterCard.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnResultTapped"

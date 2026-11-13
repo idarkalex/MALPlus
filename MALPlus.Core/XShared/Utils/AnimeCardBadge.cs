@@ -15,17 +15,16 @@ namespace MALPlus.XShared.Utils;
 public static class AnimeCardBadge
 {
     /// <summary>
-    ///     "3/12" while the entry is on the list, "12" when it is not but the total is known, and
-    ///     nothing at all when it is neither followed nor measured.
+    ///     "3/12" while the entry is on the list, and empty when it is not on the user's list.
+    ///     Entries not followed have no watched progress or library status, so the corner badge
+    ///     stays clean and doesn't display a floating total episode count.
     /// </summary>
     public static string Episodes(bool onList, int watched, int total)
     {
-        if (onList)
-            return $"{watched}/{(total == 0 ? "?" : total.ToString())}";
+        if (!onList)
+            return string.Empty;
 
-        // Nothing has been watched, so "0/12" is a fact about nothing. The total is the one half of
-        // this that is worth saying about an entry the user has not started.
-        return total == 0 ? string.Empty : total.ToString();
+        return $"{watched}/{(total == 0 ? "?" : total.ToString())}";
     }
 
     /// <summary>
@@ -33,4 +32,43 @@ public static class AnimeCardBadge
     /// </summary>
     public static string Status(bool onList, Func<string> status)
         => onList ? status?.Invoke() ?? string.Empty : string.Empty;
+
+    /// <summary>
+    ///     Meaningful accent color for each status code (W/R: Green, C: Sky Cyan, Re: Purple, H: Amber, D: Red, P: Silver).
+    /// </summary>
+    public static string StatusColor(bool onList, int status, bool rewatching = false)
+    {
+        if (!onList)
+            return "#C0E0FF";
+
+        if (rewatching)
+            return "#C084FC"; // Rewatching (Purple)
+
+        return status switch
+        {
+            1 => "#FFFFFF", // Watching / Reading: White
+            2 => "#38BDF8", // Completed: Sky Blue / Cyan
+            3 => "#FF9500", // On Hold: Vivid Orange
+            4 => "#FF5252", // Dropped: Vivid Bright Red
+            6 => "#C084FC", // Plan to Watch / Read: Purple
+            _ => "#FFFFFF"
+        };
+    }
+
+    public static string StatusColor(bool onList, string shortStatus)
+    {
+        if (!onList || string.IsNullOrEmpty(shortStatus))
+            return "#C0E0FF";
+
+        return shortStatus.Trim() switch
+        {
+            "W" or "R" => "#FFFFFF", // Watching / Reading: White
+            "C" => "#38BDF8", // Completed: Sky Blue / Cyan
+            "Re" => "#C084FC", // Rewatching: Purple
+            "H" => "#FF9500", // On Hold: Vivid Orange
+            "D" => "#FF5252", // Dropped: Vivid Bright Red
+            "P" => "#C084FC", // Plan to Watch / Read: Purple
+            _ => "#FFFFFF"
+        };
+    }
 }

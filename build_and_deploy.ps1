@@ -61,7 +61,7 @@ $env:PATH = "$env:DOTNET_ROOT;$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tool
 $dotnet = Join-Path $env:DOTNET_ROOT "dotnet.exe"
 $adb = Join-Path $env:ANDROID_HOME "platform-tools\adb.exe"
 $project = Join-Path $Root "MALPlus\MALPlus.csproj"
-$package = "com.idarkalex.malplus.maui11"
+$package = "com.idarkalex.malplus"
 $apkDir = Join-Path $Root "MALPlus\bin\Debug\net11.0-android37.0"
 
 function Format-Duration([double]$seconds) {
@@ -100,6 +100,7 @@ $step = [System.Diagnostics.Stopwatch]::StartNew()
 $deadline = (Get-Date).AddSeconds($DeviceTimeoutSeconds)
 $state = ""
 while ((Get-Date) -lt $deadline) {
+    & $adb connect $Device 2>&1 | Out-Null
     $state = (& $adb -s $Device get-state 2>&1 | Out-String).Trim()
     if ($state -eq "device") {
         break
@@ -186,7 +187,7 @@ if ($SkipInstall) {
     # Drop any cached runtime state so the first launch is a real cold start.
     & $adb -s $Device shell am force-stop $package | Out-Null
 
-    $installOutput = & $adb -s $Device install -r $apk.FullName 2>&1
+    $installOutput = & $adb -s $Device install -r -d $apk.FullName 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "adb install failed:`n$($installOutput -join [Environment]::NewLine)"
     }

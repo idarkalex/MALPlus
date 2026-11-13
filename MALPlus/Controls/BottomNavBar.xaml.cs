@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace MALPlus.Controls;
 
 public partial class BottomNavBar : ContentView
@@ -29,6 +31,282 @@ public partial class BottomNavBar : ContentView
     public BottomNavBar()
     {
         InitializeComponent();
+        Loaded += OnBarLoaded;
+    }
+
+    // The bar sits inside the root pager on Android. MainActivity uses this list to
+    // hit-test the bar and stop the pager from stealing a horizontal drag that
+    // starts on it, so swiping the bar itself never changes the section.
+    private static readonly List<WeakReference<global::Android.Views.View>> Platforms = new();
+    private static readonly List<WeakReference<BottomNavBar>> Instances = new();
+
+    // Phase B: once one bar is reparented below the section pager, every page bar has
+    // to stay collapsed. New bars are created as pages come online, so they hide
+    // themselves on attach instead of growing a second navigation strip.
+    internal static bool SharedHostInstalled { get; private set; }
+    internal static global::Android.Views.View SharedBarView { get; private set; }
+
+    internal static void MarkSharedHostInstalled()
+        => SharedHostInstalled = true;
+
+    internal static void SetSharedBarView(global::Android.Views.View view)
+        => SharedBarView = view;
+
+    internal static void ShowAllForFallback()
+    {
+        SharedHostInstalled = false;
+        SharedBarView = null;
+
+        List<BottomNavBar> bars = Snapshot();
+        foreach (var bar in bars)
+        {
+            bar.Opacity = 1;
+            bar.IsVisible = true;
+        }
+    }
+
+    // A new Shell handler means a new platform tree: the shared strip is gone with the
+    // old one, so page bars must be allowed to show themselves until it is re-hosted.
+    // They are brought up transparent so the measure pass cannot flash a second strip
+    // above the shared one while it is being re-hosted.
+    internal static void ResetSharedHost()
+    {
+        SharedHostInstalled = false;
+        SharedBarView = null;
+
+        List<BottomNavBar> bars = Snapshot();
+        foreach (var bar in bars)
+        {
+            bar.Opacity = 0;
+            bar.IsVisible = true;
+        }
+    }
+
+    protected override void OnHandlerChanged()
+    {
+        base.OnHandlerChanged();
+
+        var view = Handler?.PlatformView as global::Android.Views.View;
+        lock (Platforms)
+        {
+            Platforms.RemoveAll(reference =>
+                !reference.TryGetTarget(out var target) || target == view);
+            if (view != null)
+                Platforms.Add(new WeakReference<global::Android.Views.View>(view));
+        }
+
+        lock (Instances)
+        {
+            Instances.RemoveAll(reference =>
+                !reference.TryGetTarget(out var target) || target == this);
+            Instances.Add(new WeakReference<BottomNavBar>(this));
+        }
+
+        if (SharedHostInstalled)
+        {
+            IsVisible = false;
+            if (view != null && !ReferenceEquals(view, SharedBarView))
+                InstallPageBarGuard();
+        }
+    }
+
+    private void OnBarLoaded(object sender, EventArgs e)
+    {
+        if (!SharedHostInstalled)
+            return;
+
+        IsVisible = false;
+        if (Handler?.PlatformView is global::Android.Views.View view &&
+            !ReferenceEquals(view, SharedBarView))
+            InstallPageBarGuard();
+    }
+
+    private global::Android.Views.ViewGroup _guardParent;
+
+    private void InstallPageBarGuard()
+    {
+        if (!SharedHostInstalled)
+            return;
+
+        var view = Handler?.PlatformView as global::Android.Views.View;
+        var parent = view?.Parent as global::Android.Views.ViewGroup;
+        if (parent == null || ReferenceEquals(parent, _guardParent))
+            return;
+
+        parent.ViewTreeObserver?.AddOnPreDrawListener(new PageBarDrawGuard(this, parent));
+        _guardParent = parent;
+    }
+
+    private sealed class PageBarDrawGuard : global::Java.Lang.Object,
+        global::Android.Views.ViewTreeObserver.IOnPreDrawListener
+    {
+        private readonly WeakReference<BottomNavBar> _bar;
+        private readonly global::Android.Views.View _parent;
+
+        public PageBarDrawGuard(BottomNavBar bar, global::Android.Views.View parent)
+        {
+            _bar = new WeakReference<BottomNavBar>(bar);
+            _parent = parent;
+        }
+
+        public bool OnPreDraw()
+        {
+            if (!SharedHostInstalled || !_bar.TryGetTarget(out var bar))
+                return true;
+
+            if (bar.Handler?.PlatformView is not global::Android.Views.View view ||
+                ReferenceEquals(view, SharedBarView) ||
+                view.Parent != _parent)
+                return true;
+
+            if (view.Visibility != global::Android.Views.ViewStates.Gone)
+            {
+                view.Visibility = global::Android.Views.ViewStates.Gone;
+                global::Android.Util.Log.Info("MALPLUS", "BARWATCH pagebar forced gone");
+            }
+
+            return true;
+        }
+    }
+
+    protected override void OnPropertyChanged([CallerMemberName] string propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+
+        if (propertyName == nameof(IsVisible) && IsVisible)
+            global::Android.Util.Log.Info("MALPLUS",
+                $"BARWATCH pagebar visible shared={SharedHostInstalled}");
+    }
+
+    internal static void AttachBarWatch(global::Android.Views.View root)
+    {
+        if (root == null || ReferenceEquals(root, _watchRoot))
+            return;
+
+        _watchRoot = root;
+        root.ViewTreeObserver?.AddOnPreDrawListener(new BarWatch());
+        global::Android.Util.Log.Info("MALPLUS", "BARWATCH attached");
+    }
+
+    private static global::Android.Views.View _watchRoot;
+    private static string _lastBarSignature;
+
+    private sealed class BarWatch : global::Java.Lang.Object,
+        global::Android.Views.ViewTreeObserver.IOnPreDrawListener
+    {
+        public bool OnPreDraw()
+        {
+            var signature = new System.Text.StringBuilder();
+            List<BottomNavBar> bars = Snapshot();
+
+            foreach (var bar in bars)
+            {
+                if (bar.Handler?.PlatformView is not global::Android.Views.View view)
+                    continue;
+
+                var rect = new global::Android.Graphics.Rect();
+                var visible = view.GetGlobalVisibleRect(rect) &&
+                              view.Visibility == global::Android.Views.ViewStates.Visible;
+
+                signature.Append(ReferenceEquals(view, SharedBarView) ? 'S' : 'P');
+                signature.Append(visible ? '1' : '0');
+                signature.Append('[').Append(rect.Left).Append(',').Append(rect.Top)
+                    .Append(',').Append(rect.Right).Append(',').Append(rect.Bottom)
+                    .Append("];");
+            }
+
+            var value = signature.ToString();
+            if (value == _lastBarSignature)
+                return true;
+
+            _lastBarSignature = value;
+            global::Android.Util.Log.Info("MALPLUS", "BARWATCH " + value);
+            return true;
+        }
+    }
+
+    private static List<BottomNavBar> Snapshot()
+    {
+        List<BottomNavBar> bars = new();
+        lock (Instances)
+        {
+            for (var i = Instances.Count - 1; i >= 0; i--)
+            {
+                if (!Instances[i].TryGetTarget(out var bar))
+                {
+                    Instances.RemoveAt(i);
+                    continue;
+                }
+
+                bars.Add(bar);
+            }
+        }
+
+        return bars;
+    }
+
+    internal static BottomNavBar TakeSharedHostBar()
+    {
+        lock (Instances)
+        {
+            for (var i = Instances.Count - 1; i >= 0; i--)
+            {
+                if (!Instances[i].TryGetTarget(out var bar) ||
+                    bar?.Handler?.PlatformView is not global::Android.Views.View view)
+                {
+                    Instances.RemoveAt(i);
+                    continue;
+                }
+
+                if (view.IsShown && view.Height > 0)
+                    return bar;
+            }
+        }
+
+        return null;
+    }
+
+    internal static void HideAllForSharedHost(global::Android.Views.View sharedView)
+    {
+        List<BottomNavBar> bars = Snapshot();
+        foreach (var bar in bars)
+            bar.HideForSharedHost(sharedView);
+    }
+
+    private void HideForSharedHost(global::Android.Views.View sharedView)
+    {
+        Opacity = 1;
+        IsVisible = false;
+
+        if (Handler?.PlatformView is not global::Android.Views.View view ||
+            ReferenceEquals(view, sharedView))
+            return;
+
+        InstallPageBarGuard();
+    }
+
+    internal static global::Android.Views.View FindPlatformAt(float x, float y)
+    {
+        lock (Platforms)
+        {
+            for (var i = Platforms.Count - 1; i >= 0; i--)
+            {
+                if (!Platforms[i].TryGetTarget(out var view) || view == null)
+                {
+                    Platforms.RemoveAt(i);
+                    continue;
+                }
+
+                if (!view.IsShown)
+                    continue;
+
+                var bounds = new global::Android.Graphics.Rect();
+                if (view.GetGlobalVisibleRect(bounds) && bounds.Contains((int)x, (int)y))
+                    return view;
+            }
+        }
+
+        return null;
     }
 
     protected override void OnParentSet()
@@ -242,6 +520,18 @@ public partial class BottomNavBar : ContentView
         => NavigateToRoute(SectionRoute(section, OnSection(section) && IsListSection(section)),
             section, IsListSection(section));
 
+    public bool StepSection(int delta)
+    {
+        if (delta == 0)
+            return false;
+        var index = Array.IndexOf(Sections, CurrentSection());
+        var next = index + delta;
+        if (index < 0 || next < 0 || next >= Sections.Length)
+            return false;
+        NavigateToSection(Sections[next]);
+        return true;
+    }
+
     private void NavigateToRoute(string route, string section, bool allowCurrent)
     {
         var requestId = ++_requestVersion;
@@ -254,6 +544,9 @@ public partial class BottomNavBar : ContentView
             RefreshSelection();
             return;
         }
+
+        if (IsListSection(section))
+            MALPlus.Views.AnimeListPage.SetPendingRootRoute(route);
 
         // Synchronous and before GoToAsync on purpose: the caller repaints from this, so the
         // label follows the finger instead of trailing the pager's scroll.
@@ -297,6 +590,18 @@ public partial class BottomNavBar : ContentView
             _navigationInFlight = true;
             ownsNavigation = true;
             await shell.GoToAsync(route);
+            // A bar on another root (More, Discover) navigates to a list section that
+            // already exists, and Shell drops the route query on the way; the page's
+            // own SectionActivated never fires because this is not its bar.
+            if (shell.CurrentPage is MALPlus.Views.AnimeListPage listPage)
+            {
+                if (!ReferenceEquals(HostingPage(), listPage))
+                    listPage.ApplyRouteFromShell(route);
+            }
+            else if (IsListSection(section))
+            {
+                MALPlus.Views.AnimeListPage.ClearPendingRootRoute(route);
+            }
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 try { SectionActivated?.Invoke(route); }
@@ -305,6 +610,8 @@ public partial class BottomNavBar : ContentView
         }
         catch (Exception ex)
         {
+            if (IsListSection(section))
+                MALPlus.Views.AnimeListPage.ClearPendingRootRoute(route);
             Android.Util.Log.Error("MALPLUS", $"BottomNav GoToAsync failed '{route}': {ex}");
         }
         finally
@@ -315,6 +622,14 @@ public partial class BottomNavBar : ContentView
                 MainThread.BeginInvokeOnMainThread(CompleteNavigation);
             }
         }
+    }
+
+    private Page HostingPage()
+    {
+        Element current = this;
+        while (current != null && current is not Page)
+            current = current.Parent;
+        return current as Page;
     }
 
     private void CompleteNavigation()

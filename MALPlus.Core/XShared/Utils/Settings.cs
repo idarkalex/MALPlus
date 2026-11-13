@@ -459,6 +459,18 @@ namespace MALPlus.XShared.Utils
             set => ApplicationDataService["DisplaySeasonWithType"] = value;
         }
 
+        public static bool ShowFormatTag
+        {
+            get => (bool)(ApplicationDataService["ShowFormatTag"] ?? true);
+            set => ApplicationDataService["ShowFormatTag"] = value;
+        }
+
+        public static int PosterScoreDisplay
+        {
+            get => (int)(ApplicationDataService["PosterScoreDisplay"] ?? 0);
+            set => ApplicationDataService["PosterScoreDisplay"] = value;
+        }
+
         public static bool EnableImageCache
         {
             get => (bool)(ApplicationDataService["EnableImageCache"] ?? true);
@@ -830,5 +842,19 @@ namespace MALPlus.XShared.Utils
         }
 
         #endregion Content
+
+        #region Updates
+
+        public static DateTime? LastUpdateCheckUtc
+        {
+            get
+            {
+                var val = ApplicationDataService[nameof(LastUpdateCheckUtc)] as string;
+                return DateTime.TryParse(val, out var d) ? d : null;
+            }
+            set => ApplicationDataService[nameof(LastUpdateCheckUtc)] = value?.ToString("o");
+        }
+
+        #endregion Updates
     }
 }

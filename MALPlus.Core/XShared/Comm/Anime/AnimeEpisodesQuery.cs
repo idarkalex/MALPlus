@@ -110,29 +110,10 @@ namespace MALPlus.XShared.Comm.Anime
 
             try
             {
-                int lastPage = 1;
-                List<JsonElement> items = null;
-                var json = await TenraiClient.GetRawJsonAsync($"anime/{animeId}/episodes?page=1");
-                using (var doc = JsonDocument.Parse(json))
-                {
-                    var root = doc.RootElement;
-                    if (root.TryGetProperty("data", out var data))
-                    {
-                        items = new List<JsonElement>();
-                        foreach (var it in data.EnumerateArray())
-                            items.Add(it.Clone());
-                    }
-                    if (root.TryGetProperty("pagination", out var pag) &&
-                        pag.TryGetProperty("last_visible_page", out var lvp) &&
-                        lvp.ValueKind == JsonValueKind.Number)
-                        lastPage = lvp.GetInt32();
-                }
-
-                if (lastPage > 1)
-                {
-                    var (lastItems, _) = await TenraiClient.GetPaginatedAsync($"anime/{animeId}/episodes?page={lastPage}");
-                    items = lastItems;
-                }
+                // Tenrai's ?sort=desc parameter returns the newest episodes on page 1 directly,
+                // saving a roundtrip that previously queried page 1 for last_visible_page
+                // and then fetched page N.
+                var (items, _) = await TenraiClient.GetPaginatedAsync($"anime/{animeId}/episodes?sort=desc&page=1");
 
                 var result = new List<AnimeEpisode>();
                 if (items != null)
@@ -154,7 +135,7 @@ namespace MALPlus.XShared.Comm.Anime
                     }
                 }
 
-                _cache[animeId] = (result, DateTime.UtcNow, lastPage);
+                _cache[animeId] = (result, DateTime.UtcNow, 1);
                 return result;
             }
             catch

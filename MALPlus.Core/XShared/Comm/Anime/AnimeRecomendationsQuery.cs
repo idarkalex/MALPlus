@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,15 +13,256 @@ namespace MALPlus.XShared.Comm.Anime
     public class AnimeRecomendationsQuery : Query
     {
         private readonly bool _anime;
+        private readonly bool _top;
 
-        public AnimeRecomendationsQuery(bool anime = true)
+        public AnimeRecomendationsQuery(bool anime = true, bool top = false)
         {
             _anime = anime;
+            _top = top;
             Request =
-                new Uri(Uri.EscapeUriString($"https://myanimelist.net/recommendations.php?s=recentrecs&t={(anime ? "anime" : "manga")}"));
+                new Uri(Uri.EscapeUriString($"https://myanimelist.net/recommendations.php?{(_top ? "" : "s=recentrecs&")}t={(anime ? "anime" : "manga")}"));
         }
 
-public async Task<List<RecommendationData>> GetRecomendationsData()
+        public async Task<List<RecommendationData>> GetRecomendationsData()
+        {
+            // 1. Native Tenrai endpoint (structured JSON, fast)
+            var tenraiData = await FetchFromTenraiAsync();
+            if (tenraiData != null && tenraiData.Count > 0)
+                return tenraiData;
+
+            // 2. Fallback to HTML scraper
+            return await FetchFromHtmlAsync();
+        }
+
+        private async Task<List<RecommendationData>> FetchFromTenraiAsync()
+        {
+            try
+            {
+                var output = new List<RecommendationData>();
+
+                if (_top)
+                {
+                    // Fetch top 50 recommendations (pages 1 and 2, 25 items each)
+                    for (int page = 1; page <= 2; page++)
+                    {
+                        var endpoint = $"top/recommendations?type={(_anime ? "anime" : "manga")}&page={page}";
+                        var (items, hasNext) = await TenraiClient.GetPaginatedAsync(endpoint);
+                        if (items == null || items.Count == 0)
+                            break;
+
+                        ParseTenraiItems(items, output);
+                        if (!hasNext)
+                            break;
+                    }
+                }
+                else
+                {
+                    var endpoint = _anime ? "recommendations/anime?page=1" : "recommendations/manga?page=1";
+                    var (items, _) = await TenraiClient.GetPaginatedAsync(endpoint);
+                    if (items != null && items.Count > 0)
+                    {
+                        ParseTenraiItems(items, output);
+                    }
+                }
+
+                if (output.Count > 0)
+                {
+                    await EnrichMetadataAsync(output);
+                    return output;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MALPLUS recs Tenrai failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        private void ParseTenraiItems(List<JsonElement> items, List<RecommendationData> output)
+        {
+            foreach (var item in items)
+            {
+                if (output.Count >= MaxRecommendations)
+                    break;
+                try
+                {
+                    if (!item.TryGetProperty("entry", out var entryArr) || entryArr.ValueKind != JsonValueKind.Array)
+                        continue;
+
+                    var entries = entryArr.EnumerateArray().ToList();
+                    if (entries.Count < 2)
+                        continue;
+
+                    var dep = entries[0];
+                    var rec = entries[1];
+
+                    var depId = dep.TryGetProperty("mal_id", out var depIdProp) && depIdProp.ValueKind == JsonValueKind.Number ? depIdProp.GetInt32() : 0;
+                    var depTitle = dep.TryGetProperty("title", out var depTitleProp) && depTitleProp.ValueKind == JsonValueKind.String ? depTitleProp.GetString() : "";
+                    var depImg = GetImageUrl(dep);
+
+                    var recId = rec.TryGetProperty("mal_id", out var recIdProp) && recIdProp.ValueKind == JsonValueKind.Number ? recIdProp.GetInt32() : 0;
+                    var recTitle = rec.TryGetProperty("title", out var recTitleProp) && recTitleProp.ValueKind == JsonValueKind.String ? recTitleProp.GetString() : "";
+                    var recImg = GetImageUrl(rec);
+
+                    if (depId <= 0 || recId <= 0)
+                        continue;
+
+                    var content = item.TryGetProperty("content", out var cProp) && cProp.ValueKind == JsonValueKind.String ? cProp.GetString() : "";
+                    var dateStr = item.TryGetProperty("date", out var dProp) && dProp.ValueKind == JsonValueKind.String ? dProp.GetString() : "";
+                    var username = "";
+                    if (item.TryGetProperty("user", out var uObj) && uObj.ValueKind == JsonValueKind.Object &&
+                        uObj.TryGetProperty("username", out var unProp) && unProp.ValueKind == JsonValueKind.String)
+                    {
+                        username = unProp.GetString();
+                    }
+
+                    var votes = item.TryGetProperty("votes", out var vProp) && vProp.ValueKind == JsonValueKind.Number ? vProp.GetInt32() : 0;
+
+                    output.Add(new RecommendationData
+                    {
+                        IsAnime = _anime,
+                        DependentId = depId,
+                        DependentTitle = depTitle,
+                        DependentImageUrl = depImg,
+                        RecommendationId = recId,
+                        RecommendationTitle = recTitle,
+                        RecommendationImageUrl = recImg,
+                        RecommendedBy = username,
+                        RecommendedWhen = FormatDate(dateStr),
+                        Description = WebUtility.HtmlDecode(content).Trim(),
+                        Votes = votes
+                    });
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private async Task EnrichMetadataAsync(List<RecommendationData> items)
+        {
+            try
+            {
+                var allIds = new HashSet<int>();
+                foreach (var item in items)
+                {
+                    if (item.DependentId > 0) allIds.Add(item.DependentId);
+                    if (item.RecommendationId > 0) allIds.Add(item.RecommendationId);
+                }
+
+                if (allIds.Count == 0) return;
+
+                var idList = allIds.ToList();
+                var metaDict = new Dictionary<int, (string Type, double Score, int Episodes)>();
+
+                // Enrich in chunks of 25 items per batch request
+                for (int i = 0; i < idList.Count; i += 25)
+                {
+                    var chunk = idList.Skip(i).Take(25).ToList();
+                    var first = chunk[0];
+                    var others = chunk.Skip(1).ToList();
+
+                    var mediaPrefix = _anime ? "anime" : "manga";
+                    var endpoint = others.Count > 0
+                        ? $"{mediaPrefix}/{first}/full?ids={string.Join(",", others)}"
+                        : $"{mediaPrefix}/{first}/full";
+
+                    var raw = await TenraiClient.GetRawJsonAsync(endpoint);
+                    if (string.IsNullOrEmpty(raw)) continue;
+
+                    using var doc = JsonDocument.Parse(raw);
+                    var entries = new List<JsonElement>();
+
+                    if (doc.RootElement.TryGetProperty("data", out var dataEl))
+                    {
+                        if (dataEl.ValueKind == JsonValueKind.Object)
+                            entries.Add(dataEl);
+                        else if (dataEl.ValueKind == JsonValueKind.Array)
+                            entries.AddRange(dataEl.EnumerateArray());
+                    }
+
+                    if (doc.RootElement.TryGetProperty("included", out var incEl) && incEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var inc in incEl.EnumerateArray())
+                            if (inc.ValueKind == JsonValueKind.Object)
+                                entries.Add(inc);
+                    }
+
+                    foreach (var entry in entries)
+                    {
+                        int malId = 0;
+                        if (entry.TryGetProperty("mal_id", out var idProp) && idProp.ValueKind == JsonValueKind.Number)
+                            malId = idProp.GetInt32();
+                        if (malId <= 0) continue;
+
+                        string type = "";
+                        if (entry.TryGetProperty("type", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
+                            type = typeProp.GetString();
+
+                        double score = 0;
+                        if (entry.TryGetProperty("score", out var scoreProp) && scoreProp.ValueKind == JsonValueKind.Number)
+                            score = scoreProp.GetDouble();
+
+                        int eps = 0;
+                        var epPropName = _anime ? "episodes" : "chapters";
+                        if (entry.TryGetProperty(epPropName, out var epProp) && epProp.ValueKind == JsonValueKind.Number)
+                            eps = epProp.GetInt32();
+
+                        metaDict[malId] = (type, score, eps);
+                    }
+                }
+
+                foreach (var item in items)
+                {
+                    if (metaDict.TryGetValue(item.DependentId, out var depMeta))
+                    {
+                        item.DependentType = depMeta.Type;
+                        item.DependentScore = depMeta.Score;
+                        item.DependentAllEpisodes = depMeta.Episodes;
+                    }
+                    if (metaDict.TryGetValue(item.RecommendationId, out var recMeta))
+                    {
+                        item.RecommendationType = recMeta.Type;
+                        item.RecommendationScore = recMeta.Score;
+                        item.RecommendationAllEpisodes = recMeta.Episodes;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS recs enrich failed: " + ex.Message);
+            }
+        }
+
+        private static string FormatDate(string dateStr)
+        {
+            if (string.IsNullOrWhiteSpace(dateStr))
+                return string.Empty;
+
+            if (DateTime.TryParse(dateStr, out var dt))
+            {
+                return dt.ToString("MMM d, yyyy");
+            }
+            return dateStr;
+        }
+
+        private static string GetImageUrl(JsonElement entry)
+        {
+            if (entry.TryGetProperty("images", out var images) && images.ValueKind == JsonValueKind.Object)
+            {
+                if (images.TryGetProperty("jpg", out var jpg) && jpg.ValueKind == JsonValueKind.Object &&
+                    jpg.TryGetProperty("large_image_url", out var lProp) && lProp.ValueKind == JsonValueKind.String)
+                    return lProp.GetString();
+                if (images.TryGetProperty("jpg", out var jpg2) && jpg2.ValueKind == JsonValueKind.Object &&
+                    jpg2.TryGetProperty("image_url", out var iProp) && iProp.ValueKind == JsonValueKind.String)
+                    return iProp.GetString();
+            }
+            return "";
+        }
+
+        private async Task<List<RecommendationData>> FetchFromHtmlAsync()
         {
             var output = new List<RecommendationData>();
             var raw = await GetRequestResponse();

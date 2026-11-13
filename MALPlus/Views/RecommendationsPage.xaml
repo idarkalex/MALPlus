@@ -22,12 +22,22 @@
             <ScrollView Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                         Padding="12,0,12,8">
                 <HorizontalStackLayout Spacing="8">
-                    <Button x:Name="AnimeTab" Text="Anime" Clicked="OnModeClicked"
-                            CommandParameter="Anime" FontFamily="InterSemiBold" FontSize="12"
+                    <Button x:Name="TopAnimeTab" Text="Top Anime" Clicked="OnModeClicked"
+                            CommandParameter="TopAnime" FontFamily="InterSemiBold" FontSize="12"
                             BackgroundColor="#0066FF" TextColor="White"
                             BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
                             Padding="12,6" HeightRequest="32" />
-                    <Button x:Name="MangaTab" Text="Manga" Clicked="OnModeClicked"
+                    <Button x:Name="RecentAnimeTab" Text="Recent Anime" Clicked="OnModeClicked"
+                            CommandParameter="Anime" FontFamily="InterSemiBold" FontSize="12"
+                            BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
+                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
+                            Padding="12,6" HeightRequest="32" />
+                    <Button x:Name="TopMangaTab" Text="Top Manga" Clicked="OnModeClicked"
+                            CommandParameter="TopManga" FontFamily="InterSemiBold" FontSize="12"
+                            BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
+                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
+                            Padding="12,6" HeightRequest="32" />
+                    <Button x:Name="RecentMangaTab" Text="Recent Manga" Clicked="OnModeClicked"
                             CommandParameter="Manga" FontFamily="InterSemiBold" FontSize="12"
                             BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
                             BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
@@ -58,6 +68,12 @@
                                 HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
                                 PosterUrl="{Binding DependentItem.ImgUrl}"
                                 Title="{Binding DependentItem.Title}"
+                                TypeTag="{Binding DependentItem.TypeTag}"
+                                ScoreTag="{Binding DependentItem.CardScore}"
+                                BadgeAccent="{Binding DependentItem.BadgeAccent}"
+                                BadgeAccentColor="{Binding DependentItem.LibraryBadgeAccentColor}"
+                                BadgeMain="{Binding DependentItem.BadgeMain}"
+                                BadgeExtra="{Binding DependentItem.AirDayTillBind}"
                                 TitleOverlay="True" />
                         </Grid>
 
@@ -73,6 +89,12 @@
                                 HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
                                 PosterUrl="{Binding RecommendedItem.ImgUrl}"
                                 Title="{Binding RecommendedItem.Title}"
+                                TypeTag="{Binding RecommendedItem.TypeTag}"
+                                ScoreTag="{Binding RecommendedItem.CardScore}"
+                                BadgeAccent="{Binding RecommendedItem.BadgeAccent}"
+                                BadgeAccentColor="{Binding RecommendedItem.LibraryBadgeAccentColor}"
+                                BadgeMain="{Binding RecommendedItem.BadgeMain}"
+                                BadgeExtra="{Binding RecommendedItem.AirDayTillBind}"
                                 TitleOverlay="True" />
                         </Grid>
                     </Grid>
@@ -97,13 +119,27 @@
                         <Label Text="{Binding CurrentRecommendation.Description}" FontFamily="Inter" FontSize="13"
                                TextColor="#C0FFFFFF" LineBreakMode="WordWrap" />
 
-                        <HorizontalStackLayout Spacing="4">
-                            <Label Text="by" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" />
-                            <Label Text="{Binding CurrentRecommendation.RecommendedBy}"
-                                   FontFamily="InterSemiBold" FontSize="11"
-                                   TextColor="{StaticResource EmAccent}" />
-                            <Label Text="{Binding CurrentRecommendation.RecommendedWhen}"
-                                   FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" />
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                            <HorizontalStackLayout Spacing="4" VerticalOptions="Center"
+                                                   IsVisible="{Binding CurrentRecommendation.RecommendedBy, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
+                                <Label Text="by" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" />
+                                <Label Text="{Binding CurrentRecommendation.RecommendedBy}"
+                                       FontFamily="InterSemiBold" FontSize="11"
+                                       TextColor="{StaticResource EmAccent}" />
+                                <Label Text="{Binding CurrentRecommendation.RecommendedWhen}"
+                                       FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" />
+                            </HorizontalStackLayout>
+                            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+                                    BackgroundColor="#1A0066FF" Stroke="#330066FF" StrokeThickness="1"
+                                    VerticalOptions="Center"
+                                    IsVisible="{Binding CurrentRecommendation.HasVotes}">
+                                <HorizontalStackLayout Spacing="3" VerticalOptions="Center">
+                                    <Label Text="★" FontFamily="Inter" FontSize="10" TextColor="#FFD700" VerticalOptions="Center" />
+                                    <Label Text="{Binding CurrentRecommendation.VotesText}"
+                                           FontFamily="InterSemiBold" FontSize="11" TextColor="#80B4FF"
+                                           VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </Border>
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
                 </VerticalStackLayout>

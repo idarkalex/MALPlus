@@ -64,12 +64,21 @@ namespace MALPlus.XShared.ViewModels
         {
             get
             {
-                if (string.IsNullOrWhiteSpace(Type))
+                if (!Settings.ShowFormatTag || string.IsNullOrWhiteSpace(Type))
                     return "";
                 var parsed = AnimeMode
                     ? (int) MalTypeParser.ParseAnimeType(Type)
                     : (int) MalTypeParser.ParseMangaType(Type);
-                return parsed == 0 ? "" : Type;
+                if (parsed == 0) return "";
+
+                if (AnimeMode && Settings.DisplaySeasonWithType && !string.IsNullOrEmpty(_item?.StartDate))
+                {
+                    var season = Utils.Utilities.SeasonToCapitalLetterWithYear(_item.StartDate);
+                    if (!string.IsNullOrEmpty(season))
+                        return $"{season} {Type}".Trim();
+                }
+
+                return Type;
             }
         }
 
@@ -79,6 +88,7 @@ namespace MALPlus.XShared.ViewModels
         /// as the meaningless "N/A" and "0/220" on every result.
         /// </summary>
         public string CardBadgeAccent => IsAuth ? MyStatusBindShort : string.Empty;
+        public string CardBadgeAccentColor => Utils.AnimeCardBadge.StatusColor(IsAuth, (int)MyStatus);
         public string CardBadgeMain => IsAuth ? MyEpisodesBindShort : string.Empty;
 
         /// <summary>
@@ -91,7 +101,22 @@ namespace MALPlus.XShared.ViewModels
         /// fit, and it now shows whenever there is a score to show.
         /// </para>
         /// </summary>
-        public string CardScore => GlobalScore <= 0 ? string.Empty : GlobalScoreBind;
+        public string CardScore
+        {
+            get
+            {
+                switch (Settings.PosterScoreDisplay)
+                {
+                    case 1:
+                        return (IsAuth && MyScore > 0) ? $"★ {MyScore:0.#}" : "";
+                    case 2:
+                        return "";
+                    case 0:
+                    default:
+                        return GlobalScore <= 0 ? string.Empty : GlobalScoreBind;
+                }
+            }
+        }
 
         public ICommand NavigateDetailsCommand => new RelayCommand(NavigateDetails);
 
@@ -122,6 +147,18 @@ namespace MALPlus.XShared.ViewModels
                 MyStatus = authAnime.MyStatus;
                 IsRewatching = authAnime.IsRewatching;
             }
+        }
+
+        public void RefreshCardDisplayProperties(bool refreshTitle = true)
+        {
+            if (refreshTitle)
+            {
+                RaisePropertyChanged(nameof(Title));
+            }
+            RaisePropertyChanged(nameof(TypeTag));
+            RaisePropertyChanged(nameof(CardScore));
+            RaisePropertyChanged(nameof(GlobalScoreBind));
+            RaisePropertyChanged(nameof(CardBadgeAccentColor));
         }
 
         public void NavigateDetails()

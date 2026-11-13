@@ -444,14 +444,21 @@ namespace MALPlus.XShared.Utils
         {
             try
             {
-                var month = int.Parse(date.Split('-')[1]);
-                if (month > 0 && month < 3)
+                if (string.IsNullOrWhiteSpace(date))
+                    return 0;
+                var parts = date.Split('-');
+                if (parts.Length < 2)
+                    return 0;
+                var month = int.Parse(parts[1]);
+                if (month >= 1 && month <= 3)
                     return 1;
-                if (month >= 3 && month < 6)
+                if (month >= 4 && month <= 6)
                     return 2;
-                if (month >= 6 && month < 9)
+                if (month >= 7 && month <= 9)
                     return 3;
-                return 4;
+                if (month >= 10 && month <= 12)
+                    return 4;
+                return 0;
             }
             catch (Exception)
             {
@@ -461,10 +468,33 @@ namespace MALPlus.XShared.Utils
 
         public static string SeasonToCapitalLetterWithYear(string date)
         {
+            if (string.IsNullOrWhiteSpace(date))
+                return "";
+
             try
             {
-                var season = DateToSeason(date);
-                var year = date.Substring(2, 2);
+                var trimmed = date.Trim();
+                var lower = trimmed.ToLowerInvariant();
+
+                // Handle string like "fall 2024", "Fall 2024", "Fall 24"
+                foreach (var sName in new[] { "winter", "spring", "summer", "fall" })
+                {
+                    if (lower.StartsWith(sName))
+                    {
+                        var cap = char.ToUpperInvariant(sName[0]) + sName.Substring(1);
+                        var parts = trimmed.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length > 1 && parts[1].Length >= 2)
+                        {
+                            var y = parts[1].Length == 4 ? parts[1].Substring(2, 2) : parts[1];
+                            return $"{cap} {y}";
+                        }
+                        return cap;
+                    }
+                }
+
+                var season = DateToSeason(trimmed);
+                var year = trimmed.Length >= 4 ? trimmed.Substring(2, 2) : "";
+
                 if (season == 1)
                     return "Winter " + year;
                 if (season == 2)
@@ -473,14 +503,13 @@ namespace MALPlus.XShared.Utils
                     return "Summer " + year;
                 if (season == 4)
                     return "Fall " + year;
-                return "";
+
+                return !string.IsNullOrEmpty(year) ? "'" + year : "";
             }
             catch
             {
-                return "N/A";
-
+                return "";
             }
-
         }
 
         public static HtmlNode FirstWithClass(this IEnumerable<HtmlNode> doc, string targettedClass)

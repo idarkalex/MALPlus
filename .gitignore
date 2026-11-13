@@ -62,3 +62,4 @@ Desktop.ini
 /buttons/
 !/buttons/.gitignore
 .build-artifacts/
+.opencode/

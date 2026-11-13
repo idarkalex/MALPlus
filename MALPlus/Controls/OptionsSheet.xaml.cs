@@ -75,7 +75,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     /// </remarks>
     public void OpenPrompt(string title, string subtitle, string initial, string hint, int maxLength,
         bool withClose, Action<string> onSave, Action onCancel, bool multiline = false,
-        Keyboard? keyboard = null)
+        Keyboard? keyboard = null, bool closeOnSave = true)
     {
         try
         {
@@ -165,12 +165,35 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 _ => string.Empty
             };
             var capturedCancel = onCancel;
-            // Ordinary rows, and deliberately so: the panel closes the same way it does for a choice
-            // and the answer is whatever was in the field when the row was tapped. An empty field is a
-            // real answer and is handed over as such, which is why this does not come back through
-            // Closed: that one cannot tell a commit from an abandonment.
-            ItemsHost.Add(BuildRow(new OptionsSheetItem("Save", "icon_check",
-                action: () => capturedSave(readField()))));
+            if (closeOnSave)
+            {
+                // Ordinary rows, and deliberately so: the panel closes the same way it does for a choice
+                // and the answer is whatever was in the field when the row was tapped.
+                ItemsHost.Add(BuildRow(new OptionsSheetItem("Save", "icon_check",
+                    action: () => capturedSave(readField()))));
+            }
+            else
+            {
+                // In a multi-level sheet, we don't dismiss the sheet when saving an in-place field;
+                // instead, the submenu callback runs onSave without triggering Dismiss/ItemChosen,
+                // allowing the caller to redraw the parent menu in place.
+                ItemsHost.Add(BuildRow(new OptionsSheetItem("Save", "icon_check",
+                    submenu: _ =>
+                    {
+                        capturedSave?.Invoke(readField());
+                        return true;
+                    })));
+
+                if (capturedCancel != null)
+                {
+                    ItemsHost.Add(BuildRow(new OptionsSheetItem("Cancel", "icon_close",
+                        submenu: _ =>
+                        {
+                            capturedCancel();
+                            return true;
+                        })));
+                }
+            }
 
             IsVisible = true;
         }
@@ -309,6 +332,134 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS options sheet confirm failed: " + ex.Message);
+        }
+    }
+
+    public void OpenUpdate(string title, string subtitle, string notes, string okLabel, string cancelLabel,
+        Action onConfirm = null)
+    {
+        try
+        {
+            ApplyCompactShape();
+            Panel.WidthRequest = 310;
+
+            Header.IsVisible = true;
+            CloseButton.IsVisible = true;
+            TitleLabel.Text = title ?? "Update";
+            TitleLabel.FontSize = 16;
+            if (string.IsNullOrWhiteSpace(subtitle))
+            {
+                SubtitleLabel.Text = "";
+                SubtitleLabel.IsVisible = false;
+            }
+            else
+            {
+                SubtitleLabel.Text = subtitle;
+                SubtitleLabel.IsVisible = true;
+                SubtitleLabel.MaxLines = 2;
+                SubtitleLabel.LineBreakMode = LineBreakMode.TailTruncation;
+            }
+
+            ItemsHost.Clear();
+
+            if (!string.IsNullOrWhiteSpace(notes))
+            {
+                var notesBorder = new Border
+                {
+                    BackgroundColor = Color.FromArgb("#0A1F2E"),
+                    Stroke = Color.FromArgb("#1E3A52"),
+                    StrokeThickness = 1,
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+                    Padding = new Thickness(12, 10),
+                    Margin = new Thickness(0, 4, 0, 8),
+                    MaximumHeightRequest = 240
+                };
+
+                var notesScroll = new ScrollView
+                {
+                    Content = new Label
+                    {
+                        Text = notes,
+                        FontFamily = "Inter",
+                        FontSize = 12,
+                        TextColor = Color.FromArgb("#D4E4F7"),
+                        LineBreakMode = LineBreakMode.WordWrap
+                    }
+                };
+                notesBorder.Content = notesScroll;
+                ItemsHost.Add(notesBorder);
+            }
+
+            Border MakeButton(string label, bool commit, bool cancels)
+            {
+                var labelColor = commit ? Colors.White : Color.FromArgb("#8FA8C0");
+                var border = new Border
+                {
+                    BackgroundColor = commit ? Color.FromArgb("#0066FF") : Color.FromArgb("#14293D"),
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+                    Padding = new Thickness(10, 0),
+                    HeightRequest = 44,
+                    HorizontalOptions = LayoutOptions.Fill
+                };
+
+                border.Content = new Label
+                {
+                    Text = label,
+                    FontFamily = commit ? "InterSemiBold" : "InterMedium",
+                    FontSize = 14,
+                    TextColor = labelColor,
+                    HorizontalTextAlignment = TextAlignment.Center,
+                    VerticalTextAlignment = TextAlignment.Center,
+                    LineBreakMode = LineBreakMode.TailTruncation,
+                    MaxLines = 1,
+                    InputTransparent = true
+                };
+
+                var tap = new TapGestureRecognizer();
+                tap.Tapped += (_, _) =>
+                {
+                    if (cancels)
+                    {
+                        Dismiss();
+                    }
+                    else
+                    {
+                        ClosingByChoice = true;
+                        Dismiss();
+                        ClosingByChoice = false;
+                        onConfirm?.Invoke();
+                    }
+                };
+                border.GestureRecognizers.Add(tap);
+                return border;
+            }
+
+            if (string.IsNullOrWhiteSpace(cancelLabel))
+            {
+                var singleBtn = MakeButton(okLabel ?? "OK", true, false);
+                ItemsHost.Add(singleBtn);
+            }
+            else
+            {
+                var row = new Grid
+                {
+                    ColumnSpacing = 8,
+                    ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("*") }
+                };
+                var cancelButton = MakeButton(cancelLabel, false, true);
+                var okButton = MakeButton(okLabel ?? "OK", true, false);
+                Microsoft.Maui.Controls.Grid.SetColumn(cancelButton, 0);
+                Microsoft.Maui.Controls.Grid.SetColumn(okButton, 1);
+                row.Add(cancelButton);
+                row.Add(okButton);
+                ItemsHost.Add(row);
+            }
+
+            IsVisible = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OpenUpdate failed: " + ex.Message);
         }
     }
 

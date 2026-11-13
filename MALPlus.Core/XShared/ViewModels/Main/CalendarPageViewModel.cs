@@ -202,7 +202,12 @@ namespace MALPlus.XShared.ViewModels.Main
                 Settings.CalendarRemoveEmptyDays,
                 Settings.CalendarMaxItems,
                 Settings.CalendarIncludeWatching,
-                Settings.CalendarIncludePlanned);
+                Settings.CalendarIncludePlanned,
+                Settings.PreferEnglishTitles,
+                Settings.ShowFormatTag,
+                Settings.PosterScoreDisplay,
+                Settings.CalendarTimeZoneId,
+                SettingsViewModelBase.SettingsRevision);
         }
 
         private bool IsCurrentBuild(int version) => version == Volatile.Read(ref _buildVersion);

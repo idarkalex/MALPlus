@@ -23,7 +23,7 @@
              year. The selection is what fills the rows below, and it opens on whatever is airing. -->
         <Border Grid.Row="0" BackgroundColor="{StaticResource EmSheet}" Padding="14,0"
                 HeightRequest="52">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <HorizontalStackLayout Grid.Column="0" Spacing="12" VerticalOptions="Center">
                     <Label Text="Season OP/ED" FontFamily="InterBold" FontSize="16"
                            TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
@@ -32,7 +32,21 @@
                                                  YearRequested="OnYearRequested"
                                                  SelectionChanged="OnSelectionChanged" />
                 </HorizontalStackLayout>
-                <Border Grid.Column="1" WidthRequest="32" HeightRequest="32"
+                <!-- Shown only when the themes half of the load failed: the season may be
+                     perfectly fine while AnimeThemes is not, and then the only thing the
+                     reader can do about it is ask again. -->
+                <Border Grid.Column="1" WidthRequest="56" HeightRequest="32"
+                        IsVisible="{Binding ShowRetry}"
+                        StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                        VerticalOptions="Center">
+                    <Label Text="Retry" FontFamily="InterSemiBold" FontSize="12"
+                           TextColor="{StaticResource BrushText}"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRetryTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+                <Border Grid.Column="2" WidthRequest="32" HeightRequest="32"
                         StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
                         VerticalOptions="Center">
                     <Image Source="icon_close" WidthRequest="18" HeightRequest="18"

@@ -33,6 +33,29 @@ namespace MALPlus.XShared.Utils
         {
             Client.DefaultRequestHeaders.Add("User-Agent",
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            GraphQlClient.DefaultRequestHeaders.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        }
+
+        public static async Task<JsonDocument> ExecuteGraphQlAsync(string query)
+        {
+            try
+            {
+                var cleanQuery = query.Replace("\"", "\\\"").Replace("\r", "").Replace("\n", " ");
+                var body = "{\"query\":\"" + cleanQuery + "\"}";
+                using var cts = new CancellationTokenSource(RequestTimeout);
+                var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+                var response = await GraphQlClient.PostAsync(GraphQlEndpoint, content, cts.Token);
+                if (!response.IsSuccessStatusCode)
+                    return null;
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonDocument.Parse(json);
+            }
+            catch (Exception ex)
+            {
+                AppendThemeDebug($"GraphQL execution exception: {ex.Message}");
+                return null;
+            }
         }
 
         private static DateTime? _rateLimitedUntil;
@@ -253,7 +276,7 @@ namespace MALPlus.XShared.Utils
         /// </summary>
         /// <remarks>
         ///     The random theme only carries the slug, and a slug is not a thing to show anybody. One
-        ///     request turns it into the name, which is then enough to reach MAL, which is the only side
+        ///     GraphQL request turns it into the name, which is then enough to reach MAL, which is the only side
         ///     of the arrangement with artwork to show.
         /// </remarks>
         public static async Task<string> GetAnimeNameAsync(string slug)
@@ -262,13 +285,83 @@ namespace MALPlus.XShared.Utils
                 return null;
             try
             {
-                var json = await GetStringWithBackoffAsync(
-                    $"https://api.animethemes.moe/anime/{Uri.EscapeDataString(slug)}");
-                if (string.IsNullOrEmpty(json))
+                var query = "{ anime(slug: \"" + slug.Replace("\"", "") + "\") { title { romaji english } } }";
+                using var doc = await ExecuteGraphQlAsync(query);
+                if (doc == null || !doc.RootElement.TryGetProperty("data", out var data) ||
+                    !data.TryGetProperty("anime", out var anime) || anime.ValueKind != JsonValueKind.Object)
                     return null;
 
-                var doc = JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JObject>(json);
-                return doc?["anime"]?["name"]?.ToString();
+                if (anime.TryGetProperty("title", out var titleObj) && titleObj.ValueKind == JsonValueKind.Object)
+                {
+                    if (titleObj.TryGetProperty("romaji", out var romajiProp) && romajiProp.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(romajiProp.GetString()))
+                        return romajiProp.GetString();
+                    if (titleObj.TryGetProperty("english", out var engProp) && engProp.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(engProp.GetString()))
+                        return engProp.GetString();
+                }
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public class AnimeSlugMetadata
+        {
+            public string Name { get; set; }
+            public int Year { get; set; }
+            public string Synopsis { get; set; }
+            public string MediaFormat { get; set; }
+            public int MalId { get; set; }
+        }
+
+        public static async Task<AnimeSlugMetadata> GetAnimeMetadataBySlugAsync(string slug)
+        {
+            if (string.IsNullOrEmpty(slug))
+                return null;
+            try
+            {
+                var query = "{ anime(slug: \"" + slug.Replace("\"", "") + "\") { slug title { romaji english } year synopsis formatLocalized resources { nodes { site externalId } } } }";
+                using var doc = await ExecuteGraphQlAsync(query);
+                if (doc == null || !doc.RootElement.TryGetProperty("data", out var data) ||
+                    !data.TryGetProperty("anime", out var anime) || anime.ValueKind != JsonValueKind.Object)
+                    return null;
+
+                var meta = new AnimeSlugMetadata();
+                if (anime.TryGetProperty("title", out var titleObj) && titleObj.ValueKind == JsonValueKind.Object)
+                {
+                    if (titleObj.TryGetProperty("romaji", out var romaji) && romaji.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(romaji.GetString()))
+                        meta.Name = romaji.GetString();
+                    else if (titleObj.TryGetProperty("english", out var eng) && eng.ValueKind == JsonValueKind.String)
+                        meta.Name = eng.GetString();
+                }
+                if (anime.TryGetProperty("year", out var yProp) && yProp.ValueKind == JsonValueKind.Number)
+                    meta.Year = yProp.GetInt32();
+                if (anime.TryGetProperty("synopsis", out var synProp) && synProp.ValueKind == JsonValueKind.String)
+                    meta.Synopsis = synProp.GetString();
+                if (anime.TryGetProperty("formatLocalized", out var fmtProp) && fmtProp.ValueKind == JsonValueKind.String)
+                    meta.MediaFormat = fmtProp.GetString();
+
+                if (anime.TryGetProperty("resources", out var resObj) && resObj.ValueKind == JsonValueKind.Object &&
+                    resObj.TryGetProperty("nodes", out var nodesArr) && nodesArr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var node in nodesArr.EnumerateArray())
+                    {
+                        var site = node.TryGetProperty("site", out var siteProp) && siteProp.ValueKind == JsonValueKind.String
+                            ? siteProp.GetString() : string.Empty;
+                        if (string.Equals(site, "MAL", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(site, "MyAnimeList", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (node.TryGetProperty("externalId", out var idProp) && idProp.ValueKind == JsonValueKind.Number)
+                            {
+                                meta.MalId = idProp.GetInt32();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                return meta;
             }
             catch
             {
@@ -443,35 +536,37 @@ namespace MALPlus.XShared.Utils
                 return onDisk;
             }
 
-            var slugs = await GetSlugsByMalIdAsync(malId);
-            if (slugs.Count == 0)
+            // Direct GraphQL lookup: single roundtrip, carries OPs/EDs + videos directly,
+            // and remains fully operational even when the legacy REST API (api.animethemes.moe) is 503.
+            var merged = await FetchThemesFromGraphQlByMalIdAsync(malId);
+            if (merged == null || merged.Count == 0)
             {
-                // Nothing maps to this id. Remembered as an empty answer so the round trip is not paid
-                // for again on every open of the same entry.
-                ThemesByMalId[malId] = new List<ThemeVideo>();
-                return ThemesByMalId[malId];
-            }
+                var slugs = await GetSlugsByMalIdAsync(malId);
+                if (slugs.Count == 0)
+                {
+                    ThemesByMalId[malId] = new List<ThemeVideo>();
+                    return ThemesByMalId[malId];
+                }
 
-            var merged = new List<ThemeVideo>();
-            if (slugs.Count == 1)
-            {
-                merged = await FetchBySlugAsync(slugs[0]);
-            }
-            else
-            {
-                // Read together rather than one after another: an id that maps to several entries is
-                // not the common case, but when it happens the whole point of this call is done.
-                var batches = await Task.WhenAll(slugs.Select(slug => FetchBySlugAsync(slug)));
-                foreach (var batch in batches)
-                    if (batch != null)
-                        merged.AddRange(batch);
-            }
+                merged = new List<ThemeVideo>();
+                if (slugs.Count == 1)
+                {
+                    merged = await FetchBySlugAsync(slugs[0]);
+                }
+                else
+                {
+                    var batches = await Task.WhenAll(slugs.Select(slug => FetchBySlugAsync(slug)));
+                    foreach (var batch in batches)
+                        if (batch != null)
+                            merged.AddRange(batch);
+                }
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            merged = merged
-                .Where(theme => seen.Add(theme.Type + " " + theme.Sequence + "|" +
-                                         (theme.SongTitle ?? "") + "|" + theme.Url))
-                .ToList();
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                merged = merged
+                    .Where(theme => seen.Add(theme.Type + " " + theme.Sequence + "|" +
+                                             (theme.SongTitle ?? "") + "|" + theme.Url))
+                    .ToList();
+            }
 
             foreach (var theme in merged)
                 theme.MalId = malId;
@@ -504,6 +599,109 @@ namespace MALPlus.XShared.Utils
                     continue;
                 ThemesByMalId[pair.Key] = pair.Value;
             }
+        }
+
+        /// <summary>
+        ///     Fetches all themes and videos for a MAL entry directly via GraphQL in a single request.
+        /// </summary>
+        public static async Task<List<ThemeVideo>> FetchThemesFromGraphQlByMalIdAsync(int malId)
+        {
+            var result = new List<ThemeVideo>();
+            if (malId <= 0)
+                return result;
+
+            try
+            {
+                var query = "{ findAnimeByExternalSite(site: MAL, id: " + malId + ") { slug animethemes { type sequence song { title { romaji native } } animethemeentries { episodes videos { nodes { basename link size } } } } } }";
+                var body = "{\"query\":\"" + query.Replace("\"", "\\\"") + "\"}";
+                using var cts = new CancellationTokenSource(RequestTimeout);
+
+                var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+                var response = await GraphQlClient.PostAsync(GraphQlEndpoint, content, cts.Token);
+                if (!response.IsSuccessStatusCode)
+                    return result;
+
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("data", out var data) ||
+                    !data.TryGetProperty("findAnimeByExternalSite", out var matches) ||
+                    matches.ValueKind != JsonValueKind.Array)
+                    return result;
+
+                foreach (var animeMatch in matches.EnumerateArray())
+                {
+                    var slug = animeMatch.TryGetProperty("slug", out var sProp) && sProp.ValueKind == JsonValueKind.String
+                        ? sProp.GetString() : string.Empty;
+
+                    if (!animeMatch.TryGetProperty("animethemes", out var themesArr) || themesArr.ValueKind != JsonValueKind.Array)
+                        continue;
+
+                    foreach (var themeObj in themesArr.EnumerateArray())
+                    {
+                        var type = themeObj.TryGetProperty("type", out var tProp) && tProp.ValueKind == JsonValueKind.String
+                            ? tProp.GetString() : "OP";
+                        var sequence = themeObj.TryGetProperty("sequence", out var seqProp) && seqProp.ValueKind == JsonValueKind.Number
+                            ? seqProp.GetInt32() : 1;
+
+                        string songTitle = null;
+                        if (themeObj.TryGetProperty("song", out var songObj) && songObj.ValueKind == JsonValueKind.Object &&
+                            songObj.TryGetProperty("title", out var titleObj) && titleObj.ValueKind == JsonValueKind.Object)
+                        {
+                            if (titleObj.TryGetProperty("romaji", out var romajiProp) && romajiProp.ValueKind == JsonValueKind.String)
+                                songTitle = romajiProp.GetString();
+                            else if (titleObj.TryGetProperty("native", out var nativeProp) && nativeProp.ValueKind == JsonValueKind.String)
+                                songTitle = nativeProp.GetString();
+                        }
+
+                        if (!themeObj.TryGetProperty("animethemeentries", out var entriesArr) || entriesArr.ValueKind != JsonValueKind.Array)
+                            continue;
+
+                        foreach (var entryObj in entriesArr.EnumerateArray())
+                        {
+                            var epStr = entryObj.TryGetProperty("episodes", out var epProp) && epProp.ValueKind == JsonValueKind.String
+                                ? epProp.GetString() : null;
+                            var epRanges = ParseEpisodeRanges(epStr);
+
+                            if (!entryObj.TryGetProperty("videos", out var videosObj) || videosObj.ValueKind != JsonValueKind.Object ||
+                                !videosObj.TryGetProperty("nodes", out var nodesArr) || nodesArr.ValueKind != JsonValueKind.Array)
+                                continue;
+
+                            foreach (var node in nodesArr.EnumerateArray())
+                            {
+                                var link = node.TryGetProperty("link", out var linkProp) && linkProp.ValueKind == JsonValueKind.String
+                                    ? linkProp.GetString() : null;
+                                if (string.IsNullOrEmpty(link))
+                                    continue;
+
+                                long size = node.TryGetProperty("size", out var sizeProp) && sizeProp.ValueKind == JsonValueKind.Number
+                                    ? sizeProp.GetInt64() : 0;
+
+                                result.Add(new ThemeVideo
+                                {
+                                    Type = type,
+                                    Sequence = sequence,
+                                    Url = link,
+                                    AnimeSlug = slug,
+                                    SongTitle = songTitle,
+                                    MalId = malId,
+                                    Size = size,
+                                    Episodes = epRanges
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendThemeDebug($"GraphQL error for malId={malId}: {ex.Message}");
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return result
+                .Where(theme => seen.Add(theme.Type + " " + theme.Sequence + "|" +
+                                         (theme.SongTitle ?? "") + "|" + theme.Url))
+                .ToList();
         }
 
         /// <summary>
@@ -556,39 +754,96 @@ namespace MALPlus.XShared.Utils
         }
 
         /// <summary>
-        ///     The themes of one AnimeThemes entry, read by its slug.
+        ///     The themes of one AnimeThemes entry, read by its slug via GraphQL.
         /// </summary>
         public static async Task<List<ThemeVideo>> FetchBySlugAsync(string slug, int malId = 0)
         {
+            var result = new List<ThemeVideo>();
             if (string.IsNullOrEmpty(slug))
-                return new List<ThemeVideo>();
-
-            var cacheBuster = string.Empty;
-            var url = $"https://api.animethemes.moe/anime/{Uri.EscapeDataString(slug)}" +
-                      "?include=animethemes.animethemeentries.videos,animethemes.song," +
-                      "animethemes.song.artists";
-
-            var json = await GetStringWithBackoffAsync(url);
-            if (string.IsNullOrEmpty(json))
-                return new List<ThemeVideo>();
+                return result;
 
             try
             {
-                var root = JsonConvert.DeserializeObject<AnimeKeyedApiResponse>(json);
-                var anime = root?.anime;
-                if (anime == null)
-                    return new List<ThemeVideo>();
+                var query = "{ anime(slug: \"" + slug.Replace("\"", "") + "\") { slug resources { nodes { site externalId } } animethemes { type sequence song { title { romaji native } } animethemeentries { episodes videos { nodes { basename link size } } } } } }";
+                using var doc = await ExecuteGraphQlAsync(query);
+                if (doc == null || !doc.RootElement.TryGetProperty("data", out var data) ||
+                    !data.TryGetProperty("anime", out var anime) || anime.ValueKind != JsonValueKind.Object)
+                    return result;
 
-                var themes = BuildVideos(anime);
-                if (malId > 0)
-                    foreach (var theme in themes)
-                        theme.MalId = malId;
-                return themes;
+                if (malId <= 0 && anime.TryGetProperty("resources", out var resObj) && resObj.ValueKind == JsonValueKind.Object &&
+                    resObj.TryGetProperty("nodes", out var nodesArr) && nodesArr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var node in nodesArr.EnumerateArray())
+                    {
+                        var site = node.TryGetProperty("site", out var sProp) && sProp.ValueKind == JsonValueKind.String ? sProp.GetString() : "";
+                        if (string.Equals(site, "MAL", StringComparison.OrdinalIgnoreCase) || string.Equals(site, "MyAnimeList", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (node.TryGetProperty("externalId", out var idProp) && idProp.ValueKind == JsonValueKind.Number)
+                            {
+                                malId = idProp.GetInt32();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!anime.TryGetProperty("animethemes", out var themesArr) || themesArr.ValueKind != JsonValueKind.Array)
+                    return result;
+
+                foreach (var themeObj in themesArr.EnumerateArray())
+                {
+                    var type = themeObj.TryGetProperty("type", out var tProp) && tProp.ValueKind == JsonValueKind.String ? tProp.GetString() : "OP";
+                    var sequence = themeObj.TryGetProperty("sequence", out var seqProp) && seqProp.ValueKind == JsonValueKind.Number ? seqProp.GetInt32() : 1;
+
+                    string songTitle = null;
+                    if (themeObj.TryGetProperty("song", out var songObj) && songObj.ValueKind == JsonValueKind.Object &&
+                        songObj.TryGetProperty("title", out var titleObj) && titleObj.ValueKind == JsonValueKind.Object)
+                    {
+                        if (titleObj.TryGetProperty("romaji", out var rProp) && rProp.ValueKind == JsonValueKind.String)
+                            songTitle = rProp.GetString();
+                        else if (titleObj.TryGetProperty("native", out var nProp) && nProp.ValueKind == JsonValueKind.String)
+                            songTitle = nProp.GetString();
+                    }
+
+                    if (!themeObj.TryGetProperty("animethemeentries", out var entriesArr) || entriesArr.ValueKind != JsonValueKind.Array)
+                        continue;
+
+                    foreach (var entryObj in entriesArr.EnumerateArray())
+                    {
+                        var epStr = entryObj.TryGetProperty("episodes", out var epProp) && epProp.ValueKind == JsonValueKind.String ? epProp.GetString() : null;
+                        var epRanges = ParseEpisodeRanges(epStr);
+
+                        if (!entryObj.TryGetProperty("videos", out var vidObj) || vidObj.ValueKind != JsonValueKind.Object ||
+                            !vidObj.TryGetProperty("nodes", out var vidNodes) || vidNodes.ValueKind != JsonValueKind.Array)
+                            continue;
+
+                        foreach (var vid in vidNodes.EnumerateArray())
+                        {
+                            var link = vid.TryGetProperty("link", out var lProp) && lProp.ValueKind == JsonValueKind.String ? lProp.GetString() : null;
+                            if (string.IsNullOrEmpty(link))
+                                continue;
+                            long size = vid.TryGetProperty("size", out var szProp) && szProp.ValueKind == JsonValueKind.Number ? szProp.GetInt64() : 0;
+
+                            result.Add(new ThemeVideo
+                            {
+                                Type = type,
+                                Sequence = sequence,
+                                Url = link,
+                                AnimeSlug = slug,
+                                SongTitle = songTitle,
+                                MalId = malId,
+                                Size = size,
+                                Episodes = epRanges
+                            });
+                        }
+                    }
+                }
             }
             catch
             {
-                return new List<ThemeVideo>();
             }
+
+            return result;
         }
 
         /// <summary>
@@ -1108,45 +1363,110 @@ private class InlineThemeEntry
 
         public static async Task<ThemeVideo> GetRandomThemeAsync()
         {
-            const string url =
-                "https://api.animethemes.moe/animetheme?sort=random&page[size]=1" +
-                "&include=anime,animethemeentries.videos,song";
+            var query = "{ animethemeShuffle(first: 1) { type sequence anime { slug title { romaji english } resources { nodes { site externalId } } } song { title { romaji native } } animethemeentries { episodes videos { nodes { basename link size } } } } }";
 
-            // Tried a few times, because there always IS a theme and the only reason to come back empty
-            // is a refusal or a hiccup. It used to be asked once, so a single 429 turned into "no theme
-            // found", which is not a thing AnimeThemes ever says.
             for (var attempt = 1; attempt <= 3; attempt++)
             {
                 try
                 {
-                    var json = await GetStringWithBackoffAsync(url);
-                    if (string.IsNullOrEmpty(json))
+                    using var doc = await ExecuteGraphQlAsync(query);
+                    if (doc == null || !doc.RootElement.TryGetProperty("data", out var data) ||
+                        !data.TryGetProperty("animethemeShuffle", out var shuffleArr) ||
+                        shuffleArr.ValueKind != JsonValueKind.Array)
                     {
-                        if (attempt >= 3)
-                            return null;
+                        if (attempt >= 3) return null;
                         await Task.Delay(TimeSpan.FromMilliseconds(400 * attempt));
                         continue;
                     }
 
-                    var root = JsonConvert.DeserializeObject<RandomThemeResponse>(json);
-                    var theme = root?.animethemes?.FirstOrDefault();
-                    if (theme == null)
-                        return null;
+                    var theme = shuffleArr.EnumerateArray().FirstOrDefault();
+                    if (theme.ValueKind != JsonValueKind.Object)
+                    {
+                        if (attempt >= 3) return null;
+                        await Task.Delay(TimeSpan.FromMilliseconds(400 * attempt));
+                        continue;
+                    }
 
-                    var link = theme.animethemeentries?
-                        .SelectMany(entry => entry.videos ?? new List<InlineVideo>())
-                        .Select(video => video.link)
-                        .FirstOrDefault(l => !string.IsNullOrEmpty(l));
+                    var type = theme.TryGetProperty("type", out var tProp) && tProp.ValueKind == JsonValueKind.String ? tProp.GetString() : "OP";
+                    var sequence = theme.TryGetProperty("sequence", out var sProp) && sProp.ValueKind == JsonValueKind.Number ? sProp.GetInt32() : 1;
+
+                    string slug = null;
+                    var malId = 0;
+                    if (theme.TryGetProperty("anime", out var animeObj) && animeObj.ValueKind == JsonValueKind.Object)
+                    {
+                        if (animeObj.TryGetProperty("slug", out var slugProp) && slugProp.ValueKind == JsonValueKind.String)
+                            slug = slugProp.GetString();
+
+                        if (animeObj.TryGetProperty("resources", out var resObj) && resObj.ValueKind == JsonValueKind.Object &&
+                            resObj.TryGetProperty("nodes", out var nodesArr) && nodesArr.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var node in nodesArr.EnumerateArray())
+                            {
+                                var site = node.TryGetProperty("site", out var siteProp) && siteProp.ValueKind == JsonValueKind.String ? siteProp.GetString() : "";
+                                if (string.Equals(site, "MAL", StringComparison.OrdinalIgnoreCase) || string.Equals(site, "MyAnimeList", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if (node.TryGetProperty("externalId", out var idProp) && idProp.ValueKind == JsonValueKind.Number)
+                                    {
+                                        malId = idProp.GetInt32();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    string songTitle = null;
+                    if (theme.TryGetProperty("song", out var songObj) && songObj.ValueKind == JsonValueKind.Object &&
+                        songObj.TryGetProperty("title", out var titleObj) && titleObj.ValueKind == JsonValueKind.Object)
+                    {
+                        if (titleObj.TryGetProperty("romaji", out var rProp) && rProp.ValueKind == JsonValueKind.String)
+                            songTitle = rProp.GetString();
+                        else if (titleObj.TryGetProperty("native", out var nProp) && nProp.ValueKind == JsonValueKind.String)
+                            songTitle = nProp.GetString();
+                    }
+
+                    string link = null;
+                    long size = 0;
+                    if (theme.TryGetProperty("animethemeentries", out var entriesArr) && entriesArr.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var entryObj in entriesArr.EnumerateArray())
+                        {
+                            if (entryObj.TryGetProperty("videos", out var vidObj) && vidObj.ValueKind == JsonValueKind.Object &&
+                                vidObj.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var node in nodes.EnumerateArray())
+                                {
+                                    var l = node.TryGetProperty("link", out var lProp) && lProp.ValueKind == JsonValueKind.String ? lProp.GetString() : null;
+                                    if (!string.IsNullOrEmpty(l))
+                                    {
+                                        link = l;
+                                        if (node.TryGetProperty("size", out var sz) && sz.ValueKind == JsonValueKind.Number)
+                                            size = sz.GetInt64();
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!string.IsNullOrEmpty(link))
+                                break;
+                        }
+                    }
+
                     if (string.IsNullOrEmpty(link))
-                        return null;
+                    {
+                        if (attempt >= 3) return null;
+                        await Task.Delay(TimeSpan.FromMilliseconds(400 * attempt));
+                        continue;
+                    }
 
                     return new ThemeVideo
                     {
-                        Type = theme.type ?? "OP",
-                        Sequence = theme.sequence ?? 1,
+                        Type = type,
+                        Sequence = sequence,
                         Url = link,
-                        AnimeSlug = theme.anime?.slug,
-                        SongTitle = theme.song?.title
+                        AnimeSlug = slug,
+                        SongTitle = songTitle,
+                        MalId = malId,
+                        Size = size
                     };
                 }
                 catch

@@ -251,14 +251,27 @@ public class MauiMainViewModel : MainViewModelBase
             try
             {
                 if (Shell.Current != null)
+                {
+                    if (IsListRootPage(index))
+                        Views.AnimeListPage.SetPendingRootRoute(final);
                     await Shell.Current.GoToAsync(final);
+                    if (Shell.Current.CurrentPage is Views.AnimeListPage listPage)
+                        listPage.ApplyRouteFromShell(final);
+                    else
+                        Views.AnimeListPage.ClearPendingRootRoute(final);
+                }
             }
             catch (Exception ex)
             {
+                Views.AnimeListPage.ClearPendingRootRoute(final);
                 Console.WriteLine($"MALPLUS Navigate failed for '{final}': {ex.GetType().Name} {ex.Message}");
             }
         });
     }
+
+    private static bool IsListRootPage(PageIndex index)
+        => index is PageIndex.PageAnimeList or PageIndex.PageSeasonal or PageIndex.PageTopAnime
+            or PageIndex.PageMangaList or PageIndex.PageTopManga or PageIndex.PageMangaAdapted;
 
     private static bool IsMangaWorkMode(PageIndex index, object args)
     {

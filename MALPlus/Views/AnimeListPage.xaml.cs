@@ -1,3 +1,4 @@
+using MALPlus.Controls;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Anime;
 using MALPlus.XShared.BL;
@@ -18,8 +19,57 @@ namespace MALPlus.Views;
     [QueryProperty(nameof(Reset), "reset")]
     [QueryProperty(nameof(RouteSeason), "season")]
     [QueryProperty(nameof(RouteYear), "year")]
-public partial class AnimeListPage : ContentPage
+public partial class AnimeListPage : ContentPage, ITabSwipeHost
 {
+    internal string RootRoute { get; set; }
+
+    private static string _pendingRootRoute;
+    private static DateTime _pendingRootRouteAt;
+    private string _rootResetSuppressedFor;
+    private DateTime _rootResetSuppressedAt;
+
+    internal static void SetPendingRootRoute(string route)
+    {
+        if (string.IsNullOrEmpty(route) || !route.Contains('?'))
+            return;
+        _pendingRootRoute = route;
+        _pendingRootRouteAt = DateTime.UtcNow;
+    }
+
+    internal static void ClearPendingRootRoute(string route)
+    {
+        if (string.IsNullOrEmpty(route) ||
+            string.Equals(_pendingRootRoute, route, StringComparison.Ordinal))
+            _pendingRootRoute = null;
+    }
+
+    private static bool TryTakePendingRootRoute(string rootRoute, out string route)
+    {
+        route = null;
+        var pending = _pendingRootRoute;
+        if (string.IsNullOrEmpty(pending) || string.IsNullOrEmpty(rootRoute))
+            return false;
+        if ((DateTime.UtcNow - _pendingRootRouteAt).TotalSeconds > 5)
+        {
+            _pendingRootRoute = null;
+            return false;
+        }
+        if (!RouteTargetsRoot(pending, rootRoute))
+            return false;
+
+        route = pending;
+        _pendingRootRoute = null;
+        return true;
+    }
+
+    private static bool RouteTargetsRoot(string route, string rootRoute)
+    {
+        var path = route.Split(new[] { '?' }, 2)[0];
+        var segments = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length == 1 &&
+               string.Equals(segments[0], rootRoute, StringComparison.OrdinalIgnoreCase);
+    }
+
     private bool _authedAtLoad;
     private string _userAtLoad;
     private bool _refreshArmed;
@@ -30,6 +80,7 @@ public partial class AnimeListPage : ContentPage
     private int _lastMode = -1;
     private int _lastStatus = -1;
     private bool _navConnected;
+    private long _appliedSettingsRevision;
     /// <summary>
     ///     Set when this page pushes a details page, and consumed by the very next ApplyRoute.
     /// </summary>
@@ -88,6 +139,86 @@ public partial class AnimeListPage : ContentPage
 
     private AnimeListViewModel Vm => (AnimeListViewModel)BindingContext;
 
+    private bool _liveLibrary;
+    private bool _liveBound;
+    private IReadOnlyList<AnimeItemViewModel> _previewList;
+    private int _previewVersion = -1;
+    private bool _previewManga;
+
+    /// <summary>
+    ///     Which of the two root list pages is the one that owns the shared view model. Both pages
+    ///     bind the same singleton, so a page that is not live must not paint the shared collection:
+    ///     it would show the other tab's list (dragging Anime towards Manga showed anime on both).
+    ///     A page that is not live paints its own mode's library instead, which is what the drag is
+    ///     previewing and what a bare root switch leaves on screen.
+    /// </summary>
+    internal void SetLiveLibrary(bool live)
+    {
+        if (live)
+        {
+            if (_liveLibrary && _liveBound)
+                return;
+            _liveLibrary = true;
+            TryBindLive();
+            return;
+        }
+
+        _liveLibrary = false;
+        _liveBound = false;
+        if (string.IsNullOrEmpty(RootRoute))
+            return;
+
+        var manga = string.Equals(RootRoute, "manga", StringComparison.OrdinalIgnoreCase);
+        // This runs from every navigation sync, so it has to be idempotent: re-assigning the grid's
+        // ItemsSource rebuilds its adapter and resets the scroll, which is the reload the user sees.
+        if (_previewList != null && _previewManga == manga && _previewVersion == Vm.LibraryVersion)
+            return;
+
+        ApplyPreview(manga);
+    }
+
+    /// <summary>
+    ///     Takes over the shared collection, but only once it actually holds this page's mode. Until
+    ///     then the preview stays on screen: binding the old rows and swapping them a moment later
+    ///     was the grid repainting itself from scratch at the end of every swipe.
+    /// </summary>
+    private void TryBindLive()
+    {
+        if (!_liveLibrary || _liveBound || Vm == null)
+            return;
+
+        var mode = string.Equals(RootRoute, "manga", StringComparison.OrdinalIgnoreCase)
+            ? AnimeListWorkModes.Manga
+            : AnimeListWorkModes.Anime;
+        if (Vm.DisplayedMode != mode)
+            return;
+
+        _liveBound = true;
+        AnimeGrid.RemoveBinding(AnimePosterGrid.ItemsSourceProperty);
+        AnimeGrid.SetBinding(AnimePosterGrid.ItemsSourceProperty,
+            nameof(AnimeListViewModel.DisplayedItems));
+    }
+
+    private void ApplyPreview(bool manga)
+    {
+        var preview = Vm?.GetLibraryPreview(manga);
+        _previewList = preview;
+        _previewManga = manga;
+        _previewVersion = Vm?.LibraryVersion ?? -1;
+        AnimeGrid.RemoveBinding(AnimePosterGrid.ItemsSourceProperty);
+        AnimeGrid.ItemsSource = preview;
+        if (preview == null || preview.Count == 0)
+            Vm?.EnsurePreviewLibraryLoaded(manga);
+    }
+
+    private void OnPreviewLibraryChanged()
+    {
+        if (_liveLibrary || string.IsNullOrEmpty(RootRoute))
+            return;
+
+        ApplyPreview(string.Equals(RootRoute, "manga", StringComparison.OrdinalIgnoreCase));
+    }
+
     // Tabs in display order; the value is the StatusSelectorSelectedIndex the shared VM expects:
     // 0=Watching, 1=Completed, 2=OnHold, 3=Dropped, 4=PlanToWatch, 5=All.
     private static readonly (string Label, int StatusSelectorIndex)[] AnimeStatusTabs = new[]
@@ -117,6 +248,7 @@ public partial class AnimeListPage : ContentPage
         // A panel dismissed by a tap leaves the back callback armed, and the next Back press would
         // then be eaten by a panel that is no longer on screen.
         PosterSheet.Closed += OnPosterSheetClosed;
+        Vm.PreviewLibraryChanged += OnPreviewLibraryChanged;
         // MAUI's CollectionView virtualizes rendering, so we load the ENTIRE user list
         // into AnimeItems (negative dimensions => GetGridItemsToLoad returns int.MaxValue).
         // Otherwise UpdatePageSetup only ever exposes ~27 items and never drains the rest.
@@ -137,6 +269,9 @@ public partial class AnimeListPage : ContentPage
         _watchedFirstItems = true;
         vm.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName == nameof(AnimeListViewModel.DisplayedMode) || e.PropertyName == null)
+                TryBindLive();
+
             if (e.PropertyName != nameof(AnimeListViewModel.AnimeItems) && e.PropertyName != null)
                 return;
 
@@ -148,6 +283,9 @@ public partial class AnimeListPage : ContentPage
         };
     }
 
+    bool ITabSwipeHost.TrySwipe(int direction)
+        => BottomNav?.StepSection(direction) == true;
+
     protected override void OnAppearing()
     {
         base.OnAppearing();
@@ -157,12 +295,100 @@ public partial class AnimeListPage : ContentPage
             BottomNav.SectionChanging += OnSectionChanging;
             _navConnected = true;
         }
-        ApplyRoute(null);
+
+        if (_appliedSettingsRevision != SettingsViewModelBase.SettingsRevision)
+        {
+            _rootResetSuppressedFor = null;
+            if (SettingsViewModelBase.ResetDataOnNextAppearance)
+            {
+                _applied = false;
+                _appliedMode = -1;
+                _appliedStatus = -1;
+                _lastMode = -1;
+                _lastStatus = -1;
+            }
+        }
+
+        if (string.IsNullOrEmpty(RootRoute))
+        {
+            ApplyRoute(null);
+            return;
+        }
+
+        var location = Shell.Current?.CurrentState?.Location?.OriginalString;
+        if (_returningFromDetails)
+        {
+            ApplyRoute(null);
+            return;
+        }
+
+        if (IsRootLocation(location, out var hasQuery))
+        {
+            if (hasQuery)
+                ApplyRouteFromShell(location);
+            else
+                ApplyRootLocation(location);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(location))
+            ApplyRoute(null);
     }
 
     private void OnSectionActivated(string route)
     {
+        ApplyRouteFromShell(route);
+    }
+
+    internal void ApplyRootLocation(string location)
+    {
+        if (_returningFromDetails || !IsRootLocation(location, out var hasQuery) || hasQuery)
+            return;
+
+        if (_appliedSettingsRevision == SettingsViewModelBase.SettingsRevision &&
+            !string.IsNullOrEmpty(_rootResetSuppressedFor) &&
+            (DateTime.UtcNow - _rootResetSuppressedAt).TotalSeconds <= 3 &&
+            string.Equals(_rootResetSuppressedFor, RootRoute, StringComparison.OrdinalIgnoreCase))
+        {
+            _rootResetSuppressedFor = null;
+            return;
+        }
+
+        if (TryTakePendingRootRoute(RootRoute, out var pending))
+        {
+            _rootResetSuppressedFor = RootRoute;
+            _rootResetSuppressedAt = DateTime.UtcNow;
+            Android.Util.Log.Info("MALPLUS",
+                $"AnimeList pending root route '{pending}' loc='{location}'");
+            ApplyRouteFromShell(pending);
+            return;
+        }
+
+        var mode = string.Equals(RootRoute, "manga", StringComparison.OrdinalIgnoreCase)
+            ? (int)AnimeListWorkModes.Manga
+            : (int)AnimeListWorkModes.Anime;
+        var route = $"///{RootRoute}?mode={mode}&status=0";
+        _lastShellRoute = location;
+        _rootResetSuppressedFor = RootRoute;
+        _rootResetSuppressedAt = DateTime.UtcNow;
+        CloseStatusDropdown();
+        Android.Util.Log.Info("MALPLUS",
+            $"AnimeList root reset loc='{location}' -> {route} applied=({_appliedMode},{_appliedStatus},{_appliedType})");
         ApplyRoute(route);
+    }
+
+    private bool IsRootLocation(string location, out bool hasQuery)
+    {
+        hasQuery = false;
+        if (string.IsNullOrEmpty(location))
+            return false;
+
+        var queryIndex = location.IndexOf('?');
+        hasQuery = queryIndex >= 0;
+        var path = hasQuery ? location.Substring(0, queryIndex) : location;
+        var segments = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length == 1 &&
+               string.Equals(segments[0], RootRoute, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -194,6 +420,26 @@ public partial class AnimeListPage : ContentPage
             Console.WriteLine("MALPLUS section changing failed: " + ex.Message);
         }
     }
+
+    internal void ApplyRouteFromShell(string route)
+    {
+        if (string.IsNullOrEmpty(route))
+            return;
+        if (!string.IsNullOrEmpty(RootRoute) && !RouteTargetsRoot(route, RootRoute))
+            return;
+        ClearPendingRootRoute(route);
+        if (!string.IsNullOrEmpty(RootRoute) && RouteTargetsRoot(route, RootRoute))
+        {
+            _rootResetSuppressedFor = RootRoute;
+            _rootResetSuppressedAt = DateTime.UtcNow;
+        }
+        if (_applied && _appliedSettingsRevision == SettingsViewModelBase.SettingsRevision && string.Equals(_lastShellRoute, route, StringComparison.Ordinal))
+            return;
+        _lastShellRoute = route;
+        ApplyRoute(route);
+    }
+
+    private string _lastShellRoute;
 
     private void ApplyRoute(string route)
     {
@@ -249,8 +495,10 @@ Mode = null;
             var routeYear = ResolveYear(query);
             var seasonalRoute = routeSeason.HasValue && routeYear.HasValue;
 
+            var settingsChanged = _appliedSettingsRevision != SettingsViewModelBase.SettingsRevision;
             var alreadyShowing =
                 !forceReset &&
+                !settingsChanged &&
                 _applied &&
                 _appliedMode == mode &&
                 _appliedStatus == status &&
@@ -258,16 +506,17 @@ Mode = null;
                 !(seasonalRoute && (routeSeason.Value != _shownSeason || routeYear.Value != _shownYear)) &&
                 (Vm.AnimeItems?.Count ?? 0) > 0;
             Android.Util.Log.Info("MALPLUS",
-                $"AnimeList apply route='{route ?? "(properties)"}' -> mode={mode} status={status} type={type} reset={forceReset} skip={alreadyShowing} applied=({_appliedMode},{_appliedStatus},{_appliedType})");
+                $"AnimeList apply route='{route ?? "(properties)"}' -> mode={mode} status={status} type={type} reset={forceReset} skip={alreadyShowing} settingsChanged={settingsChanged} applied=({_appliedMode},{_appliedStatus},{_appliedType})");
             if (alreadyShowing)
             {
-if (openStatusMenu)
-                ToggleContextMenu(ContextMenuKind.Status);
-            UpdateContextBars();
+                _appliedSettingsRevision = SettingsViewModelBase.SettingsRevision;
+                if (openStatusMenu)
+                    ToggleContextMenu(ContextMenuKind.Status);
+                UpdateContextBars();
                 return;
-
             }
 
+            _appliedSettingsRevision = SettingsViewModelBase.SettingsRevision;
             _applied = true;
             _appliedMode = mode;
             _appliedStatus = status;
@@ -1144,6 +1393,11 @@ Season? routeSeason = null, int? routeYear = null)
         if (_lastMode >= 0 && System.Enum.IsDefined(typeof(AnimeListWorkModes), _lastMode))
             return _lastMode;
 
+        if (string.Equals(RootRoute, "manga", StringComparison.OrdinalIgnoreCase))
+            return (int)AnimeListWorkModes.Manga;
+        if (string.Equals(RootRoute, "anime", StringComparison.OrdinalIgnoreCase))
+            return (int)AnimeListWorkModes.Anime;
+
         return IsMangaLocation() ? (int) AnimeListWorkModes.Manga : (int) AnimeListWorkModes.Anime;
     }
 
@@ -1588,6 +1842,7 @@ case AnimeListWorkModes.SeasonalAnime:
         Menu = null;
         Reset = null;
         _applied = false;
+        _rootResetSuppressedFor = null;
         RestoreTabAfterFilterPush();
         if (_navConnected)
         {

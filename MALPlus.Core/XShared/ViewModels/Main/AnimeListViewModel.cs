@@ -128,6 +128,19 @@ namespace MALPlus.XShared.ViewModels.Main
         public SmartObservableCollection<AnimeItemViewModel> DisplayedItems { get; } =
             new SmartObservableCollection<AnimeItemViewModel>();
 
+        /// <summary>
+        ///     What the grid content belongs to. A root page only takes over the shared collection
+        ///     once this names its own mode, so it keeps its preview instead of flashing the other
+        ///     tab's rows while the fetch for the new mode is still running.
+        /// </summary>
+        public AnimeListWorkModes DisplayedMode => _displayedMode;
+
+        /// <summary>
+        ///     Bumped whenever a library list is (re)populated, so a root page can tell a stale
+        ///     preview snapshot from a current one without rebuilding it on every navigation event.
+        /// </summary>
+        public int LibraryVersion { get; private set; }
+
         private string _panelFilter = "";
 
         /// <summary>
@@ -207,6 +220,115 @@ namespace MALPlus.XShared.ViewModels.Main
             {
                 Console.WriteLine("MALPLUS panel filter failed: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        ///     The rows a root tab shows before it is the live one. Both root list pages are backed by
+        ///     this same view model, so the page that is off screen would otherwise paint the live
+        ///     tab's collection: dragging Anime towards Manga showed the anime list on both pages.
+        ///     The snapshot is the other mode's own library, filtered exactly like a bare root reset
+        ///     leaves it (Watching), which is what the drag is previewing.
+        /// </summary>
+        public IReadOnlyList<AnimeItemViewModel> GetLibraryPreview(bool manga)
+        {
+            var source = manga
+                ? _animeLibraryDataStorage.AllLoadedMangaItemAbstractions
+                : _animeLibraryDataStorage.AllLoadedAnimeItemAbstractions;
+
+            if (source.Count > 0)
+                return source
+                    .Where(item => item != null &&
+                                   (item.MyStatus == AnimeStatus.Watching || item.IsRewatching))
+                    .Select(item => item.ViewModel)
+                    .ToList();
+
+            return (manga ? _previewMangaSnapshot : _previewAnimeSnapshot)
+                   ?? Array.Empty<AnimeItemViewModel>();
+        }
+
+        private IReadOnlyList<AnimeItemViewModel> _previewAnimeSnapshot;
+        private IReadOnlyList<AnimeItemViewModel> _previewMangaSnapshot;
+        private bool _previewAnimeLoading;
+        private bool _previewMangaLoading;
+
+        public event Action PreviewLibraryChanged;
+
+        public void InvalidatePreviews()
+        {
+            _previewAnimeSnapshot = null;
+            _previewMangaSnapshot = null;
+            LibraryVersion++;
+            PreviewLibraryChanged?.Invoke();
+        }
+
+        public void ResetData()
+        {
+            _prevWorkMode = (AnimeListWorkModes)(-1);
+            _prevListSource = null;
+            _prevStatus = -1;
+            _displayedMode = (AnimeListWorkModes)(-1);
+            _displayedStatus = -1;
+            _animeItemsSet = new List<AnimeItemAbstraction>();
+            AnimeItems = new SmartObservableCollection<AnimeItemViewModel>();
+            DisplayedItems.Clear();
+            InvalidatePreviews();
+        }
+
+        /// <summary>
+        ///     Loads the mode whose own list has never been fetched, so the tab a drag previews is
+        ///     not an empty page. Read only: the snapshot never writes the storage nor the shared
+        ///     collections, so it cannot race the live page's fetch.
+        /// </summary>
+        public void EnsurePreviewLibraryLoaded(bool manga)
+        {
+            if (!Credentials.Authenticated || string.IsNullOrWhiteSpace(Credentials.UserName))
+                return;
+
+            var loaded = manga
+                ? _animeLibraryDataStorage.AllLoadedMangaItemAbstractions.Count > 0
+                : _animeLibraryDataStorage.AllLoadedAnimeItemAbstractions.Count > 0;
+            if (loaded)
+                return;
+
+            if (manga ? _previewMangaLoading : _previewAnimeLoading)
+                return;
+            if (manga)
+                _previewMangaLoading = true;
+            else
+                _previewAnimeLoading = true;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var mode = manga ? AnimeListWorkModes.Manga : AnimeListWorkModes.Anime;
+                    var data = await new LibraryListQuery(Credentials.UserName, mode).GetLibrary(false);
+                    if (data == null || data.Count == 0)
+                        return;
+
+                    var readOnlyManga = Settings.SelectedApiType == ApiType.Mal;
+                    var snapshot = data
+                        .Select(item => manga
+                            ? new AnimeItemAbstraction(readOnlyManga, item as MangaLibraryItemData)
+                            : new AnimeItemAbstraction(true, item as AnimeLibraryItemData))
+                        .Where(item => item != null &&
+                                       (item.MyStatus == AnimeStatus.Watching || item.IsRewatching))
+                        .Select(item => item.ViewModel)
+                        .ToList();
+
+                    if (manga)
+                        _previewMangaSnapshot = snapshot;
+                    else
+                        _previewAnimeSnapshot = snapshot;
+
+                    LibraryVersion++;
+                    ResourceLocator.DispatcherAdapter.Run(() => PreviewLibraryChanged?.Invoke());
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Preview library preload failed: " + e.Message);
+                }
+            });
         }
 
         /// <summary>
@@ -938,6 +1060,7 @@ namespace MALPlus.XShared.ViewModels.Main
             // repainting this grid is exactly what invalidates the fetch memo.
             _displayedMode = WorkMode;
             _displayedStatus = (int)status;
+            RaisePropertyChanged(nameof(DisplayedMode));
 
             //});
             //If we have items then we should hide EmptyNotice
@@ -2197,6 +2320,8 @@ catch (Exception)
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
+
+                LibraryVersion++;
             }
 
             _fetching = false;

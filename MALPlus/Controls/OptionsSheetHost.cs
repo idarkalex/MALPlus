@@ -117,6 +117,86 @@ public static class OptionsSheetHost
     }
 
     /// <summary>
+    ///     Displays a release update dialog with changelog and actions to update or postpone.
+    /// </summary>
+    public static async Task<bool> ShowUpdateAsync(XShared.Comm.AppUpdateInfo info)
+    {
+        if (info == null)
+            return false;
+
+        var answered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var page = new OptionsSheetPage();
+
+        await Gate.WaitAsync();
+        try
+        {
+            BindConfirm(page, answered);
+            page.Sheet.OpenUpdate(
+                $"New version available (v{info.Version})",
+                info.ReleaseName,
+                info.ReleaseNotes,
+                "Update",
+                "Later",
+                onConfirm: () =>
+                {
+                    if (answered.TrySetResult(true))
+                        _ = PopAsync(page);
+                });
+
+            await PushAsync(page);
+            return await answered.Task;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS ShowUpdateAsync failed: " + ex.Message);
+            await PopAsync(page);
+            return false;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    /// <summary>
+    ///     Displays release notes or changelog in a scrollable card.
+    /// </summary>
+    public static async Task ShowChangelogAsync(string title, string releaseName, string notes)
+    {
+        var answered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var page = new OptionsSheetPage();
+
+        await Gate.WaitAsync();
+        try
+        {
+            BindConfirm(page, answered);
+            page.Sheet.OpenUpdate(
+                title,
+                releaseName,
+                notes,
+                "Got it",
+                null,
+                onConfirm: () =>
+                {
+                    if (answered.TrySetResult(true))
+                        _ = PopAsync(page);
+                });
+
+            await PushAsync(page);
+            await answered.Task;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS ShowChangelogAsync failed: " + ex.Message);
+            await PopAsync(page);
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    /// <summary>
     ///     A field to type into. Returns null for a cancel and an empty string for a commit on an empty
     ///     field, because "leave it blank to clear it" is a real answer.
     /// </summary>

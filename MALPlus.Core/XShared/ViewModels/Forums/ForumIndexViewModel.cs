@@ -211,8 +211,6 @@ namespace MALPlus.XShared.ViewModels.Forums
 
         public async void Init(bool force = false)
         {
-            if (!Settings.PullPeekPostsOnStartup && !force)
-                return;
             if (_loading || (_loaded && !force))
                 return;
             LoadingSideContentVisibility = true;

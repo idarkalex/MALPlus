@@ -32,6 +32,11 @@ public partial class App : Application
 base.OnStart();
 
         System.Diagnostics.Debug.WriteLine("=== MALPlus App.OnStart ===");
+        try
+        {
+            AppLog.Info("Lifecycle", $"MAL+ v{AppInfo.VersionString} started on {DeviceInfo.Manufacturer} {DeviceInfo.Model} (Android {DeviceInfo.VersionString})");
+        }
+        catch { }
 
         Task.Run(async () =>
         {
@@ -113,6 +118,12 @@ base.OnStart();
                 Console.WriteLine("MALPLUS login nav failed: " + ex.Message);
             }
             await MainActivity.ApplyPendingDeepLinkAsync();
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(3000);
+                await AppUpdateService.CheckDailyUpdateAsync();
+            });
         });
     }
 

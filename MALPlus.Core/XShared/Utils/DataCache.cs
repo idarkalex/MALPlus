@@ -144,6 +144,18 @@ namespace MALPlus.XShared.Utils
                     {
                         return null;
                     }
+                    if (jsonObj.Item2 != null && jsonObj.Item2.Count > 0 && !jsonObj.Item2.Any(x => !string.IsNullOrEmpty(x.AirStartDate)))
+                    {
+                        // Cache is from an older schema without air start dates: trigger a live refresh in background
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await new Comm.LibraryListQuery(user, mode).GetLibrary(true);
+                            }
+                            catch { }
+                        });
+                    }
                     decoded.AddRange(jsonObj.Item2.Select(item => item as ILibraryData));
                 }
                 else
@@ -295,9 +307,12 @@ namespace MALPlus.XShared.Utils
                 //We don't want to lose data here , only anime from seasonal contains genres data.
                 if (data.Genres != null && data.Genres.Count > 0)
                     _volatileDataCache[id].Genres = data.Genres;
-                _volatileDataCache[id].DayOfAiring = data.DayOfAiring;
-                _volatileDataCache[id].GlobalScore = data.GlobalScore;
-                _volatileDataCache[id].AirStartDate = data.AirStartDate;
+                if (data.DayOfAiring > 0)
+                    _volatileDataCache[id].DayOfAiring = data.DayOfAiring;
+                if (data.GlobalScore > 0)
+                    _volatileDataCache[id].GlobalScore = data.GlobalScore;
+                if (!string.IsNullOrEmpty(data.AirStartDate))
+                    _volatileDataCache[id].AirStartDate = data.AirStartDate;
             }
             else
                 _volatileDataCache[id] = data;

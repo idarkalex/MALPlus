@@ -92,7 +92,9 @@
                                         ScoreTag="{Binding CardScore}"
                                         BadgeVisible="True"
                                         BadgeAccent="{Binding LibraryBadgeAccent}"
-                                        BadgeMain="{Binding LibraryBadgeMain}" />
+                                        BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
+                                        BadgeMain="{Binding LibraryBadgeMain}"
+                                        BadgeExtra="{Binding AirDayTillBind}" />
                                     <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
                                         <Label Text="{Binding Title}" FontFamily="InterSemiBold" FontSize="15"
                                                TextColor="{StaticResource BrushText}" MaxLines="2"

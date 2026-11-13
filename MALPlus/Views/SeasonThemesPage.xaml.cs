@@ -50,6 +50,11 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
 
     public bool IsListVisible { get; private set; }
 
+    /// <summary>
+    ///     Whether the themes half of the last load failed, so the header offers a retry.
+    /// </summary>
+    public bool ShowRetry { get; private set; }
+
     public int RouteYear { get; set; }
 
     public string RouteSeason { get; set; }
@@ -151,16 +156,21 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
         IsListVisible = false;
         Raise(nameof(IsListVisible));
 
+        var failed = false;
         try
         {
-            var rows = await SeasonThemesQuery.GetSeasonRowsAsync(year, SeasonYearSelector.SeasonName(season));
+            var result = await SeasonThemesQuery.GetSeasonRowsAsync(year, SeasonYearSelector.SeasonName(season));
 
-            // Only the entries that actually have themes. This panel is the season's OP/ED index and
-            // nothing else: the season's full list of anime already lives on the Seasonal tab, and
-            // keeping an entry here with no themes beside it would be the same list twice.
+            // Every entry of the season, themes or not. The panel used to drop the ones without
+            // themes, so an AnimeThemes outage emptied it and the season read as if it had no
+            // anime at all. The row already draws "No OP/ED in AnimeThemes" for that case, so the
+            // season stays readable and the header offers a retry.
             Rows.Clear();
-            foreach (var row in rows.Where(row => row.Themes.Count > 0))
+            foreach (var row in result.Rows)
                 Rows.Add(row);
+
+            ShowRetry = result.ThemesFailed;
+            Raise(nameof(ShowRetry));
         }
         catch (Exception ex)
         {
@@ -171,10 +181,16 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
                 "rows failed: " + ex.GetType().Name + " " + ex.Message);
             Rows.Clear();
             EmptyLabel.Text = "Could not load this season: " + ex.Message;
-            EmptyLabel.IsVisible = true;
+            failed = true;
+            ShowRetry = true;
+            Raise(nameof(ShowRetry));
         }
 
-        EmptyLabel.IsVisible = Rows.Count == 0 && EmptyLabel.Text == "Nothing for this season.";
+        // The error text is left alone when there is one: this line used to reset the label and
+        // hide the very message the catch had just put on screen, which left a truly blank page.
+        if (!failed)
+            EmptyLabel.Text = "Nothing for this season.";
+        EmptyLabel.IsVisible = Rows.Count == 0;
         IsListVisible = Rows.Count > 0;
         Raise(nameof(IsListVisible));
         Busy.IsRunning = false;
@@ -558,6 +574,23 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
     private void OnCloseTapped(object sender, EventArgs e)
     {
         _ = Shell.Current.GoToAsync("..");
+    }
+
+    /// <summary>
+    ///     Runs the load again, for the case where AnimeThemes was down and the season is fine.
+    /// </summary>
+    private async void OnRetryTapped(object sender, EventArgs e)
+    {
+        if (_loading)
+            return;
+        try
+        {
+            await LoadAsync(SeasonSelector.Year, SeasonSelector.Season);
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus SeasonThemes", "retry: " + ex.GetType().Name);
+        }
     }
 
     /// <summary>

@@ -1,25 +1,13 @@
-# Release notes
+# MAL+ v0.7.0 (Beta)
 
-Notes published with the GitHub Release for each `v*` tag. The workflow attaches
-`RELEASE_NOTES.md` verbatim as the release body, so keep the newest version at the top.
+First public beta release of MAL+ for Android.
 
-## What's new in 2.0.0
-
-### The MAUI port
-
-This is the first release of the standalone **MAL+** app, an independent .NET MAUI rewrite.
-
-* Rebuilt on .NET 11 / .NET MAUI (Android only), with a dark-first interface.
-* Discover home page: seasonal, top anime, top manga, adapted to anime, news, and your personal
-  watching / reading / completed rows.
-* Random anime and random manga with filters.
-* Airing countdowns computed from real episode timestamps and refreshed by magnitude, so a
-  weekly show is not re-fetched every minute.
-* In-app video overlay for trailers, openings and endings.
-* One shared poster-grid control, so every list renders the same 3-column layout.
-* Bottom navigation with launcher shortcuts and pull-to-refresh throughout.
-
-### Attribution
-
-MAL+ is a port of [MALClient by Drutol](https://github.com/Drutol/MALClient), forked by
-[idarkalex](https://github.com/idarkalex/MALClient). Released under the GNU GPL v3.
+### Highlights
+- Modern .NET 11 and .NET MAUI architecture with fluid gesture navigation.
+- Complete MyAnimeList library tracking (Anime & Manga) with customizable card status indicators.
+- Offline seed bundle with metadata and episodes pre-cached for instant cold starts.
+- High-speed Tenrai API integration & AnimeThemes streaming for anime openings and endings.
+- Native forums, seasonal charts, broadcast calendar, and personalized recommendations.
+- Highly customizable poster cards (format chip, score display mode, release season chip).
+- Automatic background update checks and manual changelog viewer in Settings.
+- 100% private: local on-device diagnostics, zero tracking or third-party telemetry.

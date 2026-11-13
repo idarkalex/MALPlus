@@ -48,6 +48,7 @@ namespace MALPlus.XShared.ViewModels
 
         public int Id { get; private set; }
         public string ImgUrl { get; private set; }
+        public string Subtitle { get; set; }
 
         public bool AllowDetailsNavigation { private get; set; } = true; //Disabled when draggig grid item
 
@@ -431,6 +432,56 @@ namespace MALPlus.XShared.ViewModels
             }
         }
 
+        private string ResolveSeasonDisplay()
+        {
+            if (!string.IsNullOrEmpty(ParentAbstraction?.AirStartDate))
+            {
+                var s = Utils.Utilities.SeasonToCapitalLetterWithYear(ParentAbstraction.AirStartDate);
+                if (!string.IsNullOrEmpty(s) && s != "N/A")
+                    return s;
+            }
+
+            if (ParentAbstraction?.EntryData is AnimeLibraryItemData libData && !string.IsNullOrEmpty(libData.AirStartDate))
+            {
+                var s = Utils.Utilities.SeasonToCapitalLetterWithYear(libData.AirStartDate);
+                if (!string.IsNullOrEmpty(s) && s != "N/A")
+                    return s;
+            }
+
+            if (DataCache.TryRetrieveDataForId(Id, out var volatileData) && !string.IsNullOrEmpty(volatileData?.AirStartDate))
+            {
+                var s = Utils.Utilities.SeasonToCapitalLetterWithYear(volatileData.AirStartDate);
+                if (!string.IsNullOrEmpty(s) && s != "N/A")
+                    return s;
+            }
+
+            if (ResourceLocator.AiringInfoProvider != null &&
+                ResourceLocator.AiringInfoProvider.TryGetEntry(Id, out var airing) &&
+                airing?.Episodes != null && airing.Episodes.Count > 0)
+            {
+                BL.AiringInfoProvider.Episode firstEp = null;
+                for (int i = 0; i < airing.Episodes.Count; i++)
+                {
+                    var ep = airing.Episodes[i];
+                    if (ep != null && ep.Timestamp > 0 && (firstEp == null || ep.EpisodeNumber < firstEp.EpisodeNumber))
+                        firstEp = ep;
+                }
+                if (firstEp != null && firstEp.Timestamp > 0)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeSeconds(firstEp.Timestamp).UtcDateTime;
+                    var s = Utils.Utilities.SeasonToCapitalLetterWithYear(dt.ToString("yyyy-MM-dd"));
+                    if (!string.IsNullOrEmpty(s) && s != "N/A")
+                    {
+                        if (ParentAbstraction != null)
+                            ParentAbstraction.AirStartDate = dt.ToString("yyyy-MM-dd");
+                        return s;
+                    }
+                }
+            }
+
+            return null;
+        }
+
         public string PureType
             => ParentAbstraction.Type == 0
                 ? ""
@@ -448,7 +499,7 @@ namespace MALPlus.XShared.ViewModels
         {
             get
             {
-                if (ParentAbstraction.Type == 0)
+                if (!Settings.ShowFormatTag || ParentAbstraction.Type == 0)
                     return "";
                 if (ParentAbstraction.RepresentsAnime)
                 {
@@ -504,6 +555,9 @@ namespace MALPlus.XShared.ViewModels
         public string LibraryBadgeAccent
             => AnimeCardBadge.Status(IsOnMyList, () => MyStatusBindShort);
 
+        public string LibraryBadgeAccentColor
+            => AnimeCardBadge.StatusColor(IsOnMyList, (int)MyStatus, ParentAbstraction.IsRewatching);
+
         /// <summary>
         ///     The "episodes watched" half of a card badge, blank for entries the user does not
         ///     follow, where it would render as the meaningless "0/?".
@@ -544,8 +598,10 @@ namespace MALPlus.XShared.ViewModels
                 // The card badge is bound to the derived names, not to MyStatusBind: raising only the
                 // ones above left every poster on screen showing the old status until it was recycled.
                 RaisePropertyChanged(() => LibraryBadgeAccent);
+                RaisePropertyChanged(() => LibraryBadgeAccentColor);
                 RaisePropertyChanged(() => LibraryBadgeMain);
                 RaisePropertyChanged(() => CalendarBadgeMain);
+                RaisePropertyChanged(() => CardScore);
             }
         }
 
@@ -606,6 +662,7 @@ namespace MALPlus.XShared.ViewModels
                 RaisePropertyChanged(() => MyScoreBind);
                 RaisePropertyChanged(() => MyScoreBindShort);
                 RaisePropertyChanged(() => MyScore);
+                RaisePropertyChanged(() => CardScore);
                 ChangedScore?.Invoke(this,(int)value);
             }
         }
@@ -753,26 +810,33 @@ private string _title;
             {
                 if (!Settings.PreferEnglishTitles)
                 {
-                    // Falling back clears the memo, so switching off takes effect immediately rather
-                    // than after the next reload.
                     _titleResolved = false;
                     _resolvedTitle = null;
+
+                    if (!string.IsNullOrEmpty(ParentAbstraction?.AlternateTitle) &&
+                        ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(Id, ParentAbstraction.RepresentsAnime, out var eng) &&
+                        string.Equals(_title, eng, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ParentAbstraction.AlternateTitle;
+                    }
                     return _title;
                 }
 
                 if (_titleResolved)
-                    return _resolvedTitle;
+                    return _resolvedTitle ?? _title;
 
                 _titleResolved = true;
                 _resolvedTitle = null;
 
                 try
                 {
-                    if (Id > 0 && ParentAbstraction?.RepresentsAnime != null &&
+                    if (Id > 0 && ParentAbstraction != null &&
                         ResourceLocator.EnglishTitlesProvider.TryGetEnglishTitleForSeries(
                             Id, ParentAbstraction.RepresentsAnime, out var english) &&
                         !string.IsNullOrWhiteSpace(english))
+                    {
                         _resolvedTitle = english;
+                    }
                 }
                 catch
                 {
@@ -788,40 +852,35 @@ private string _title;
             }
         }
 
-        /// <summary>
-        ///     Forgets the resolved title, so the next read looks it up again.
-        /// </summary>
-        /// <remarks>
-        ///     Called when the setting changes, because that is the one thing that can make a memo wrong
-        ///     while the card is still on screen.
-        /// </remarks>
-public void ResetTitleCache()
-    {
-    _titleResolved = false;
-    _resolvedTitle = null;
-    }
+        public void ResetTitleCache()
+        {
+            _titleResolved = false;
+            _resolvedTitle = null;
+        }
 
-    /// <summary>
-    ///     Drops the memoized English title and tells the card to re-read it, but only when the text it
-    ///     would then show is not the text it is already showing.
-    /// </summary>
-    /// <remarks>
-    ///     Flipping the preference used to raise PropertyChanged on every card in the library, and every
-    ///     one of those notifications re-measures the cell. The dictionary only holds titles the reader
-    ///     has actually been shown, so the large majority of cards resolve to exactly what they already
-    ///     had and the work was wasted, which is what made the switch take seconds. Comparing against
-    ///     the stored title covers both directions: turning the preference off has to notice when the
-    ///     card is currently holding an English one, and turning it on only raises for the cards that
-    ///     really have one.
-    /// </remarks>
-    public void RefreshEnglishTitle()
-    {
-    ResetTitleCache();
-    var resolved = Title;
-    if (string.Equals(resolved, _title, StringComparison.Ordinal))
-        return;
-    RaisePropertyChanged(nameof(Title));
-    }
+        public void RefreshEnglishTitle()
+        {
+            ResetTitleCache();
+            RaisePropertyChanged(nameof(Title));
+        }
+
+        public void RefreshCardDisplayProperties(bool refreshTitle = true)
+        {
+            if (refreshTitle)
+            {
+                ResetTitleCache();
+                RaisePropertyChanged(nameof(Title));
+            }
+            RaisePropertyChanged(nameof(TypeTag));
+            RaisePropertyChanged(nameof(Type));
+            RaisePropertyChanged(nameof(CardScore));
+            RaisePropertyChanged(nameof(GlobalScoreBind));
+            RaisePropertyChanged(nameof(SeasonTag));
+            RaisePropertyChanged(nameof(LibraryBadgeAccent));
+            RaisePropertyChanged(nameof(LibraryBadgeAccentColor));
+            RaisePropertyChanged(nameof(LibraryBadgeMain));
+            RaisePropertyChanged(nameof(AirDayTillBind));
+        }
 
         public string GlobalScoreBind
             => GlobalScore > 0 ? GlobalScore.ToString("N2") : "";
@@ -843,7 +902,22 @@ public void ResetTitleCache()
         /// source, and the same card everywhere.
         /// </para>
         /// </summary>
-        public string CardScore => GlobalScoreBind;
+        public string CardScore
+        {
+            get
+            {
+                switch (Settings.PosterScoreDisplay)
+                {
+                    case 1: // Personal score
+                        return MyScore > 0 ? $"★ {MyScore:0.#}" : "";
+                    case 2: // Hidden
+                        return "";
+                    case 0: // Community mean score
+                    default:
+                        return GlobalScoreBind;
+                }
+            }
+        }
 
         public float GlobalScore
         {
@@ -1096,6 +1170,21 @@ public void ResetTitleCache()
         }
 
         private ICommand _navigateDetailsCommand;
+
+        
+        /// <summary>
+        ///     3rd poster chip for release season (e.g. 'Fall 24'), rendered beneath score when enabled.
+        /// </summary>
+        public string SeasonTag
+        {
+            get
+            {
+                if (!Settings.DisplaySeasonWithType || !ParentAbstraction.RepresentsAnime)
+                    return "";
+
+                return ResolveSeasonDisplay() ?? "";
+            }
+        }
 
         public ICommand NavigateDetailsCommand
         {

@@ -19,7 +19,7 @@
              x:Name="Row">
     <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,7" ColumnSpacing="10"
           BackgroundColor="Transparent">
-        <BoxView Grid.Column="0" WidthRequest="3" Margin="0,1"
+        <BoxView x:Name="AccentBar" Grid.Column="0" WidthRequest="3" Margin="0,1"
                  Color="{Binding Accent, Source={x:Reference Row}}" />
         <Border Grid.Column="1" Stroke="#24405A" StrokeThickness="1"
                 StrokeShape="RoundRectangle 8" Padding="10,9"

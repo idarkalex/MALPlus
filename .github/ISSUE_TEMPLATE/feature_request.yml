@@ -1,0 +1,58 @@
+name: "💡 Feature Request / Suggestion"
+description: "Suggest a new feature, visual improvement, or idea for MAL+"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature suggestions are welcome! Please clearly explain your idea and how it improves the user experience.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: "Feature Category"
+      options:
+        - "User Interface / Gestures / Layout"
+        - "Library Management / Tracking (Anime & Manga)"
+        - "Details Page / Episodes / Characters"
+        - "Media / AnimeThemes (Openings / Endings / Video Player)"
+        - "Discovery / Search / Calendar"
+        - "Forums & Community"
+        - "Performance & Caching"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: "Problem Statement / Motivation"
+      description: "Is your feature request related to a problem or missing workflow? Please describe."
+      placeholder: "Currently, managing..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: "Proposed Solution"
+      description: "Describe how you envision this feature working in MAL+."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives_considered
+    attributes:
+      label: "Alternatives Considered"
+      description: "Have you considered any alternative solutions or workarounds?"
+    validations:
+      required: false
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: "Mockups or Visual References"
+      description: "Attach screenshots, sketches, or reference links if applicable."
+    validations:
+      required: false

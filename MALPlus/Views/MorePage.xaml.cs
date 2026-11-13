@@ -1,4 +1,5 @@
 using MALPlus.Models.Enums;
+using MALPlus.Controls;
 using MALPlus.XShared.Comm;
 using MALPlus.XShared.Comm.Anime;
 using MALPlus.XShared.Comm.Profile;
@@ -13,7 +14,7 @@ using Microsoft.Maui.Controls;
 
 namespace MALPlus.Views;
 
-public partial class MorePage : ContentPage
+public partial class MorePage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
 
@@ -28,15 +29,39 @@ public partial class MorePage : ContentPage
         InitializeComponent();
     }
 
+    bool ITabSwipeHost.TrySwipe(int direction)
+        => BottomNav?.StepSection(direction) == true;
+
+    private string _appliedContentTag;
+    private long _appliedSettingsRevision;
+
     protected override async void OnAppearing()
     {
         base.OnAppearing();
         if (_initialized)
         {
+            if (_appliedContentTag != ContentFilter.CacheTag)
+            {
+                _appliedContentTag = ContentFilter.CacheTag;
+                PopulateTypePanel(TopMangaPanel,
+                    Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>()
+                        .Where(ContentFilter.AllowsMangaSubcategory)
+                        .Select(t => (t.ToString(), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
+            }
+            if (_appliedSettingsRevision != SettingsViewModelBase.SettingsRevision)
+            {
+                _appliedSettingsRevision = SettingsViewModelBase.SettingsRevision;
+                if (SettingsViewModelBase.ResetDataOnNextAppearance)
+                {
+                    LoadProfileDataAsync();
+                }
+            }
             RestorePanelState();
             return;
         }
         _initialized = true;
+        _appliedSettingsRevision = SettingsViewModelBase.SettingsRevision;
+        _appliedContentTag = ContentFilter.CacheTag;
 
         LoadProfileDataAsync();
 

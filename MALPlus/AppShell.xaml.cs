@@ -190,14 +190,141 @@ public partial class AppShell : Shell
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<
         global::AndroidX.ViewPager2.Widget.ViewPager2, PagerShield> Shields = new();
 
+    private bool _sharedBarInstalled;
+    private global::Android.Views.View _sharedBarView;
+    private string _lastNavigatedSection;
+    private readonly Dictionary<string, WeakReference<Views.AnimeListPage>> _rootListPages = new();
+
     private void PaintPagers()
     {
         var background = ResolveBackground();
         if (background is not global::Android.Graphics.Color color)
             return;
 
+        // Root panels are the only surface the section pager is for: anything above them
+        // in the navigation stack is served by the shellitem pager instead.
+        var stack = Navigation?.NavigationStack;
+        var rootInput = stack == null || stack.Count <= 1;
+
         if (Handler?.PlatformView is global::Android.Views.View root)
-            PaintPagers(root, color);
+            PaintPagers(root, color, rootInput);
+    }
+
+    // The four roots share one section pager, so each page used to carry its own
+    // navigation strip and the strip travelled with the finger. One bar is pulled out
+    // of a page and hosted under the pager instead: the pager keeps the remaining
+    // height, every page bar is collapsed, and the strip never moves horizontally.
+    private void InstallSharedBar()
+    {
+        if (_sharedBarInstalled || Handler?.PlatformView is not global::Android.Views.View root)
+            return;
+
+        var pager = FindSectionPager(root);
+        if (pager?.Parent is not global::Android.Widget.LinearLayout coordinator)
+            return;
+
+        var bar = Controls.BottomNavBar.TakeSharedHostBar();
+        if (bar?.Handler?.PlatformView is not global::Android.Views.View barView)
+            return;
+
+        var height = barView.Height;
+        if (height <= 0)
+            return;
+
+        _sharedBarInstalled = true;
+        Controls.BottomNavBar.MarkSharedHostInstalled();
+        Controls.BottomNavBar.SetSharedBarView(barView);
+        Controls.BottomNavBar.HideAllForSharedHost(barView);
+
+        (barView.Parent as global::Android.Views.ViewGroup)?.RemoveView(barView);
+        coordinator.AddView(barView,
+            new global::Android.Widget.LinearLayout.LayoutParams(
+                global::Android.Views.ViewGroup.LayoutParams.MatchParent, height));
+        bar.Opacity = 1;
+        barView.Visibility = global::Android.Views.ViewStates.Visible;
+
+        pager.LayoutParameters = new global::Android.Widget.LinearLayout.LayoutParams(
+            global::Android.Views.ViewGroup.LayoutParams.MatchParent, 0, 1f);
+
+        _sharedBarView = barView;
+        UpdateSharedBarVisibility();
+        Controls.BottomNavBar.AttachBarWatch(root);
+
+        global::Android.Util.Log.Info("MALPLUS",
+            $"shared bar installed h={height} coordinator={coordinator.ChildCount}");
+    }
+
+    // Pushed pages own the full height, exactly like when every root page carried its
+    // own bar. The strip only belongs to the four root panels.
+    private void UpdateSharedBarVisibility()
+    {
+        UpdateRootPagerInput();
+
+        if (_sharedBarView == null)
+            return;
+
+        var page = CurrentPage;
+        var stack = Navigation.NavigationStack;
+        var root = stack.Count <= 1 &&
+            (page is Views.AnimeListPage || page is Views.DiscoverPage || page is Views.MorePage);
+
+        var next = root
+            ? global::Android.Views.ViewStates.Visible
+            : global::Android.Views.ViewStates.Gone;
+
+        if (_sharedBarView.Visibility != next)
+        {
+            _sharedBarView.Visibility = next;
+            global::Android.Util.Log.Info("MALPLUS",
+                $"BARWATCH shared visibility={next} root={root} stack={stack.Count} page={page?.GetType().Name}");
+        }
+
+        global::Android.Util.Log.Info("MALPLUS",
+            $"shared bar root={root} page={page?.GetType().Name ?? "null"} stack={stack.Count}");
+
+        // Safety net for pages the pager created after the last OnNavigated: a list page always
+        // has to know whether it owns the shared view model.
+        UpdateRootListModes(_lastNavigatedSection);
+    }
+
+    // The section pager is the root swipe surface and nothing else. A pushed page sits above
+    // the section inside the shellitem pager, but the section pager stays alive underneath
+    // and kept its input, so a sideways drag on Forum, Recommendations or Season OP/ED
+    // moved the root section behind the page. The stack depth is the whole test, which is
+    // why every pushed page is covered without a list of page names.
+    private void UpdateRootPagerInput()
+    {
+        if (Handler?.PlatformView is not global::Android.Views.View root)
+            return;
+
+        var pager = FindSectionPager(root);
+        if (pager == null)
+            return;
+
+        var stack = Navigation?.NavigationStack;
+        var enabled = stack == null || stack.Count <= 1;
+        if (pager.UserInputEnabled != enabled)
+            pager.UserInputEnabled = enabled;
+    }
+
+    private static global::AndroidX.ViewPager2.Widget.ViewPager2 FindSectionPager(
+        global::Android.Views.View view)
+    {
+        if (view is global::AndroidX.ViewPager2.Widget.ViewPager2 pager &&
+            pager.Id == SectionPagerId(pager.Context))
+            return pager;
+
+        if (view is global::Android.Views.ViewGroup group)
+        {
+            for (int i = 0; i < group.ChildCount; i++)
+            {
+                var found = FindSectionPager(group.GetChildAt(i));
+                if (found != null)
+                    return found;
+            }
+        }
+
+        return null;
     }
 
     private static global::Android.Graphics.Color? ResolveBackground()
@@ -221,11 +348,69 @@ public partial class AppShell : Shell
         return null;
     }
 
-    private static void PaintPagers(global::Android.Views.View view, global::Android.Graphics.Color color)
+    private static int _sectionPagerId = -1;
+    private static int _shellItemPagerId = -1;
+    private static int _topTabsId = -1;
+
+    private static int SectionPagerId(global::Android.Content.Context context)
     {
+        if (_sectionPagerId <= 0)
+        {
+            _sectionPagerId = context.Resources?.GetIdentifier(
+                "shellsection_viewpager", "id", context.PackageName) ?? 0;
+        }
+
+        return _sectionPagerId;
+    }
+
+    private static int ShellItemPagerId(global::Android.Content.Context context)
+    {
+        if (_shellItemPagerId <= 0)
+        {
+            _shellItemPagerId = context.Resources?.GetIdentifier(
+                "shellitem_viewpager", "id", context.PackageName) ?? 0;
+        }
+
+        return _shellItemPagerId;
+    }
+
+    private static int TopTabsId(global::Android.Content.Context context)
+    {
+        if (_topTabsId <= 0)
+        {
+            _topTabsId = context.Resources?.GetIdentifier(
+                "navigationlayout_toptabs", "id", context.PackageName) ?? 0;
+        }
+
+        return _topTabsId;
+    }
+
+    private static void PaintPagers(global::Android.Views.View view, global::Android.Graphics.Color color,
+        bool rootInput)
+    {
+        // The platform overscroll stretch draws a band at the edge of the scrollable
+        // right above the shared strip while a fling is settling, which reads as a
+        // second bar appearing and vanishing. Edge effects add nothing here.
+        if (view is global::AndroidX.RecyclerView.Widget.RecyclerView list)
+            list.OverScrollMode = global::Android.Views.OverScrollMode.Never;
+        else if (view is global::AndroidX.Core.Widget.NestedScrollView scroll)
+            scroll.OverScrollMode = global::Android.Views.OverScrollMode.Never;
+
         if (view is global::AndroidX.ViewPager2.Widget.ViewPager2 viewPager)
         {
             viewPager.SetBackgroundColor(color);
+            viewPager.OverScrollMode = global::Android.Views.OverScrollMode.Never;
+
+            // Phase B: the four roots live in one ShellSection, so their pager is
+            // shellsection_viewpager. MAUI only enables its input when the section
+            // shows more than one item; this keeps it enabled for the roots without
+            // touching the shellitem pager that hosts pushed pages. It is disabled
+            // for every pushed page: the section pager stays alive underneath them
+            // and was following sideways drags that are none of its business.
+            if (viewPager.Id == SectionPagerId(viewPager.Context))
+            {
+                viewPager.UserInputEnabled = rootInput;
+            }
 
             for (int i = 0; i < viewPager.ChildCount; i++)
             {
@@ -236,10 +421,9 @@ public partial class AppShell : Shell
                 recyclerView.SetItemAnimator(null);
             }
 
-            // Only the root paging views get a shield. The per-section pager holds a
-            // single page and is used for pushed pages, where a flash would be wrong.
-            var name = viewPager.Resources?.GetResourceEntryName(viewPager.Id) ?? string.Empty;
-            if (name.StartsWith("shellitem", StringComparison.OrdinalIgnoreCase) &&
+            // Only the shellitem pager gets a shield: it hosts pushed pages, while the
+            // section pager is the swipe surface itself and must stay uncovered.
+            if (viewPager.Id == ShellItemPagerId(viewPager.Context) &&
                 !Shields.TryGetValue(viewPager, out _))
             {
                 var shield = new PagerShield(viewPager, color);
@@ -250,8 +434,71 @@ public partial class AppShell : Shell
 
         if (view is global::Android.Views.ViewGroup group)
         {
+            if (view.Id == TopTabsId(view.Context))
+                HideTopTabs(view);
+
             for (int i = 0; i < group.ChildCount; i++)
-                PaintPagers(group.GetChildAt(i), color);
+                PaintPagers(group.GetChildAt(i), color, rootInput);
+        }
+    }
+
+    private static global::Android.Views.ViewGroup _topTabsGuardParent;
+
+    // Shell re-applies the top tabs on every section change, which is exactly when a
+    // root swipe settles. Hiding them once is not enough: the tab strip came back for
+    // a beat on top of the page. The guard collapses it before every frame, so the
+    // strip cannot draw even if Shell marks it visible again.
+    private static void HideTopTabs(global::Android.Views.View view)
+    {
+        if (view.Visibility != global::Android.Views.ViewStates.Gone)
+            view.Visibility = global::Android.Views.ViewStates.Gone;
+
+        var parameters = view.LayoutParameters;
+        if (parameters != null && parameters.Height != 0)
+        {
+            parameters.Height = 0;
+            view.LayoutParameters = parameters;
+        }
+
+        if (view.Parent is global::Android.Views.ViewGroup parent &&
+            !ReferenceEquals(parent, _topTabsGuardParent))
+        {
+            parent.ViewTreeObserver?.AddOnPreDrawListener(new TopTabsGuard(parent));
+            _topTabsGuardParent = parent;
+        }
+    }
+
+    private sealed class TopTabsGuard : global::Java.Lang.Object,
+        global::Android.Views.ViewTreeObserver.IOnPreDrawListener
+    {
+        private readonly global::Android.Views.ViewGroup _parent;
+
+        public TopTabsGuard(global::Android.Views.ViewGroup parent)
+            => _parent = parent;
+
+        public bool OnPreDraw()
+        {
+            for (int i = 0; i < _parent.ChildCount; i++)
+            {
+                var child = _parent.GetChildAt(i);
+                if (child == null || child.Id != TopTabsId(child.Context))
+                    continue;
+
+                if (child.Visibility != global::Android.Views.ViewStates.Gone)
+                {
+                    child.Visibility = global::Android.Views.ViewStates.Gone;
+                    global::Android.Util.Log.Info("MALPLUS", "BARWATCH toptabs forced gone");
+                }
+
+                var parameters = child.LayoutParameters;
+                if (parameters != null && parameters.Height != 0)
+                {
+                    parameters.Height = 0;
+                    child.LayoutParameters = parameters;
+                }
+            }
+
+            return true;
         }
     }
 
@@ -262,8 +509,39 @@ public partial class AppShell : Shell
         if (Handler is null || !OperatingSystem.IsAndroid())
             return;
 
+        _sharedBarInstalled = false;
+        _sharedBarView = null;
+        _topTabsGuardParent = null;
+        Controls.BottomNavBar.ResetSharedHost();
+
         PaintPagers();
         Dispatcher.Dispatch(PaintPagers);
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(400), PaintPagers);
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(1200), PaintPagers);
+        ScheduleSharedBar();
+    }
+
+    private void ScheduleSharedBar()
+    {
+        Dispatcher.Dispatch(InstallSharedBar);
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(400), InstallSharedBar);
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(1200), InstallSharedBar);
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(2400), InstallSharedBar);
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(3600), () =>
+        {
+            if (_sharedBarInstalled)
+                return;
+
+            if (CurrentPage is Views.AnimeListPage || CurrentPage is Views.DiscoverPage ||
+                CurrentPage is Views.MorePage)
+                Controls.BottomNavBar.ShowAllForFallback();
+        });
+    }
+
+    protected override void OnNavigating(ShellNavigatingEventArgs args)
+    {
+        base.OnNavigating(args);
+        PaintPagers();
     }
 
     protected override void OnNavigated(ShellNavigatedEventArgs args)
@@ -294,37 +572,124 @@ public partial class AppShell : Shell
         // ShellItems are created lazily as they are first shown, so their pagers only
         // appear after a navigation.
         PaintPagers();
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(50), PaintPagers);
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(150), PaintPagers);
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(400), PaintPagers);
+        ScheduleSharedBar();
+        UpdateSharedBarVisibility();
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(150), UpdateSharedBarVisibility);
+
+        // A root page that is already alive does not receive the query of a new root
+        // route: Shell switches to its section and drops the query, so tapping Anime
+        // from More reopened the panel that had been borrowed by Seasonal/Top. Deliver
+        // it to the live list page after the switch instead.
+        string section = null;
+        try
+        {
+            var location = args?.Current?.Location?.OriginalString;
+            section = SectionOf(location);
+            if (!string.IsNullOrEmpty(location) && CurrentPage is Views.AnimeListPage listPage)
+            {
+                if (location.Contains('?'))
+                    listPage.ApplyRouteFromShell(location);
+                else if (!string.Equals(section, _lastNavigatedSection, StringComparison.OrdinalIgnoreCase))
+                    listPage.ApplyRootLocation(location);
+            }
+
+            _lastNavigatedSection = section;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS root route apply failed: " + ex.GetType().Name);
+        }
+
+        // After the route is applied, not before: the incoming page must own the shared view model
+        // (so the query/mode it just applied is what its grid paints).
+        UpdateRootListModes(section);
+    }
+
+    // Only the list root that the current location names may paint the shared view model. The other
+    // one keeps its own mode's library, otherwise a drag towards it shows the tab it is leaving.
+    private void UpdateRootListModes(string section)
+    {
+        if (string.IsNullOrEmpty(section))
+            return;
+
+        foreach (var (route, reference) in _rootListPages)
+        {
+            if (reference.TryGetTarget(out var page))
+                page.SetLiveLibrary(string.Equals(route, section, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private static string SectionOf(string location)
+    {
+        if (string.IsNullOrEmpty(location))
+            return null;
+
+        var path = location.Split(new[] { '?' }, 2)[0];
+        foreach (var segment in path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            switch (segment.ToLowerInvariant())
+            {
+                case "discover":
+                case "anime":
+                case "manga":
+                case "more":
+                    return segment.ToLowerInvariant();
+            }
+        }
+
+        return null;
     }
 
     private void BuildSections()
     {
+        // Phase B spike: one ShellItem -> one ShellSection -> four ShellContents.
+        // ShellItem is the level that owns shellitem_viewpager; ShellSection owns
+        // shellsection_viewpager. Keeping the four roots in one section is the only
+        // arrangement where MAUI exposes them through a single root pager that can
+        // follow the finger, instead of one pager per ShellItem.
+        var section = new ShellSection();
+        // The pager order IS the swipe order, and it has to match the visible bar
+        // (Discover | Anime | Manga | More). Keeping Anime first made a right swipe
+        // from More land on Discover instead of Manga.
+        var contents = new List<ShellContent>();
         foreach (var (route, title, pageType) in new (string, string, Type)[]
         {
+            ("discover", "Discover", typeof(Views.DiscoverPage)),
             ("anime", "Anime", typeof(Views.AnimeListPage)),
             ("manga", "Manga", typeof(Views.AnimeListPage)),
-            ("discover", "Discover", typeof(Views.DiscoverPage)),
             ("more", "More", typeof(Views.MorePage))
         })
         {
-            var content = Section(route, title, pageType);
-
-            // One ShellItem per root section, exactly what "<TabBar> with four
-            // ShellContents" produced. Kept as-is: every Shell arrangement with four
-            // paging elements animates the switch in MAUI 11 RC1, so this is not the
-            // place to fight that bug.
-            var section = new ShellSection();
+            var content = Section(route, title, pageType, page =>
+            {
+                if (page is Views.AnimeListPage listPage)
+                    _rootListPages[route] = new WeakReference<Views.AnimeListPage>(listPage);
+            });
+            contents.Add(content);
             section.Items.Add(content);
-
-            var item = new ShellItem();
-            item.Items.Add(section);
-
-            Items.Add(item);
         }
+
+        // Anime is the default start tab (Settings.DefaultMenuTab is applied later, in
+        // App.OnStart). Select it before the pager exists so the first frame is the list
+        // and not Discover while InitApp is still running.
+        var currentItemProperty = typeof(ShellSection).GetProperty("CurrentItem",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+            System.Reflection.BindingFlags.Instance);
+        if (currentItemProperty != null && currentItemProperty.CanWrite)
+            currentItemProperty.SetValue(section, contents[1]);
+
+        var item = new ShellItem();
+        item.Items.Add(section);
+        Items.Add(item);
     }
 
     // No icons: Shell.TabBarIsVisible is false and every tab glyph comes from the
     // app's own BottomNavBar.
-    private static ShellContent Section(string route, string title, Type pageType)
+    private static ShellContent Section(string route, string title, Type pageType,
+        Action<Page> onCreated = null)
     {
         var content = new ShellContent
         {
@@ -338,8 +703,20 @@ public partial class AppShell : Shell
 
         if (templateProperty != null && templateProperty.CanWrite)
         {
-            templateProperty.SetValue(content, new DataTemplate(pageType));
-            return content;
+            templateProperty.SetValue(content, new DataTemplate(() =>
+            {
+                var page = (Page)Activator.CreateInstance(pageType);
+                if (page is Views.AnimeListPage listPage)
+                {
+                    listPage.RootRoute = route;
+                    // Both list roots share one view model, so the page has to start painting its
+                    // own mode's rows. Whoever is the live root later swaps it back in the route.
+                    listPage.SetLiveLibrary(false);
+                }
+
+                onCreated?.Invoke(page);
+                return page;
+            }));
         }
 
         var contentProperty = typeof(ShellContent).GetProperty("Content",
@@ -348,10 +725,19 @@ public partial class AppShell : Shell
 
         if (contentProperty != null && contentProperty.CanWrite)
         {
-            contentProperty.SetValue(content, (Page)Activator.CreateInstance(pageType));
+            var page = (Page)Activator.CreateInstance(pageType);
+            if (page is Views.AnimeListPage listPage)
+            {
+                listPage.RootRoute = route;
+                listPage.SetLiveLibrary(false);
+            }
+
+            onCreated?.Invoke(page);
+            contentProperty.SetValue(content, page);
             return content;
         }
 
         throw new InvalidOperationException("ShellContent exposes neither ContentTemplate nor Content");
     }
+
 }

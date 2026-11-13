@@ -145,6 +145,9 @@ namespace MALPlus.Models.Models.AnimeScrapped
         public string LibraryBadgeAccent
             => MALPlus.XShared.Utils.AnimeCardBadge.Status(IsOnMyList, () => MyStatusForBadge);
 
+        public string LibraryBadgeAccentColor
+            => MALPlus.XShared.Utils.AnimeCardBadge.StatusColor(IsOnMyList, MyStatusForBadge);
+
         /// <summary>
         ///     The badge's episode half, by the same rule the poster cell uses.
         /// </summary>

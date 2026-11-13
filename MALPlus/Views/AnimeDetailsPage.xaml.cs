@@ -21,12 +21,13 @@ namespace MALPlus.Views;
 [QueryProperty(nameof(AnimeTitle), "title")]
 [QueryProperty(nameof(InitialIsManga), "manga")]
 [QueryProperty(nameof(InitialTabIndex), "tab")]
-public partial class AnimeDetailsPage : ContentPage
+public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 {
     //First paint shows five rows; the rest is already in the VM and gets appended as the user
     //scrolls. The number is deliberately small: a long-runner has well over a thousand episodes
     //and painting forty of them on the tap is what made the tab feel like it hung.
     private const int ProgressiveChunkSize = 5;
+    private const int EpisodeChunkSize = 30;
     private const int RecommendationChunkSize = 8;
     //Characters, staff and related were the three tabs that still froze on first paint. Their
     //CollectionViews sit inside the page ScrollView with a HeightRequest sized to the whole list,
@@ -55,6 +56,13 @@ public partial class AnimeDetailsPage : ContentPage
     private const double HeroCollapsedHeight = 210;
     private const double HeroCollapseRange = HeroExpandedHeight - HeroCollapsedHeight;
     private const uint TabTransitionLength = 160;
+    private const uint SwipeSettleLength = 190;
+    private bool _swipeTabBusy;
+    private int _swipePreviewIndex = -1;
+    private int _swipePreviewDirection;
+    private double _swipePreviewDx;
+    private bool _swipePreviewAnimating;
+    private bool _swipePreviewClipped;
 
     /// <summary>
     /// Height of one character/staff row: PanelStyle padding 10 top and bottom, the 88px
@@ -68,6 +76,7 @@ public partial class AnimeDetailsPage : ContentPage
     private bool _initializedAnimeMode;
     private int _entryVersion;
     private bool _isAppearing;
+    private int _lastTabIndex = -1;
     private bool _episodesLoaded;
     private bool _reviewsLoaded;
     private bool _charactersLoaded;
@@ -121,6 +130,27 @@ public partial class AnimeDetailsPage : ContentPage
     public bool EpisodesErrorVisible => !string.IsNullOrWhiteSpace(_episodesError);
     public bool EpisodesEmptyVisible => Vm != null && !Vm.LoadingEpisodes && !EpisodesErrorVisible && Vm.Episodes.Count == 0;
     public bool EpisodesContentVisible => Vm != null && !EpisodesErrorVisible && Vm.Episodes.Count > 0;
+    public bool HasFillerEpisodes => Vm?.Episodes?.Any(e => e.Filler) == true;
+    public string FilterFillerButtonText => _hideFiller ? "Show filler" : "Hide filler";
+    public bool HideFiller
+    {
+        get => _hideFiller;
+        set
+        {
+            if (_hideFiller == value) return;
+            _hideFiller = value;
+            OnPropertyChanged(nameof(HideFiller));
+            OnPropertyChanged(nameof(FilterFillerButtonText));
+            RefreshDisplayedEpisodes(true);
+            NotifyStateProperties();
+        }
+    }
+    private bool _hideFiller;
+
+    private void OnToggleFillerTapped(object sender, TappedEventArgs e)
+    {
+        HideFiller = !HideFiller;
+    }
 
     public string ReviewsErrorText => EmptyStateText(_reviewsError, "Unable to load reviews.");
     public bool ReviewsErrorVisible => !string.IsNullOrWhiteSpace(_reviewsError);
@@ -255,7 +285,10 @@ InitializeComponent();
             BindingContext = ViewModelLocator.AnimeDetails;
             DetailsSheet.Closed += OnDetailsSheetClosed;
         if (RelatedGrid?.Inner != null)
+        {
+            RelatedGrid.Inner.SelectionMode = SelectionMode.Single;
             RelatedGrid.Inner.SelectionChanged += OnRelatedSelectionChanged;
+        }
         ApplyTabActiveState();
         UpdateHeroMetaLayout();
     }
@@ -542,6 +575,17 @@ InitializeComponent();
             if (handoff != null)
                 args.AnimeMode = handoff.AnimeMode;
 
+            // The details view model is a singleton, so coming back from a nested details page
+            // re-initializes this page at whatever tab the other page left behind. Keep the tab
+            // this page was showing; a handoff means a fresh navigation and wins instead.
+            var returningToSameEntry = handoff == null
+                                       && _initialized
+                                       && _initializedId == id
+                                       && _initializedAnimeMode == args.AnimeMode
+                                       && _lastTabIndex >= 0;
+            if (returningToSameEntry)
+                args.SourceTabIndex = Math.Clamp(_lastTabIndex, 0, 7);
+
             var entryChanged = !_initialized || _initializedId != args.Id || _initializedAnimeMode != args.AnimeMode ||
                                Vm.Id != args.Id || Vm.AnimeMode != args.AnimeMode;
             if (!entryChanged)
@@ -580,6 +624,7 @@ InitializeComponent();
             ApplyHeroState(0);
             var initialTab = Math.Clamp(args.SourceTabIndex, 0, 7);
             vm.DetailsPivotSelectedIndex = IsTabVisible(initialTab) ? initialTab : 0;
+            _lastTabIndex = vm.DetailsPivotSelectedIndex;
             ApplyTabStripVisibility();
             ApplyTabActiveState();
             ApplyCharacterStaffBindings();
@@ -699,13 +744,19 @@ InitializeComponent();
         {
             ApplyTabStripVisibility();
             if (!IsTabVisible(Vm.DetailsPivotSelectedIndex))
+            {
                 Vm.DetailsPivotSelectedIndex = FindAdjacentVisibleTab(Vm.DetailsPivotSelectedIndex, 1) ?? 0;
+                _lastTabIndex = Vm.DetailsPivotSelectedIndex;
+            }
         }
         if (e.PropertyName == nameof(AnimeDetailsPageViewModel.Type))
         {
             ApplyTabStripVisibility();
             if (!IsTabVisible(Vm.DetailsPivotSelectedIndex))
+            {
                 Vm.DetailsPivotSelectedIndex = FindAdjacentVisibleTab(Vm.DetailsPivotSelectedIndex, 1) ?? 0;
+                _lastTabIndex = Vm.DetailsPivotSelectedIndex;
+            }
         }
         if (e.PropertyName == nameof(AnimeDetailsPageViewModel.LoadingGlobal) ||
             e.PropertyName == nameof(AnimeDetailsPageViewModel.LoadingDetails) ||
@@ -826,6 +877,7 @@ InitializeComponent();
         _relatedError = string.Empty;
         _charactersError = string.Empty;
         _staffError = string.Empty;
+        _hideFiller = false;
         ResetProgressiveCollections();
         ResetHeaderLayoutState();
         NotifyStateProperties();
@@ -941,6 +993,7 @@ InitializeComponent();
 
     private void OnEpisodesSourceChanged(object sender, NotifyCollectionChangedEventArgs e)
     {
+        _episodesLoaded = Vm?.EpisodesLoaded ?? false;
         RefreshDisplayedEpisodes(false);
         NotifyStateProperties();
     }
@@ -979,14 +1032,49 @@ InitializeComponent();
         NotifyStateProperties();
     }
 
+    private IList<AnimeEpisode> GetActiveEpisodesSource()
+    {
+        var episodes = Vm?.Episodes;
+        if (episodes == null)
+            return Array.Empty<AnimeEpisode>();
+        if (!_hideFiller)
+            return episodes;
+        return episodes.Where(e => !e.Filler).ToList();
+    }
+
     private void RefreshDisplayedEpisodes(bool reset)
     {
-        var source = Vm?.Episodes;
+        var source = GetActiveEpisodesSource();
         if (source == null)
             return;
-        if (reset || source.Count < DisplayedEpisodes.Count)
+
+        var previouslyShown = DisplayedEpisodes.Count;
+        var needsClear = reset || source.Count < DisplayedEpisodes.Count;
+        if (!needsClear && DisplayedEpisodes.Count > 0 && source.Count > 0)
+        {
+            // If the currently displayed episodes do not match the new source, clear first
+            if (!ReferenceEquals(DisplayedEpisodes[0], source[0]) &&
+                (DisplayedEpisodes[0].EpisodeId != source[0].EpisodeId ||
+                 DisplayedEpisodes[0].Title != source[0].Title))
+            {
+                needsClear = true;
+            }
+        }
+
+        if (needsClear)
             DisplayedEpisodes.Clear();
-        var target = Math.Min(source.Count, Math.Max(ProgressiveChunkSize, DisplayedEpisodes.Count));
+
+        int target;
+        if (source.Count <= 60)
+        {
+            target = source.Count;
+        }
+        else
+        {
+            var desired = Math.Max(EpisodeChunkSize, needsClear ? EpisodeChunkSize : previouslyShown);
+            target = Math.Min(source.Count, desired);
+        }
+
         for (var index = DisplayedEpisodes.Count; index < target; index++)
             DisplayedEpisodes.Add(source[index]);
     }
@@ -2024,6 +2112,218 @@ private void HideVideoLoading()
         catch { }
     }
 
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        if (Vm == null || _swipeTabBusy)
+            return false;
+        if (DetailsSheet?.IsOpen == true || (VideoOverlay?.IsVisible ?? false))
+            return false;
+        var next = FindAdjacentVisibleTab(Vm.DetailsPivotSelectedIndex, direction);
+        if (next == null)
+            return false;
+        _swipeTabBusy = true;
+        _ = SelectSwipeTabAsync(next.Value, direction);
+        return true;
+    }
+
+    private async Task SelectSwipeTabAsync(int tabIndex, int direction)
+    {
+        try
+        {
+            await SelectTabAsync(tabIndex, direction);
+        }
+        finally
+        {
+            _swipeTabBusy = false;
+        }
+    }
+
+    bool ISwipePreviewHost.BeginSwipePreview(int direction)
+    {
+        if (Vm == null || _swipeTabBusy || _swipePreviewAnimating || _swipePreviewIndex >= 0)
+            return false;
+        if (DetailsSheet?.IsOpen == true || (VideoOverlay?.IsVisible ?? false))
+            return false;
+        if (direction == 0 || TabContentHost == null || TabContentHost.Width <= 0 || TabContentHost.Height <= 0)
+            return false;
+        if (Math.Abs(TabContentHost.TranslationX) > 0.5)
+            return false;
+
+        var currentIndex = Vm.DetailsPivotSelectedIndex;
+        var next = FindAdjacentVisibleTab(currentIndex, direction);
+        if (next == null)
+            return false;
+
+        var currentPanel = PanelForTab(currentIndex);
+        var nextPanel = PanelForTab(next.Value);
+        if (currentPanel == null || nextPanel == null)
+            return false;
+
+        var width = TabContentHost.Width;
+        _swipePreviewIndex = next.Value;
+        _swipePreviewDirection = direction;
+        _swipePreviewDx = 0;
+        _swipePreviewClipped = TabContentHost.IsClippedToBounds;
+        TabContentHost.HeightRequest = TabContentHost.Height;
+        TabContentHost.IsClippedToBounds = true;
+
+        currentPanel.TranslationX = 0;
+        nextPanel.TranslationX = direction > 0 ? width : -width;
+        nextPanel.IsVisible = true;
+
+        LoadTabData(next.Value);
+        return true;
+    }
+
+    void ISwipePreviewHost.UpdateSwipePreview(double dxDips)
+    {
+        if (_swipePreviewIndex < 0 || Vm == null || TabContentHost == null)
+            return;
+
+        var width = TabContentHost.Width;
+        if (width <= 0)
+            return;
+
+        var currentPanel = PanelForTab(Vm.DetailsPivotSelectedIndex);
+        var nextPanel = PanelForTab(_swipePreviewIndex);
+        if (currentPanel == null || nextPanel == null)
+            return;
+
+        var travel = _swipePreviewDirection > 0 ? Math.Min(0, dxDips) : Math.Max(0, dxDips);
+        travel = Math.Max(-width, Math.Min(width, travel));
+        _swipePreviewDx = travel;
+        currentPanel.TranslationX = travel;
+        nextPanel.TranslationX = travel + (_swipePreviewDirection > 0 ? width : -width);
+    }
+
+    void ISwipePreviewHost.EndSwipePreview(double dxDips, double velocityDipsPerSecond)
+    {
+        if (_swipePreviewIndex < 0)
+            return;
+
+        var distance = Math.Abs(_swipePreviewDx);
+        var width = TabContentHost?.Width ?? 0;
+        if (width <= 0)
+        {
+            CompleteSwipePreview();
+            return;
+        }
+
+        var commit = distance >= Math.Max(96, width * 0.25)
+                     || (Math.Abs(velocityDipsPerSecond) >= 900 && distance >= 40);
+        if (commit)
+            _swipeTabBusy = true;
+        _ = FinishSwipePreviewAsync(commit);
+    }
+
+    private async Task FinishSwipePreviewAsync(bool commit)
+    {
+        _swipePreviewAnimating = true;
+        var nextIndex = _swipePreviewIndex;
+        var direction = _swipePreviewDirection;
+        var currentPanel = Vm == null ? null : PanelForTab(Vm.DetailsPivotSelectedIndex);
+        var nextPanel = PanelForTab(nextIndex);
+
+        try
+        {
+            if (currentPanel == null || nextPanel == null || TabContentHost == null)
+                return;
+
+            var width = TabContentHost.Width;
+            var currentTarget = commit ? (direction > 0 ? -width : width) : 0;
+            var nextTarget = commit ? 0 : (direction > 0 ? width : -width);
+
+            await Task.WhenAll(
+                currentPanel.TranslateTo(currentTarget, 0, SwipeSettleLength, Easing.CubicOut),
+                nextPanel.TranslateTo(nextTarget, 0, SwipeSettleLength, Easing.CubicOut));
+
+            if (commit && Vm != null)
+            {
+                Vm.DetailsPivotSelectedIndex = nextIndex;
+                _lastTabIndex = nextIndex;
+                RememberPreferredTab(nextIndex);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS swipe preview failed: " + ex.Message);
+        }
+        finally
+        {
+            if (currentPanel != null)
+                currentPanel.TranslationX = 0;
+            if (nextPanel != null)
+                nextPanel.TranslationX = 0;
+
+            if (TabContentHost != null)
+            {
+                TabContentHost.IsClippedToBounds = _swipePreviewClipped;
+                TabContentHost.HeightRequest = -1;
+            }
+
+            ApplyTabActiveState();
+
+            _swipePreviewIndex = -1;
+            _swipePreviewAnimating = false;
+            _swipePreviewDx = 0;
+            _swipeTabBusy = false;
+
+            if (commit && nextIndex >= 1)
+                _ = TopUpTabUntilScrollable(nextIndex);
+        }
+    }
+
+    private void CompleteSwipePreview()
+    {
+        var nextIndex = _swipePreviewIndex;
+        var currentPanel = Vm == null ? null : PanelForTab(Vm.DetailsPivotSelectedIndex);
+        var nextPanel = PanelForTab(nextIndex);
+        if (currentPanel != null)
+            currentPanel.TranslationX = 0;
+        if (nextPanel != null)
+            nextPanel.TranslationX = 0;
+
+        if (TabContentHost != null)
+        {
+            TabContentHost.IsClippedToBounds = _swipePreviewClipped;
+            TabContentHost.HeightRequest = -1;
+        }
+
+        ApplyTabActiveState();
+
+        _swipePreviewIndex = -1;
+        _swipePreviewAnimating = false;
+        _swipeTabBusy = false;
+    }
+
+    private void ApplyPanelVisibility(int selected)
+    {
+        OverviewPanel.IsVisible = selected == 0;
+        EpisodesPanel.IsVisible = selected == 1;
+        OpEdPanel.IsVisible = selected == 2;
+        ReviewsPanel.IsVisible = selected == 3;
+        RecommendationsPanel.IsVisible = selected == 4;
+        RelatedPanel.IsVisible = selected == 5;
+        CharactersPanel.IsVisible = selected == 6;
+        StaffPanel.IsVisible = selected == 7;
+    }
+
+    private View PanelForTab(int index)
+    {
+        return index switch
+        {
+            0 => OverviewPanel,
+            1 => EpisodesPanel,
+            2 => OpEdPanel,
+            3 => ReviewsPanel,
+            4 => RecommendationsPanel,
+            5 => RelatedPanel,
+            6 => CharactersPanel,
+            7 => StaffPanel,
+            _ => null
+        };
+    }
+
     private async Task SelectTabAsync(int tabIndex, int direction)
     {
         if (Vm == null || tabIndex < 0 || tabIndex > 7 || !IsTabVisible(tabIndex))
@@ -2032,12 +2332,13 @@ private void HideVideoLoading()
         if (changed)
         {
             Vm.DetailsPivotSelectedIndex = tabIndex;
+            _lastTabIndex = tabIndex;
             RememberPreferredTab(tabIndex);
         }
         ApplyTabActiveState();
         if (changed)
             await AnimateTabTransitionAsync(direction);
-        if (tabIndex >= 2)
+        if (tabIndex >= 1)
             await TopUpTabUntilScrollable(tabIndex);
     }
 
@@ -2071,7 +2372,7 @@ private void HideVideoLoading()
             _lastProgressiveAppendScrollY = double.NaN;
             var before = DisplayedCountFor(tabIndex);
             AppendNextProgressiveChunk();
-            if (fillCompletely && DisplayedCountFor(tabIndex) == before)
+            if (DisplayedCountFor(tabIndex) == before)
                 return;
             // The HeightRequest is a binding, so the list has to remeasure before it can be
             // judged against the viewport.
@@ -2085,6 +2386,7 @@ private void HideVideoLoading()
             return 0;
         return tabIndex switch
         {
+            1 => DisplayedEpisodes.Count,
             2 => DisplayedEpisodes.Count,
             3 => DisplayedReviews.Count,
             4 => DisplayedRecommendations.Count,
@@ -2165,13 +2467,56 @@ private void HideVideoLoading()
 
         private void ApplyTabActiveState()
         {
+            var selected = Vm?.DetailsPivotSelectedIndex ?? 0;
+            ApplyPanelVisibility(selected);
             if (TabGeneral == null || TabEpisodes == null || TabOpEd == null || TabReviews == null ||
                 TabRecs == null || TabRelated == null || TabCharacters == null || TabStaff == null)
                 return;
-            var selected = Vm?.DetailsPivotSelectedIndex ?? 0;
             var labels = new[] { TabGeneral, TabEpisodes, TabOpEd, TabReviews, TabRecs, TabRelated, TabCharacters, TabStaff };
             for (var index = 0; index < labels.Length; index++)
                 labels[index].TextColor = index == selected ? Color.FromArgb("#0066FF") : Color.FromArgb("#B3FFFFFF");
+            Dispatcher.Dispatch(() => ScrollSelectedTabIntoView(selected, labels));
+        }
+
+        private void ScrollSelectedTabIntoView(int selectedIndex, Label[] labels)
+        {
+            try
+            {
+                if (TabStripScroll == null || labels == null || selectedIndex < 0 || selectedIndex >= labels.Length)
+                    return;
+
+                var viewport = TabStripScroll.Width;
+                if (viewport <= 0)
+                    return;
+
+                var stack = TabStripScroll.Content as Layout;
+                var contentWidth = stack?.Width ?? 0;
+                var maxScroll = Math.Max(0, contentWidth - viewport);
+
+                double targetX;
+                if (selectedIndex == 0)
+                {
+                    targetX = 0;
+                }
+                else if (selectedIndex >= labels.Length - 1 || selectedIndex == 7)
+                {
+                    targetX = maxScroll;
+                }
+                else
+                {
+                    var label = labels[selectedIndex];
+                    if (label == null || label.Width <= 0)
+                        return;
+                    var labelCenter = label.X + (label.Width / 2.0);
+                    targetX = Math.Clamp(labelCenter - (viewport / 2.0), 0, maxScroll);
+                }
+
+                _ = TabStripScroll.ScrollToAsync(targetX, 0, true);
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("MALPlusSwipe", "strip scroll failed: " + ex.GetType().Name);
+            }
         }
 
     /// <summary>
@@ -2371,11 +2716,12 @@ private void HideVideoLoading()
         switch (tab)
         {
             case 1:
-                if (Vm.Episodes.Count > DisplayedEpisodes.Count)
+                var epSource = GetActiveEpisodesSource();
+                if (epSource != null && epSource.Count > DisplayedEpisodes.Count)
                 {
-                    var target = Math.Min(Vm.Episodes.Count, DisplayedEpisodes.Count + ProgressiveChunkSize);
+                    var target = Math.Min(epSource.Count, DisplayedEpisodes.Count + EpisodeChunkSize);
                     for (var index = DisplayedEpisodes.Count; index < target; index++)
-                        DisplayedEpisodes.Add(Vm.Episodes[index]);
+                        DisplayedEpisodes.Add(epSource[index]);
                 }
                 break;
             case 3:
@@ -2511,6 +2857,8 @@ private void HideVideoLoading()
         OnPropertyChanged(nameof(EpisodesErrorVisible));
         OnPropertyChanged(nameof(EpisodesEmptyVisible));
         OnPropertyChanged(nameof(EpisodesContentVisible));
+        OnPropertyChanged(nameof(HasFillerEpisodes));
+        OnPropertyChanged(nameof(FilterFillerButtonText));
         OnPropertyChanged(nameof(ReviewsErrorText));
         OnPropertyChanged(nameof(ReviewsErrorVisible));
         OnPropertyChanged(nameof(ReviewsEmptyVisible));

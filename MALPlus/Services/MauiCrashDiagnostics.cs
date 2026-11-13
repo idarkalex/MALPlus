@@ -37,6 +37,11 @@ public static class MauiCrashDiagnostics
     {
         if (ex == null)
             return;
+        try
+        {
+            AppLog.Error("Crash." + kind, ex.ToString());
+        }
+        catch { }
         var text = $"=== {kind} {DateTime.UtcNow:o} ==={Environment.NewLine}{ex}{Environment.NewLine}";
         try
         {

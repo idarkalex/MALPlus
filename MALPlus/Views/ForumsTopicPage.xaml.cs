@@ -105,8 +105,6 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         base.OnAppearing();
         if (Vm == null)
             return;
-        Vm.PropertyChanged -= OnVmPropertyChanged;
-        Vm.PropertyChanged += OnVmPropertyChanged;
 #if ANDROID
         // The Shell's own back handler pops the whole section instead of this page, so the press is
         // taken over while the page is on screen: close the reply overlay if open, otherwise pop one
@@ -126,7 +124,6 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         {
             await Vm.Init(new ForumsTopicNavigationArgs(TopicId, null, 1));
             Vm.RegisterSelfBackNav();
-            await UpdateTopicWebViewHeightAsync();
         }
         catch (Exception ex)
         {
@@ -136,8 +133,6 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
 
     protected override void OnDisappearing()
     {
-        if (Vm != null)
-            Vm.PropertyChanged -= OnVmPropertyChanged;
 #if ANDROID
         if (_handlerAttached)
         {
@@ -155,7 +150,6 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         try
         {
             await Vm.ReloadAsync();
-            await UpdateTopicWebViewHeightAsync();
         }
         catch (Exception ex)
         {
@@ -163,22 +157,21 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         }
     }
 
-    private void OnVmPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private async void OnBackTapped(object sender, TappedEventArgs e)
     {
-        if (e.PropertyName != nameof(ForumTopicViewModel.PageHtml))
-            return;
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (TopicWebView == null)
-                return;
-            TopicWebView.HeightRequest = 1;
-            _ = UpdateTopicWebViewHeightAsync();
-        });
+        await Shell.Current.GoToAsync("..");
     }
 
-    private async void OnTopicWebViewNavigated(object sender, WebNavigatedEventArgs e)
+    private void OnPreviousPageTapped(object sender, TappedEventArgs e)
     {
-        await UpdateTopicWebViewHeightAsync();
+        if (Vm?.CanPreviousPage == true)
+            Vm.PreviousPageCommand?.Execute(null);
+    }
+
+    private void OnNextPageTapped(object sender, TappedEventArgs e)
+    {
+        if (Vm?.CanNextPage == true)
+            Vm.NextPageCommand?.Execute(null);
     }
 
     private async void OnPageJumpTapped(object sender, TappedEventArgs e)
@@ -458,69 +451,49 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
     {
         try
         {
-            if (Vm == null || !e.Url.StartsWith("malplusquote:", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(e.Url))
                 return;
-            e.Cancel = true;
-            var prefix = "malplusquote:";
-            var rest = Uri.UnescapeDataString(e.Url.Substring(prefix.Length));
-            var sep = rest.IndexOf('?');
-            var id = sep >= 0 ? rest.Substring(0, sep) : rest;
-            var user = "Unknown";
-            if (sep >= 0)
+
+            if (e.Url.StartsWith("malplusquote:", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (var pair in rest.Substring(sep + 1).Split('&'))
+                e.Cancel = true;
+                var prefix = "malplusquote:";
+                var rest = Uri.UnescapeDataString(e.Url.Substring(prefix.Length));
+                var sep = rest.IndexOf('?');
+                var id = sep >= 0 ? rest.Substring(0, sep) : rest;
+                var user = "Unknown";
+                if (sep >= 0)
                 {
-                    var kv = pair.Split('=', 2);
-                    if (kv.Length == 2 && string.Equals(kv[0], "user", StringComparison.OrdinalIgnoreCase))
-                        user = Uri.UnescapeDataString(kv[1]);
+                    foreach (var pair in rest.Substring(sep + 1).Split('&'))
+                    {
+                        var kv = pair.Split('=', 2);
+                        if (kv.Length == 2 && string.Equals(kv[0], "user", StringComparison.OrdinalIgnoreCase))
+                            user = Uri.UnescapeDataString(kv[1]);
+                    }
                 }
-            }
-            _ = Task.Run(async () =>
-            {
-                await MainThread.InvokeOnMainThreadAsync(async () =>
+                _ = Task.Run(async () =>
                 {
-                    Vm.QuouteMessage(id, user);
-                    ReplyOverlay.IsVisible = true;
-                    ReplyOverlayEditor.Text = Vm.ReplyMessage;
-                    ReplyOverlayEditor.Focus();
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        Vm?.QuouteMessage(id, user);
+                        ReplyOverlay.IsVisible = true;
+                        ReplyOverlayEditor.Text = Vm?.ReplyMessage;
+                        ReplyOverlayEditor.Focus();
+                    });
                 });
-            });
+                return;
+            }
+
+            if (e.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                e.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                e.Cancel = true;
+                _ = Launcher.OpenAsync(new Uri(e.Url));
+            }
         }
         catch
         {
         }
-    }
-
-    private async Task UpdateTopicWebViewHeightAsync()
-    {
-        try
-        {
-            var result = await MainThread.InvokeOnMainThreadAsync(() =>
-                TopicWebView.EvaluateJavaScriptAsync(
-                    "Math.max(1, Math.ceil(Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0, document.body ? document.body.getBoundingClientRect().height : 0)));"));
-            if (!double.TryParse(result, NumberStyles.Float, CultureInfo.InvariantCulture, out var height))
-                return;
-            var targetHeight = Math.Max(1, Math.Ceiling(height) + 4);
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                TopicWebView.HeightRequest = targetHeight;
-            });
-            // Images inside posts finish loading after the first pass and grow the
-            // document, so measure again once they have settled.
-            await Task.Delay(350);
-            var second = await MainThread.InvokeOnMainThreadAsync(() =>
-                TopicWebView.EvaluateJavaScriptAsync(
-                    "Math.max(1, Math.ceil(Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)));"));
-            if (double.TryParse(second, NumberStyles.Float, CultureInfo.InvariantCulture, out var secondHeight) &&
-                secondHeight > targetHeight - 4)
-            {
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    TopicWebView.HeightRequest = Math.Max(1, Math.Ceiling(secondHeight) + 4);
-                });
-            }
-        }
-        catch { }
     }
 
 #if ANDROID
@@ -535,10 +508,10 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
             return;
         try
         {
-            webView.NestedScrollingEnabled = false;
+            webView.NestedScrollingEnabled = true;
             webView.VerticalScrollBarEnabled = false;
             webView.HorizontalScrollBarEnabled = false;
-            webView.OverScrollMode = global::Android.Views.OverScrollMode.Never;
+            webView.OverScrollMode = global::Android.Views.OverScrollMode.IfContentScrolls;
             webView.Settings.JavaScriptEnabled = true;
             webView.Settings.DomStorageEnabled = true;
             webView.Settings.BuiltInZoomControls = false;

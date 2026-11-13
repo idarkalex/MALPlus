@@ -323,38 +323,104 @@ namespace MALPlus.XShared.Comm.Anime
         private async Task PopulateMetadataAsync(List<DirectRecommendationData> output,
             CancellationToken cancellationToken)
         {
-            // One at a time, and only the ones still missing either half. The gate is one deep on
-            // purpose: enriching in parallel is what used to blow the enrichment budget and blank
-            // the whole tab.
             var pending = output
                 .Where(item => item.Id > 0 &&
                                (string.IsNullOrEmpty(item.MediaType) || item.AllEpisodes == 0))
                 .Take(MetadataEnrichmentBudget)
                 .ToList();
 
+            if (pending.Count == 0)
+                return;
+
+            // 1. Check local cache first for all pending items
+            var stillMissing = new List<DirectRecommendationData>();
             foreach (var item in pending)
             {
-                try
+                var animeMode = item.Type == RelatedItemType.Manga ? false : _animeMode;
+                var cached = await DataCache.RetrieveAnimeSearchResultsData(item.Id.ToString(), animeMode);
+                if (cached != null)
                 {
-                    await PopulateMetadataAsync(item, cancellationToken);
+                    if (string.IsNullOrEmpty(item.MediaType) && !string.IsNullOrEmpty(cached.Type))
+                        item.MediaType = NormalizeMediaType(cached.Type);
+                    if (item.AllEpisodes == 0 && cached.AllEpisodes > 0)
+                        item.AllEpisodes = cached.AllEpisodes;
                 }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-                catch (Exception)
-                {
-                    // One dead recommendation entry must not take the rest with it.
-                }
+                if (string.IsNullOrEmpty(item.MediaType) || item.AllEpisodes == 0)
+                    stillMissing.Add(item);
+            }
 
-                try
+            if (stillMissing.Count == 0)
+                return;
+
+            // 2. Batch request via Tenrai /full?ids=... (up to 25 items per request)
+            await MetadataEnrichmentGate.WaitAsync(cancellationToken);
+            try
+            {
+                foreach (var group in stillMissing.GroupBy(item => item.Type == RelatedItemType.Manga ? false : _animeMode))
                 {
-                    await Task.Delay(EnrichmentItemDelay, cancellationToken);
+                    var isAnime = group.Key;
+                    var mediaPrefix = isAnime ? "anime" : "manga";
+                    var items = group.ToList();
+
+                    for (var i = 0; i < items.Count; i += 25)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var chunk = items.Skip(i).Take(25).ToList();
+                        var first = chunk[0];
+                        var others = chunk.Skip(1).Select(x => x.Id).ToList();
+
+                        var endpoint = others.Count > 0
+                            ? $"{mediaPrefix}/{first.Id}/full?ids={string.Join(",", others)}"
+                            : $"{mediaPrefix}/{first.Id}/full";
+
+                        try
+                        {
+                            var data = await TenraiClient.GetDataAsync(endpoint, MetadataRequestTimeout);
+                            if (data.ValueKind != JsonValueKind.Object)
+                                continue;
+
+                            var entries = new List<JsonElement>();
+                            if (data.TryGetProperty("data", out var mainData) && mainData.ValueKind == JsonValueKind.Object)
+                                entries.Add(mainData);
+                            else
+                                entries.Add(data);
+
+                            if (data.TryGetProperty("included", out var includedArr) && includedArr.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var inc in includedArr.EnumerateArray())
+                                    if (inc.ValueKind == JsonValueKind.Object)
+                                        entries.Add(inc);
+                            }
+
+                            foreach (var entry in entries)
+                            {
+                                var malId = ReadInt(entry, "mal_id");
+                                if (malId <= 0)
+                                    continue;
+
+                                var targetItem = chunk.FirstOrDefault(x => x.Id == malId);
+                                if (targetItem == null)
+                                    continue;
+
+                                if (string.IsNullOrEmpty(targetItem.MediaType))
+                                    targetItem.MediaType = NormalizeMediaType(GetString(entry, "type"));
+
+                                if (targetItem.AllEpisodes == 0)
+                                    targetItem.AllEpisodes = isAnime
+                                        ? ReadInt(entry, "episodes")
+                                        : ReadInt(entry, "chapters");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"MALPLUS RecEnrich batch failed: {ex.GetType().Name} - {ex.Message}");
+                        }
+                    }
                 }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
+            }
+            finally
+            {
+                MetadataEnrichmentGate.Release();
             }
         }
 

@@ -134,15 +134,7 @@ public partial class DiscoveryResultsPage : ContentPage, INotifyPropertyChanged
     /// </remarks>
     private static AnimeItemViewModel ToCard(DiscoveryItem item)
     {
-        MALPlus.Models.Models.Library.AnimeLibraryItemData data = item.IsManga
-            ? new MALPlus.Models.Models.Library.MangaLibraryItemData()
-            : new MALPlus.Models.Models.Library.AnimeLibraryItemData();
-
-        data.Id = item.Id;
-        data.Title = item.Title;
-        data.ImgUrl = item.ImgUrl;
-
-        return new AnimeItemAbstraction(false, data).ViewModel;
+        return MALPlus.XShared.Utils.AnimeItemFactory.CreateFromDiscovery(item);
     }
     private async void OnItemSelected(object sender, SelectionChangedEventArgs e)
     {
@@ -162,10 +154,18 @@ public partial class DiscoveryResultsPage : ContentPage, INotifyPropertyChanged
     /// </remarks>
     private async void OnRowTapped(object sender, TappedEventArgs e)
     {
-        if (e.Parameter is not DiscoveryItem item)
-            return;
         ResultsList.SelectedItem = null;
-        await OpenAsync(item);
+        if (e.Parameter is AnimeItemViewModel vm)
+        {
+            var isManga = !vm.ParentAbstraction.RepresentsAnime;
+            var qs = isManga ? "&manga=true" : "";
+            await Shell.Current.GoToAsync(
+                $"animedetails?id={vm.Id}&title={Uri.EscapeDataString(vm.Title ?? "")}{qs}");
+        }
+        else if (e.Parameter is DiscoveryItem item)
+        {
+            await OpenAsync(item);
+        }
     }
 
     /// <summary>

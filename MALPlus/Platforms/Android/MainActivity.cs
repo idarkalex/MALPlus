@@ -164,6 +164,78 @@ public class MainActivity : MauiAppCompatActivity
         MALPlus.Services.OrientationPolicy.Apply(this);
     }
 
+    private bool _swipeChildCancelSent;
+
+    // The root pager sits behind every page, including the custom bottom bar. A
+    // horizontal drag that starts on the bar must belong to the bar, not to the
+    // pager, so the bar tells its ancestors not to intercept for that gesture.
+    // The immediate call is cleared by the RecyclerView's own DOWN reset, hence
+    // the posted one, which lands before the first MOVE is intercepted.
+    private AndroidX.ViewPager2.Widget.ViewPager2 _bottomBarPager;
+
+    private void DisallowRootSwipeOnBottomBar(MotionEvent e)
+    {
+        if (e.ActionMasked is MotionEventActions.Up or MotionEventActions.Cancel)
+        {
+            if (_bottomBarPager != null)
+            {
+                _bottomBarPager.UserInputEnabled = true;
+                _bottomBarPager = null;
+            }
+
+            return;
+        }
+
+        if (e.ActionMasked != MotionEventActions.Down)
+            return;
+
+        var decor = Window?.DecorView;
+        if (decor == null)
+            return;
+
+        var bar = Controls.BottomNavBar.FindPlatformAt(e.GetX(), e.GetY());
+        if (bar == null)
+            return;
+
+        var pagerId = Resources?.GetIdentifier(
+            "shellsection_viewpager", "id", PackageName) ?? 0;
+        var pager = pagerId > 0
+            ? decor.FindViewById(pagerId) as AndroidX.ViewPager2.Widget.ViewPager2
+            : null;
+        if (pager == null)
+            return;
+
+        _bottomBarPager = pager;
+        pager.UserInputEnabled = false;
+    }
+
+    public override bool DispatchTouchEvent(MotionEvent e)
+    {
+        DisallowRootSwipeOnBottomBar(e);
+        var suppress = HorizontalSwipeObserver.Observe(this, e);
+        if (suppress)
+        {
+            if (!_swipeChildCancelSent && e.ActionMasked != MotionEventActions.Cancel)
+            {
+                var cancel = MotionEvent.Obtain(e);
+                cancel.Action = MotionEventActions.Cancel;
+                base.DispatchTouchEvent(cancel);
+                cancel.Recycle();
+                _swipeChildCancelSent = true;
+            }
+
+            if (e.ActionMasked is MotionEventActions.Up or MotionEventActions.Cancel)
+                _swipeChildCancelSent = false;
+
+            return true;
+        }
+
+        if (e.ActionMasked is MotionEventActions.Down or MotionEventActions.Up or MotionEventActions.Cancel)
+            _swipeChildCancelSent = false;
+
+        return base.DispatchTouchEvent(e);
+    }
+
     /// <summary>
     ///     Puts the video overlay in front of the back gesture, for as long as one is open.
     /// </summary>

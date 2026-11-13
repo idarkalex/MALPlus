@@ -19,11 +19,13 @@ namespace MALPlus.Models.Models.Library
             Type = other.Type;
             RewatchingCount = other.RewatchingCount;
             GlobalScore = other.GlobalScore;
+            AirStartDate = other.AirStartDate;
         }
 
         private int _id = -1;
         public string MyStartDate { get; set; }
         public string MyEndDate { get; set; }
+        public string AirStartDate { get; set; }
 
 
         public int Id

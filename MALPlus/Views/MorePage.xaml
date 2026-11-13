@@ -361,6 +361,6 @@
 
             </VerticalStackLayout>
         </ScrollView>
-        <controls:BottomNavBar Grid.Row="1" />
+        <controls:BottomNavBar x:Name="BottomNav" Grid.Row="1" />
     </Grid>
 </ContentPage>

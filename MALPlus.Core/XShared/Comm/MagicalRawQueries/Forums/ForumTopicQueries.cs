@@ -297,7 +297,7 @@ namespace MALPlus.XShared.Comm.MagicalRawQueries.Forums
         {
             var builder = new StringBuilder();
             builder.Append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><base href=\"https://myanimelist.net/\"><style>");
-            builder.Append("html,body{margin:0;padding:0;background:#051522;color:#d4e4f7;}body{font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.5;word-wrap:break-word;}.message{background:#0d1d2c;border:1px solid #1e3a52;border-radius:10px;margin:0 0 10px;padding:12px;}.message-header{display:flex;align-items:center;gap:8px;margin-bottom:4px;}.avatar{flex:0 0 32px;width:32px;height:32px;border-radius:50%;border:1px solid #1e3a52;object-fit:cover;background:#0d1d2c;}.author-name{color:#fff;font-weight:600;}.message-meta{color:#a0b5c8;font-size:12px;font-weight:400;margin-top:2px;}.message-content{overflow-wrap:anywhere;}.message-content p{margin:0 0 8px;}.message-content p:last-child{margin-bottom:0;}.message-content blockquote{border-left:3px solid #0066ff;background:#10283d;color:#b9cde0;margin:10px 0;padding:8px 12px;}.message-content a{color:#4da3ff;}.message-content img{max-width:100%;height:auto;}.message-content pre,.message-content code{font-family:monospace;white-space:pre-wrap;}");
+            builder.Append("html,body{margin:0;padding:0;background:#051522;color:#d4e4f7;}body{font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.5;word-wrap:break-word;padding:14px 12px 32px;}.topic-header{margin:0 0 12px;padding:4px 2px;}.topic-title{font-size:18px;font-weight:700;color:#fff;line-height:1.35;margin:0;}.message{background:#0d1d2c;border:1px solid #1e3a52;border-radius:10px;margin:0 0 10px;padding:12px;}.message-header{display:flex;align-items:center;gap:8px;margin-bottom:4px;}.avatar{flex:0 0 32px;width:32px;height:32px;border-radius:50%;border:1px solid #1e3a52;object-fit:cover;background:#0d1d2c;}.author-name{color:#fff;font-weight:600;}.message-meta{color:#a0b5c8;font-size:12px;font-weight:400;margin-top:2px;}.message-content{overflow-wrap:anywhere;}.message-content p{margin:0 0 8px;}.message-content p:last-child{margin-bottom:0;}.message-content blockquote{border-left:3px solid #0066ff;background:#10283d;color:#b9cde0;margin:10px 0;padding:8px 12px;border-radius:0 8px 8px 0;}.message-content .reply-target{display:block;color:#4da3ff !important;font-weight:600;font-size:13px;margin:0 0 4px;}.message-content .reply-target *{color:#4da3ff !important;font-weight:600;}.message-content .replied-body{display:block;color:#b9cde0;margin:4px 0 0;}.message-content a{color:#4da3ff;}.message-content img{max-width:100%;height:auto;border-radius:6px;}.message-content pre,.message-content code{font-family:monospace;white-space:pre-wrap;}");
             // Post bodies arrive from MAL without a stylesheet, so headings, lists
             // and tables fell back to browser defaults and the opening post rendered
             // in giant type. Pin them to the body size.
@@ -307,6 +307,12 @@ namespace MALPlus.XShared.Comm.MagicalRawQueries.Forums
             builder.Append(".message-content *{color:#d4e4f7 !important;}.message-content a{color:#4da3ff !important;}.message-content h1,.message-content h2,.message-content h3,.message-content h4,.message-content h5,.message-content h6{color:#fff !important;}.message-content blockquote,.message-content blockquote *{color:#b9cde0 !important;}.message-actions{margin:6px 0;}.quote-action{margin-left:auto;display:inline-block;padding:4px 10px;background:#141d2b;border:1px solid #29ffffff;border-radius:8px;color:#4da3ff;text-decoration:none;font-size:12px;}");
 
             builder.Append("</style></head><body>");
+            if (!string.IsNullOrWhiteSpace(data?.Title))
+            {
+                builder.Append("<header class=\"topic-header\"><h1 class=\"topic-title\">");
+                builder.Append(WebUtility.HtmlEncode(data.Title));
+                builder.Append("</h1></header>");
+            }
             if (data?.Messages != null)
             {
                 var firstMessage = true;
@@ -366,6 +372,26 @@ builder.Append("\">Quote</a></header>");
 
             try
             {
+                if (html.IndexOf("[quote", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    try
+                    {
+                        html = Regex.Replace(html, @"\[quote(?:=([^\]]+))?\]([\s\S]*?)\[/quote\]", m =>
+                        {
+                            var user = m.Groups[1].Value?.Trim();
+                            var body = m.Groups[2].Value;
+                            if (!string.IsNullOrWhiteSpace(user))
+                            {
+                                var sep = user.IndexOf("message=", StringComparison.OrdinalIgnoreCase);
+                                if (sep >= 0) user = user.Substring(0, sep).Trim();
+                                return $"<blockquote><div class=\"reply-target\"><strong>{user} said:</strong></div>{body}</blockquote>";
+                            }
+                            return $"<blockquote>{body}</blockquote>";
+                        }, RegexOptions.IgnoreCase);
+                    }
+                    catch { }
+                }
+
                 var document = new HtmlDocument();
                 document.LoadHtml(html);
                 var root = document.DocumentNode.SelectSingleNode("//body") ?? document.DocumentNode;
@@ -436,11 +462,47 @@ builder.Append("\">Quote</a></header>");
                 "font" => "span",
                 _ => null
             };
-            if (name == "div" && HasClass(node, "quotetext"))
-                outputTag = "blockquote";
+            string outputClass = null;
+
+            if (name == "div")
+            {
+                if (HasClass(node, "quotetext") || HasClass(node, "replied") || HasClass(node, "replied-container"))
+                {
+                    if (HasClass(node, "replied-container") && node.ParentNode != null && HasClass(node.ParentNode, "replied"))
+                    {
+                        outputTag = null;
+                    }
+                    else
+                    {
+                        outputTag = "blockquote";
+                    }
+                }
+                else if (HasClass(node, "target") || HasClass(node, "js-replyto-target"))
+                {
+                    if (HasClass(node, "js-replyto-target") && node.ParentNode != null && HasClass(node.ParentNode, "target"))
+                    {
+                        outputTag = "strong";
+                    }
+                    else
+                    {
+                        outputTag = "div";
+                        outputClass = "reply-target";
+                    }
+                }
+                else if (HasClass(node, "replied-body"))
+                {
+                    outputTag = "div";
+                    outputClass = "replied-body";
+                }
+            }
 
             if (outputTag != null)
-                builder.Append('<').Append(outputTag).Append('>');
+            {
+                builder.Append('<').Append(outputTag);
+                if (!string.IsNullOrEmpty(outputClass))
+                    builder.Append(" class=\"").Append(outputClass).Append('"');
+                builder.Append('>');
+            }
             foreach (var child in node.ChildNodes)
                 AppendPresentationNode(child, builder);
             if (outputTag != null)
@@ -476,6 +538,8 @@ builder.Append("\">Quote</a></header>");
             if (name == "script" || name == "style" || name == "noscript" || name == "iframe" ||
                 name == "object" || name == "embed" || name == "form" || name == "input" ||
                 name == "button" || name == "select" || name == "textarea")
+                return true;
+            if (HasClass(node, "js-replyto-view"))
                 return true;
             var classes = (GetAttributeValue(node, "class") ?? string.Empty)
                 .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);

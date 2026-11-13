@@ -44,6 +44,18 @@ namespace MALPlus.Models.Models.AnimeScrapped
         /// </summary>
         public string RecommendedWhen { get; set; }
 
+        public int Votes { get; set; }
+        public bool HasVotes => Votes > 0;
+        public string VotesText => Votes == 1 ? "1 vote" : $"{Votes:N0} votes";
+
+        public string DependentType { get; set; }
+        public double DependentScore { get; set; }
+        public int DependentAllEpisodes { get; set; }
+
+        public string RecommendationType { get; set; }
+        public double RecommendationScore { get; set; }
+        public int RecommendationAllEpisodes { get; set; }
+
         public AnimeGeneralDetailsData AnimeDependentData { get; set; }
 
         public AnimeGeneralDetailsData AnimeRecommendationData { get; set; }

@@ -26,6 +26,7 @@ public class DiscoveryItem
 
             /// <summary>Year the entry started airing/publishing, 0 when unknown.</summary>
             public int Year { get; set; }
+            public int AllEpisodes { get; set; }
         /// <summary>Direct media url, only set for the OP/ED discovery entries.</summary>
         public string ThemeUrl { get; set; }
     }
@@ -72,6 +73,7 @@ public class DiscoveryItem
         public int MinYear { get; set; }
         public int MaxYear { get; set; }
         public double MinScore { get; set; } = 0;
+        public double MaxScore { get; set; } = 0;
     }
 
 /// <summary>
@@ -143,7 +145,7 @@ public class DiscoveryItem
             "query($perPage:Int)" +
             "{Page(perPage:$perPage)" +
             "{media(type:ANIME,status:RELEASING,sort:TRENDING_DESC,isAdult:false)" +
-            "{id idMal:idMal title{romaji}coverImage{large}genres averageScore}" +
+            "{id idMal:idMal title{romaji}coverImage{large}genres averageScore format episodes}" +
             "}}";
 
         private static string Body(int perPage) =>
@@ -221,12 +223,31 @@ public class DiscoveryItem
                     // AniList scores out of 100 and MAL out of ten.
                     var malScore = score > 0 ? score / 10d : 0d;
 
+                    var format = entry.TryGetProperty("format", out var fmtProp) && fmtProp.ValueKind == JsonValueKind.String
+                        ? fmtProp.GetString()
+                        : "TV";
+                    var normalizedType = format switch
+                    {
+                        "TV_SHORT" => "TV",
+                        "MOVIE" => "Movie",
+                        "SPECIAL" => "Special",
+                        "OVA" => "OVA",
+                        "ONA" => "ONA",
+                        "MUSIC" => "Music",
+                        _ => "TV"
+                    };
+                    var epCount = entry.TryGetProperty("episodes", out var epProp) && epProp.ValueKind == JsonValueKind.Number
+                        ? epProp.GetInt32()
+                        : 0;
+
                     output.Add(new DiscoveryItem
                     {
                         Id = id,
                         Title = title,
                         ImgUrl = cover,
                         IsManga = false,
+                        Type = normalizedType,
+                        AllEpisodes = epCount,
                         Score = malScore,
                         // No subtitle. It used to say "Trending now" on every row, which told the
                         // reader the same thing the sheet's own heading says twenty times over; the
@@ -293,13 +314,14 @@ public class DiscoveryItem
         private const int MaxOffset = 20000;
 
         public static async Task<List<DiscoveryItem>> GetAsync(bool manga, RandomFilter filter,
-            int minScore, int maxPopularityRank, int limit = 20)
+            int minScore, int maxPopularityRank, int limit = 20, IEnumerable<int> excludeIds = null)
         {
             var output = new List<DiscoveryItem>();
             try
             {
                 var media = manga ? "manga" : "anime";
                 var effectiveMinScore = minScore > 0 ? minScore : filter?.MinScore ?? 0;
+                var effectiveMaxScore = filter?.MaxScore ?? 0;
                 var parts = new List<string>
                 {
                     // Always written, one way or the other. A list with no parts at all would build the
@@ -313,10 +335,49 @@ public class DiscoveryItem
                     var formats = filter.FormatsQuery();
                     if (!string.IsNullOrEmpty(formats))
                         parts.Add("type=" + formats);
+                    if (filter.MinYear > 0)
+                        parts.Add($"start_date={filter.MinYear:D4}-01-01");
+                    if (filter.MaxYear > 0)
+                        parts.Add($"end_date={filter.MaxYear:D4}-12-31");
                 }
                 if (effectiveMinScore > 0)
                     parts.Add("min_score=" + effectiveMinScore.ToString("0.0",
                         System.Globalization.CultureInfo.InvariantCulture));
+                if (effectiveMaxScore > 0)
+                    parts.Add("max_score=" + effectiveMaxScore.ToString("0.0",
+                        System.Globalization.CultureInfo.InvariantCulture));
+                if (excludeIds != null)
+                {
+                    var ids = excludeIds.Take(1000).ToList();
+                    if (ids.Count > 0)
+                        parts.Add("exclude_ids=" + string.Join(",", ids));
+                }
+
+                var hasYearFilter = filter != null && (filter.MinYear > 0 || filter.MaxYear > 0);
+
+                // If asking for a single random pick without popularity bounds and without year bounds
+                // (Tenrai's /random ignores date ranges), Tenrai's upgraded /random/{anime|manga} endpoint
+                // directly returns a matching entry in 1 request.
+                if (limit == 1 && maxPopularityRank <= 0 && !hasYearFilter)
+                {
+                    var randomQuery = $"random/{media}?" + string.Join("&", parts);
+                    var randomRaw = await TenraiClient.GetRawJsonAsync(randomQuery);
+                    if (!string.IsNullOrEmpty(randomRaw))
+                    {
+                        using var rdoc = JsonDocument.Parse(randomRaw);
+                        if (rdoc.RootElement.TryGetProperty("data", out var rdata) &&
+                            rdata.ValueKind == JsonValueKind.Object)
+                        {
+                            var ritem = ParseCatalogEntry(rdata, manga);
+                            if (ritem != null)
+                            {
+                                output.Add(ritem);
+                                return output;
+                            }
+                        }
+                    }
+                }
+
                 var baseQuery = media + "?" + string.Join("&", parts);
 
                 var lastPage = await ResolveLastPageAsync(media, baseQuery, PageSize);
@@ -324,28 +385,58 @@ public class DiscoveryItem
                     return output;
 
                 var maxPage = Math.Max(1, Math.Min(lastPage, MaxOffset / PageSize));
-                var page = maxPage == 1 ? 1 : Rng.Next(1, maxPage + 1);
-                var raw = await TenraiClient.GetRawJsonAsync($"{baseQuery}&page={page}&limit={PageSize}");
-                if (string.IsNullOrEmpty(raw))
-                    return output;
 
-                using var doc = JsonDocument.Parse(raw);
-                if (!doc.RootElement.TryGetProperty("data", out var data) ||
-                    data.ValueKind != JsonValueKind.Array)
-                    return output;
-
-                foreach (var entry in data.EnumerateArray())
+                // Try up to 3 random pages if needed, to guard against small pools or sparse pages
+                for (var attempt = 0; attempt < 3 && output.Count < limit; attempt++)
                 {
-                    if (output.Count >= limit)
-                        break;
-                    var item = ParseCatalogEntry(entry, manga);
-                    if (item == null)
+                    var page = maxPage == 1 ? 1 : Rng.Next(1, maxPage + 1);
+                    var raw = await TenraiClient.GetRawJsonAsync($"{baseQuery}&page={page}&limit={PageSize}");
+                    if (string.IsNullOrEmpty(raw))
                         continue;
-                    // Popularity ceilings cannot be filtered server side (Tenrai ignores
-                    // min_members/max_members), so they are applied here.
-                    if (maxPopularityRank > 0 && item.PopularityRank > 0 && item.PopularityRank < maxPopularityRank)
+
+                    using var doc = JsonDocument.Parse(raw);
+                    if (!doc.RootElement.TryGetProperty("data", out var data) ||
+                        data.ValueKind != JsonValueKind.Array)
                         continue;
-                    output.Add(item);
+
+                    var batch = new List<DiscoveryItem>();
+                    foreach (var entry in data.EnumerateArray())
+                    {
+                        var item = ParseCatalogEntry(entry, manga);
+                        if (item == null)
+                            continue;
+                        // Popularity ceilings cannot be filtered server side (Tenrai ignores
+                        // min_members/max_members), so they are applied here.
+                        if (maxPopularityRank > 0 && item.PopularityRank > 0 && item.PopularityRank < maxPopularityRank)
+                            continue;
+                        // Client-side safety bounds
+                        if (effectiveMinScore > 0 && item.Score > 0 && item.Score < effectiveMinScore)
+                            continue;
+                        if (effectiveMaxScore > 0 && item.Score > effectiveMaxScore)
+                            continue;
+                        if (filter?.MinYear > 0 && item.Year > 0 && item.Year < filter.MinYear)
+                            continue;
+                        if (filter?.MaxYear > 0 && item.Year > 0 && item.Year > filter.MaxYear)
+                            continue;
+                        batch.Add(item);
+                    }
+
+                    if (batch.Count == 0)
+                        continue;
+
+                    if (limit == 1)
+                    {
+                        // Pick a random candidate from the page rather than always the first one
+                        output.Add(batch[Rng.Next(batch.Count)]);
+                        return output;
+                    }
+
+                    foreach (var item in batch)
+                    {
+                        if (output.Count >= limit)
+                            break;
+                        output.Add(item);
+                    }
                 }
             }
             catch
@@ -392,19 +483,41 @@ public class DiscoveryItem
                 int popularity = 0;
                 if (entry.TryGetProperty("popularity", out var pop) && pop.ValueKind == JsonValueKind.Number)
                     popularity = pop.GetInt32();
-double score = 0;
-                  if (entry.TryGetProperty("score", out var sc) && sc.ValueKind == JsonValueKind.Number)
-                      score = sc.GetDouble();
-                  // Tenrai names it num_list_users; members is the same figure MAL shows as "Members".
-                  int members = 0;
-                  if (entry.TryGetProperty("members", out var mem) && mem.ValueKind == JsonValueKind.Number)
-                      members = mem.GetInt32();
-                  else if (entry.TryGetProperty("num_list_users", out var mem2) &&
-                           mem2.ValueKind == JsonValueKind.Number)
-                      members = mem2.GetInt32();
-                  int year = 0;
-                  if (entry.TryGetProperty("year", out var yr) && yr.ValueKind == JsonValueKind.Number)
-                      year = yr.GetInt32();
+                double score = 0;
+                if (entry.TryGetProperty("score", out var sc) && sc.ValueKind == JsonValueKind.Number)
+                    score = sc.GetDouble();
+                // Tenrai names it num_list_users; members is the same figure MAL shows as "Members".
+                int members = 0;
+                if (entry.TryGetProperty("members", out var mem) && mem.ValueKind == JsonValueKind.Number)
+                    members = mem.GetInt32();
+                else if (entry.TryGetProperty("num_list_users", out var mem2) &&
+                         mem2.ValueKind == JsonValueKind.Number)
+                    members = mem2.GetInt32();
+                int year = 0;
+                if (entry.TryGetProperty("year", out var yr) && yr.ValueKind == JsonValueKind.Number)
+                    year = yr.GetInt32();
+                if (year <= 0)
+                {
+                    var datePropName = manga ? "published" : "aired";
+                    if (entry.TryGetProperty(datePropName, out var dateObj) && dateObj.ValueKind == JsonValueKind.Object)
+                    {
+                        if (dateObj.TryGetProperty("prop", out var propObj) && propObj.ValueKind == JsonValueKind.Object &&
+                            propObj.TryGetProperty("from", out var fromObj) && fromObj.ValueKind == JsonValueKind.Object &&
+                            fromObj.TryGetProperty("year", out var fromYear) && fromYear.ValueKind == JsonValueKind.Number)
+                        {
+                            year = fromYear.GetInt32();
+                        }
+                        else if (dateObj.TryGetProperty("from", out var fromStr) && fromStr.ValueKind == JsonValueKind.String)
+                        {
+                            var s = fromStr.GetString();
+                            if (!string.IsNullOrEmpty(s) && s.Length >= 4 && int.TryParse(s.Substring(0, 4), out var y))
+                                year = y;
+                        }
+                    }
+                }
+                int episodes = 0;
+                if (entry.TryGetProperty("episodes", out var ep) && ep.ValueKind == JsonValueKind.Number)
+                    episodes = ep.GetInt32();
 
                   return new DiscoveryItem
                   {
@@ -417,6 +530,7 @@ double score = 0;
                       Score = score,
                       Members = members,
                       Year = year,
+                      AllEpisodes = episodes,
                       Subtitle = BuildSubtitle(type, score, popularity)
                   };
             }
@@ -563,6 +677,10 @@ double score = 0;
                     if (item.Members <= 0 || item.Members > MaxMembers)
                         continue;
                     if (item.Year > 0 && item.Year < MinYear)
+                        continue;
+
+                    var normType = item.Type?.Trim().ToLowerInvariant();
+                    if (normType != "tv" && normType != "movie" && normType != "ova")
                         continue;
 
                     if (alreadyInLibrary != null && alreadyInLibrary.Contains(item.Id))
