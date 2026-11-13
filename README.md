@@ -12,7 +12,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/.NET-11.0%20MAUI-512BD4?logo=dotnet&logoColor=white" alt=".NET 11 MAUI" />
   <img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-3DDC84?logo=android&logoColor=white" alt="Android 7.0+" />
-  <img src="https://img.shields.io/badge/Version-0.7.0--beta-0066FF" alt="Version 0.7.0" />
+  <img src="https://img.shields.io/badge/Version-0.7.1--beta-0066FF" alt="Version 0.7.1" />
   <img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg" alt="License: GPL v3" />
   <img src="https://img.shields.io/badge/Telemetry-0%25%20(Privacy--First)-success" alt="100% Local Privacy" />
 </p>
