@@ -31,9 +31,9 @@ body:
   - type: input
     id: android_version
     attributes:
-      label: "Android Version / API"
+      label: "Android Version"
       description: "Operating system version."
-      placeholder: "e.g., Android 14 (API 34), Android 15"
+      placeholder: "e.g., Android 14, Android 15"
     validations:
       required: true
 

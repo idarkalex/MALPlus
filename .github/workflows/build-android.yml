@@ -10,6 +10,7 @@ on:
       - '**/*.md'
       - 'docs/**'
       - 'images/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches:
       - main
