@@ -1,197 +1,152 @@
-# Tenrai API — Referencia de uso en MAL+
+# Tenrai API — Reference & Integration Guide for MAL+
 
-Tenrai (`https://api.tenrai.org/v1`) is a free **Unofficial** REST API for the full MyAnimeList public catalogue.
-It implements the **Jikan v4 schema**, so it can replace Jikan with only a base-URL swap.
-
-This file documents which endpoints MAL+ uses today, which structured endpoints exist that could replace
-fragile HTML scraping / third-party feeds, and the exact fields we verified live (2026-09-01).
-
-## Auth & Rate limits (verified from docs)
-- Public requests need **no credentials**.
-- `X-Server-Key` raises limits but is for server-side only — **MUST NOT be embedded in the mobile client**.
-- Public limits: **120 RPM / 4 RPS / 40,000 RPD** per IP.
-- On `429` honor `Retry-After`. `TenraiClient` already spaces requests 500ms and retries 4x.
-
-## JSON conventions
-- Single-value unknown field → `null`; empty list/nested object → `[]`/`{}`.
-- Score unknown → `0`. Dates/timestamps → ISO8601 **UTC**.
-- Error envelope: `{ status, type, message, error, path }`.
-
-## SFW filtering
-- `?sfw` filters out `R+`/`Rx`/Hentai/Erotica. `?sfw-strict` also filters Ecchi.
+Tenrai (`https://api.tenrai.org/v1`) is a free, high-performance unofficial REST API for the MyAnimeList catalogue. It adheres to the **Jikan v4 schema**, enabling drop-in compatibility while offering specialized extensions, batch endpoints, and advanced filtering options.
 
 ---
 
-## Endpoints used by MAL+ today (mapped to source files)
+## ⚙️ Core API Guidelines
 
-### Catalogue / details
-| Endpoint | Field | Use in MAL+ |
+### Authentication & Rate Limits
+- **Public Requests:** No authentication or API keys required.
+- **Server Key:** The `X-Server-Key` header is intended strictly for server-side environments and **must never be embedded in the mobile client**.
+- **Public Rate Limits:**
+  - 120 requests per minute (RPM)
+  - 4 requests per second (RPS)
+  - 40,000 requests per day (RPD) per client IP
+- **Backoff & Throttling:** On `429 Too Many Requests`, clients must honor the `Retry-After` header. `TenraiClient` in MAL+ automatically enforces a 500 ms spacing between requests and handles retries with exponential backoff.
+
+### Conventions & Envelope
+- **Unknown/Missing Values:** Single unknown fields return `null`. Empty lists/objects return `[]` or `{}`.
+- **Scores:** Unknown scores default to `0`.
+- **Timestamps:** Dates and timestamps use ISO 8601 in **UTC**.
+- **Error Response Shape:**
+  ```json
+  {
+    "status": 404,
+    "type": "BadResponseException",
+    "message": "Resource not found",
+    "error": "Not Found",
+    "path": "/v1/anime/..."
+  }
+  ```
+
+### Content Filtering (SFW)
+- `?sfw=true`: Filters out adult content (`R+`, `Rx`, Hentai, Erotica).
+- `?sfw-strict=true`: Applies strict filtering, additionally excluding Ecchi content.
+
+---
+
+## 📦 Block 1: Endpoints Integrated in MAL+
+
+The following endpoints are currently active in MAL+ and mapped to their respective query and service classes:
+
+### Catalogue & Details
+| Endpoint | Description | MAL+ Source Implementation |
 |---|---|---|
-| `GET /anime?q=&sfw&genres=&order_by=` | search | `AnimeSearchQuery` (`GetPaginatedAsync("anime?...")`) |
-| `GET /manga?q=&sfw` | manga search | `MangaSearchQuery` |
-| `GET /anime/{id}` | anime details (36 keys, **no** relations/theme/external) | `AnimeDetailsMalQuery.FetchFromTenraiAsync` |
-| `GET /manga/{id}` | manga details | `AnimeDetailsMalQuery` (manga) |
-| `GET /anime/{id}/full` | full details (**41 keys**, incl. relations/theme/external/streaming/moreinfo) | `AnimeGeneralDetailsQuery.BuildFromFullData` (currently only ~15 fields read) |
-| `GET /manga/{id}/full` | manga full details | `AnimeGeneralDetailsQuery` |
-| `GET /anime/{id}/themes` | OP/ED strings | `AnimeDetailsMalQuery` (separate 2nd call) |
-| `GET /anime/{id}/episodes` | episode list: `mal_id,url,title,title_japanese,title_romanji,aired(ISO UTC),filler,recap,forum_url,score` | `AnimeEpisodesQuery.GetEpisodes` / `GetLastEpisodesAsync` |
-| `GET /anime/{id}/characters` | characters (with `voice_actors`) | `AnimeCharactersStaffQuery` |
-| `GET /manga/{id}/characters` | manga characters | `AnimeCharactersStaffQuery` |
-| `GET /anime/{id}/staff` | staff (with `positions`) | `AnimeCharactersStaffQuery` |
-| `GET /anime/{id}/reviews` | reviews | `AnimeReviewsQuery.FetchReviewsFromTenraiAsync` |
+| `GET /anime?q={query}&sfw&genres=&order_by=` | Anime search with filters | `AnimeSearchQuery` |
+| `GET /manga?q={query}&sfw` | Manga search with filters | `MangaSearchQuery` |
+| `GET /anime/{id}` | Lightweight anime details (basic fields) | `AnimeDetailsMalQuery.FetchFromTenraiAsync` |
+| `GET /manga/{id}` | Lightweight manga details | `AnimeDetailsMalQuery` (manga path) |
+| `GET /anime/{id}/full` | Comprehensive anime details (includes themes, relations, streaming, external) | `AnimeGeneralDetailsQuery.BuildFromFullData` |
+| `GET /manga/{id}/full` | Comprehensive manga details | `AnimeGeneralDetailsQuery` |
+| `GET /anime/{id}/themes` | Opening and ending theme songs | `AnimeDetailsMalQuery` |
+| `GET /anime/{id}/episodes` | Full episode list (with titles, air dates, filler/recap flags) | `AnimeEpisodesQuery` |
+| `GET /anime/{id}/characters` | Character roster with voice actor credits | `AnimeCharactersStaffQuery` |
+| `GET /manga/{id}/characters` | Manga character roster | `AnimeCharactersStaffQuery` |
+| `GET /anime/{id}/staff` | Production staff and credited roles | `AnimeCharactersStaffQuery` |
+| `GET /anime/{id}/reviews` | User reviews for a title | `AnimeReviewsQuery.FetchReviewsFromTenraiAsync` |
 
-### Discovery
-| Endpoint | Use in MAL+ |
-|---|---|
-| `GET /seasons/{year}/{season}` (or `/seasons/now`) | `AnimeSeasonalQuery` |
-| `GET /seasons` | `AnimeListViewModel` (available seasons list) |
-| `GET /anime?producers=&order_by=score` / `?genres=` | `AnimeGenreStudioQuery` |
-
----
-
-## Endpoints NOT used today (structured replacements available)
-
-These structured endpoints would eliminate fragile HTML scraping or third-party feeds:
-
-| Endpoint | Replaces | Notes (verified) |
+### Discovery & Schedules
+| Endpoint | Description | MAL+ Source Implementation |
 |---|---|---|
-| **`GET /schedules`** | `mylovelyvps.xyz airing.json` + AniList `AnimeAniListScheduleQuery` | Returns **~297 airing series** with full object: `mal_id,title,images,status="Currently Airing",airing=true,broadcast{day,time,timezone,string},aired{from,to,string},genres,score`. Today the app used a 129-item feed lacking titles + an AniList GraphQL fallback. |
-| **`GET /anime/{id}/full` `.relations` / `.theme` / `.background` / `.external` / `.streaming` / `.moreinfo` / `.explicit_genres` / `.demographics`** | `AnimeRelatedQuery` (HTML scraper) + separate `/themes` call + missing detail fields | Single call already returns all of these; `BuildFromFullData` ignores them. |
-| **`GET /top/anime`** | `AnimeTopQuery` HTML scraper (`topanime.php`) | Full object per entry (`mal_id,title,images,type,episodes,score,rank,members,genres,status`). `filter=airing|upcoming|bypopularity|favorite`, `type=tv|movie|ova|special|ona|music|cm|pv|tv_special`. |
-| **`GET /top/manga`** | `AnimeTopQuery` HTML scraper (`topmanga.php`) | `filter=publishing|upcoming|bypopularity|favorite`, `type=manga|novel|lightnovel|oneshot|doujin|manhwa|manhua`. NOTE: singular type values (scraper used plural). |
-| `GET /anime/{id}/relations` | (or use `.relations` from `/full`) | Available standalone too. |
-| `GET /anime/{id}/statistics` | — | Not used. |
-| `GET /anime/{id}/pictures` | — | Not used. |
-| `GET /anime/{id}/news` / `articles` | MAL articles scrape | Available. |
-| `GET /anime/{id}/recommendations` | `AnimeDirectRecommendationsQuery`/`AnimePersonalizedRecommendationsQuery` (scrapers) | Available structured. |
-| `GET /genres/anime` / `/genres/manga`, `/magazines` | — | Available. |
+| `GET /seasons/{year}/{season}` | Seasonal anime listing for a specific season | `AnimeSeasonalQuery` |
+| `GET /seasons/now` | Currently airing season listing | `AnimeSeasonalQuery` |
+| `GET /seasons` | Available seasons archive | `AnimeListViewModel` |
+| `GET /anime?producers={id}&order_by=score` | Anime filtered by studio or producer | `AnimeGenreStudioQuery` |
+| `GET /anime?genres={id}` | Anime filtered by genre | `AnimeGenreStudioQuery` |
 
 ---
 
-## Verified JSON shapes (live, 2026-09-01)
+## 🚀 Block 2: Available Endpoints for Future Integration
 
-### `GET /anime/{id}/full` (41 keys)
-```
-mal_id, url, images{jpg,webp}, trailer, approved, titles[], title, title_english,
-title_japanese, title_synonyms, type, source, episodes, status, airing, aired{from,to,prop,string},
-duration, rating, score, scored_by, rank, popularity, members, favorites, synopsis, background,
-season, year, broadcast{day,time,timezone,string}, producers[], licensors[], studios[],
-genres[], explicit_genres[], themes[], demographics[], relations[{relation,entry[]}],
-theme{openings[],endings[]}, external[{name,url}], streaming[], moreinfo
-```
-`/anime/{id}` (simple) has the same minus `relations, theme, external, streaming, moreinfo`.
+The following endpoints and capabilities are available in Tenrai API and can be integrated into MAL+ to replace legacy scrapers, enhance discovery, or optimize network payloads:
 
-Relations entry objects: `{ mal_id, type: "anime"|"manga", name, url, media_type, images{jpg} }`.
+### 1. Top Rankings & Curated Highlights
+- **`GET /top/episodes`**
+  - Browse anime episodes ranked by community discussion-poll ratings.
+  - Parameters: Default weighted ranking (average score + vote volume), `order_by=score` (minimum 100 votes), `order_by=votes`, `order_by=comments`.
+- **`GET /top/recommendations`**
+  - Community-recommended anime and manga pairs.
+  - Replaces fragile HTML pair scrapers.
+- **`GET /top/videos`**
+  - Anime promotional videos (PVs) and creditless music videos ranked by YouTube statistics.
+  - Replaces external video scrape routines.
+- **`GET /top/anime` & `GET /top/manga`**
+  - Native paginated rankings with extended parameter filters:
+    - `filter`: `airing`, `upcoming`, `bypopularity`, `favorite`
+    - `min_members`, `max_members`, `min_episodes`, `min_chapters`, `min_volumes`
+    - `genres`, `genres_exclude`, `sort=asc|desc`
+    - `exclude_ids`: Exclude titles already in user's library (up to 1,000 IDs).
 
-### `GET /schedules` (paginated; `filter=monday|...|sunday`, `sfw`)
-Each item is the full anime object incl. `broadcast.day` (`"Mondays"`), `broadcast.time` (`"21:00"`),
-`broadcast.timezone` (`"Asia/Tokyo"`), `broadcast.string` (`"Mondays at 21:00 (JST)"`), and
-`aired.from`/`aired.to` ISO4217 datetimes.
+### 2. Manga Adapted to Anime (`/adapted`)
+- **`GET /adapted`**
+  - Dedicated endpoint listing exclusively manga series that have received an anime adaptation.
+  - **Replaces legacy HTML scraping (`AnimeAdaptedToAnimeQuery`).**
+  - Supported parameters:
+    - `exclude_ids`: Exclude up to 1,000 IDs.
+    - `type_exclude`, `status_exclude`, `genres_exclude`
+    - `magazines`, `magazines_exclude`: Filter by magazine or serialization platform.
+    - `solo_author`: `true` for single creator, `false` for multi-creator teams.
+    - `year`, `min_year`, `max_year`
+    - Bounds: `min_members`, `max_members`, `min_volumes`, `max_volumes`, `min_chapters`, `max_chapters`, `min_scored_by`, `max_scored_by`, `min_favorites`, `max_favorites`, `min_reviews`, `max_reviews`.
+    - Sorting: `order_by` (`title_english`, `title_japanese`, `nulls` handling).
 
-### `GET /anime/{id}/episodes`
-```
-data: [ { mal_id, url, title, title_japanese, title_romanji, duration, aired: "2026-07-06T00:00:00+00:00",
-         score, filler, recap, synopsis, replies, forum_url, images } ]
-pagination: { last_visible_page, has_next_page }
-```
-`aired` is a **UTC ISO datetime** — ideal for exact next-episode countdown.
+### 3. Schedules (`/schedules`)
+- **`GET /schedules`**
+  - Full weekly airing broadcast schedule with precise timezones (`broadcast.day`, `broadcast.time`, `broadcast.timezone`, `broadcast.string`).
+  - Parameters: `filter` (`monday` ... `sunday`), `type`, `rating`, `genres`, `genres_exclude`, `exclude_ids`.
+  - Replaces external third-party schedule JSON feeds.
 
-### `GET /top/anime` / `GET /top/manga`
-Pagination `{ last_visible_page, has_next_page, current_page, items{...} }`; each entry is the full
-catalogue object (same keys as `/anime/{id}`).
+### 4. High-Performance Batch Lookups
+- **`GET /anime/{id}/full?ids={id1},{id2},...` & `GET /manga/{id}/full?ids=...`**
+  - Request full details for up to **25 IDs in a single HTTP request** (1 primary + 24 batched).
+  - Supports `sfw=true` across all batched titles.
+  - Supports `mode=deleted` and `mode=denied` archive lookups for offline cache reconciliation.
+
+### 5. Advanced Search & Filtering Parameters
+Available on both `/anime` and `/manga`:
+- `ids` & `exclude_ids`: Restrict or exclude searches to a specific set of up to 1,000 IDs (ideal for list cross-referencing).
+- `min_scored_by` & `max_scored_by`: Filter by number of scoring users.
+- `min_members` & `max_members` / `min_favorites` & `max_favorites`
+- `year`, `min_year`, `max_year` (accepts multiple years, up to 25).
+- `characters` & `character_role`: Filter titles where specific character IDs appear as main or supporting.
+- `producers` & `producers_exclude` (anime) / `authors` & `authors_exclude` (manga).
+- `broadcast_day`: Filter by air day in Japan (`today`, `tomorrow`, or day of the week).
+- `streaming_service`: Filter by platform (`crunchyroll`, `netflix`, `hidive`, etc.).
+- `has_trailer=true|false` & `has_relations=true|false`.
+- Sorting extensions: `title_japanese`, `title_english`, `order_by=added` (with `sort=desc`).
+
+### 6. Expanded Character, People & Producer Endpoints
+- **`GET /characters`:** Search with filters: `anime`, `manga`, `role`, `role_only`, `appears_in=anime|manga|both`, `airing`, `voice_actors`, `voice_language`, `min_appearances`, `min_main_roles`.
+- **`GET /people`:** Search voice actors and creators by `anime`, `manga`, `characters`, `credit` (`voice`, `staff`, `author`), `position`, `voice_language`, `min_voice_roles`.
+- **`GET /producers`:** Search studios by `role` (`studio`, `producer`, `licensor`), `worked_with`, `airing`, `min_anime`, `debut_after`, `established_after`.
+
+### 7. Community Reviews, News & Articles
+- **`GET /news` & `GET /articles`:** Search with `order_by=published_at|comments`, `published_after`, `published_before`, and `author_username`.
+- **`GET /reviews/anime` & `GET /reviews/manga`:** Filter reviews directly by reviewer `username`.
 
 ---
 
-## Rate-limit budget notes
-- `/schedules` is cached 8h in `AiringInfoProvider` → ~1 request per 8h. Cheap.
-- Switching `AnimeDetailsMalQuery` from 2 calls (`/anime/{id}` + `/themes`) to 1 (`/full`) reduces load.
-- All other calls run through `TenraiClient`'s 500ms spacing + 4x retry (within 4 RPS / 120 RPM).
+## 🛠️ Block 3: HTML Scraper Audit & Replacement Roadmap
 
-Refer also to the refactor summary in `AGENTS.md` and the cache-version bump rule (`mal_details_v3_*` →
-`v4` when fields added; no in-place migration).
+MAL+ adheres to the hierarchy: **Tenrai API &gt; Official MAL API &gt; HTML Scraping**. HTML scraping is strictly reserved for cases where structured API data does not exist.
 
----
+With recent Tenrai capabilities, the status of legacy scrapers is as follows:
 
-## The four remaining HTML scrapers (audited 2026-10-01, deliberate)
-
-Standing rule: **Tenrai > MAL API > HTML scrape**, and HTML is only allowed when the other two
-genuinely cannot answer the question. Four queries still scrape MAL HTML. Every one of them was
-checked against both alternatives with live requests, and each was kept because the data the UI
-needs does not exist elsewhere. Do not "fix" these by pointing them at an endpoint that merely
-returns 200.
-
-| Query | Why it stays HTML |
-|---|---|
-| `AnimeRecomendationsQuery` | Needs **pairs** (A → B) plus the user's written reason. Tenrai has no pairs. |
-| `AnimePersonalizedRecommendationsQuery` | Pairs personalised from the user's own list. Nothing else has it. |
-| `AnimeAdaptedToAnimeQuery` | The global "manga with an anime adaptation" listing. No endpoint exists. |
-| `PopularVideosQuery` | `myanimelist.net/watch/promotion` promos. Not in MAL API at all. |
-
-### Trap 1 — invented filter parameters are ignored, not rejected
-`/manga?adapted=true`, `?has_anime=true`, `?source=anime`, `?adaptation=anime` all return
-**HTTP 200 with the generic top manga list** (first entry "Monster"). A migration written against
-one of these looks like it works and silently serves the wrong data. Always check the payload,
-not the status code.
-
-`/anime?source=manga` *is* honoured (returns One Piece for `status=airing`), but that yields the
-**anime**, whereas this screen must show **manga**. Wrong direction of the relation.
-
-### Trap 2 — `recommendations.php` pairs vs Tenrai's per-anime list
-`AnimeRecomendationsQuery` parses `recommendations.php?s=recentrecs&t=anime`, which yields **100
-pairs**, each with the recommender's own sentence and username.
-
-Measured on the same entry (`Another`, id 11111), MAL pair 1 of the page was:
-
-```
-A origen   : Another  [anime/11111]
-descripcion: "Again, poor students trying to survive some mystery-horror scenario.
-              Gore and screams, all just like 'Another'."
-```
-
-Tenrai `GET /anime/11111/recommendations` returns **106 items for that single anime**:
-
-```
-Higurashi no Naku Koro ni   votes=79
-Shiki                       votes=50
-Corpse Party: Tortured Souls votes=48
-...
-item keys:  entry, url, votes
-entry keys: mal_id, url, images, title
-```
-
-| | MAL HTML | Tenrai |
-|---|---|---|
-| Items | 100 **pairs** | 106, for **one** anime |
-| Written reason | yes | **no** |
-| Recommender username | yes | **no** |
-| Votes | no | **yes** |
-| A → B pair | yes | **no** |
-
-So Tenrai is *richer* (votes) but cannot render this screen at all: the feature is "pairs and why".
-Switching sources is a **product change**, not a data-source swap.
-
-### Trap 3 — the MAL API v2 does have forum endpoints (correcting an earlier claim)
-Forums were previously documented here as having no API. That was wrong. Verified live:
-
-| Endpoint | Result |
-|---|---|
-| `GET /v2/forum/boards` | 200 but `data: []` (**empty**) |
-| `GET /v2/forum/topics?board_id=1` | 200, 10 items (`id,title,created_at,number_of_posts,...`) |
-| `GET /v2/forum/topic/{id}` | **404** — no message bodies |
-
-Forums therefore stay HTML: the API can list boards/topics but **cannot deliver post content**, so
-migrating would half-work and degrade the forums.
-
-### Trap 4 — these MAL API v2 endpoints do not exist (404, not 401)
-`/anime/{id}/recommendations`, `/anime/{id}/videos`, `/anime/{id}/reviews`,
-`/users/@me/animerecommendations`, `/manga/adapted`, `/watch/promotion` all return **404** with a
-valid client id. Auth-required endpoints return **401** (`/users/@me` → `invalid_token`), so 404
-means "no such endpoint".
-
-Note `/anime/{id}/reviews` is 404 in MAL API but **is** available on Tenrai, which is why
-`AnimeReviewsQuery` already uses Tenrai.
-
-### Unauthenticated response shape
-Without an OAuth token, MAL API v2 answers `/anime/{id}` with only `id,title,main_picture` — no
-score, genres, studios or stats. Any new query built on it needs a token, so "just use the API"
-is never a way around a login problem.
+| Feature / Legacy Scraper | Legacy Method | Modern Tenrai Replacement | Migration Status |
+|---|---|---|---|
+| **Manga Adapted to Anime** (`AnimeAdaptedToAnimeQuery`) | HTML scraping | `GET /adapted` | **Ready for migration:** Fully supported by Tenrai with rich filtering and sorting. |
+| **Popular & Promotional Videos** (`PopularVideosQuery`) | HTML scraping (`/watch/promotion`) | `GET /v1/top/videos` | **Ready for migration:** Tenrai provides structured YT video entries. |
+| **Community Recommendations** (`AnimeRecomendationsQuery`) | HTML scraping (`recommendations.php`) | `GET /top/recommendations` | **Ready for migration:** Provides structured recommended pairs. |
+| **Weekly Airing Schedules** (`AiringInfoProvider`) | Third-party feeds | `GET /schedules` | **Ready for migration:** Provides official broadcast timestamps and timezone data. |
+| **Forums & Discussions** | HTML scraping | None (stays HTML) | **Kept as HTML:** The official MAL API does not expose post message bodies (returns 404/empty). |

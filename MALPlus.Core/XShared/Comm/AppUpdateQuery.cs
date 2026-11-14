@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using MALPlus.XShared.ViewModels;
@@ -13,12 +14,15 @@ namespace MALPlus.XShared.Comm
         public string ReleaseName { get; set; }
         public string ReleaseNotes { get; set; }
         public string HtmlUrl { get; set; }
+        public string Architecture { get; set; }
     }
 
     public class AppUpdateQuery
     {
         private const string ReleasesUrl = "https://api.github.com/repos/idarkalex/MALPlus/releases";
         private readonly HttpClient _httpClient = new HttpClient(ResourceLocator.MalHttpContextProvider.GetHandler());
+
+        public static Func<string> TargetArchitectureProvider { get; set; }
 
         public AppUpdateQuery()
         {
@@ -34,6 +38,17 @@ namespace MALPlus.XShared.Comm
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.ValueKind != JsonValueKind.Array)
                     return null;
+
+                var targetArch = TargetArchitectureProvider?.Invoke()?.ToLowerInvariant();
+                if (string.IsNullOrEmpty(targetArch))
+                {
+                    var pArch = RuntimeInformation.ProcessArchitecture;
+                    targetArch = (pArch == Architecture.X64 || pArch == Architecture.X86)
+                        ? "x86_64"
+                        : "arm64";
+                }
+
+                bool wantsX64 = targetArch.Contains("x86") || targetArch.Contains("x64");
 
                 foreach (var release in doc.RootElement.EnumerateArray())
                 {
@@ -58,7 +73,9 @@ namespace MALPlus.XShared.Comm
                         ? tagName.Substring(1)
                         : tagName;
 
-                    string downloadUrl = null;
+                    string bestCandidateUrl = null;
+                    string fallbackUrl = null;
+
                     if (release.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
                     {
                         foreach (var asset in assets.EnumerateArray())
@@ -71,16 +88,39 @@ namespace MALPlus.XShared.Comm
                             if (assetName.Contains("malclient", StringComparison.OrdinalIgnoreCase))
                                 continue;
 
-                            if (assetName.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                            if (!assetName.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                                continue;
+
+                            var assetUrl = asset.TryGetProperty("browser_download_url", out var url) && url.ValueKind == JsonValueKind.String
+                                ? url.GetString()
+                                : null;
+                            if (assetUrl == null)
+                                continue;
+
+                            bool assetIsX64 = assetName.Contains("x86_64", StringComparison.OrdinalIgnoreCase) ||
+                                              assetName.Contains("x64", StringComparison.OrdinalIgnoreCase);
+                            bool assetIsArm64 = assetName.Contains("arm64", StringComparison.OrdinalIgnoreCase);
+
+                            if (wantsX64 && assetIsX64)
                             {
-                                downloadUrl = asset.TryGetProperty("browser_download_url", out var url) && url.ValueKind == JsonValueKind.String
-                                    ? url.GetString()
-                                    : null;
+                                bestCandidateUrl = assetUrl;
                                 break;
+                            }
+                            if (!wantsX64 && assetIsArm64)
+                            {
+                                bestCandidateUrl = assetUrl;
+                                break;
+                            }
+
+                            if (fallbackUrl == null)
+                            {
+                                if (wantsX64 && !assetIsArm64) fallbackUrl = assetUrl;
+                                else if (!wantsX64 && !assetIsX64) fallbackUrl = assetUrl;
                             }
                         }
                     }
 
+                    var downloadUrl = bestCandidateUrl ?? fallbackUrl;
                     var htmlUrl = release.TryGetProperty("html_url", out var hu) && hu.ValueKind == JsonValueKind.String
                         ? hu.GetString()
                         : $"https://github.com/idarkalex/MALPlus/releases/tag/{tagName}";
@@ -93,7 +133,8 @@ namespace MALPlus.XShared.Comm
                             ? body.GetString()
                             : "",
                         DownloadUrl = downloadUrl ?? htmlUrl,
-                        HtmlUrl = htmlUrl
+                        HtmlUrl = htmlUrl,
+                        Architecture = wantsX64 ? "x86_64" : "arm64"
                     };
                 }
             }

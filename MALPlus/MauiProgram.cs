@@ -30,6 +30,27 @@ public static class MauiProgram
         MauiViewModelLocator.RegisterDependencies();
 
 #if ANDROID
+        MALPlus.XShared.Comm.AppUpdateQuery.TargetArchitectureProvider = () =>
+        {
+            try
+            {
+                var abis = Android.OS.Build.SupportedAbis;
+                if (abis != null)
+                {
+                    foreach (var abi in abis)
+                    {
+                        if (abi.Equals("x86_64", StringComparison.OrdinalIgnoreCase) ||
+                            abi.Equals("x86", StringComparison.OrdinalIgnoreCase))
+                            return "x86_64";
+                        if (abi.Equals("arm64-v8a", StringComparison.OrdinalIgnoreCase))
+                            return "arm64";
+                    }
+                }
+            }
+            catch { }
+            return System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.X64 ? "x86_64" : "arm64";
+        };
+
         Microsoft.Maui.Handlers.LabelHandler.Mapper.AppendToMapping("FixSingleLineNoWrap", (handler, view) =>
         {
             if (view is Label label && label.LineBreakMode == LineBreakMode.NoWrap)

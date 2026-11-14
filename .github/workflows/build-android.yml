@@ -27,6 +27,13 @@ jobs:
     runs-on: windows-2022
     permissions:
       contents: read
+    strategy:
+      matrix:
+        include:
+          - rid: android-arm64
+            arch: arm64
+          - rid: android-x64
+            arch: x86_64
     env:
       ANDROID_HOME: C:\Program Files (x86)\Android\android-sdk
       ANDROID_SDK_ROOT: C:\Program Files (x86)\Android\android-sdk
@@ -163,7 +170,7 @@ jobs:
             "-t:SignAndroidPackage",
             "-f", "net11.0-android37.0",
             "-c", "Release",
-            "-r", "android-arm64",
+            "-r", "${{ matrix.rid }}",
             "-p:AndroidPackageFormats=apk",
             "-p:AndroidSdkDirectory=C:\Program Files (x86)\Android\android-sdk",
             "-p:JavaSdkDirectory=$jdkPath",
@@ -209,7 +216,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: msbuild-log
+          name: msbuild-log-${{ matrix.arch }}
           path: ${{ runner.temp }}\msbuild.txt
           if-no-files-found: ignore
 
@@ -231,7 +238,7 @@ jobs:
             }
             exit 1
           }
-          $finalName = if ($apk.Name -like "*-Signed.apk") { $apk.Name.Substring(0, $apk.Name.Length - "-Signed.apk".Length) + ".apk" } else { $apk.Name }
+          $finalName = "com.idarkalex.malplus-${{ matrix.arch }}.apk"
           $finalPath = Join-Path $apk.DirectoryName $finalName
           if ($apk.FullName -ne $finalPath) {
             Copy-Item -Path $apk.FullName -Destination $finalPath -Force
@@ -239,6 +246,7 @@ jobs:
           Get-ChildItem -Path "MALPlus\bin" -Recurse -Filter "*.apk" -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -ne $finalPath } | Remove-Item -Force -ErrorAction SilentlyContinue
           Write-Host "Found APK: $($apk.FullName)"
+          Write-Host "Final APK (${{ matrix.arch }}): $finalPath"
           Write-Host "APK size (MB): $([math]::Round((Get-Item $finalPath).Length / 1MB, 2))"
           "apk_path=$finalPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
@@ -254,7 +262,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v6
         with:
-          name: MALPlus-Android-Release
+          name: MALPlus-Android-APK-${{ matrix.arch }}
           path: ${{ steps.apk.outputs.apk_path }}
           if-no-files-found: error
 
@@ -262,7 +270,7 @@ jobs:
         if: success() && steps.apk.outputs.aab_path != ''
         uses: actions/upload-artifact@v6
         with:
-          name: MALPlus-Android-aab
+          name: MALPlus-Android-aab-${{ matrix.arch }}
           path: ${{ steps.apk.outputs.aab_path }}
           if-no-files-found: error
 
@@ -292,10 +300,11 @@ jobs:
              exit 1
            fi
 
-      - name: Download APK artifact
+      - name: Download all APK artifacts
         uses: actions/download-artifact@v7
         with:
-          name: MALPlus-Android-Release
+          pattern: MALPlus-Android-APK-*
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -303,4 +312,5 @@ jobs:
           name: MAL+ ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
           files: |
-            **/*.apk
+            *arm64.apk
+            *x86_64.apk
