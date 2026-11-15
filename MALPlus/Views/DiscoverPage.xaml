@@ -54,7 +54,7 @@
                 <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
                 <Setter Property="FontFamily" Value="Inter" />
                 <Setter Property="FontSize" Value="12" />
-                <Setter Property="MaxLines" Value="2" />
+                <Setter Property="MaxLines" Value="1" />
                 <Setter Property="LineBreakMode" Value="TailTruncation" />
             </Style>
         </ResourceDictionary>
@@ -176,7 +176,7 @@
                             </Border>
                             <VerticalStackLayout Spacing="2">
                                 <Label Text="Daily Gem" Style="{StaticResource DiscoverCardTitle}" />
-                                <Label Text="Updated daily · High score, niche" Style="{StaticResource DiscoverCardSub}" />
+                                <Label Text="High score, low popularity" Style="{StaticResource DiscoverCardSub}" />
                             </VerticalStackLayout>
                         </VerticalStackLayout>
                     </Border>
