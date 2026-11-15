@@ -39,7 +39,7 @@ namespace MALPlus.XShared.Comm.Search
                     if (userResponse?.Categories?.Any() == true)
                     {
                         userResponse.Categories[0].Items =
-                            userResponse.Categories[0].Items.OrderByDescending(item => item.EsScore).Take(5).ToList();
+                            userResponse.Categories[0].Items.OrderByDescending(item => item.EsScore).Take(10).ToList();
                         categories.Add(userResponse.Categories.First());
                     }
                 }
@@ -64,7 +64,7 @@ namespace MALPlus.XShared.Comm.Search
             {
                 var pop = endpoint == "characters" ? "" : "&order_by=popularity&sort=asc";
                 var (items, _) = await TenraiClient.GetPaginatedAsync(ContentFilter.Query($"{endpoint}?q={Uri.EscapeDataString(MALPlus.XShared.Utils.Utilities.CleanAnimeTitle(query))}{pop}"));
-                return items.Take(5).Select(el =>
+                return items.Take(10).Select(el =>
                 {
                     var id = el.TryGetProperty("mal_id", out var p) && p.ValueKind == System.Text.Json.JsonValueKind.Number ? p.GetInt32() : 0;
                     var title = el.TryGetProperty("title", out var tp) && tp.ValueKind == System.Text.Json.JsonValueKind.String ? tp.GetString() : "";

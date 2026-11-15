@@ -75,35 +75,142 @@
                 </Label>
             </Border>
         </DataTemplate>
+
+        <!-- Templates for All (Everywhere) Tab -->
+        <DataTemplate x:Key="CategoryHeaderTemplate">
+            <HorizontalStackLayout Spacing="8" Margin="4,16,4,6" VerticalOptions="Center">
+                <BoxView WidthRequest="3" HeightRequest="14" Color="{StaticResource EmAccent}" VerticalOptions="Center" />
+                <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="13" CharacterSpacing="1.2"
+                       TextColor="{StaticResource BrushText}" TextTransform="Uppercase" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+        </DataTemplate>
+
+        <DataTemplate x:Key="EverywhereItemTemplate">
+            <Border BackgroundColor="{StaticResource EmSheet}"
+                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                    StrokeShape="RoundRectangle 10" Padding="10" Margin="0,3">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnEverywhereItemTapped" CommandParameter="{Binding .}" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="48,*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                    <Border Grid.Column="0" WidthRequest="48" HeightRequest="68"
+                            StrokeShape="RoundRectangle 6" StrokeThickness="0" BackgroundColor="#1AFFFFFF">
+                        <Image Source="{Binding Item.ImageUrl, Converter={StaticResource ImageConverter}}"
+                               Aspect="AspectFill" />
+                    </Border>
+                    <VerticalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                        <Label Text="{Binding Item.Name}" FontFamily="InterBold" FontSize="14"
+                               TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
+                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                            <Border BackgroundColor="#200066FF" StrokeThickness="0" Padding="6,2"
+                                    IsVisible="{Binding Item.Payload.MediaType, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="4" />
+                                </Border.StrokeShape>
+                                <Label Text="{Binding Item.Payload.MediaType}" FontFamily="InterBold" FontSize="10"
+                                       TextColor="#60A5FA" TextTransform="Uppercase" />
+                            </Border>
+                            <Label Text="{Binding Item.Type}" FontFamily="Inter" FontSize="11"
+                                   TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                    <Border Grid.Column="2" BackgroundColor="#20F59E0B" StrokeThickness="0" Padding="6,3" VerticalOptions="Center"
+                            IsVisible="{Binding Item.Payload.Score, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="4" />
+                        </Border.StrokeShape>
+                        <HorizontalStackLayout Spacing="3" VerticalOptions="Center">
+                            <Label Text="★" TextColor="#F59E0B" FontSize="11" VerticalOptions="Center" />
+                            <Label Text="{Binding Item.Payload.Score}" TextColor="#F59E0B" FontFamily="InterBold" FontSize="11" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </Border>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="SeparatorTemplate">
+            <BoxView HeightRequest="1" Color="{StaticResource EmBorder}" Margin="4,10" />
+        </DataTemplate>
+
+        <converters:SearchEverywhereTemplateSelector x:Key="EverywhereSelector"
+            CategoryTemplate="{StaticResource CategoryHeaderTemplate}"
+            ItemTemplate="{StaticResource EverywhereItemTemplate}"
+            SeparatorTemplate="{StaticResource SeparatorTemplate}" />
     </ContentPage.Resources>
 
-    <!-- Two rows only. The tab strip sits above and every tab fills what is left, which is what
-         lets the Main tab put a filter bar at the bottom without the layout having to reserve
-         space for it up here. -->
+    <!-- Two rows only. The tab strip sits above and every tab fills what is left. -->
     <Grid RowDefinitions="Auto,*">
-        <!-- Top tab strip: Main / Characters / Genres / Studios -->
+        <!-- Top tab strip: All / Anime / Manga / Characters / Genres / Studios -->
         <ScrollView x:Name="TabStripScroll" Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                     Padding="12,12,12,0" BackgroundColor="{StaticResource EmBackground}">
             <HorizontalStackLayout Spacing="8">
-                <Button x:Name="TabAnime" Text="Anime" Clicked="OnSearchButtonClicked" CommandParameter="0"
+                <Button x:Name="TabAll" Text="All" Clicked="OnSearchButtonClicked" CommandParameter="0"
                         Style="{StaticResource TabChipActiveButtonStyle}" />
-                <Button x:Name="TabManga" Text="Manga" Clicked="OnSearchButtonClicked" CommandParameter="1"
+                <Button x:Name="TabAnime" Text="Anime" Clicked="OnSearchButtonClicked" CommandParameter="1"
                         Style="{StaticResource TabChipButtonStyle}" />
-                <Button x:Name="TabCharacters" Text="Characters" Clicked="OnSearchButtonClicked" CommandParameter="2"
+                <Button x:Name="TabManga" Text="Manga" Clicked="OnSearchButtonClicked" CommandParameter="2"
                         Style="{StaticResource TabChipButtonStyle}" />
-                <Button x:Name="TabGenres" Text="Genres" Clicked="OnSearchButtonClicked" CommandParameter="3"
+                <Button x:Name="TabCharacters" Text="Characters" Clicked="OnSearchButtonClicked" CommandParameter="3"
                         Style="{StaticResource TabChipButtonStyle}" />
-                <Button x:Name="TabStudios" Text="Studios" Clicked="OnSearchButtonClicked" CommandParameter="4"
+                <Button x:Name="TabGenres" Text="Genres" Clicked="OnSearchButtonClicked" CommandParameter="4"
+                        Style="{StaticResource TabChipButtonStyle}" />
+                <Button x:Name="TabStudios" Text="Studios" Clicked="OnSearchButtonClicked" CommandParameter="5"
                         Style="{StaticResource TabChipButtonStyle}" />
             </HorizontalStackLayout>
         </ScrollView>
 
-        <!-- ============ Main tab (0) ============ -->
-        <!-- Header, content, filter bar. The content row is the star row, and the recent searches
-             dropdown lives inside it as a Start-aligned overlay: a star row cannot be grown by a
-             child, so nothing shifts, which is what the old version did when both lived in an
-             Auto row and pushed the whole page down. -->
-<Grid Grid.Row="1"
+        <!-- ============ ALL TAB (0) ============ -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding IsAllTabVisible, Source={x:Reference Page}}">
+            <Grid RowDefinitions="Auto,*" Padding="16,8">
+                <!-- Search input on All tab -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,4,0,8">
+                    <Entry x:Name="AllSearchEntry" Placeholder="Search everything on MAL..."
+                           Text="{Binding AllQuery, Source={x:Reference Page}, Mode=TwoWay}"
+                           FontFamily="Inter" FontSize="14"
+                           HeightRequest="48"
+                           BackgroundColor="{StaticResource EmSheet}"
+                           TextColor="{StaticResource BrushText}"
+                           PlaceholderColor="#80FFFFFF"
+                           ReturnType="Search"
+                           Completed="OnAllSearchCompleted" />
+                    <ImageButton Grid.Column="1" Source="icon_close.svg" Clicked="OnClearAllQueryClicked"
+                                 BackgroundColor="{StaticResource EmSheet}"
+                                 WidthRequest="48" HeightRequest="48" Padding="14"
+                                 IsVisible="{Binding AllQuery, Source={x:Reference Page}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
+                    <ImageButton Grid.Column="2" Source="search.svg"
+                                 Clicked="OnAllSearchClicked"
+                                 BackgroundColor="#0066FF"
+                                 CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="12" />
+                </Grid>
+
+                <!-- Results list with categorized sections and dividers -->
+                <CollectionView Grid.Row="1"
+                                ItemsSource="{Binding EverywhereVm.SearchResults, Source={x:Reference Page}}"
+                                ItemTemplate="{StaticResource EverywhereSelector}">
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout Spacing="8" VerticalOptions="Center" HorizontalOptions="Center" Margin="0,40,0,0">
+                            <Label Text="Search everything on MyAnimeList"
+                                   FontFamily="InterBold" FontSize="15"
+                                   TextColor="{StaticResource BrushText}" HorizontalOptions="Center" />
+                            <Label Text="Find anime, manga, characters and users"
+                                   FontFamily="Inter" FontSize="13"
+                                   TextColor="{StaticResource TabChipInactiveText}" HorizontalOptions="Center" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                </CollectionView>
+
+                <!-- Loading overlay for All tab -->
+                <Grid Grid.Row="1" IsVisible="{Binding EverywhereVm.Loading, Source={x:Reference Page}}"
+                      BackgroundColor="#80000000" VerticalOptions="Fill" HorizontalOptions="Fill" ZIndex="99">
+                    <ActivityIndicator IsRunning="True" Color="{StaticResource EmAccent}"
+                                       WidthRequest="36" HeightRequest="36" HorizontalOptions="Center" VerticalOptions="Center" />
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ============ Main tab (Anime: 1, Manga: 2) ============ -->
+        <Grid Grid.Row="1"
               RowDefinitions="Auto,*"
               IsVisible="{Binding IsMainTabVisible, Source={x:Reference Page}}">
 
@@ -262,9 +369,9 @@
             </Grid>
         </Grid>
 
-        <!-- ============ Characters tab (2) ============ -->
+        <!-- ============ Characters tab (3) ============ -->
         <Grid Grid.Row="1"
-              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=2}">
+              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=3}">
             <Grid RowDefinitions="Auto,*" Padding="16,8">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <Entry x:Name="CharSearchEntry" Placeholder="Search characters..."
@@ -319,7 +426,7 @@
 
         <!-- ============ Genres tab (3) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â reuses Main tab's catalogue by setting mode=Genres ============ -->
         <Grid Grid.Row="1"
-              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=3}">
+              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=4}">
             <!-- Two rows but the list spans both. With the title gone there is nothing in row0, and
                  leaving it as a star row handed it half the height and pushed the grid down. -->
             <Grid RowDefinitions="*,*" Padding="16,8">
@@ -343,9 +450,9 @@
             </Grid>
         </Grid>
 
-        <!-- ============ Studios tab (4) ============ -->
+        <!-- ============ Studios tab (5) ============ -->
         <Grid Grid.Row="1"
-              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=4}">
+              IsVisible="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource IntEq}, ConverterParameter=5}">
             <!-- Two rows but the list spans both. With the title gone there is nothing in row0, and
                  leaving it as a star row handed it half the height and pushed the grid down. -->
             <Grid RowDefinitions="*,*" Padding="16,8">

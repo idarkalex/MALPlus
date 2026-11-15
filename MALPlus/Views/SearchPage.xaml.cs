@@ -2,6 +2,7 @@ using MALPlus.Controls;
 using System.Collections.ObjectModel;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Favourites;
+using MALPlus.Models.Models.Search;
 using MALPlus.XShared.Comm.Anime;
 using MALPlus.XShared.NavArgs;
 using MALPlus.XShared.ViewModels;
@@ -25,6 +26,14 @@ public partial class SearchPage : ContentPage, ITabSwipeHost
 
     private SearchPageViewModel MainVm => (SearchPageViewModel)BindingContext;
     private CharacterSearchViewModel CharVm => ViewModelLocator.CharacterSearch;
+    public SearchEverywhereViewModel EverywhereVm => ViewModelLocator.SearchEverywhereViewModel;
+
+    private string _allQuery;
+    public string AllQuery
+    {
+        get => _allQuery;
+        set { _allQuery = value; OnPropertyChanged(); }
+    }
 
     public int SearchTabIndex
     {
@@ -33,17 +42,14 @@ public partial class SearchPage : ContentPage, ITabSwipeHost
         {
             _searchTabIndex = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsAllTabVisible));
             OnPropertyChanged(nameof(IsMainTabVisible));
             UpdateTabChipStyles();
         }
     }
 
-    /// <summary>
-    ///     The search UI is hosted by two tabs, Anime and Manga, because they are the same screen
-    ///     with a different mode rather than two screens. Both indices light up the same content,
-    ///     which is why this exists instead of an index comparison in the XAML.
-    /// </summary>
-    public bool IsMainTabVisible => SearchTabIndex <= 1;
+    public bool IsAllTabVisible => SearchTabIndex == 0;
+    public bool IsMainTabVisible => SearchTabIndex == 1 || SearchTabIndex == 2;
 
     private string _charQuery;
     public string CharQuery
@@ -100,21 +106,34 @@ protected override void OnDisappearing()
         _initialized = true;
         try
         {
-            // If a query was passed in, switch to Main tab and search.
             if (!string.IsNullOrWhiteSpace(InitialQuery))
             {
-                var anime = string.IsNullOrEmpty(InitialMode) || InitialMode == "anime";
-                SearchTabIndex = anime ? 0 : 1;
-                MainVm.Init(new SearchPageNavigationArgs { Anime = anime, Query = InitialQuery, ForceQuery = true });
+                if (InitialMode == "anime")
+                {
+                    SelectTab(1);
+                    MainVm.Init(new SearchPageNavigationArgs { Anime = true, Query = InitialQuery, ForceQuery = true });
+                }
+                else if (InitialMode == "manga")
+                {
+                    SelectTab(2);
+                    MainVm.Init(new SearchPageNavigationArgs { Anime = false, Query = InitialQuery, ForceQuery = true });
+                }
+                else
+                {
+                    // Global "All" search across MAL
+                    AllQuery = InitialQuery;
+                    SelectTab(0);
+                    EverywhereVm.Init(new SearchPageNavigationArgs { Query = InitialQuery, ForceQuery = true });
+                    MainVm.InternalQuery = InitialQuery;
+                    CharQuery = InitialQuery;
+                }
             }
             else
             {
-                // First visit: show recent searches
+                SelectTab(0);
                 MainVm.Init(new SearchPageNavigationArgs { Anime = true, Query = "" });
             }
-            // Load recent searches
             MainVm.LoadRecentSearches();
-            // Init the character search VM too (it subscribes to the global search query)
             CharVm.Init(new SearchPageNavArgsBase());
         }
         catch (Exception ex)
@@ -143,30 +162,39 @@ protected override void OnDisappearing()
     {
         SearchTabIndex = idx;
         CloseRecentSearches();
-        SearchEntry.Unfocus();
-        CharSearchEntry.Unfocus();
+        SearchEntry?.Unfocus();
+        CharSearchEntry?.Unfocus();
+        AllSearchEntry?.Unfocus();
         HideKeyboard();
         ScrollTabIntoView(idx);
         switch (idx)
         {
             case 0:
+                if (!string.IsNullOrEmpty(AllQuery))
+                    EverywhereVm.Init(new SearchPageNavigationArgs { Query = AllQuery, ForceQuery = true });
+                break;
+            case 1:
                 MainVm.GenreSelectionGridVisibility = false;
                 MainVm.AnimeSearch = true;
                 _catalogueOpen = false;
                 RestoreSearchScroll();
                 break;
-            case 1:
+            case 2:
                 MainVm.GenreSelectionGridVisibility = false;
                 MainVm.AnimeSearch = false;
                 _catalogueOpen = false;
                 RestoreSearchScroll();
                 break;
             case 3:
+                if (!string.IsNullOrEmpty(CharQuery))
+                    CharVm.Init(new SearchPageNavArgsBase());
+                break;
+            case 4:
                 _catalogueModeIsGenre = true;
                 MainVm.Init(new SearchPageNavigationArgs { ByGenre = true, Anime = true, IsCatalogue = true });
                 RestoreListScroll(GenreList, _genreListScrollIndex);
                 break;
-            case 4:
+            case 5:
                 _catalogueModeIsGenre = false;
                 MainVm.Init(new SearchPageNavigationArgs { ByStudio = true, Anime = true, IsCatalogue = true });
                 var studioIds = MainVm.AvailableSelectionChoices
@@ -182,11 +210,12 @@ protected override void OnDisappearing()
     {
         Button target = idx switch
         {
-            0 => TabAnime,
-            1 => TabManga,
-            2 => TabCharacters,
-            3 => TabGenres,
-            4 => TabStudios,
+            0 => TabAll,
+            1 => TabAnime,
+            2 => TabManga,
+            3 => TabCharacters,
+            4 => TabGenres,
+            5 => TabStudios,
             _ => null
         };
         if (target != null && TabStripScroll != null)
@@ -204,24 +233,60 @@ protected override void OnDisappearing()
 
     private void UpdateTabChipStyles()
     {
-        if (TabAnime == null || TabManga == null || TabCharacters == null || TabGenres == null || TabStudios == null)
+        if (TabAll == null || TabAnime == null || TabManga == null || TabCharacters == null || TabGenres == null || TabStudios == null)
             return;
 
-        TabChipHelper.ApplyStyle(TabAnime, _searchTabIndex == 0);
-        TabChipHelper.ApplyStyle(TabManga, _searchTabIndex == 1);
-        TabChipHelper.ApplyStyle(TabCharacters, _searchTabIndex == 2);
-        TabChipHelper.ApplyStyle(TabGenres, _searchTabIndex == 3);
-        TabChipHelper.ApplyStyle(TabStudios, _searchTabIndex == 4);
+        TabChipHelper.ApplyStyle(TabAll, _searchTabIndex == 0);
+        TabChipHelper.ApplyStyle(TabAnime, _searchTabIndex == 1);
+        TabChipHelper.ApplyStyle(TabManga, _searchTabIndex == 2);
+        TabChipHelper.ApplyStyle(TabCharacters, _searchTabIndex == 3);
+        TabChipHelper.ApplyStyle(TabGenres, _searchTabIndex == 4);
+        TabChipHelper.ApplyStyle(TabStudios, _searchTabIndex == 5);
     }
 
     bool ITabSwipeHost.TrySwipe(int direction)
     {
         var next = _searchTabIndex + (direction > 0 ? 1 : -1);
-        if (next < 0 || next > 4)
+        if (next < 0 || next > 5)
             return false;
 
         SelectTab(next);
         return true;
+    }
+
+    private void OnAllSearchCompleted(object sender, EventArgs e) => ExecuteAllSearch();
+    private void OnAllSearchClicked(object sender, EventArgs e) => ExecuteAllSearch();
+    private void OnClearAllQueryClicked(object sender, EventArgs e)
+    {
+        AllQuery = "";
+        AllSearchEntry?.Focus();
+    }
+
+    private void ExecuteAllSearch()
+    {
+        var q = AllQuery?.Trim();
+        if (!string.IsNullOrEmpty(q))
+        {
+            EverywhereVm.Init(new SearchPageNavigationArgs { Query = q, ForceQuery = true });
+            MainVm.InternalQuery = q;
+            CharQuery = q;
+        }
+    }
+
+    private void OnEverywhereItemTapped(object sender, EventArgs e)
+    {
+        if (sender is not BindableObject bo || bo.BindingContext is not ISearchEverywhereItem item)
+            return;
+        if (item is SearchEverywhereAnimeItem anime)
+            EverywhereVm.NavigateAnimeDetails(anime);
+        else if (item is SearchEverywhereMangaItem manga)
+            EverywhereVm.NavigateMangaDetails(manga);
+        else if (item is SearchEverywhereCharacterItem ch)
+            EverywhereVm.NavigateCharacterDetails(ch);
+        else if (item is SearchEverywhereUserItem u)
+            EverywhereVm.NavigateUserDetails(u);
+        else if (item is SearchEverywherePersonItem p)
+            EverywhereVm.NavigatePersonDetails(p);
     }
 
     /// <summary>
@@ -522,7 +587,7 @@ private async void OnGenreStudioSelected(object sender, SelectionChangedEventArg
             if (e.CurrentSelection.FirstOrDefault() is SearchChoiceItem choice)
             {
                 ((CollectionView)sender).SelectedItem = null;
-                var isGenre = SearchTabIndex == 3 || (IsMainTabVisible && _catalogueModeIsGenre);
+                var isGenre = SearchTabIndex == 4 || (IsMainTabVisible && _catalogueModeIsGenre);
                 var args = new SearchPageNavigationArgs
                 {
                     Anime = true,
@@ -538,13 +603,13 @@ private async void OnGenreStudioSelected(object sender, SelectionChangedEventArg
 
                 // Remembered so back can unwind the catalogue rather than leaving search.
                 _catalogueOpen = true;
-                _tabBeforeCatalogue = IsMainTabVisible ? SearchTabIndex : 0;
+                _tabBeforeCatalogue = IsMainTabVisible ? SearchTabIndex : 1;
 
                 // Mode and tab first, catalogue second, and the order matters. Setting AnimeSearch
                 // repopulates from the search lists, and setting the tab does not; doing either of
                 // them after the catalogue load would reset the browse and leave the empty state
                 // showing on top of the results that had just loaded.
-                SearchTabIndex = 0;
+                SearchTabIndex = 1;
                 MainVm.AnimeSearch = true;
 
                 await MainVm.LoadCatalogue(args);

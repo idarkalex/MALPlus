@@ -181,7 +181,7 @@ namespace MALPlus.XShared.ViewModels.Main
                         {
                             Query = ViewModelLocator.SearchPage.PrevQuery,
                             Anime = false,
-                            DisplayMode = ViewModelLocator.SearchPage.PrevArgs.DisplayMode,
+                            DisplayMode = ViewModelLocator.SearchPage.PrevArgs?.DisplayMode ?? SearchPageDisplayModes.Main,
                             Everywhere = true
                         })
                     {
@@ -199,7 +199,7 @@ namespace MALPlus.XShared.ViewModels.Main
                         {
                             Query = ViewModelLocator.SearchPage.PrevQuery,
                             Anime = false,
-                            DisplayMode = ViewModelLocator.SearchPage.PrevArgs.DisplayMode,
+                            DisplayMode = ViewModelLocator.SearchPage.PrevArgs?.DisplayMode ?? SearchPageDisplayModes.Main,
                             Everywhere = true
                         })
                     {
