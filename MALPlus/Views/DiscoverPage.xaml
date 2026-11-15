@@ -5,73 +5,347 @@
              x:Class="MALPlus.Views.DiscoverPage"
              BackgroundColor="{StaticResource EmBackground}">
 
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <!-- Category accent colors -->
+            <Color x:Key="TintBlueBg">#1A0066FF</Color>
+            <Color x:Key="TintBlueIcon">#3B82F6</Color>
+
+            <Color x:Key="TintAmberBg">#20F2A93B</Color>
+            <Color x:Key="TintAmberIcon">#F59E0B</Color>
+
+            <Color x:Key="TintVioletBg">#209A7BFF</Color>
+            <Color x:Key="TintVioletIcon">#A855F7</Color>
+
+            <!-- Card border style -->
+            <Style x:Key="DiscoverCardStyle" TargetType="Border">
+                <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
+                <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
+                <Setter Property="StrokeThickness" Value="1" />
+                <Setter Property="Padding" Value="14" />
+                <Setter Property="StrokeShape">
+                    <Setter.Value>
+                        <RoundRectangle CornerRadius="12" />
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Chip style for icons -->
+            <Style x:Key="DiscoverChipStyle" TargetType="Border">
+                <Setter Property="WidthRequest" Value="38" />
+                <Setter Property="HeightRequest" Value="38" />
+                <Setter Property="StrokeThickness" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="HorizontalOptions" Value="Start" />
+                <Setter Property="StrokeShape">
+                    <Setter.Value>
+                        <RoundRectangle CornerRadius="10" />
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="DiscoverCardTitle" TargetType="Label">
+                <Setter Property="TextColor" Value="{StaticResource BrushText}" />
+                <Setter Property="FontFamily" Value="InterBold" />
+                <Setter Property="FontSize" Value="14" />
+            </Style>
+
+            <Style x:Key="DiscoverCardSub" TargetType="Label">
+                <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
+                <Setter Property="FontFamily" Value="Inter" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="MaxLines" Value="1" />
+                <Setter Property="LineBreakMode" Value="TailTruncation" />
+            </Style>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
     <Grid>
         <ScrollView>
-            <!-- Content fills from the top edge with generous vertical spacing between button rows to cover the screen.
-                 The bottom inset clears the floating navigation bar. -->
-            <VerticalStackLayout Padding="10,4,10,96">
-                <!-- The buttons are the capsules from the artwork, blue canvas already erased. Six
-                     explicit Auto rows on purpose: without them every tile placed at Grid.Row 1 or
-                     lower falls outside the row collection and silently does not draw. -->
-                <Grid x:Name="TileGrid"
-                      ColumnDefinitions="*,*"
-                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
-                      ColumnSpacing="12" RowSpacing="22">
-                    <controls:DiscoverTileButton Grid.Row="0" Grid.Column="0"
-                                                 Source="discover_btn_search"
-                                                 AutomationId="DiscoverSearch" SemanticProperties.Description="Search"
-                                                 Tapped="OnSearchTapped" />
-                    <controls:DiscoverTileButton Grid.Row="0" Grid.Column="1"
-                                                 Source="discover_btn_news"
-                                                 AutomationId="DiscoverNews" SemanticProperties.Description="News"
-                                                 Tapped="OnNewsTapped" />
-                    <controls:DiscoverTileButton Grid.Row="1" Grid.Column="0"
-                                                 Source="discover_btn_upcoming"
-                                                 AutomationId="DiscoverUpcoming" SemanticProperties.Description="Upcoming"
-                                                 Tapped="OnUpcomingAllTapped" />
-                    <controls:DiscoverTileButton Grid.Row="1" Grid.Column="1"
-                                                 Source="discover_btn_calendar"
-                                                 AutomationId="DiscoverYourCalendar" SemanticProperties.Description="Your calendar"
-                                                 Tapped="OnUpcomingMineTapped" />
-                    <!-- The two random capsules are split: the picture opens the entry, the gear on the
-                         right quarter opens its filters. Both fall through to Tapped when a tile has
-                         no gear handler wired. -->
-                    <controls:DiscoverTileButton Grid.Row="2" Grid.Column="0"
-                                                 Source="discover_btn_random_anime"
-                                                 AutomationId="DiscoverRandomAnime" SemanticProperties.Description="Random anime"
-                                                 Tapped="OnRandomAnimeTapped"
-                                                 GearTapped="OnRandomAnimeFiltersTapped" />
-                    <controls:DiscoverTileButton Grid.Row="2" Grid.Column="1"
-                                                 Source="discover_btn_random_manga"
-                                                 AutomationId="DiscoverRandomManga" SemanticProperties.Description="Random manga"
-                                                 Tapped="OnRandomMangaTapped"
-                                                 GearTapped="OnRandomMangaFiltersTapped" />
-                    <controls:DiscoverTileButton Grid.Row="3" Grid.Column="0"
-                                                 Source="discover_btn_gem"
-                                                 AutomationId="DiscoverRandomGem" SemanticProperties.Description="Random gem"
-                                                 Tapped="OnGemTapped" />
-                    <controls:DiscoverTileButton Grid.Row="3" Grid.Column="1"
-                                                 Source="discover_btn_trending"
-                                                 AutomationId="DiscoverTrending" SemanticProperties.Description="Trending"
-                                                 Tapped="OnTrendingTapped" />
-                    <controls:DiscoverTileButton Grid.Row="4" Grid.Column="0"
-                                                 Source="discover_btn_theme"
-                                                 AutomationId="DiscoverRandomTheme" SemanticProperties.Description="Random theme"
-                                                 Tapped="OnRandomThemeTapped" />
-                    <controls:DiscoverTileButton Grid.Row="4" Grid.Column="1"
-                                                 Source="discover_btn_season_oped"
-                                                 AutomationId="DiscoverSeasonThemes" SemanticProperties.Description="Season openings and endings"
-                                                 Tapped="OnSeasonThemesTapped" />
-                    <controls:DiscoverTileButton Grid.Row="5" Grid.Column="0"
-                                                 Source="discover_btn_recommend"
-                                                 AutomationId="DiscoverRecommendations" SemanticProperties.Description="Because you liked"
-                                                 Tapped="OnBecauseYouLikedTapped" />
+            <!-- Top padding 16 clears status bar cleanly; bottom padding 96 clears floating BottomNavBar -->
+            <VerticalStackLayout Padding="14,16,14,96" Spacing="10">
+
+                <!-- 1. Search Bar + News Button -->
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Border Grid.Column="0" Style="{StaticResource DiscoverCardStyle}" HeightRequest="48" Padding="14,0"
+                            AutomationId="DiscoverSearch" SemanticProperties.Description="Search">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSearchTapped" />
+                        </Border.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                            <Label Text="&#xf002;" FontFamily="FontAwesome" FontSize="15"
+                                   TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                            <Label Text="Search anime, manga…" FontFamily="Inter" FontSize="14"
+                                   TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource DiscoverCardStyle}" WidthRequest="48" HeightRequest="48" Padding="0"
+                            AutomationId="DiscoverNews" SemanticProperties.Description="News">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNewsTapped" />
+                        </Border.GestureRecognizers>
+                        <Label Text="&#xf1ea;" FontFamily="FontAwesome" FontSize="17"
+                               TextColor="{StaticResource TabChipInactiveText}"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
                 </Grid>
+
+                <!-- 2. Hero: Because you liked... -->
+                <Border StrokeThickness="1" Stroke="#264A7E" Padding="16,14" Margin="0,2,0,2"
+                        AutomationId="DiscoverRecommendations" SemanticProperties.Description="Because you liked">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="14" />
+                    </Border.StrokeShape>
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#10325E" Offset="0.0" />
+                            <GradientStop Color="#251654" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnBecauseYouLikedTapped" />
+                    </Border.GestureRecognizers>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                        <VerticalStackLayout Grid.Column="0" Spacing="3">
+                            <Border BackgroundColor="#26FFFFFF" StrokeThickness="0" Padding="6,2" HorizontalOptions="Start">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="4" />
+                                </Border.StrokeShape>
+                                <Label Text="FOR YOU" TextColor="#93C5FD" FontFamily="InterBold" FontSize="10"
+                                       CharacterSpacing="1.2" />
+                            </Border>
+                            <Label Text="Because you liked…" TextColor="{StaticResource BrushText}"
+                                   FontFamily="InterBold" FontSize="18" />
+                            <Label Text="Picks tailored to your anime scores and status"
+                                   TextColor="{StaticResource TabChipInactiveText}"
+                                   FontFamily="Inter" FontSize="12" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1" Text="&#xf005;" FontFamily="FontAwesome" FontSize="26"
+                               TextColor="#60A5FA" VerticalOptions="Center" Margin="0,0,4,0" />
+                    </Grid>
+                </Border>
+
+                <!-- 3. EXPLORE SECTION -->
+                <HorizontalStackLayout Spacing="8" Margin="2,6,2,0" VerticalOptions="Center">
+                    <BoxView WidthRequest="3" HeightRequest="13" Color="{StaticResource TintBlueIcon}" VerticalOptions="Center" />
+                    <Label Text="EXPLORE" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                           TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                </HorizontalStackLayout>
+
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                    <!-- Trending -->
+                    <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource DiscoverCardStyle}"
+                            AutomationId="DiscoverTrending" SemanticProperties.Description="Trending">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnTrendingTapped" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="8">
+                            <Border Style="{StaticResource DiscoverChipStyle}" BackgroundColor="{StaticResource TintBlueBg}">
+                                <Label Text="&#xf06d;" FontFamily="FontAwesome" FontSize="17"
+                                       TextColor="{StaticResource TintBlueIcon}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Spacing="1">
+                                <Label Text="Trending" Style="{StaticResource DiscoverCardTitle}" />
+                                <Label Text="What's popular right now" Style="{StaticResource DiscoverCardSub}" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Hidden Gem -->
+                    <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource DiscoverCardStyle}"
+                            AutomationId="DiscoverRandomGem" SemanticProperties.Description="Random gem">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnGemTapped" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="8">
+                            <Border Style="{StaticResource DiscoverChipStyle}" BackgroundColor="{StaticResource TintBlueBg}">
+                                <Label Text="&#xf219;" FontFamily="FontAwesome" FontSize="16"
+                                       TextColor="{StaticResource TintBlueIcon}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Spacing="1">
+                                <Label Text="Hidden Gem" Style="{StaticResource DiscoverCardTitle}" />
+                                <Label Text="High score, low popularity" Style="{StaticResource DiscoverCardSub}" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Global Calendar -->
+                    <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource DiscoverCardStyle}"
+                            AutomationId="DiscoverUpcoming" SemanticProperties.Description="Upcoming">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnUpcomingAllTapped" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="8">
+                            <Border Style="{StaticResource DiscoverChipStyle}" BackgroundColor="{StaticResource TintBlueBg}">
+                                <Label Text="&#xf0ac;" FontFamily="FontAwesome" FontSize="17"
+                                       TextColor="{StaticResource TintBlueIcon}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Spacing="1">
+                                <Label Text="Global Calendar" Style="{StaticResource DiscoverCardTitle}" />
+                                <Label Text="All upcoming releases" Style="{StaticResource DiscoverCardSub}" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Your Calendar -->
+                    <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource DiscoverCardStyle}"
+                            AutomationId="DiscoverYourCalendar" SemanticProperties.Description="Your calendar">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnUpcomingMineTapped" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="8">
+                            <Border Style="{StaticResource DiscoverChipStyle}" BackgroundColor="{StaticResource TintBlueBg}">
+                                <Label Text="&#xf073;" FontFamily="FontAwesome" FontSize="16"
+                                       TextColor="{StaticResource TintBlueIcon}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Spacing="1">
+                                <Label Text="Your Calendar" Style="{StaticResource DiscoverCardTitle}" />
+                                <Label Text="Episodes in your list" Style="{StaticResource DiscoverCardSub}" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+
+                <!-- 4. SURPRISE ME SECTION -->
+                <HorizontalStackLayout Spacing="8" Margin="2,6,2,0" VerticalOptions="Center">
+                    <BoxView WidthRequest="3" HeightRequest="13" Color="{StaticResource TintAmberIcon}" VerticalOptions="Center" />
+                    <Label Text="SURPRISE ME" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                           TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                </HorizontalStackLayout>
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                    <!-- Random Anime: Main zone taps anime; gear button taps filters without conflict -->
+                    <Border Grid.Column="0" Style="{StaticResource DiscoverCardStyle}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Grid.Column="0" Spacing="8"
+                                                 AutomationId="DiscoverRandomAnime" SemanticProperties.Description="Random anime">
+                                <VerticalStackLayout.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRandomAnimeTapped" />
+                                </VerticalStackLayout.GestureRecognizers>
+                                <Border Style="{StaticResource DiscoverChipStyle}" BackgroundColor="{StaticResource TintAmberBg}">
+                                    <Label Text="&#xf008;" FontFamily="FontAwesome" FontSize="16"
+                                           TextColor="{StaticResource TintAmberIcon}"
+                                           HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Border>
+                                <VerticalStackLayout Spacing="1">
+                                    <Label Text="Random Anime" Style="{StaticResource DiscoverCardTitle}" />
+                                    <Label Text="Roll the dice" Style="{StaticResource DiscoverCardSub}" />
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+
+                            <!-- Independent filter gear button -->
+                            <Border Grid.Column="1" VerticalOptions="Start"
+                                    WidthRequest="32" HeightRequest="32" StrokeThickness="0"
+                                    BackgroundColor="{StaticResource TintAmberBg}" Padding="0"
+                                    SemanticProperties.Description="Random anime filters">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="8" />
+                                </Border.StrokeShape>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRandomAnimeFiltersTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="&#xf013;" FontFamily="FontAwesome" FontSize="14"
+                                       TextColor="{StaticResource TintAmberIcon}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Random Manga: Main zone taps manga; gear button taps filters without conflict -->
+                    <Border Grid.Column="1" Style="{StaticResource DiscoverCardStyle}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Grid.Column="0" Spacing="8"
+                                                 AutomationId="DiscoverRandomManga" SemanticProperties.Description="Random manga">
+                                <VerticalStackLayout.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRandomMangaTapped" />
+                                </VerticalStackLayout.GestureRecognizers>
+                                <Border Style="{StaticResource DiscoverChipStyle}" BackgroundColor="{StaticResource TintAmberBg}">
+                                    <Label Text="&#xf02d;" FontFamily="FontAwesome" FontSize="16"
+                                           TextColor="{StaticResource TintAmberIcon}"
+                                           HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Border>
+                                <VerticalStackLayout Spacing="1">
+                                    <Label Text="Random Manga" Style="{StaticResource DiscoverCardTitle}" />
+                                    <Label Text="Roll the dice" Style="{StaticResource DiscoverCardSub}" />
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+
+                            <!-- Independent filter gear button -->
+                            <Border Grid.Column="1" VerticalOptions="Start"
+                                    WidthRequest="32" HeightRequest="32" StrokeThickness="0"
+                                    BackgroundColor="{StaticResource TintAmberBg}" Padding="0"
+                                    SemanticProperties.Description="Random manga filters">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="8" />
+                                </Border.StrokeShape>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRandomMangaFiltersTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="&#xf013;" FontFamily="FontAwesome" FontSize="14"
+                                       TextColor="{StaticResource TintAmberIcon}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- 5. MUSIC SECTION -->
+                <HorizontalStackLayout Spacing="8" Margin="2,6,2,0" VerticalOptions="Center">
+                    <BoxView WidthRequest="3" HeightRequest="13" Color="{StaticResource TintVioletIcon}" VerticalOptions="Center" />
+                    <Label Text="MUSIC" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                           TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                </HorizontalStackLayout>
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                    <!-- Season Themes -->
+                    <Border Grid.Column="0" Style="{StaticResource DiscoverCardStyle}"
+                            AutomationId="DiscoverSeasonThemes" SemanticProperties.Description="Season openings and endings">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSeasonThemesTapped" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="8">
+                            <Border Style="{StaticResource DiscoverChipStyle}" BackgroundColor="{StaticResource TintVioletBg}">
+                                <Label Text="&#xf001;" FontFamily="FontAwesome" FontSize="16"
+                                       TextColor="{StaticResource TintVioletIcon}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Spacing="1">
+                                <Label Text="Season OP/ED" Style="{StaticResource DiscoverCardTitle}" />
+                                <Label Text="This season's themes" Style="{StaticResource DiscoverCardSub}" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Random Theme -->
+                    <Border Grid.Column="1" Style="{StaticResource DiscoverCardStyle}"
+                            AutomationId="DiscoverRandomTheme" SemanticProperties.Description="Random theme">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnRandomThemeTapped" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="8">
+                            <Border Style="{StaticResource DiscoverChipStyle}" BackgroundColor="{StaticResource TintVioletBg}">
+                                <Label Text="&#xf074;" FontFamily="FontAwesome" FontSize="16"
+                                       TextColor="{StaticResource TintVioletIcon}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Spacing="1">
+                                <Label Text="Random Theme" Style="{StaticResource DiscoverCardTitle}" />
+                                <Label Text="Creditless roulette" Style="{StaticResource DiscoverCardSub}" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+
             </VerticalStackLayout>
         </ScrollView>
 
         <!-- Floating ActivityIndicator in top-right corner, non-blocking touch target -->
-        <ActivityIndicator x:Name="HeaderSpinner" Color="#0066FF"
+        <ActivityIndicator x:Name="HeaderSpinner" Color="{StaticResource EmAccent}"
                            WidthRequest="22" HeightRequest="22" IsRunning="False"
                            HorizontalOptions="End" VerticalOptions="Start"
                            Margin="0,8,16,0" ZIndex="10" InputTransparent="True" />
