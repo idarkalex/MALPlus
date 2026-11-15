@@ -569,13 +569,13 @@ public class DiscoveryItem
         private const int MaxMembers = 60000;
         private const int MinYear = 2010;
 
-        private const string IdKey = "GemOfTheWeek_Id";
-        private const string WeekKey = "GemOfTheWeek_Week";
-        private const string TitleKey = "GemOfTheWeek_Title";
-        private const string ImgKey = "GemOfTheWeek_Img";
-        private const string TypeKey = "GemOfTheWeek_Type";
-        private const string ScoreKey = "GemOfTheWeek_Score";
-        private const string YearKey = "GemOfTheWeek_Year";
+        private const string IdKey = "GemOfTheDay_Id";
+        private const string DayKey = "GemOfTheDay_Day";
+        private const string TitleKey = "GemOfTheDay_Title";
+        private const string ImgKey = "GemOfTheDay_Img";
+        private const string TypeKey = "GemOfTheDay_Type";
+        private const string ScoreKey = "GemOfTheDay_Score";
+        private const string YearKey = "GemOfTheDay_Year";
 
         private const int PageSize = 25;
         private const int MaxOffset = 20000;
@@ -583,18 +583,16 @@ public class DiscoveryItem
 
         private static readonly Random Rng = new();
 
-        /// <summary>Monday-based ISO-ish week key, so the pick rolls over on the same day worldwide.</summary>
-        private static string CurrentWeek()
+        /// <summary>UTC-based day key (yyyy-MM-dd), so the pick rolls over every day worldwide.</summary>
+        private static string CurrentDay()
         {
-            var today = DateTime.UtcNow.Date;
-            var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
-            return monday.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            return DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         public static DiscoveryItem GetCachedGem()
         {
             var store = ViewModels.ResourceLocator.ApplicationDataService;
-            if ((string)store[WeekKey] != CurrentWeek())
+            if ((string)store[DayKey] != CurrentDay())
                 return null;
             var id = (int)(store[IdKey] ?? 0);
             if (id <= 0)
@@ -701,7 +699,7 @@ public class DiscoveryItem
             store[TypeKey] = gem.Type;
             store[ScoreKey] = (int)Math.Round(gem.Score * 10);
             store[YearKey] = gem.Year;
-            store[WeekKey] = CurrentWeek();
+            store[DayKey] = CurrentDay();
             return gem;
         }
 

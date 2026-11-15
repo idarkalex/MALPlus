@@ -85,7 +85,7 @@
                                 <Border.StrokeShape>
                                     <RoundRectangle CornerRadius="6" />
                                 </Border.StrokeShape>
-                                <Label Text="HIDDEN GEM" FontFamily="InterBold" FontSize="10"
+                                <Label Text="DAILY HIDDEN GEM" FontFamily="InterBold" FontSize="10"
                                        CharacterSpacing="1.2" TextColor="White" />
                             </Border>
 
@@ -99,7 +99,7 @@
                         </Grid>
 
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Padding="18,12,14,14">
-                            <Label Grid.Column="0" Text="Open in MyAnimeList to add it to your list."
+                            <Label Grid.Column="0" Text="Updated daily · Open in MyAnimeList to add it to your list."
                                    FontFamily="Inter" FontSize="12"
                                    TextColor="{StaticResource TabChipInactiveText}"
                                    VerticalOptions="Center" />

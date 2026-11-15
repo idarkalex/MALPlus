@@ -62,8 +62,8 @@
 
     <Grid>
         <ScrollView>
-            <!-- Top padding 18 clears status bar cleanly; bottom padding 96 clears floating BottomNavBar -->
-            <VerticalStackLayout Padding="14,18,14,96" Spacing="14">
+            <!-- Top padding 18 clears status bar cleanly; bottom padding 20 keeps content snug above shared BottomNavBar -->
+            <VerticalStackLayout Padding="14,18,14,20" Spacing="14">
 
                 <!-- 1. Functional Search Bar + News Button -->
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
@@ -162,9 +162,9 @@
                         </VerticalStackLayout>
                     </Border>
 
-                    <!-- Hidden Gem -->
+                    <!-- Daily Hidden Gem -->
                     <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource DiscoverCardStyle}"
-                            AutomationId="DiscoverRandomGem" SemanticProperties.Description="Random gem">
+                            AutomationId="DiscoverRandomGem" SemanticProperties.Description="Daily gem">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnGemTapped" />
                         </Border.GestureRecognizers>
@@ -175,8 +175,8 @@
                                        HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
                             <VerticalStackLayout Spacing="2">
-                                <Label Text="Hidden Gem" Style="{StaticResource DiscoverCardTitle}" />
-                                <Label Text="High score, low popularity" Style="{StaticResource DiscoverCardSub}" />
+                                <Label Text="Daily Gem" Style="{StaticResource DiscoverCardTitle}" />
+                                <Label Text="Updated daily · High score, niche" Style="{StaticResource DiscoverCardSub}" />
                             </VerticalStackLayout>
                         </VerticalStackLayout>
                     </Border>

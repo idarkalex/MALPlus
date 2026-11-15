@@ -290,8 +290,8 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
     }
 
     /// <summary>
-    ///     One hidden gem per week rather than a reshuffle on every tap. The id is stored with the
-    ///     week it was drawn in, so the tile shows the same title all week; the draw itself is
+    ///     One hidden gem per day rather than a reshuffle on every tap. The id is stored with the
+    ///     day it was drawn in, so the tile shows the same title all day; the draw itself is
     ///     score >= 7.5, popularity between #1500 and #15000, under 60k members, from 2010 on, and
     ///     not already on the user's list. Tenrai filters the score but ignores the member and
     ///     popularity bounds, and has no "not in my list" filter, so both are applied here.
@@ -309,7 +309,7 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
             var gem = await DiscoveryGemQuery.GetAsync(inLibrary);
             if (gem == null)
             {
-                await Alert("No gems matched those filters this week.");
+                await Alert("No gems matched those filters today.");
                 return;
             }
 
