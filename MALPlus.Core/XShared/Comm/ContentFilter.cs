@@ -50,6 +50,19 @@ namespace MALPlus.XShared.Comm
         }
 
         /// <summary>
+        ///     Adds content filtering parameters specifically tailored for Tenrai's seasonal anime endpoints,
+        ///     leveraging server-side `rating_exclude=rx` for Mature mode instead of discarding rows client-side.
+        /// </summary>
+        public static string SeasonalFilter()
+        {
+            if (Settings.ContentFilter == ContentFilterMode.Safe)
+                return "sfw";
+            if (Settings.ContentFilter == ContentFilterMode.Mature)
+                return "sfw=false&rating_exclude=rx";
+            return "sfw=false";
+        }
+
+        /// <summary>
         ///     What to hand the user library endpoint's own adult-content flag.
         /// </summary>
         /// <remarks>

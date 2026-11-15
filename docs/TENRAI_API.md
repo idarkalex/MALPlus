@@ -61,9 +61,38 @@ The following endpoints are currently active in MAL+ and mapped to their respect
 |---|---|---|
 | `GET /seasons/{year}/{season}` | Seasonal anime listing for a specific season | `AnimeSeasonalQuery` |
 | `GET /seasons/now` | Currently airing season listing | `AnimeSeasonalQuery` |
+| `GET /seasons/previous` | Preceding season listing | `AnimeSeasonalQuery` |
+| `GET /seasons/upcoming` | Upcoming announced season listing | `AnimeSeasonalQuery` |
 | `GET /seasons` | Available seasons archive | `AnimeListViewModel` |
 | `GET /anime?producers={id}&order_by=score` | Anime filtered by studio or producer | `AnimeGenreStudioQuery` |
 | `GET /anime?genres={id}` | Anime filtered by genre | `AnimeGenreStudioQuery` |
+
+#### Seasonal Anime Endpoints (`/seasons/*`) Improvements & Parameters
+Added to `/seasons/{year}/{season}`, `/seasons/now`, `/seasons/previous`, and `/seasons/upcoming`:
+- `filter_exclude`: Comma-separated types to exclude (e.g. `filter_exclude=music,cm,pv`).
+- `status`: Multiple status filter (e.g. `status=currently_airing,finished_airing`). *Note: not available on `/seasons/upcoming`.*
+- `status_exclude`: Statuses to exclude (e.g. `status_exclude=not_yet_aired`). *Note: not available on `/seasons/upcoming`.*
+- `rating_exclude`: Ratings to exclude (e.g. `rating_exclude=rx` to omit adult content on the server without client-side dropping).
+- `source` & `source_exclude`: Filter by source material (e.g. `manga`, `light_novel`, `original`, `game`).
+- `has_trailer=true|false`: Filter by presence of trailer.
+- `has_relations=true|false`: Filter entries with relationships to other entries (`has_relations=false` for standalone/new IPs).
+- `streaming_service`: Filter by platform (`crunchyroll`, `netflix`, `hidive`, etc.).
+- `producers` & `producers_exclude`: Filter by studio, producer, or licensor MAL IDs.
+- `staff`: Filter by credited MAL person IDs.
+- `characters` & `character_role`: Filter by character MAL IDs and specify role (`main` or `supporting`).
+- `voice_actors` & `voice_language`: Filter by voice actor MAL IDs and language.
+- `broadcast_day`: Day of week in Japan (`monday`..`sunday`), or dynamic keywords `today` and `tomorrow` (evaluated relative to midnight JST).
+- `continuing`: Accepts `only` for continuing multi-cour/perpetual TV series (e.g. *One Piece*), allowing clean separation from seasonal debuts.
+- Numerical range bounds: `min_score`, `max_score`, `min_scored_by`, `max_scored_by`, `min_reviews`, `max_reviews`, `min_favorites`, `max_favorites`.
+
+**Seasonal Anime Sorting & Nulls:**
+- `order_by`: Extended fields: `title_english`, `title_japanese`, `rank`, `popularity`, `added` (`added` works only with approved anime).
+- `nulls`: Controls placement of items missing the sorted property (`first` or `last`). Requires `order_by`.
+
+**Integration in MAL+:**
+- `AnimeSeasonalQuery` automatically requests `order_by=popularity` by default, ensuring the first page rendered by `FirstPageReady` contains the most relevant shows immediately.
+- `AnimeSeasonalQuery` and `ContentFilter` incorporate `rating_exclude=rx` on seasonal requests when `Settings.ContentFilter == ContentFilterMode.Mature`, letting Tenrai filter adult content on the wire.
+- Distinct SHA1 cache hashing via `CacheTagFor(year, season, extraQuery)` ensures all filtered seasonal variations remain isolated without cache collisions.
 
 ---
 

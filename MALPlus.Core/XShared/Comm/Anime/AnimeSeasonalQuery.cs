@@ -52,9 +52,24 @@ namespace MALPlus.XShared.Comm.Anime
         /// <summary>
         ///     The season endpoint, with whatever condition was asked for appended.
         /// </summary>
-        private string SeasonEndpoint(int page) =>
-            $"seasons/{_resolvedYear}/{_resolvedSeasonName}?page={page}" +
-            (_extraQuery == null ? "" : "&" + _extraQuery);
+        private string SeasonEndpoint(int page)
+        {
+            var parts = new List<string> { $"page={page}" };
+
+            // Default order: popularity (so FirstPageReady paints the most relevant entries immediately)
+            if (string.IsNullOrEmpty(_extraQuery) || !_extraQuery.Contains("order_by="))
+                parts.Add("order_by=popularity");
+
+            // Server-side content filtering (including rating_exclude=rx on Mature mode)
+            var contentFilter = ContentFilter.SeasonalFilter();
+            if (!string.IsNullOrEmpty(contentFilter))
+                parts.Add(contentFilter);
+
+            if (!string.IsNullOrWhiteSpace(_extraQuery))
+                parts.Add(_extraQuery);
+
+            return $"seasons/{_resolvedYear}/{_resolvedSeasonName}?" + string.Join("&", parts);
+        }
 
         /// <summary>
         ///     The cache key for a season, in one place.
@@ -76,7 +91,7 @@ namespace MALPlus.XShared.Comm.Anime
                 Season.Spring => "spring",
                 Season.Summer => "summer",
                 _ => "fall"
-            }}";
+            }}_{ContentFilter.CacheTag}";
             // Derives a short stable suffix rather than embedding the condition itself, which would put
             // whatever the caller spelled into a filename.
             if (!string.IsNullOrWhiteSpace(extraQuery))
