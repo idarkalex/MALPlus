@@ -36,17 +36,26 @@
                          CornerRadius="2" Color="#33FFFFFF"
                          HorizontalOptions="Center" Margin="0,10,0,4" />
 
-                <Grid x:Name="Header" Grid.Row="1" ColumnDefinitions="*,Auto" Margin="20,6,12,10">
-                    <VerticalStackLayout Grid.Column="0" Spacing="1" VerticalOptions="Center">
+                <Grid x:Name="Header" Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="16,6,12,10">
+                    <Border Grid.Column="0" x:Name="BackButton" WidthRequest="32" HeightRequest="32"
+                            StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                            VerticalOptions="Center" Margin="0,0,10,0" IsVisible="False">
+                        <Image Source="icon_chevron_left" WidthRequest="18" HeightRequest="18"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnBackTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                    <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
                         <Label x:Name="TitleLabel" Text="Options" FontFamily="InterBold" FontSize="16"
                                TextColor="{StaticResource BrushText}" />
-                        <Label x:Name="SubtitleLabel" Text="" FontFamily="InterMedium" FontSize="11"
-                               TextColor="#8FA8C0" LineBreakMode="TailTruncation" MaxLines="1"
+                        <Label x:Name="SubtitleLabel" Text="" FontFamily="InterMedium" FontSize="13"
+                               TextColor="#8FA8C0" LineBreakMode="WordWrap" MaxLines="8"
                                IsVisible="False" />
                     </VerticalStackLayout>
-<Border Grid.Column="1" x:Name="CloseButton" WidthRequest="32" HeightRequest="32"
-                                StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
-                                VerticalOptions="Center">
+                    <Border Grid.Column="2" x:Name="CloseButton" WidthRequest="32" HeightRequest="32"
+                            StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                            VerticalOptions="Center">
                         <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                         <Border.GestureRecognizers>

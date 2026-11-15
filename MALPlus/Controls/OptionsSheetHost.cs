@@ -70,50 +70,38 @@ public static class OptionsSheetHost
         => PickAsync(null, null, rows, "Cancel");
 
     /// <summary>
-    ///     A question with a commit and a cancel. Returns true only when the commit was chosen.
+    ///     A question with a commit and optional cancel. Returns true only when the commit was chosen.
     /// </summary>
     public static async Task<bool> ConfirmAsync(string title, string message, string okLabel = "OK",
         bool destructive = false, string cancelLabel = null)
     {
-        // A caller with a real word for each answer asks for it, and gets the two answers on one
-        // row. Without one the shape stays what it has always been, because every existing caller
-        // here is a single "OK" and a "Cancel" underneath it reads fine for that.
-        if (!string.IsNullOrWhiteSpace(cancelLabel))
-        {
-            var answered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var page = new OptionsSheetPage();
+        var answered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var page = new OptionsSheetPage();
 
-            await Gate.WaitAsync();
-            try
+        await Gate.WaitAsync();
+        try
+        {
+            BindConfirm(page, answered);
+            page.Sheet.OpenConfirm(title, message, okLabel, cancelLabel, destructive, () =>
             {
-                BindConfirm(page, answered);
-                page.Sheet.OpenConfirm(title, message, okLabel, cancelLabel, destructive, () =>
-                {
-                    // Popped before the answer is handed over, same as Finish does, so a caller that
-                    // navigates on the strength of it does not navigate with the dialog still on top.
-                    if (answered.TrySetResult(true))
-                        _ = PopAsync(page);
-                });
-                await PushAsync(page);
-                return await answered.Task;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("MALPLUS options confirm failed: " + ex.Message);
-                await PopAsync(page);
-                return false;
-            }
-            finally
-            {
-                Gate.Release();
-            }
+                // Popped before the answer is handed over, same as Finish does, so a caller that
+                // navigates on the strength of it does not navigate with the dialog still on top.
+                if (answered.TrySetResult(true))
+                    _ = PopAsync(page);
+            });
+            await PushAsync(page);
+            return await answered.Task;
         }
-
-        var answer = await PickAsync(title, message, new[]
+        catch (Exception ex)
         {
-            new OptionsSheetItem(okLabel, destructive ? "icon_close" : "icon_check", destructive: destructive)
-        }, "Cancel");
-        return answer == okLabel;
+            Console.WriteLine("MALPLUS options confirm failed: " + ex.Message);
+            await PopAsync(page);
+            return false;
+        }
+        finally
+        {
+            Gate.Release();
+        }
     }
 
     /// <summary>

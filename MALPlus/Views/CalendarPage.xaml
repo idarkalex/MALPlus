@@ -81,7 +81,7 @@
                                                                           CommandParameter="{Binding .}" />
                                                 </Grid.GestureRecognizers>
                                                 <controls:AnimePosterCard
-                                                    HeightRequest="{Binding Source={x:Reference DayGrid}, Path=CellHeight}"
+                                                    HeightRequest="195"
                                                     PosterUrl="{Binding ImgUrl}"
                                                     Title="{Binding Title}"
                                                     TitleOverlay="True"

@@ -14,6 +14,7 @@ using MALPlus.XShared.Utils;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Forums.Items;
 using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace MALPlus.XShared.Comm.MagicalRawQueries.Forums
 {
@@ -305,6 +306,7 @@ namespace MALPlus.XShared.Comm.MagicalRawQueries.Forums
             // Post bodies keep MAL's own inline colours (black on a dark sheet is
             // invisible), so the palette is forced back on every descendant.
             builder.Append(".message-content *{color:#d4e4f7 !important;}.message-content a{color:#4da3ff !important;}.message-content h1,.message-content h2,.message-content h3,.message-content h4,.message-content h5,.message-content h6{color:#fff !important;}.message-content blockquote,.message-content blockquote *{color:#b9cde0 !important;}.message-actions{margin:6px 0;}.quote-action{margin-left:auto;display:inline-block;padding:4px 10px;background:#141d2b;border:1px solid #29ffffff;border-radius:8px;color:#4da3ff;text-decoration:none;font-size:12px;}");
+            builder.Append(".topic-poll{background:#0d1d2c;border:1px solid #1e3a52;border-radius:12px;padding:14px 16px;margin:0 0 16px;}.topic-poll-header{display:flex;align-items:center;gap:8px;margin-bottom:12px;}.topic-poll-icon{font-size:16px;}.topic-poll-question{font-size:16px;font-weight:700;color:#fff !important;margin:0;line-height:1.35;}.topic-poll-options{display:flex;flex-direction:column;gap:8px;}.topic-poll-btn{display:block;background:#141d2b;border:1px solid #0066ff;border-radius:8px;color:#4da3ff !important;padding:10px 14px;font-weight:600;font-size:14px;text-decoration:none;text-align:center;}.topic-poll-btn:active{background:#0066ff;color:#fff !important;}.topic-poll-results{display:flex;flex-direction:column;gap:10px;}.topic-poll-row{display:flex;flex-direction:column;gap:4px;}.topic-poll-choice{font-size:13px;font-weight:600;color:#d4e4f7 !important;}.topic-poll-bar-container{height:10px;background:#10283d;border-radius:5px;overflow:hidden;width:100%;}.topic-poll-bar-fill{height:100%;background:#0066ff;border-radius:5px;min-width:0;}.topic-poll-meta{display:flex;justify-content:flex-end;gap:6px;font-size:12px;color:#8fa8c0 !important;}.topic-poll-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid #1e3a52;}.topic-poll-total{font-size:12px;color:#8fa8c0 !important;}.topic-poll-toggle-btn{display:inline-block;padding:5px 12px;background:#141d2b;border:1px solid #29ffffff;border-radius:6px;color:#4da3ff !important;text-decoration:none;font-size:12px;font-weight:600;}");
 
             builder.Append("</style></head><body>");
             if (!string.IsNullOrWhiteSpace(data?.Title))
@@ -312,6 +314,10 @@ namespace MALPlus.XShared.Comm.MagicalRawQueries.Forums
                 builder.Append("<header class=\"topic-header\"><h1 class=\"topic-title\">");
                 builder.Append(WebUtility.HtmlEncode(data.Title));
                 builder.Append("</h1></header>");
+            }
+            if (data?.Poll != null && data.CurrentPage == 1)
+            {
+                builder.Append(BuildPollHtml(data.Poll, data.Id, data.ShowPollResults));
             }
             if (data?.Messages != null)
             {
@@ -363,6 +369,69 @@ builder.Append("\">Quote</a></header>");
             }
             builder.Append("</body></html>");
             return builder.ToString();
+        }
+
+        private static string BuildPollHtml(ForumTopicPollData poll, string topicId, bool showResults)
+        {
+            if (poll == null)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.Append("<section class=\"topic-poll\">");
+            sb.Append("<div class=\"topic-poll-header\">");
+            sb.Append("<span class=\"topic-poll-icon\">📊</span>");
+            sb.Append("<h2 class=\"topic-poll-question\">").Append(WebUtility.HtmlEncode(poll.Question ?? "Poll")).Append("</h2>");
+            sb.Append("</div>");
+
+            var isClosed = poll.Closed;
+            var totalVotes = poll.TotalVotes;
+
+            if (showResults || isClosed)
+            {
+                sb.Append("<div class=\"topic-poll-results\">");
+                foreach (var opt in poll.Options ?? Enumerable.Empty<ForumTopicPollOption>())
+                {
+                    var pct = totalVotes > 0 ? (double)opt.Votes * 100.0 / totalVotes : 0.0;
+                    var pctInt = (int)Math.Round(pct);
+                    sb.Append("<div class=\"topic-poll-row\">");
+                    sb.Append("<div class=\"topic-poll-choice\">").Append(WebUtility.HtmlEncode(opt.Text ?? string.Empty)).Append("</div>");
+                    sb.Append("<div class=\"topic-poll-bar-container\"><div class=\"topic-poll-bar-fill\" style=\"width:").Append(pctInt).Append("%;\"></div></div>");
+                    sb.Append("<div class=\"topic-poll-meta\">");
+                    sb.Append("<span class=\"topic-poll-pct\">").Append(pct.ToString("0.0")).Append("%</span>");
+                    sb.Append("<span class=\"topic-poll-count\">(").Append(opt.Votes).Append(")</span>");
+                    sb.Append("</div>");
+                    sb.Append("</div>");
+                }
+                sb.Append("<div class=\"topic-poll-footer\">");
+                sb.Append("<span class=\"topic-poll-total\">").Append(totalVotes).Append(totalVotes == 1 ? " vote" : " votes");
+                if (isClosed) sb.Append(" &middot; Closed");
+                sb.Append("</span>");
+                if (!isClosed)
+                {
+                    sb.Append("<a class=\"topic-poll-toggle-btn\" href=\"malpluspoll:").Append(WebUtility.UrlEncode(topicId)).Append("\">Vote</a>");
+                }
+                sb.Append("</div>");
+                sb.Append("</div>");
+            }
+            else
+            {
+                sb.Append("<div class=\"topic-poll-options\">");
+                foreach (var opt in poll.Options ?? Enumerable.Empty<ForumTopicPollOption>())
+                {
+                    sb.Append("<a class=\"topic-poll-btn\" href=\"malplusvote:").Append(WebUtility.UrlEncode(topicId))
+                      .Append("?option=").Append(opt.Id).Append("\">")
+                      .Append(WebUtility.HtmlEncode(opt.Text ?? string.Empty))
+                      .Append("</a>");
+                }
+                sb.Append("<div class=\"topic-poll-footer\">");
+                sb.Append("<span class=\"topic-poll-total\">").Append(totalVotes).Append(totalVotes == 1 ? " vote" : " votes").Append("</span>");
+                sb.Append("<a class=\"topic-poll-toggle-btn\" href=\"malplusresults:").Append(WebUtility.UrlEncode(topicId)).Append("\">View results</a>");
+                sb.Append("</div>");
+                sb.Append("</div>");
+            }
+
+            sb.Append("</section>");
+            return sb.ToString();
         }
 
         public static string SanitizePresentationHtml(string html)
@@ -780,6 +849,15 @@ builder.Append("\">Quote</a></header>");
                 if (output.Messages.Count == 0)
                     return null;
 
+                if (output.CurrentPage == 1)
+                {
+                    output.Poll = await FetchTopicPollAsync(topicId);
+                }
+                else if (topicId != null && CachedMessagesDictionary.TryGetValue(topicId, out var tc) && tc.TryGetValue(1, out var p1))
+                {
+                    output.Poll = p1.Poll;
+                }
+
                 var responsePage = GetPageFromUri(finalUri, 0);
                 var canCache = (!lastpage && messageId == null) ||
                                (lastpage && messageId == null && responsePage > 1 && output.CurrentPage == responsePage);
@@ -798,6 +876,94 @@ builder.Append("\">Quote</a></header>");
             catch (Exception)
             {
                 return null;
+            }
+        }
+
+        private static async Task<ForumTopicPollData> FetchTopicPollAsync(string topicId)
+        {
+            if (string.IsNullOrWhiteSpace(topicId))
+                return null;
+
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("X-MAL-CLIENT-ID", MalOAuthSettings.ClientId);
+                var url = $"https://api.myanimelist.net/v2/forum/topic/{topicId}?limit=1";
+                var res = await httpClient.GetAsync(url);
+                if (!res.IsSuccessStatusCode)
+                    return null;
+
+                var json = await res.Content.ReadAsStringAsync();
+                using var jsonDoc = System.Text.Json.JsonDocument.Parse(json);
+                if (jsonDoc.RootElement.TryGetProperty("data", out var dataElem) &&
+                    dataElem.TryGetProperty("poll", out var pollElem) &&
+                    pollElem.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    var poll = new ForumTopicPollData();
+                    if (pollElem.TryGetProperty("id", out var idElem) && idElem.TryGetInt64(out var id))
+                        poll.Id = id;
+                    if (pollElem.TryGetProperty("question", out var qElem))
+                        poll.Question = qElem.GetString();
+                    if (pollElem.TryGetProperty("closed", out var cElem))
+                        poll.Closed = cElem.GetBoolean();
+                    if (pollElem.TryGetProperty("options", out var optsElem) &&
+                        optsElem.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var opt in optsElem.EnumerateArray())
+                        {
+                            var optObj = new ForumTopicPollOption();
+                            if (opt.TryGetProperty("id", out var optId) && optId.TryGetInt64(out var oid))
+                                optObj.Id = oid;
+                            if (opt.TryGetProperty("text", out var optText))
+                                optObj.Text = optText.GetString();
+                            if (opt.TryGetProperty("votes", out var optVotes) && optVotes.TryGetInt32(out var ovotes))
+                                optObj.Votes = ovotes;
+                            poll.Options.Add(optObj);
+                        }
+                    }
+                    return poll;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("MALPLUS FetchTopicPollAsync failed: " + ex.Message);
+            }
+            return null;
+        }
+
+        public static async Task<bool> VotePollOptionAsync(string topicId, string optionId)
+        {
+            if (string.IsNullOrWhiteSpace(topicId) || string.IsNullOrWhiteSpace(optionId))
+                return false;
+
+            try
+            {
+                var client = await ResourceLocator.MalHttpContextProvider.GetHttpContextAsync();
+                if (client == null)
+                    return false;
+
+                var endpoint = $"https://myanimelist.net/forum/{topicId}/vote/option";
+                var form = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>("option_id", optionId),
+                    new KeyValuePair<string, string>("csrf_token", client.Token)
+                };
+
+                var content = new FormUrlEncodedContent(form);
+                var response = await client.PostAsync(endpoint, content);
+                if (!response.IsSuccessStatusCode)
+                    return false;
+
+                var respString = await response.Content.ReadAsStringAsync();
+                if (respString.Contains("\"error\""))
+                    return false;
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("MALPLUS VotePollOption failed: " + ex.Message);
+                return false;
             }
         }
 

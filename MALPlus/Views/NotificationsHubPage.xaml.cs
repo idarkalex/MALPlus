@@ -1,25 +1,26 @@
+using System;
+using System.Threading.Tasks;
+using MALPlus.Controls;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Notifications;
-using MALPlus.XShared.Utils;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Views;
 
-public partial class NotificationsHubPage : ContentPage
+public partial class NotificationsHubPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     private int _activeTab;
     private NotificationsHubViewModel Vm => (NotificationsHubViewModel)BindingContext;
 
-    // MAL notification type tabs: All, Airing, Replies, Messages, Others
-    private static readonly (string Label, MalNotificationsTypes? Type)[] Tabs = new (string, MalNotificationsTypes?)[]
+    private static readonly MalNotificationsTypes?[] TabTypes = new MalNotificationsTypes?[]
     {
-        ("All", null),
-        ("Airing", MalNotificationsTypes.NowAiring),
-        ("Replies", MalNotificationsTypes.ForumQuoute | MalNotificationsTypes.UserMentions | MalNotificationsTypes.WatchedTopics | MalNotificationsTypes.WatchedTopic),
-        ("Messages", MalNotificationsTypes.Messages),
-        ("Others", MalNotificationsTypes.Generic | MalNotificationsTypes.FriendRequest | MalNotificationsTypes.FriendRequestAcceptDeny | MalNotificationsTypes.ProfileComment | MalNotificationsTypes.BlogComment | MalNotificationsTypes.ClubMessages | MalNotificationsTypes.NewRelatedAnime | MalNotificationsTypes.Payment),
+        null,
+        MalNotificationsTypes.NowAiring,
+        MalNotificationsTypes.ForumQuoute | MalNotificationsTypes.UserMentions | MalNotificationsTypes.WatchedTopics | MalNotificationsTypes.WatchedTopic,
+        MalNotificationsTypes.Messages,
+        MalNotificationsTypes.Generic | MalNotificationsTypes.FriendRequest | MalNotificationsTypes.FriendRequestAcceptDeny | MalNotificationsTypes.ProfileComment | MalNotificationsTypes.BlogComment | MalNotificationsTypes.ClubMessages | MalNotificationsTypes.NewRelatedAnime | MalNotificationsTypes.Payment
     };
 
     public NotificationsHubPage()
@@ -31,9 +32,9 @@ public partial class NotificationsHubPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        SetNotificationTab(_activeTab);
         if (_initialized) return;
         _initialized = true;
-        BuildTabs();
         try
         {
             Vm.Init(false);
@@ -42,7 +43,6 @@ public partial class NotificationsHubPage : ContentPage
                 await Task.Delay(200);
                 if (!Vm.Loading) break;
             }
-            HighlightTab(0);
         }
         catch (Exception ex)
         {
@@ -50,67 +50,62 @@ public partial class NotificationsHubPage : ContentPage
         }
     }
 
-    private void BuildTabs()
+    public void SetNotificationTab(int index)
     {
-        TypeTabsStrip.Children.Clear();
-        for (int i = 0; i < Tabs.Length; i++)
-        {
-            var (label, type) = Tabs[i];
-            var button = new Button
-            {
-                Text = label,
-                FontFamily = "InterSemiBold",
-                FontSize = 12,
-                Padding = new Thickness(12, 6),
-                HeightRequest = 32,
-                CornerRadius = 16,
-                BorderColor = Color.FromArgb("#29FFFFFF"),
-                BorderWidth = 1,
-                BackgroundColor = Colors.Transparent,
-                TextColor = Color.FromArgb("#FFFFFF")
-            };
-            int captured = i;
-            var capturedType = type;
-            button.Clicked += (s, e) => OnTypeTabClicked(captured, capturedType);
-            TypeTabsStrip.Children.Add(button);
-        }
-    }
+        if (index < 0 || index >= TabTypes.Length) return;
+        _activeTab = index;
 
-    private void HighlightTab(int activeIndex)
-    {
-        _activeTab = activeIndex;
-        for (int i = 0; i < TypeTabsStrip.Children.Count; i++)
+        Button[] buttons = { TabAll, TabAiring, TabReplies, TabMessages, TabOthers };
+        for (int i = 0; i < buttons.Length; i++)
         {
-            if (TypeTabsStrip.Children[i] is Button b)
+            if (buttons[i] != null)
             {
-                b.BackgroundColor = i == activeIndex ? Color.FromArgb("#0066FF") : Colors.Transparent;
-                b.TextColor = i == activeIndex ? Colors.White : Color.FromArgb("#FFFFFF");
+                TabChipHelper.ApplyStyle(buttons[i], i == index);
             }
         }
-    }
 
-    private void OnTypeTabClicked(int index, MalNotificationsTypes? type)
-    {
-        HighlightTab(index);
         try
         {
-            Vm.CurrentNotificationType = type;
+            if (Vm != null)
+                Vm.CurrentNotificationType = TabTypes[index];
         }
         catch { }
     }
 
-    private void OnRefreshing(object sender, EventArgs e)
+    private void OnTabButtonClicked(object sender, EventArgs e)
     {
-        try { Vm.Init(true); } catch { }
+        if (sender is Button b && b.CommandParameter is string s && int.TryParse(s, out int idx))
+        {
+            SetNotificationTab(idx);
+        }
     }
 
-    private async void OnNotificationTapped(object sender, SelectionChangedEventArgs e)
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        var next = _activeTab + (direction > 0 ? 1 : -1);
+        if (next < 0 || next >= TabTypes.Length)
+            return false;
+
+        SetNotificationTab(next);
+        return true;
+    }
+
+    private void OnRefreshing(object sender, EventArgs e)
     {
         try
         {
-            if (e.CurrentSelection.FirstOrDefault() is MalNotification notif)
+            if (Vm == null || Vm.Loading) return;
+            Vm.Init(true);
+        }
+        catch { }
+    }
+
+    private async void OnNotificationItemTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (e.Parameter is MalNotification notif)
             {
-                NotificationList.SelectedItem = null;
                 // Mark as read first.
                 try { Vm.MarkAsReadComand?.Execute(notif); } catch { }
                 // Then navigate via the VM command (parses SanitizedLaunchArgs to

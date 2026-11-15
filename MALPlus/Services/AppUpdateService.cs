@@ -317,17 +317,38 @@ public static class AppUpdateService
     {
         try
         {
-            var changelogText = @"• Complete migration to .NET 11 and .NET MAUI for Android.
+            string changelogText = null;
+            string releaseTitle = $"MAL+ v{AppInfo.VersionString} (Build {AppInfo.BuildString})";
+
+            try
+            {
+                var query = new AppUpdateQuery();
+                var info = await query.GetUpdateInfo();
+                if (info != null && !string.IsNullOrWhiteSpace(info.ReleaseNotes))
+                {
+                    changelogText = info.ReleaseNotes;
+                    releaseTitle = $"MAL+ v{info.Version} - {info.ReleaseName}";
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn("Update", $"Could not fetch remote release notes: {ex.Message}");
+            }
+
+            if (string.IsNullOrWhiteSpace(changelogText))
+            {
+                changelogText = @"• Complete migration to .NET 11 and .NET MAUI for Android.
 • Modernized dark-first visual design with fluid ViewPager2 gestures.
 • Offline seed bundle: 500+ anime titles preloaded with details and episodes.
 • AnimeThemes integration for high quality OP/ED video and audio playback.
 • Native MyAnimeList forum browser with clean pagination and quick replies.
 • 100% local diagnostic logger with exportable support bundle in Settings.
 • Content rating filters, localized title preferences, and live MAL sync.";
+            }
 
             await OptionsSheetHost.ShowChangelogAsync(
                 "Release Notes",
-                $"MAL+ v{AppInfo.VersionString} (Build {AppInfo.BuildString})",
+                releaseTitle,
                 changelogText);
         }
         catch (Exception ex)

@@ -48,7 +48,7 @@
         </Style>
 
         <DataTemplate x:Key="EpisodeTemplate">
-            <Border Margin="12,4" Style="{StaticResource PanelStyle}" Padding="14,11">
+            <Border HeightRequest="60" Margin="12,4" Style="{StaticResource PanelStyle}" Padding="14,8">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnEpisodeTapped" CommandParameter="{Binding .}" />
                 </Border.GestureRecognizers>
@@ -107,29 +107,13 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnRecommendationTapped" CommandParameter="{Binding .}" />
                 </Border.GestureRecognizers>
-<Grid ColumnDefinitions="130,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-                                    <!-- The common poster card, not a private one. It used to be
-                                         forced to a 130 width and turned its title overlay off, so it
-                                         was the only poster in the app with no chips and no counter
-                                         pill on it. The width goes with the column now and the badge
-                                         bar is switched on, which is what puts the airing countdown
-                                         back on the recommendation.
-                                         The episode half goes through the same rule as every other
-                                         card: a recommendation is not on the user's list, so it reads
-                                         the total on its own, and the countdown rides along when
-                                         there is one.
-                                         No ScoreTag here on purpose: the recommendations endpoint
-                                         returns title, image, type and nothing else, so it would be
-                                         a dead binding. Fetching a mean for every recommendation is a
-                                         dozen extra calls for a tab nobody reads that carefully.
-                                         The title stays a 16sp label in the column over here: a
-                                         synopsis row wants it bigger than a grid cell does. -->
-                                    <controls:AnimePosterCard Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
-                                               HorizontalOptions="Fill" HeightRequest="195"
+                <Grid ColumnDefinitions="130,*" ColumnSpacing="14" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                    <controls:AnimePosterCard Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"
+                                               WidthRequest="130" HeightRequest="195"
                                                VerticalOptions="Start"
                                                PosterUrl="{Binding ImageUrl}"
                                                TitleOverlay="False"
-                                               TypeTag="{Binding MediaType}"
+                                               TypeTag="{Binding TypeTag}"
                                                BadgeVisible="True"
                                                BadgeAccent="{Binding LibraryBadgeAccent}"
                                                BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
@@ -139,11 +123,12 @@
                            TextColor="{StaticResource BrushText}" MaxLines="3" LineBreakMode="TailTruncation"
                            SizeChanged="OnRecommendationTitleSized" />
                     <Label Grid.Row="1" Grid.Column="1" Text="{Binding DescriptionTop}" FontFamily="Inter" FontSize="13"
-                           TextColor="#B8C7D8" LineHeight="1.35" MaxLines="9" LineBreakMode="TailTruncation"
+                           TextColor="#B8C7D8" LineHeight="1.35" MaxLines="11" LineBreakMode="WordWrap"
+                           MinimumHeightRequest="{Binding MinTopHeight}"
                            IsVisible="{Binding HasDescriptionTop}" />
                     <Label Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding DescriptionBottom}"
                            FontFamily="Inter" FontSize="13"
-                           TextColor="#B8C7D8" LineHeight="1.35" MaxLines="6" LineBreakMode="TailTruncation"
+                           TextColor="#B8C7D8" LineHeight="1.35" MaxLines="100" LineBreakMode="WordWrap"
                            IsVisible="{Binding HasDescriptionBottom}" />
                 </Grid>
             </Border>
@@ -552,24 +537,61 @@
                          have. Same content, no dead space. -->
                     <Grid x:Name="EpisodesPanel"
                           IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
-                          RowDefinitions="Auto,*"
+                          RowDefinitions="Auto,*,Auto"
                           Padding="0,8,0,32">
-                        <HorizontalStackLayout Grid.Row="0" Margin="14,0,14,6" HorizontalOptions="End"
-                                               IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasFillerEpisodes}">
-                            <Border Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
-                                    BackgroundColor="#1AFFFFFF" Padding="10,4" InputTransparent="False">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnToggleFillerTapped" />
-                                </Border.GestureRecognizers>
-                                <Label Text="{Binding Source={x:Reference DetailsPage}, Path=FilterFillerButtonText}"
-                                       FontFamily="InterMedium" FontSize="11" TextColor="{StaticResource BrushText}"
-                                       InputTransparent="True" />
-                            </Border>
-                        </HorizontalStackLayout>
+                        <!-- Top header row: summary, sort toggle, and filler filter -->
+                        <Grid Grid.Row="0" Margin="14,0,14,8" RowDefinitions="Auto,Auto" RowSpacing="8">
+                            <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" VerticalOptions="Center">
+                                <Label Grid.Column="0" Text="{Binding Source={x:Reference DetailsPage}, Path=EpisodesRangeSummary}"
+                                       FontFamily="InterMedium" FontSize="12" TextColor="#A0A0A0" VerticalOptions="Center" />
+
+                                <Border Grid.Column="1" Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                        BackgroundColor="#1AFFFFFF" Padding="8,4" InputTransparent="False">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnToggleEpisodeSortTapped" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Source={x:Reference DetailsPage}, Path=EpisodeSortButtonText}"
+                                           FontFamily="InterMedium" FontSize="11" TextColor="{StaticResource BrushText}"
+                                           InputTransparent="True" />
+                                </Border>
+
+                                <Border Grid.Column="2" Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                        BackgroundColor="#1AFFFFFF" Padding="8,4" InputTransparent="False"
+                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasFillerEpisodes}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnToggleFillerTapped" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Source={x:Reference DetailsPage}, Path=FilterFillerButtonText}"
+                                           FontFamily="InterMedium" FontSize="11" TextColor="{StaticResource BrushText}"
+                                           InputTransparent="True" />
+                                </Border>
+                            </Grid>
+
+                            <!-- Horizontal Episode Range Pills -->
+                            <ScrollView x:Name="EpisodeRangesScroll" Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
+                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasEpisodeRanges}">
+                                <HorizontalStackLayout BindableLayout.ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=EpisodeRanges}"
+                                                       Spacing="6" Padding="0,2">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Stroke="{Binding StrokeBrush}" StrokeThickness="1" StrokeShape="RoundRectangle 14"
+                                                    Background="{Binding BackgroundBrush}" Padding="12,5" InputTransparent="False">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnEpisodeRangeTapped" CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Label Text="{Binding DisplayText}" FontFamily="InterMedium" FontSize="12"
+                                                       TextColor="{Binding TextColor}" HorizontalOptions="Center" VerticalOptions="Center" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </HorizontalStackLayout>
+                            </ScrollView>
+                        </Grid>
                         <CollectionView Grid.Row="1"
                                         IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedEpisodes}"
                                         ItemTemplate="{StaticResource EpisodeTemplate}"
+                                        ItemSizingStrategy="MeasureFirstItem"
                                         RemainingItemsThreshold="6">
                             <CollectionView.ItemsLayout>
                                 <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
@@ -591,6 +613,30 @@
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No episodes available." Style="{StaticResource StateTextStyle}" />
                         </Border>
+
+                        <!-- Bottom Navigation Footer between Ranges -->
+                        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12" Margin="14,10,14,0"
+                              IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasEpisodeRanges}">
+                            <Border Grid.Column="0" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasPrevRange}"
+                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8"
+                                    BackgroundColor="#141D2B" Padding="12,8" InputTransparent="False">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnPrevRangeTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="{Binding Source={x:Reference DetailsPage}, Path=PrevRangeButtonText}"
+                                       FontFamily="InterMedium" FontSize="12" TextColor="White" HorizontalOptions="Center" />
+                            </Border>
+
+                            <Border Grid.Column="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasNextRange}"
+                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8"
+                                    BackgroundColor="#141D2B" Padding="12,8" InputTransparent="False">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnNextRangeTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="{Binding Source={x:Reference DetailsPage}, Path=NextRangeButtonText}"
+                                       FontFamily="InterMedium" FontSize="12" TextColor="White" HorizontalOptions="Center" />
+                            </Border>
+                        </Grid>
                     </Grid>
 
                     <!-- Reviews and Recommendations are CollectionViews for the same reason the
@@ -615,12 +661,12 @@
                                 <Label Text="Loading reviews..." Style="{StaticResource StateTextStyle}" />
                             </HorizontalStackLayout>
                         </Border>
-                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsErrorVisible}"
+                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsErrorVisible}"
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="{Binding Source={x:Reference DetailsPage}, Path=ReviewsErrorText}"
                                    Style="{StaticResource StateTextStyle}" />
                         </Border>
-                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsEmptyVisible}"
+                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsEmptyVisible}"
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No reviews available." Style="{StaticResource StateTextStyle}" />
                         </Border>
@@ -687,7 +733,7 @@
                                      behaves like the character rows, which scroll fine. -->
                                 <DataTemplate>
                                     <controls:AnimePosterCard
-                                        HeightRequest="{Binding Source={x:Reference RelatedGrid}, Path=CellHeight}"
+                                        HeightRequest="195"
                                         PosterUrl="{Binding ImgUrl}"
                                         Title="{Binding Title}"
                                         TitleOverlay="True"

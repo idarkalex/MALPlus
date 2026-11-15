@@ -25,15 +25,12 @@
                 <!-- One page per type, as MAL itself splits it. The list used to be a single flat
                      run of everything, which made it long and unmixable. -->
                 <HorizontalStackLayout Grid.Row="0" Padding="16,4,16,8" Spacing="8">
-                    <Button x:Name="TabAll" Text="All" FontFamily="InterSemiBold" FontSize="12"
-                            Padding="14,4" CornerRadius="14" BackgroundColor="{StaticResource EmAccent}"
-                            TextColor="White" BorderWidth="0" Clicked="OnTypeTabTapped" CommandParameter="All" />
-                    <Button x:Name="TabAnime" Text="Anime" FontFamily="InterSemiBold" FontSize="12"
-                            Padding="14,4" CornerRadius="14" BackgroundColor="#141d2b"
-                            TextColor="#9FB3C8" BorderWidth="0" Clicked="OnTypeTabTapped" CommandParameter="Anime" />
-                    <Button x:Name="TabManga" Text="Manga" FontFamily="InterSemiBold" FontSize="12"
-                            Padding="14,4" CornerRadius="14" BackgroundColor="#141d2b"
-                            TextColor="#9FB3C8" BorderWidth="0" Clicked="OnTypeTabTapped" CommandParameter="Manga" />
+                    <Button x:Name="TabAll" Text="All" Clicked="OnTypeTabTapped" CommandParameter="All"
+                            Style="{StaticResource TabChipActiveButtonStyle}" />
+                    <Button x:Name="TabAnime" Text="Anime" Clicked="OnTypeTabTapped" CommandParameter="Anime"
+                            Style="{StaticResource TabChipButtonStyle}" />
+                    <Button x:Name="TabManga" Text="Manga" Clicked="OnTypeTabTapped" CommandParameter="Manga"
+                            Style="{StaticResource TabChipButtonStyle}" />
                 </HorizontalStackLayout>
 
                 <CollectionView x:Name="HistoryList" Grid.Row="1" SelectionMode="Single"

@@ -1,3 +1,4 @@
+using MALPlus.Controls;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -13,7 +14,7 @@ using AnimeItemViewModel = MALPlus.XShared.ViewModels.AnimeItemViewModel;
 namespace MALPlus.Views;
 
 [QueryProperty(nameof(SourceUser), "user")]
-public partial class HistoryPage : ContentPage
+public partial class HistoryPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     public string SourceUser { get; set; }
@@ -251,17 +252,25 @@ public partial class HistoryPage : ContentPage
 
     private void UpdateTabColors()
     {
-        var active = Color.FromArgb("#0066FF");
-        var idle = Color.FromArgb("#141d2b");
-        var activeText = Colors.White;
-        var idleText = Color.FromArgb("#9FB3C8");
+        if (TabAll == null || TabAnime == null || TabManga == null) return;
+        TabChipHelper.ApplyStyle(TabAll, _tab == HistoryTab.All);
+        TabChipHelper.ApplyStyle(TabAnime, _tab == HistoryTab.Anime);
+        TabChipHelper.ApplyStyle(TabManga, _tab == HistoryTab.Manga);
+    }
 
-        TabAll.BackgroundColor = _tab == HistoryTab.All ? active : idle;
-        TabAll.TextColor = _tab == HistoryTab.All ? activeText : idleText;
-        TabAnime.BackgroundColor = _tab == HistoryTab.Anime ? active : idle;
-        TabAnime.TextColor = _tab == HistoryTab.Anime ? activeText : idleText;
-        TabManga.BackgroundColor = _tab == HistoryTab.Manga ? active : idle;
-        TabManga.TextColor = _tab == HistoryTab.Manga ? activeText : idleText;
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        var tabs = new[] { HistoryTab.All, HistoryTab.Anime, HistoryTab.Manga };
+        var idx = Array.IndexOf(tabs, _tab);
+        if (idx < 0) idx = 0;
+        var nextIdx = idx + (direction > 0 ? 1 : -1);
+        if (nextIdx < 0 || nextIdx >= tabs.Length)
+            return false;
+
+        _tab = tabs[nextIdx];
+        UpdateTabColors();
+        RebuildHistory();
+        return true;
     }
 
     /// <summary>

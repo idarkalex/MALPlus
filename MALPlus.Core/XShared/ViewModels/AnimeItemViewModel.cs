@@ -47,7 +47,28 @@ namespace MALPlus.XShared.ViewModels
         private bool _seasonalState;
 
         public int Id { get; private set; }
-        public string ImgUrl { get; private set; }
+        private string _imgUrl;
+        public string ImgUrl
+        {
+            get => _imgUrl;
+            set
+            {
+                if (_imgUrl != value)
+                {
+                    _imgUrl = value;
+                    RaisePropertyChanged(() => ImgUrl);
+                }
+            }
+        }
+
+        public void SetImageUrl(string url)
+        {
+            if (!string.IsNullOrEmpty(url) && _imgUrl != url)
+            {
+                ImgUrl = url;
+            }
+        }
+
         public string Subtitle { get; set; }
 
         public bool AllowDetailsNavigation { private get; set; } = true; //Disabled when draggig grid item

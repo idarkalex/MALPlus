@@ -107,17 +107,33 @@ namespace MALPlus.XShared.Comm.MagicalRawQueries.Messages
             try
             {
                 var current = new MalMessageModel();
-                current.Target = msgNode.FirstOfDescendantsWithClass("div", "mym mym_user").InnerText.Trim();
+                current.Target = msgNode.FirstOfDescendantsWithClass("div", "mym mym_user")?.InnerText?.Trim() ?? "";
                 current.Sender = Credentials.UserName;
                 var contentNode = msgNode.FirstOfDescendantsWithClass("div", "mym mym_subject");
-                current.Subject =
-                    WebUtility.HtmlDecode(contentNode.Descendants("a").First().ChildNodes[0].InnerText.Trim().Trim('-'));
-                current.Content = WebUtility.HtmlDecode(contentNode.Descendants("span").First().InnerText.Trim());
-                current.Date = msgNode.FirstOfDescendantsWithClass("span", "mym_date").InnerText.Trim();
+                if (contentNode != null)
+                {
+                    var aLink = contentNode.Descendants("a").FirstOrDefault();
+                    if (aLink != null)
+                    {
+                        var linkText = aLink.ChildNodes.FirstOrDefault()?.InnerText?.Trim() ?? aLink.InnerText.Trim();
+                        current.Subject = WebUtility.HtmlDecode(linkText.Trim('-').Trim());
+                        var href = aLink.Attributes["href"]?.Value ?? "";
+                        var mId = System.Text.RegularExpressions.Regex.Match(href, @"[?&]id=(\d+)");
+                        if (mId.Success)
+                        {
+                            current.Id = mId.Groups[1].Value;
+                            current.ThreadId = current.Id;
+                        }
+                    }
+                    var span = contentNode.Descendants("span").FirstOrDefault();
+                    if (span != null)
+                        current.Content = WebUtility.HtmlDecode(span.InnerText.Trim());
+                }
+                current.Date = msgNode.FirstOfDescendantsWithClass("span", "mym_date")?.InnerText?.Trim() ?? "";
                 current.IsMine = true;
                 return current;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return null;
             }
@@ -128,26 +144,43 @@ namespace MALPlus.XShared.Comm.MagicalRawQueries.Messages
             try
             {
                 var current = new MalMessageModel();
-                current.Sender = msgNode.FirstOfDescendantsWithClass("div", "mym mym_user").InnerText.Trim();
+                current.Sender = msgNode.FirstOfDescendantsWithClass("div", "mym mym_user")?.InnerText?.Trim() ?? "";
                 current.Target = Credentials.UserName;
                 var contentNode = msgNode.FirstOfDescendantsWithClass("div", "mym mym_subject");
-                current.Subject =
-                    WebUtility.HtmlDecode(contentNode.Descendants("a").First().ChildNodes[0].InnerText.Trim().Trim('-'));
-                current.Content = WebUtility.HtmlDecode(contentNode.Descendants("span").First().InnerText.Trim());
-                current.Id =
-                    contentNode.FirstOfDescendantsWithClass("a", "subject-link").Attributes["href"].Value.Split('=')
-                        .Last();
-                current.Date = msgNode.FirstOfDescendantsWithClass("span", "mym_date").InnerText.Trim();
+                if (contentNode != null)
+                {
+                    var aLink = contentNode.Descendants("a").FirstOrDefault();
+                    if (aLink != null)
+                    {
+                        var linkText = aLink.ChildNodes.FirstOrDefault()?.InnerText?.Trim() ?? aLink.InnerText.Trim();
+                        current.Subject = WebUtility.HtmlDecode(linkText.Trim('-').Trim());
+                        var href = aLink.Attributes["href"]?.Value ?? "";
+                        var mId = System.Text.RegularExpressions.Regex.Match(href, @"[?&]id=(\d+)");
+                        if (mId.Success)
+                            current.Id = mId.Groups[1].Value;
+                    }
+                    var span = contentNode.Descendants("span").FirstOrDefault();
+                    if (span != null)
+                        current.Content = WebUtility.HtmlDecode(span.InnerText.Trim());
+                }
+                current.Date = msgNode.FirstOfDescendantsWithClass("span", "mym_date")?.InnerText?.Trim() ?? "";
                 current.IsRead = read;
 
-                var ids =
-                    msgNode.FirstOfDescendantsWithClass("span", "mym_actions").Descendants("a").First().Attributes["href"]
-                        .Value.Split('=');
-                current.ThreadId = ids[3].Substring(0, ids[3].IndexOf('&'));
-                current.ReplyId = ids[2].Substring(0, ids[3].IndexOf('&'));
+                var actionsA = msgNode.FirstOfDescendantsWithClass("span", "mym_actions")?.Descendants("a")?.FirstOrDefault();
+                if (actionsA != null)
+                {
+                    var href = actionsA.Attributes["href"]?.Value ?? "";
+                    var mThread = System.Text.RegularExpressions.Regex.Match(href, @"[?&]threadid=(\d+)");
+                    if (mThread.Success) current.ThreadId = mThread.Groups[1].Value;
+                    var mReply = System.Text.RegularExpressions.Regex.Match(href, @"[?&]replyid=(\d+)");
+                    if (mReply.Success) current.ReplyId = mReply.Groups[1].Value;
+                }
+                if (string.IsNullOrEmpty(current.ThreadId))
+                    current.ThreadId = current.Id;
+
                 return current;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return null;
             }

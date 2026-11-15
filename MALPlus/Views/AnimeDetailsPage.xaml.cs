@@ -26,9 +26,14 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     //First paint shows five rows; the rest is already in the VM and gets appended as the user
     //scrolls. The number is deliberately small: a long-runner has well over a thousand episodes
     //and painting forty of them on the tap is what made the tab feel like it hung.
-    private const int ProgressiveChunkSize = 5;
-    private const int EpisodeChunkSize = 30;
+    private const int ProgressiveChunkSize = 10;
+    private const int EpisodeChunkSize = 100;
+    private const int EpisodeRangeSize = 100;
     private const int RecommendationChunkSize = 8;
+    private const long ProgressiveAppendCooldownMs = 250;
+    private const double ProgressiveAppendScrollDelta = 60;
+    private long _lastProgressiveAppendTimestamp;
+    private double _lastProgressiveAppendScrollY = double.NaN;
     //Characters, staff and related were the three tabs that still froze on first paint. Their
     //CollectionViews sit inside the page ScrollView with a HeightRequest sized to the whole list,
     //so the viewport is as tall as the data (sixty character rows is 6480px) and MAUI realises
@@ -38,7 +43,6 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     //attempt at it appended forty rows per frame and was reverted. So the height is bounded and
     //the rest is reached with the Show more button instead.
     private const int ImageTabChunkSize = 12;
-    private double _lastProgressiveAppendScrollY = double.NaN;
     private int _charactersShown = ImageTabChunkSize;
     private int _mangaCharactersShown = ImageTabChunkSize;
     private int _staffShown = ImageTabChunkSize;
@@ -55,8 +59,8 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     private const double HeroExpandedHeight = 460;
     private const double HeroCollapsedHeight = 210;
     private const double HeroCollapseRange = HeroExpandedHeight - HeroCollapsedHeight;
-    private const uint TabTransitionLength = 160;
-    private const uint SwipeSettleLength = 190;
+    private const uint TabTransitionLength = 110;
+    private const uint SwipeSettleLength = 120;
     private bool _swipeTabBusy;
     private int _swipePreviewIndex = -1;
     private int _swipePreviewDirection;
@@ -152,6 +156,264 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         HideFiller = !HideFiller;
     }
 
+    public ObservableCollection<EpisodeRangeItem> EpisodeRanges { get; } = new();
+    private EpisodeRangeItem _selectedRange;
+    public EpisodeRangeItem SelectedRange
+    {
+        get => _selectedRange;
+        private set
+        {
+            if (_selectedRange == value) return;
+            if (_selectedRange != null) _selectedRange.IsSelected = false;
+            _selectedRange = value;
+            if (_selectedRange != null) _selectedRange.IsSelected = true;
+            OnPropertyChanged(nameof(SelectedRange));
+            NotifyRangeProperties();
+        }
+    }
+
+    public bool HasEpisodeRanges => EpisodeRanges.Count > 1;
+    public bool HasPrevRange => EpisodeRanges.Count > 1 && SelectedRange != null && EpisodeRanges.IndexOf(SelectedRange) > 0;
+    public bool HasNextRange => EpisodeRanges.Count > 1 && SelectedRange != null && EpisodeRanges.IndexOf(SelectedRange) < EpisodeRanges.Count - 1;
+
+    public string PrevRangeButtonText
+    {
+        get
+        {
+            if (!HasPrevRange) return string.Empty;
+            var idx = EpisodeRanges.IndexOf(SelectedRange);
+            return idx > 0 ? $"← {EpisodeRanges[idx - 1].DisplayText}" : string.Empty;
+        }
+    }
+
+    public string NextRangeButtonText
+    {
+        get
+        {
+            if (!HasNextRange) return string.Empty;
+            var idx = EpisodeRanges.IndexOf(SelectedRange);
+            return idx >= 0 && idx < EpisodeRanges.Count - 1 ? $"{EpisodeRanges[idx + 1].DisplayText} →" : string.Empty;
+        }
+    }
+
+    public string EpisodesRangeSummary
+    {
+        get
+        {
+            var source = GetActiveEpisodesSource();
+            var total = source?.Count ?? 0;
+            if (total == 0) return string.Empty;
+            if (!HasEpisodeRanges || SelectedRange == null)
+                return $"{total} episodes";
+            return $"Episodes {SelectedRange.DisplayText} of {total}";
+        }
+    }
+
+    private bool? _episodeSortDescending;
+    public string EpisodeSortButtonText => (_episodeSortDescending ?? IsNaturalDescending()) ? "⇅ Newest" : "⇅ Oldest";
+
+    private bool IsNaturalDescending()
+    {
+        return string.Equals(Vm?.Status, "Currently Airing", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnToggleEpisodeSortTapped(object sender, TappedEventArgs e)
+    {
+        var current = _episodeSortDescending ?? IsNaturalDescending();
+        _episodeSortDescending = !current;
+        OnPropertyChanged(nameof(EpisodeSortButtonText));
+        if (SelectedRange != null)
+            PopulateRangeEpisodes(SelectedRange);
+        else
+            RefreshDisplayedEpisodes(false);
+    }
+
+    private void OnEpisodeRangeTapped(object sender, TappedEventArgs e)
+    {
+        var range = e.Parameter as EpisodeRangeItem ?? (sender as VisualElement)?.BindingContext as EpisodeRangeItem;
+        if (range != null)
+        {
+            SelectRange(range, true);
+        }
+    }
+
+    private void OnNextRangeTapped(object sender, TappedEventArgs e)
+    {
+        if (!HasNextRange || SelectedRange == null) return;
+        var idx = EpisodeRanges.IndexOf(SelectedRange);
+        if (idx >= 0 && idx < EpisodeRanges.Count - 1)
+        {
+            SelectRange(EpisodeRanges[idx + 1], true);
+        }
+    }
+
+    private void OnPrevRangeTapped(object sender, TappedEventArgs e)
+    {
+        if (!HasPrevRange || SelectedRange == null) return;
+        var idx = EpisodeRanges.IndexOf(SelectedRange);
+        if (idx > 0)
+        {
+            SelectRange(EpisodeRanges[idx - 1], true);
+        }
+    }
+
+    private void SelectRange(EpisodeRangeItem range, bool scrollToTop = true)
+    {
+        if (range == null) return;
+        SelectedRange = range;
+        PopulateRangeEpisodes(range);
+        ScrollRangePillIntoView(range);
+        if (scrollToTop && PageScroll != null)
+        {
+            _ = PageScroll.ScrollToAsync(0, HeroExpandedHeight, true);
+        }
+    }
+
+    private void ScrollRangePillIntoView(EpisodeRangeItem range)
+    {
+        if (EpisodeRangesScroll == null || range == null) return;
+        var idx = EpisodeRanges.IndexOf(range);
+        if (idx < 0) return;
+        var targetX = Math.Max(0, idx * 86 - 40);
+        _ = EpisodeRangesScroll.ScrollToAsync(targetX, 0, true);
+    }
+
+    private void PopulateRangeEpisodes(EpisodeRangeItem range)
+    {
+        var source = GetActiveEpisodesSource();
+        if (source == null)
+        {
+            DisplayedEpisodes.Clear();
+            return;
+        }
+
+        IEnumerable<AnimeEpisode> items;
+        if (range != null)
+        {
+            items = source.Where(ep => ep.EpisodeId >= range.StartEpisode && ep.EpisodeId <= range.EndEpisode);
+        }
+        else
+        {
+            items = source;
+        }
+
+        var descending = _episodeSortDescending ?? IsNaturalDescending();
+        items = descending
+            ? items.OrderByDescending(ep => ep.EpisodeId)
+            : items.OrderBy(ep => ep.EpisodeId);
+
+        DisplayedEpisodes.Clear();
+        foreach (var ep in items)
+        {
+            DisplayedEpisodes.Add(ep);
+        }
+    }
+
+    private void RebuildEpisodeRanges()
+    {
+        var source = GetActiveEpisodesSource();
+        if (source == null || source.Count == 0)
+        {
+            EpisodeRanges.Clear();
+            SelectedRange = null;
+            DisplayedEpisodes.Clear();
+            NotifyRangeProperties();
+            return;
+        }
+
+        if (source.Count <= EpisodeRangeSize)
+        {
+            EpisodeRanges.Clear();
+            SelectedRange = null;
+            PopulateRangeEpisodes(null);
+            NotifyRangeProperties();
+            return;
+        }
+
+        var minId = (int)source.Min(e => e.EpisodeId);
+        var maxId = (int)source.Max(e => e.EpisodeId);
+        if (minId <= 0) minId = 1;
+        if (maxId <= 0) maxId = source.Count;
+
+        var newRanges = new List<EpisodeRangeItem>();
+        for (var start = 1; start <= maxId; start += EpisodeRangeSize)
+        {
+            var end = Math.Min(start + EpisodeRangeSize - 1, maxId);
+            if (source.Any(ep => ep.EpisodeId >= start && ep.EpisodeId <= end))
+            {
+                newRanges.Add(new EpisodeRangeItem { StartEpisode = start, EndEpisode = end });
+            }
+        }
+
+        var rangesChanged = newRanges.Count != EpisodeRanges.Count;
+        if (!rangesChanged)
+        {
+            for (var i = 0; i < newRanges.Count; i++)
+            {
+                if (newRanges[i].StartEpisode != EpisodeRanges[i].StartEpisode ||
+                    newRanges[i].EndEpisode != EpisodeRanges[i].EndEpisode)
+                {
+                    rangesChanged = true;
+                    break;
+                }
+            }
+        }
+
+        if (rangesChanged)
+        {
+            EpisodeRanges.Clear();
+            foreach (var r in newRanges)
+            {
+                EpisodeRanges.Add(r);
+            }
+        }
+
+        EpisodeRangeItem targetRange = null;
+        if (_selectedRange != null)
+        {
+            targetRange = EpisodeRanges.FirstOrDefault(r => r.StartEpisode == _selectedRange.StartEpisode);
+        }
+
+        if (targetRange == null)
+        {
+            var myWatched = Vm?.MyEpisodes ?? 0;
+            if (myWatched > 0 && myWatched <= maxId)
+            {
+                targetRange = EpisodeRanges.FirstOrDefault(r => myWatched >= r.StartEpisode && myWatched <= r.EndEpisode);
+            }
+
+            if (targetRange == null)
+            {
+                if (IsNaturalDescending())
+                {
+                    targetRange = EpisodeRanges.LastOrDefault();
+                }
+                else
+                {
+                    targetRange = EpisodeRanges.FirstOrDefault();
+                }
+            }
+        }
+
+        SelectRange(targetRange ?? EpisodeRanges.FirstOrDefault(), false);
+        if (targetRange != null)
+        {
+            Dispatcher.Dispatch(() => ScrollRangePillIntoView(targetRange));
+        }
+        NotifyRangeProperties();
+    }
+
+    private void NotifyRangeProperties()
+    {
+        OnPropertyChanged(nameof(HasEpisodeRanges));
+        OnPropertyChanged(nameof(HasPrevRange));
+        OnPropertyChanged(nameof(HasNextRange));
+        OnPropertyChanged(nameof(PrevRangeButtonText));
+        OnPropertyChanged(nameof(NextRangeButtonText));
+        OnPropertyChanged(nameof(EpisodesRangeSummary));
+        OnPropertyChanged(nameof(EpisodeSortButtonText));
+    }
+
     public string ReviewsErrorText => EmptyStateText(_reviewsError, "Unable to load reviews.");
     public bool ReviewsErrorVisible => !string.IsNullOrWhiteSpace(_reviewsError);
     public bool ReviewsEmptyVisible => Vm != null && !Vm.LoadingReviews && !ReviewsErrorVisible && Vm.Reviews.Count == 0;
@@ -173,9 +435,9 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     /// does, and there was no visible control at all, so it just looked cut.
     /// </summary>
     public int RelatedRemainingCount =>
-        Vm == null ? 0 : Math.Max(0, Vm.RelatedAnime.Count - Math.Min(Vm.RelatedAnime.Count, RelatedShowCap));
+        Vm == null ? 0 : Math.Max(0, Vm.RelatedAnime.Count - DisplayedRelated.Count);
 
-    public bool RelatedMoreVisible => RelatedRemainingCount > 0;
+    public bool RelatedMoreVisible => DisplayedRelated.Count >= RelatedShowCap && RelatedRemainingCount > 0;
 
     public string RelatedMoreText => $"Show {RelatedRemainingCount} more";
 
@@ -818,11 +1080,9 @@ InitializeComponent();
             var charTarget = Math.Min(cap, Math.Min(pairs?.Count ?? 0, _charactersShown));
             var mangaTarget = Math.Min(cap, Math.Min(mangaCharacters?.Count ?? 0, _mangaCharactersShown));
             var staffTarget = Math.Min(staffCap, Math.Min(staff?.Count ?? 0, _staffShown));
-            var relatedTarget = Math.Min(Vm.RelatedAnime.Count, RelatedShowCap);
             DisplayedCharacters.Clear();
             DisplayedMangaCharacters.Clear();
             DisplayedStaff.Clear();
-            DisplayedRelated.Clear();
             // Tenrai hands the cast over exactly as MAL orders it: every Main first, then
             // every Supporting, alphabetical inside each group. That is not nothing, but it is
             // alphabetical and not importance, which is why Luffy sat fourth on One Piece with
@@ -834,8 +1094,6 @@ InitializeComponent();
                 DisplayedMangaCharacters.Add(new MangaCharacterCard(character));
             foreach (var person in staff?.Take(staffTarget) ?? Enumerable.Empty<FavouriteViewModel>())
                 DisplayedStaff.Add(new StaffCard(person));
-            foreach (var item in Vm.RelatedAnime.Take(relatedTarget))
-                DisplayedRelated.Add(item);
             NotifyStateProperties();
             if (!_tabListHeightSet)
                 UpdateTabListHeight();
@@ -885,12 +1143,16 @@ InitializeComponent();
 
     private void ResetProgressiveCollections()
     {
+        EpisodeRanges.Clear();
+        _selectedRange = null;
+        _episodeSortDescending = null;
         DisplayedEpisodes.Clear();
         DisplayedReviews.Clear();
         DisplayedRecommendations.Clear();
         DisplayedCharacters.Clear();
         DisplayedMangaCharacters.Clear();
         DisplayedStaff.Clear();
+        DisplayedRelated.Clear();
     }
 
     private async void LoadTabData(int tabIndex)
@@ -959,7 +1221,10 @@ InitializeComponent();
                     {
                         await Vm.LoadRelatedAnime(false);
                         if (entryId == _initializedId && entryAnimeMode == _initializedAnimeMode)
+                        {
                             _relatedLoaded = Vm.RelatedLoaded;
+                            _ = TopUpTabUntilScrollable(5);
+                        }
                     }
                     break;
                 case 6:
@@ -1021,15 +1286,23 @@ InitializeComponent();
         // be filled here. The load path clears the VM collection and then adds the entries one by
         // one, so this runs once per item and appends whatever the tab is allowed to show.
         if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            _relatedShown = ImageTabChunkSize;
             DisplayedRelated.Clear();
+        }
         var source = Vm?.RelatedAnime;
         if (source != null)
         {
-            var target = Math.Min(source.Count, RelatedShowCap);
+            var target = Math.Min(source.Count, _relatedShown);
+            var addedAny = false;
             for (var index = DisplayedRelated.Count; index < target; index++)
+            {
                 DisplayedRelated.Add(source[index]);
+                addedAny = true;
+            }
+            if (addedAny || e.Action == NotifyCollectionChangedAction.Reset)
+                NotifyStateProperties();
         }
-        NotifyStateProperties();
     }
 
     private IList<AnimeEpisode> GetActiveEpisodesSource()
@@ -1044,39 +1317,7 @@ InitializeComponent();
 
     private void RefreshDisplayedEpisodes(bool reset)
     {
-        var source = GetActiveEpisodesSource();
-        if (source == null)
-            return;
-
-        var previouslyShown = DisplayedEpisodes.Count;
-        var needsClear = reset || source.Count < DisplayedEpisodes.Count;
-        if (!needsClear && DisplayedEpisodes.Count > 0 && source.Count > 0)
-        {
-            // If the currently displayed episodes do not match the new source, clear first
-            if (!ReferenceEquals(DisplayedEpisodes[0], source[0]) &&
-                (DisplayedEpisodes[0].EpisodeId != source[0].EpisodeId ||
-                 DisplayedEpisodes[0].Title != source[0].Title))
-            {
-                needsClear = true;
-            }
-        }
-
-        if (needsClear)
-            DisplayedEpisodes.Clear();
-
-        int target;
-        if (source.Count <= 60)
-        {
-            target = source.Count;
-        }
-        else
-        {
-            var desired = Math.Max(EpisodeChunkSize, needsClear ? EpisodeChunkSize : previouslyShown);
-            target = Math.Min(source.Count, desired);
-        }
-
-        for (var index = DisplayedEpisodes.Count; index < target; index++)
-            DisplayedEpisodes.Add(source[index]);
+        RebuildEpisodeRanges();
     }
 
     private void RefreshDisplayedReviews(bool reset)
@@ -1165,31 +1406,94 @@ InitializeComponent();
 
         const double lineHeight = 13 * 1.35;
         const double rowSpacing = 8;
-        const double charWidth = 6.6;
+        const double charWidth = 7.2;
         const double posterHeight = 195;
 
         var available = Math.Max(0, posterHeight - titleHeight - rowSpacing);
         var lines = (int)Math.Floor(available / lineHeight);
-        // Keep one line of slack: measured line height drifts from the nominal 13 * 1.35 and an
-        // over-eager budget is what makes the blurb run over the artwork.
-        var budget = (int)Math.Floor(width / charWidth) * Math.Max(0, lines - 1);
+        var charsPerLine = (int)Math.Floor(width / charWidth);
+        var budget = charsPerLine * Math.Max(0, lines);
         if (budget <= 8)
         {
-            // Nothing fits beside the poster, so the blurb flows underneath it at full width.
+            item.MinTopHeight = 0;
             item.SetDescriptionSplit(null, full);
             return;
         }
 
-        if (full.Length <= budget)
+        // If the full text fits or only exceeds by ~1 line, keep it all beside the poster
+        // to avoid awkward orphan line breaks under the card.
+        if (full.Length <= budget + 45)
         {
+            item.MinTopHeight = 0;
             item.SetDescriptionSplit(full, null);
             return;
         }
 
-        var cut = full.LastIndexOf(' ', Math.Min(full.Length, budget), Math.Min(full.Length, budget));
+        // Natural split: prioritize paragraph breaks (\n) and sentence endings (. ! ?)
+        // so bullet points and sentences never break in half.
+        int cut = -1;
+        var minSearch = (int)(budget * 0.55);
+        var maxSearch = Math.Min(full.Length - 1, budget);
+
+        if (maxSearch > minSearch)
+        {
+            // 1. Newline / paragraph break
+            var lastNewline = full.LastIndexOf('\n', maxSearch, maxSearch - minSearch);
+            if (lastNewline > minSearch)
+            {
+                cut = lastNewline;
+            }
+            else
+            {
+                // 2. Sentence boundary (. ! ?)
+                var lastDot = full.LastIndexOf(". ", maxSearch, maxSearch - minSearch);
+                var lastExcl = full.LastIndexOf("! ", maxSearch, maxSearch - minSearch);
+                var lastQ = full.LastIndexOf("? ", maxSearch, maxSearch - minSearch);
+                var bestPunct = Math.Max(lastDot, Math.Max(lastExcl, lastQ));
+                if (bestPunct > (int)(budget * 0.65))
+                {
+                    cut = bestPunct + 1;
+                }
+            }
+        }
+
+        // 3. Fallback: word boundary before budget
         if (cut <= 0)
-            cut = Math.Min(full.Length, budget);
-        item.SetDescriptionSplit(full.Substring(0, cut).TrimEnd(), full.Substring(cut).TrimStart());
+        {
+            cut = full.LastIndexOf(' ', maxSearch, maxSearch);
+            if (cut <= 0)
+                cut = maxSearch;
+        }
+
+        var top = full.Substring(0, cut).Trim();
+        var bottom = full.Substring(cut).Trim();
+
+        // Avoid leaving a tiny orphan word (< 4 chars) dangling at the end of DescriptionTop
+        var lastSpace = top.LastIndexOf(' ');
+        if (lastSpace > 0 && (top.Length - lastSpace - 1) < 4 && lastSpace > (budget * 0.65))
+        {
+            bottom = top.Substring(lastSpace + 1) + " " + bottom;
+            top = top.Substring(0, lastSpace).TrimEnd();
+        }
+
+        // Avoid leaving a tiny orphan word (< 4 chars) as the first word of DescriptionBottom before a newline
+        var firstNewlineInBottom = bottom.IndexOf('\n');
+        if (firstNewlineInBottom > 0 && firstNewlineInBottom < 5)
+        {
+            top = top + " " + bottom.Substring(0, firstNewlineInBottom).Trim();
+            bottom = bottom.Substring(firstNewlineInBottom + 1).TrimStart();
+        }
+
+        if (string.IsNullOrWhiteSpace(bottom))
+        {
+            item.MinTopHeight = 0;
+            item.SetDescriptionSplit(top, null);
+        }
+        else
+        {
+            item.MinTopHeight = available;
+            item.SetDescriptionSplit(top, bottom);
+        }
     }
 
     private async void OnRecommendationTapped(object sender, TappedEventArgs e)
@@ -2138,12 +2442,60 @@ private void HideVideoLoading()
         }
     }
 
+    private void SnapSwipePreviewImmediate()
+    {
+        if (!_swipePreviewAnimating && !_swipeTabBusy && _swipePreviewIndex < 0)
+            return;
+
+        var nextIndex = _swipePreviewIndex;
+        var currentPanel = Vm == null ? null : PanelForTab(Vm.DetailsPivotSelectedIndex);
+        var nextPanel = nextIndex >= 0 ? PanelForTab(nextIndex) : null;
+
+        if (currentPanel != null)
+        {
+            currentPanel.CancelAnimations();
+            currentPanel.TranslationX = 0;
+        }
+        if (nextPanel != null)
+        {
+            nextPanel.CancelAnimations();
+            nextPanel.TranslationX = 0;
+        }
+
+        if (TabContentHost != null)
+        {
+            TabContentHost.CancelAnimations();
+            TabContentHost.IsClippedToBounds = _swipePreviewClipped;
+            TabContentHost.HeightRequest = -1;
+            TabContentHost.TranslationX = 0;
+        }
+
+        if (_swipeTabBusy && nextIndex >= 0 && Vm != null)
+        {
+            Vm.DetailsPivotSelectedIndex = nextIndex;
+            _lastTabIndex = nextIndex;
+            RememberPreferredTab(nextIndex);
+        }
+
+        ApplyTabActiveState();
+
+        _swipePreviewIndex = -1;
+        _swipePreviewAnimating = false;
+        _swipePreviewDx = 0;
+        _swipeTabBusy = false;
+    }
+
     bool ISwipePreviewHost.BeginSwipePreview(int direction)
     {
-        if (Vm == null || _swipeTabBusy || _swipePreviewAnimating || _swipePreviewIndex >= 0)
+        if (Vm == null)
             return false;
         if (DetailsSheet?.IsOpen == true || (VideoOverlay?.IsVisible ?? false))
             return false;
+
+        // If a previous swipe animation is still settling, snap it immediately so fast consecutive swipes work!
+        if (_swipePreviewAnimating || _swipeTabBusy)
+            SnapSwipePreviewImmediate();
+
         if (direction == 0 || TabContentHost == null || TabContentHost.Width <= 0 || TabContentHost.Height <= 0)
             return false;
         if (Math.Abs(TabContentHost.TranslationX) > 0.5)
@@ -2209,8 +2561,8 @@ private void HideVideoLoading()
             return;
         }
 
-        var commit = distance >= Math.Max(96, width * 0.25)
-                     || (Math.Abs(velocityDipsPerSecond) >= 900 && distance >= 40);
+        var commit = distance >= Math.Max(36, width * 0.16)
+                     || (Math.Abs(velocityDipsPerSecond) >= 450 && distance >= 18);
         if (commit)
             _swipeTabBusy = true;
         _ = FinishSwipePreviewAsync(commit);
@@ -2353,13 +2705,8 @@ private void HideVideoLoading()
     /// </summary>
     private async Task TopUpTabUntilScrollable(int tabIndex)
     {
-        // Related is the one tab that cannot be left to the scroll. Its grid is a ContentView
-        // wrapping a CollectionView inside the page ScrollView, and the inner list wins the
-        // nested gesture arbitration: the page moves about forty pixels and then the drag is
-        // gone, so anything past that point would be unreachable. It is also the shortest list
-        // (thirty entries), so it is simply filled completely. The list tabs below are the ones
-        // that keep loading as the user scrolls.
-        var fillCompletely = tabIndex == 5;
+        // The list tabs below keep loading as the user scrolls, or until the tab is scrollable.
+        var fillCompletely = false;
         for (var pass = 0; pass < 12; pass++)
         {
             if (Vm == null || Vm.DetailsPivotSelectedIndex != tabIndex)
@@ -2369,7 +2716,6 @@ private void HideVideoLoading()
                 Console.WriteLine($"MALPlusTabs topup tab={tabIndex} pass={pass} scrollable viewport={PageScroll?.Height} content={PageScroll?.ContentSize.Height}");
                 return;
             }
-            _lastProgressiveAppendScrollY = double.NaN;
             var before = DisplayedCountFor(tabIndex);
             AppendNextProgressiveChunk();
             if (DisplayedCountFor(tabIndex) == before)
@@ -2602,18 +2948,19 @@ private void HideVideoLoading()
         var near = IsNearPageBottom(e.ScrollY);
         if (!near)
         {
-            // Away from the tail, so the next approach to the bottom may append again.
             _lastProgressiveAppendScrollY = double.NaN;
             return;
         }
-        // IsNearPageBottom is deliberately generous (three quarters of the viewport), so a single
-        // fling fires it on many consecutive frames. Without this guard each of those frames
-        // appended a chunk, which is what made this tab unusable when it was tried before: forty
-        // rows per frame. One append per 120px of real scrolling is the same endless list with
-        // none of the stampede.
-        if (!double.IsNaN(_lastProgressiveAppendScrollY) &&
-            e.ScrollY - _lastProgressiveAppendScrollY < 120)
+
+        var now = Environment.TickCount64;
+        if (now - _lastProgressiveAppendTimestamp < ProgressiveAppendCooldownMs)
             return;
+
+        if (!double.IsNaN(_lastProgressiveAppendScrollY) &&
+            e.ScrollY - _lastProgressiveAppendScrollY < ProgressiveAppendScrollDelta)
+            return;
+
+        _lastProgressiveAppendTimestamp = now;
         _lastProgressiveAppendScrollY = e.ScrollY;
         AppendNextProgressiveChunk();
     }
@@ -2703,7 +3050,7 @@ private void HideVideoLoading()
         if (contentHeight <= 0 || double.IsNaN(contentHeight) || double.IsInfinity(contentHeight))
             return false;
         var remaining = contentHeight - scrollY - Math.Max(0, PageScroll.Height);
-        return remaining <= Math.Max(600, PageScroll.Height * 0.75);
+        return remaining <= Math.Max(400, PageScroll.Height * 0.5);
     }
 
     private void AppendNextProgressiveChunk()
@@ -2716,13 +3063,8 @@ private void HideVideoLoading()
         switch (tab)
         {
             case 1:
-                var epSource = GetActiveEpisodesSource();
-                if (epSource != null && epSource.Count > DisplayedEpisodes.Count)
-                {
-                    var target = Math.Min(epSource.Count, DisplayedEpisodes.Count + EpisodeChunkSize);
-                    for (var index = DisplayedEpisodes.Count; index < target; index++)
-                        DisplayedEpisodes.Add(epSource[index]);
-                }
+                // Episodes are managed by ranges and loaded per range.
+                // No progressive appends into PageScroll to prevent fling freezes and layout thrashing.
                 break;
             case 3:
                 if (Vm.Reviews.Count > DisplayedReviews.Count)
@@ -2741,7 +3083,8 @@ private void HideVideoLoading()
                 }
                 break;
             case 5:
-                GrowImageTab(Vm.RelatedAnime, DisplayedRelated, ref _relatedShown, MakeRelatedCard, int.MaxValue);
+                GrowImageTab(Vm.RelatedAnime, DisplayedRelated, ref _relatedShown, MakeRelatedCard, RelatedShowCap);
+                NotifyStateProperties();
                 break;
             case 6:
                 if (!Vm.AnimeMode)
@@ -2859,6 +3202,7 @@ private void HideVideoLoading()
         OnPropertyChanged(nameof(EpisodesContentVisible));
         OnPropertyChanged(nameof(HasFillerEpisodes));
         OnPropertyChanged(nameof(FilterFillerButtonText));
+        NotifyRangeProperties();
         OnPropertyChanged(nameof(ReviewsErrorText));
         OnPropertyChanged(nameof(ReviewsErrorVisible));
         OnPropertyChanged(nameof(ReviewsEmptyVisible));
@@ -2991,5 +3335,38 @@ private void HideVideoLoading()
         public int Favorites { get; }
         public string FavoritesText => Favorites > 0 ? AnimeCharacterCard.ShortNumber(Favorites) : string.Empty;
         public bool HasFavorites => Favorites > 0;
+    }
+
+    public class EpisodeRangeItem : INotifyPropertyChanged
+    {
+        public int StartEpisode { get; set; }
+        public int EndEpisode { get; set; }
+        public string DisplayText => $"{StartEpisode} - {EndEpisode}";
+
+        private bool _isSelected;
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected == value) return;
+                _isSelected = value;
+                OnPropertyChanged(nameof(IsSelected));
+                OnPropertyChanged(nameof(BackgroundBrush));
+                OnPropertyChanged(nameof(StrokeBrush));
+                OnPropertyChanged(nameof(TextColor));
+                OnPropertyChanged(nameof(BackgroundColor));
+                OnPropertyChanged(nameof(StrokeColor));
+            }
+        }
+
+        public Brush BackgroundBrush => IsSelected ? new SolidColorBrush(Color.FromArgb("#0066FF")) : new SolidColorBrush(Color.FromArgb("#141D2B"));
+        public Brush StrokeBrush => IsSelected ? new SolidColorBrush(Color.FromArgb("#0066FF")) : new SolidColorBrush(Color.FromArgb("#29FFFFFF"));
+        public Color BackgroundColor => IsSelected ? Color.FromArgb("#0066FF") : Color.FromArgb("#141D2B");
+        public Color StrokeColor => IsSelected ? Color.FromArgb("#0066FF") : Color.FromArgb("#29FFFFFF");
+        public Color TextColor => IsSelected ? Colors.White : Color.FromArgb("#B0B0B0");
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 }

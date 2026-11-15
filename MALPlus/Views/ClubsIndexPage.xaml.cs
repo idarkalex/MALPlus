@@ -1,10 +1,11 @@
+using MALPlus.Controls;
 using MALPlus.Models.Models.MalSpecific;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Clubs;
 
 namespace MALPlus.Views;
 
-public partial class ClubsIndexPage : ContentPage
+public partial class ClubsIndexPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     private ClubIndexViewModel Vm => (ClubIndexViewModel)BindingContext;
@@ -49,21 +50,8 @@ public partial class ClubsIndexPage : ContentPage
         for (int i = 0; i < tabs.Length; i++)
         {
             var (label, index) = tabs[i];
-            var button = new Button
-            {
-                Text = label,
-                FontFamily = "InterSemiBold",
-                FontSize = 12,
-                Padding = new Thickness(12, 6),
-                HeightRequest = 32,
-                CornerRadius = 16,
-                BorderColor = Color.FromArgb("#29FFFFFF"),
-                BorderWidth = 1,
-                BackgroundColor = Colors.Transparent,
-                TextColor = Color.FromArgb("#FFFFFF")
-            };
             int captured = index;
-            button.Clicked += (s, e) => OnTabClicked(captured);
+            var button = TabChipHelper.CreateChip(label, captured, (s, e) => OnTabClicked(captured), index == Vm.ClubsTabIndex);
             TabStrip.Children.Add(button);
         }
     }
@@ -74,10 +62,21 @@ public partial class ClubsIndexPage : ContentPage
         {
             if (TabStrip.Children[i] is Button b)
             {
-                b.BackgroundColor = i == activeIndex ? Color.FromArgb("#0066FF") : Colors.Transparent;
-                b.TextColor = i == activeIndex ? Colors.White : Color.FromArgb("#FFFFFF");
+                TabChipHelper.ApplyStyle(b, i == activeIndex);
             }
         }
+    }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        if (Vm == null) return false;
+        var current = Vm.ClubsTabIndex;
+        var next = current + (direction > 0 ? 1 : -1);
+        if (next < 0 || next > 2)
+            return false;
+
+        OnTabClicked(next);
+        return true;
     }
 
     private void OnTabClicked(int index)

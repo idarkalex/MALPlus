@@ -88,6 +88,8 @@ namespace MALPlus.XShared.ViewModels.Forums
             {
                 _loadingTopics = value;
                 RaisePropertyChanged(() => LoadingTopics);
+                RaisePropertyChanged(() => ShowEmptyError);
+                RaisePaginationChanged();
             }
         }
 
@@ -112,8 +114,11 @@ namespace MALPlus.XShared.ViewModels.Forums
             {
                 _loadErrorVisibility = value;
                 RaisePropertyChanged(() => LoadErrorVisibility);
+                RaisePropertyChanged(() => ShowEmptyError);
             }
         }
+
+        public bool ShowEmptyError => !LoadingTopics && LoadErrorVisibility;
 
         private bool _newTopicButtonVisibility;
 
@@ -150,6 +155,35 @@ namespace MALPlus.XShared.ViewModels.Forums
                 RaisePropertyChanged(() => PageNavigationControlsVisibility);
             }
         }
+
+        public int DisplayCurrentPage => CurrentPage + 1;
+        public int DisplayTotalPages => Math.Max(1, _allPages + 1);
+        public string PageText => $"Page {DisplayCurrentPage} of {DisplayTotalPages}";
+        public bool CanPreviousPage => !LoadingTopics && CurrentPage > 0;
+        public bool CanNextPage => !LoadingTopics && CurrentPage < _allPages;
+
+        public void RaisePaginationChanged()
+        {
+            RaisePropertyChanged(() => DisplayCurrentPage);
+            RaisePropertyChanged(() => DisplayTotalPages);
+            RaisePropertyChanged(() => PageText);
+            RaisePropertyChanged(() => CanPreviousPage);
+            RaisePropertyChanged(() => CanNextPage);
+        }
+
+        private ICommand _previousPageCommand;
+        public ICommand PreviousPageCommand => _previousPageCommand ?? (_previousPageCommand = new RelayCommand(() =>
+        {
+            if (CanPreviousPage)
+                LoadPage(CurrentPage - 1, false, false);
+        }));
+
+        private ICommand _nextPageCommand;
+        public ICommand NextPageCommand => _nextPageCommand ?? (_nextPageCommand = new RelayCommand(() =>
+        {
+            if (CanNextPage)
+                LoadPage(CurrentPage + 1, false, false);
+        }));
 
         private ICommand _loadPageCommand;
 
@@ -252,7 +286,7 @@ namespace MALPlus.XShared.ViewModels.Forums
                 for (int i = start; i <= start + 4 && i <= _allPages + 1; i++)
                     list.Add(new Tuple<int, bool>(i, i == value + 1));
                 AvailablePages = list;
-
+                RaisePaginationChanged();
             }
         }
 
@@ -273,6 +307,12 @@ namespace MALPlus.XShared.ViewModels.Forums
 
         public void Init(ForumsBoardNavigationArgs args,bool force = false)
         {
+            if (args == null || (args.WorkMode == ForumBoardPageWorkModes.Standard && args.TargetBoard <= (ForumBoards)0 && args.AnimeId <= 0 && string.IsNullOrEmpty(args.ClubId)))
+            {
+                global::System.Diagnostics.Debug.WriteLine("MALPLUS ForumBoardViewModel.Init ignored: invalid args");
+                return;
+            }
+
             ViewModelLocator.ForumsMain.CurrentBackNavRegistrar = this;
 
             if (_forceReloadOnNextInit)//navigating from crete new topic
@@ -290,9 +330,16 @@ namespace MALPlus.XShared.ViewModels.Forums
                     return;
             }
             _initizalizing = true;
+            LoadingTopics = true;
+            LoadErrorVisibility = false;
+            EmptyNoticeVisibility = false;
             PrevArgs = args;
+            _allPages = 0;
+            CurrentPage = args?.PageNumber ?? 0;
+            Topics = new List<ForumTopicEntryViewModel>();
+            RaisePaginationChanged();
 
-            LoadPage(args.PageNumber,false,force);
+            LoadPage(args.PageNumber, false, force);
 
             try
             {
@@ -358,48 +405,72 @@ namespace MALPlus.XShared.ViewModels.Forums
             }
         }
 
+        private int _loadCounter;
+
         public async void LoadPage(int page, bool decrement = false,bool force = false)
         {
+            var myGeneration = ++_loadCounter;
+            var currentArgs = PrevArgs;
+            if (currentArgs == null)
+                return;
+
             LoadingTopics = true;
+            LoadErrorVisibility = false;
+            EmptyNoticeVisibility = false;
             if (decrement)
                 page--;
+            CurrentPage = page;
+            RaisePaginationChanged();
             try
             {
                 Topics = new List<ForumTopicEntryViewModel>();
                 ForumBoardContent topics;
                 int? arg;
-                if (page != 0)
+                if (page != 0 && _allPages > 0)
                     arg = _allPages;
                 else
                     arg = null;
-                switch (PrevArgs.WorkMode)
+                switch (currentArgs.WorkMode)
                 {
                     case ForumBoardPageWorkModes.Standard:
-                        topics = await new ForumBoardTopicsQuery(PrevArgs.TargetBoard, page).GetTopicPosts(arg,force);
+                        if (currentArgs.TargetBoard <= (ForumBoards)0)
+                        {
+                            global::System.Diagnostics.Debug.WriteLine($"MALPLUS ForumBoardViewModel.LoadPage skipped: invalid board {currentArgs.TargetBoard}");
+                            LoadingTopics = false;
+                            return;
+                        }
+                        topics = await new ForumBoardTopicsQuery(currentArgs.TargetBoard, page).GetTopicPosts(arg,force);
                         break;
                     case ForumBoardPageWorkModes.AnimeBoard:
                     case ForumBoardPageWorkModes.MangaBoard:
                         topics = await
-                            new ForumBoardTopicsQuery(PrevArgs.AnimeId, page, PrevArgs.IsAnimeBoard).GetTopicPosts(arg,force);
+                            new ForumBoardTopicsQuery(currentArgs.AnimeId, page, currentArgs.IsAnimeBoard).GetTopicPosts(arg,force);
                         break;
                     case ForumBoardPageWorkModes.Search:
                         topics = await
-                            ForumSearchQuery.GetSearchResults(PrevArgs.Query, PrevArgs.Scope);
+                            ForumSearchQuery.GetSearchResults(currentArgs.Query, currentArgs.Scope);
                         break;
                     case ForumBoardPageWorkModes.UserSearch:
                         topics = await
-                            ForumSearchQuery.GetRecentTopics(PrevArgs.Query);
+                            ForumSearchQuery.GetRecentTopics(currentArgs.Query);
                         break;
                     case ForumBoardPageWorkModes.WatchedTopics:
                         topics = await
                              ForumSearchQuery.GetWatchedTopics();
                         break;
                     case ForumBoardPageWorkModes.Club:
-                        topics = await new ForumBoardTopicsQuery(PrevArgs.ClubId, page).GetTopicPosts(arg, force);
+                        topics = await new ForumBoardTopicsQuery(currentArgs.ClubId, page).GetTopicPosts(arg, force);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
+
+                if (myGeneration != _loadCounter)
+                {
+                    // Superseded by a newer load request; drop this result to prevent cross-board contamination
+                    return;
+                }
+
                 if (topics.ForumTopicEntries.Count != 0)
                 {
                     Topics = topics.ForumTopicEntries.Select(entry => new ForumTopicEntryViewModel(entry)).ToList();
@@ -416,13 +487,20 @@ namespace MALPlus.XShared.ViewModels.Forums
             }
             catch (Exception ex)
             {
+                if (myGeneration != _loadCounter)
+                    return;
                 // This was an empty catch, so a scraper failure rendered as a plain
                 // "No topics" with no way to tell it apart from a genuinely empty board.
                 global::System.Diagnostics.Debug.WriteLine(
-                    $"MALPLUS forum board load FAILED: {PrevArgs?.WorkMode} {ex.GetType().Name} {ex.Message}");
+                    $"MALPLUS forum board load FAILED: {currentArgs?.WorkMode} {ex.GetType().Name} {ex.Message}");
+                LoadErrorVisibility = true;
             }
-            _initizalizing = false;
-            LoadingTopics = false;
+            if (myGeneration == _loadCounter)
+            {
+                _initizalizing = false;
+                LoadingTopics = false;
+                RaisePaginationChanged();
+            }
         }
 
         public void LoadTopic(ForumTopicEntryViewModel topic, bool lastpost = false)

@@ -148,6 +148,27 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
     private int _previewVersion = -1;
     private bool _previewManga;
 
+    private static bool IsModeForRoot(AnimeListWorkModes mode, string rootRoute)
+    {
+        if (string.IsNullOrEmpty(rootRoute))
+            return true;
+        var isManga = string.Equals(rootRoute, "manga", StringComparison.OrdinalIgnoreCase);
+        if (isManga)
+        {
+            return mode == AnimeListWorkModes.Manga ||
+                   mode == AnimeListWorkModes.TopManga ||
+                   mode == AnimeListWorkModes.MangaAdapted;
+        }
+        else
+        {
+            return mode == AnimeListWorkModes.Anime ||
+                   mode == AnimeListWorkModes.TopAnime ||
+                   mode == AnimeListWorkModes.SeasonalAnime ||
+                   mode == AnimeListWorkModes.AnimeByGenre ||
+                   mode == AnimeListWorkModes.AnimeByStudio;
+        }
+    }
+
     /// <summary>
     ///     Which of the two root list pages is the one that owns the shared view model. Both pages
     ///     bind the same singleton, so a page that is not live must not paint the shared collection:
@@ -166,15 +187,16 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
             return;
         }
 
+        var wasLive = _liveLibrary || _liveBound;
         _liveLibrary = false;
         _liveBound = false;
         if (string.IsNullOrEmpty(RootRoute))
             return;
 
         var manga = string.Equals(RootRoute, "manga", StringComparison.OrdinalIgnoreCase);
-        // This runs from every navigation sync, so it has to be idempotent: re-assigning the grid's
-        // ItemsSource rebuilds its adapter and resets the scroll, which is the reload the user sees.
-        if (_previewList != null && _previewManga == manga && _previewVersion == Vm.LibraryVersion)
+        // Only skip ApplyPreview if we were ALREADY non-live and the preview is still up-to-date.
+        // If we were live, our grid was bound to DisplayedItems, so we MUST unbind and apply our preview!
+        if (!wasLive && _previewList != null && _previewManga == manga && _previewVersion == Vm?.LibraryVersion)
             return;
 
         ApplyPreview(manga);
@@ -190,10 +212,7 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
         if (!_liveLibrary || _liveBound || Vm == null)
             return;
 
-        var mode = string.Equals(RootRoute, "manga", StringComparison.OrdinalIgnoreCase)
-            ? AnimeListWorkModes.Manga
-            : AnimeListWorkModes.Anime;
-        if (Vm.DisplayedMode != mode)
+        if (!IsModeForRoot(Vm.DisplayedMode, RootRoute))
             return;
 
         _liveBound = true;
@@ -272,8 +291,12 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
         _watchedFirstItems = true;
         vm.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(AnimeListViewModel.DisplayedMode) || e.PropertyName == null)
+            if (e.PropertyName == nameof(AnimeListViewModel.DisplayedMode) ||
+                e.PropertyName == nameof(AnimeListViewModel.DisplayedItems) ||
+                e.PropertyName == null)
+            {
                 TryBindLive();
+            }
 
             if (e.PropertyName != nameof(AnimeListViewModel.AnimeItems) && e.PropertyName != null)
                 return;
@@ -1776,19 +1799,20 @@ case AnimeListWorkModes.SeasonalAnime:
     {
         try
         {
-            if (!_refreshArmed || Vm == null || Vm.Initializing)
+            if (Vm == null)
             {
                 ListRefresh.IsRefreshing = false;
                 return;
             }
-            // Awaited, and the spinner is put away in the finally. RefreshCommand wraps an async
-            // void, so there was nothing to await here and IsRefreshing stayed true once the
-            // gesture had set it: the arrow up top spun forever.
-            //
-            // Infinite loading is unhooked for the duration. The grid gets shorter while the
-            // refresh rebuilds it, and that trips RemainingItemsThresholdReached, whose command
-            // drains the pending items straight into the list: one extra card appeared and then
-            // vanished again when the refresh finished repopulating.
+
+            // Always arm refresh when user manually initiates a pull-to-refresh
+            _refreshArmed = true;
+
+            // Make sure this page is marked live and connected
+            SetLiveLibrary(true);
+            _liveBound = false;
+            TryBindLive();
+
             var loadMore = _grid?.RemainingItemsThresholdReachedCommand;
             if (_grid != null)
                 _grid.RemainingItemsThresholdReachedCommand = null;
@@ -1798,14 +1822,16 @@ case AnimeListWorkModes.SeasonalAnime:
             }
             finally
             {
-                // Restored only if something was there to restore. Assigning the saved value back
-                // unconditionally wrote a null over a command the grid had already rebound in the
-                // meantime, which silently ended infinite loading for the rest of the session: the
-                // grid could be scrolled to its end and would simply never ask for another page.
                 if (_grid != null && loadMore != null)
                     _grid.RemainingItemsThresholdReachedCommand = loadMore;
                 else if (_grid != null)
                     _grid.RemainingItemsThresholdReachedCommand = Vm?.LoadMoreCommand;
+            }
+
+            TryBindLive();
+            if ((Vm.DisplayedItems?.Count ?? 0) == 0 && (Vm.AnimeItems?.Count ?? 0) > 0)
+            {
+                Vm.PanelFilter = "";
             }
         }
         catch (Exception ex)

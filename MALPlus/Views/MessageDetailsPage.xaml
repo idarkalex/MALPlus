@@ -17,12 +17,25 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
 
-        <Grid RowDefinitions="Auto,*,Auto" IsVisible="{Binding LoadingVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
-            <Label Grid.Row="0" Text="{Binding MessageSubject}" FontFamily="InterBold" FontSize="18"
-                   TextColor="{StaticResource BrushText}" Padding="16,12" MaxLines="2"
-                   LineBreakMode="TailTruncation" />
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- Header: Back button, Title -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*" ColumnSpacing="10" Padding="12,10,12,4">
+                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="#141d2b"
+                        Stroke="#29FFFFFF" WidthRequest="38" HeightRequest="38" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnBackTapped" />
+                    </Border.GestureRecognizers>
+                    <Label Text="←" FontFamily="InterBold" FontSize="18" TextColor="{StaticResource BrushText}"
+                           InputTransparent="True"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
 
-            <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingVisibility}" Refreshing="OnRefreshing">
+                <Label Grid.Column="1" Text="{Binding MessageSubject}" FontFamily="InterBold" FontSize="18"
+                       TextColor="{StaticResource BrushText}" VerticalOptions="Center" MaxLines="2"
+                       LineBreakMode="TailTruncation" />
+            </Grid>
+
+            <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingVisibility, Mode=OneWay}" Refreshing="OnRefreshing">
                 <CollectionView ItemsSource="{Binding MessageSet}" SelectionMode="None">
                     <CollectionView.EmptyView>
                         <Label Text="No messages" FontFamily="Inter" FontSize="13"

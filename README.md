@@ -2,20 +2,50 @@
   <img src="images/app-logo.png" width="130px" alt="MAL+ Logo" />
 </p>
 
-<h1 align="center">MAL+ (MALPlus)</h1>
+<h1 align="center">MAL+ — Enhanced MyAnimeList Client</h1>
 
 <p align="center">
-  <strong>A modern, ultra-responsive, privacy-first MyAnimeList client for Android.</strong><br>
-  Built from the ground up with <strong>.NET 11</strong> and <strong>.NET MAUI</strong>.
+  <strong>The fast, modern, and privacy-focused MyAnimeList client for Android.</strong><br>
+  Manage your anime and manga libraries with native gestures, stream integrated anime themes, discover hidden gems, and enjoy a clean experience with zero ads or telemetry.
 </p>
 
 <p align="center">
+  <a href="https://github.com/idarkalex/MALPlus/releases/latest"><img src="https://img.shields.io/github/v/release/idarkalex/MALPlus?color=0066FF&label=Release&logo=github" alt="Latest Release" /></a>
+  <a href="https://github.com/idarkalex/MALPlus/releases"><img src="https://img.shields.io/github/downloads/idarkalex/MALPlus/total?color=0066FF&logo=android&label=Downloads" alt="Total Downloads" /></a>
+  <a href="https://github.com/idarkalex/MALPlus/stargazers"><img src="https://img.shields.io/github/stars/idarkalex/MALPlus?style=flat&color=0066FF&logo=github" alt="GitHub Stars" /></a>
   <img src="https://img.shields.io/badge/.NET-11.0%20MAUI-512BD4?logo=dotnet&logoColor=white" alt=".NET 11 MAUI" />
   <img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-3DDC84?logo=android&logoColor=white" alt="Android 7.0+" />
-  <img src="https://img.shields.io/github/v/release/idarkalex/MALPlus?color=0066FF&label=Release" alt="Latest Release" />
-  <img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg" alt="License: GPL v3" />
-  <img src="https://img.shields.io/badge/Telemetry-0%25%20(Privacy--First)-success" alt="100% Local Privacy" />
+  <img src="https://img.shields.io/badge/Ads-0%25%20(Ad--Free)-success" alt="100% Ad-Free" />
+  <img src="https://img.shields.io/badge/Telemetry-0%25%20(Private)-success" alt="Zero Telemetry" />
 </p>
+
+<p align="center">
+  <a href="https://github.com/idarkalex/MALPlus/releases/latest">
+    <img src="https://img.shields.io/badge/Download-Latest%20APK-0066FF?style=for-the-badge&logo=android&logoColor=white" alt="Download Latest APK" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="#-why-mal">Why MAL+?</a> &bull;
+  <a href="#-features">Features</a> &bull;
+  <a href="#-preview--screenshots">Screenshots</a> &bull;
+  <a href="#-download--installation">Download</a> &bull;
+  <a href="#️-building-from-source">Build from Source</a>
+</p>
+
+---
+
+## 💡 Why MAL+?
+
+| Feature | Official MyAnimeList App | **MAL+** |
+|---|:---:|:---:|
+| **Ads & Tracking** | ❌ Contains ads and analytics | ✅ **100% Ad-free, zero telemetry** |
+| **Interface & Navigation** | ⚠️ WebViews & sluggish tab switches | ✅ **Native Android gestures & fluid navigation** |
+| **Openings & Endings** | ❌ None | ✅ **Built-in AnimeThemes player (ExoPlayer)** |
+| **Offline Resilience** | ❌ Blank screens / failed loads | ✅ **Instant startup with resilient offline caching** |
+| **Discovery Tools** | ❌ Basic search & ranking lists | ✅ **Recommendation engine, OP/ED roulette & filters** |
+| **De-Googled Devices** | ❌ Requires Google Play Services | ✅ **100% standalone (works on GrapheneOS / LineageOS / microG)** |
+| **Customization** | ❌ Fixed layout | ✅ **Custom poster tags, format chips & score modes** |
 
 ---
 
@@ -50,11 +80,13 @@
 
 ## 📥 Download & Installation
 
-You can download the latest installable APK directly from the **[Releases](https://github.com/idarkalex/MALPlus/releases)** section.
+You can download the latest installable APK directly from the **[Releases](https://github.com/idarkalex/MALPlus/releases)** page.
 
 1. Download `com.idarkalex.malplus.apk` from the latest release.
-2. Open the downloaded file on your Android device (ensure *"Install unknown apps"* permission is granted).
+2. Open the downloaded file on your Android device (ensure *"Install unknown apps"* permission is granted for your browser or file manager).
 3. Sign in with your MyAnimeList account to sync your library and access all features.
+
+> **Privacy & De-Googled Friendly:** MAL+ requires **no Google Play Services** or proprietary frameworks. It runs seamlessly on stock Android as well as privacy-oriented OS distributions such as GrapheneOS, CalyxOS, LineageOS, or microG environments.
 
 ---
 

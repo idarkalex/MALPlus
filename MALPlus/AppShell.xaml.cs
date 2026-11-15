@@ -189,6 +189,66 @@ public partial class AppShell : Shell
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<
         global::AndroidX.ViewPager2.Widget.ViewPager2, PagerShield> Shields = new();
+    private static bool _sectionPagerListenerRegistered;
+
+    private sealed class SectionPagerScrollListener : global::AndroidX.ViewPager2.Widget.ViewPager2.OnPageChangeCallback
+    {
+        private readonly AppShell _shell;
+
+        public SectionPagerScrollListener(AppShell shell)
+            => _shell = shell;
+
+        public override void OnPageScrollStateChanged(int state)
+        {
+            _shell.OnSectionPagerScrollStateChanged(state);
+        }
+    }
+
+    private int _sectionPagerScrollState;
+    private string _pendingSettledSection;
+    private string _pendingSettledLocation;
+
+    private void OnSectionPagerScrollStateChanged(int state)
+    {
+        _sectionPagerScrollState = state;
+        if (state == 0) // ViewPager2.ScrollStateIdle
+        {
+            if (!string.IsNullOrEmpty(_pendingSettledSection))
+            {
+                var section = _pendingSettledSection;
+                var location = _pendingSettledLocation;
+                _pendingSettledSection = null;
+                _pendingSettledLocation = null;
+
+                Dispatcher.Dispatch(() =>
+                {
+                    ApplySettledSection(section, location);
+                });
+            }
+        }
+    }
+
+    private void ApplySettledSection(string section, string location)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(location) && CurrentPage is Views.AnimeListPage listPage)
+            {
+                if (location.Contains('?'))
+                    listPage.ApplyRouteFromShell(location);
+                else if (!string.Equals(section, _lastNavigatedSection, StringComparison.OrdinalIgnoreCase))
+                    listPage.ApplyRootLocation(location);
+            }
+
+            _lastNavigatedSection = section;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS root route apply failed: " + ex.GetType().Name);
+        }
+
+        UpdateRootListModes(section);
+    }
 
     private bool _sharedBarInstalled;
     private global::Android.Views.View _sharedBarView;
@@ -410,6 +470,17 @@ public partial class AppShell : Shell
             if (viewPager.Id == SectionPagerId(viewPager.Context))
             {
                 viewPager.UserInputEnabled = rootInput;
+                // OffscreenPageLimit = 3 keeps all 4 root tabs (Discover, Anime, Manga, More)
+                // alive in ViewPager2's hierarchy so jumping across roots (e.g. Manga -> Discover)
+                // never recycles Discover and leaves it blank.
+                if (viewPager.OffscreenPageLimit != 3)
+                    viewPager.OffscreenPageLimit = 3;
+
+                if (!_sectionPagerListenerRegistered && Shell.Current is AppShell shell)
+                {
+                    _sectionPagerListenerRegistered = true;
+                    viewPager.RegisterOnPageChangeCallback(new SectionPagerScrollListener(shell));
+                }
             }
 
             for (int i = 0; i < viewPager.ChildCount; i++)
@@ -512,6 +583,7 @@ public partial class AppShell : Shell
         _sharedBarInstalled = false;
         _sharedBarView = null;
         _topTabsGuardParent = null;
+        _sectionPagerListenerRegistered = false;
         Controls.BottomNavBar.ResetSharedHost();
 
         PaintPagers();
@@ -572,40 +644,45 @@ public partial class AppShell : Shell
         // ShellItems are created lazily as they are first shown, so their pagers only
         // appear after a navigation.
         PaintPagers();
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(50), PaintPagers);
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(150), PaintPagers);
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(400), PaintPagers);
-        ScheduleSharedBar();
+        if (!_sharedBarInstalled)
+            ScheduleSharedBar();
         UpdateSharedBarVisibility();
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(150), UpdateSharedBarVisibility);
 
-        // A root page that is already alive does not receive the query of a new root
-        // route: Shell switches to its section and drops the query, so tapping Anime
-        // from More reopened the panel that had been borrowed by Seasonal/Top. Deliver
-        // it to the live list page after the switch instead.
         string section = null;
         try
         {
             var location = args?.Current?.Location?.OriginalString;
             section = SectionOf(location);
-            if (!string.IsNullOrEmpty(location) && CurrentPage is Views.AnimeListPage listPage)
-            {
-                if (location.Contains('?'))
-                    listPage.ApplyRouteFromShell(location);
-                else if (!string.Equals(section, _lastNavigatedSection, StringComparison.OrdinalIgnoreCase))
-                    listPage.ApplyRootLocation(location);
-            }
 
-            _lastNavigatedSection = section;
+            var isSectionSwitch = !string.IsNullOrEmpty(section) &&
+                                  !string.Equals(section, _lastNavigatedSection, StringComparison.OrdinalIgnoreCase);
+
+            if (_sectionPagerScrollState != 0 || isSectionSwitch)
+            {
+                _pendingSettledSection = section;
+                _pendingSettledLocation = location;
+
+                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(200), () =>
+                {
+                    if (!string.IsNullOrEmpty(_pendingSettledSection) && _sectionPagerScrollState == 0)
+                    {
+                        var s = _pendingSettledSection;
+                        var l = _pendingSettledLocation;
+                        _pendingSettledSection = null;
+                        _pendingSettledLocation = null;
+                        ApplySettledSection(s, l);
+                    }
+                });
+            }
+            else
+            {
+                ApplySettledSection(section, location);
+            }
         }
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS root route apply failed: " + ex.GetType().Name);
         }
-
-        // After the route is applied, not before: the incoming page must own the shared view model
-        // (so the query/mode it just applied is what its grid paints).
-        UpdateRootListModes(section);
     }
 
     // Only the list root that the current location names may paint the shared view model. The other

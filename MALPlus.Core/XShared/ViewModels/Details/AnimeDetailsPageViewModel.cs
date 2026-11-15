@@ -525,23 +525,26 @@ namespace MALPlus.XShared.ViewModels.Details
 
         public string ProducersText { get; private set; } = "";
         public string StreamingText { get; private set; } = "";
-        public string MoreInfoText
-        {
-            get => _moreInfoExpandedFlag ? MoreInfoFullText : _moreInfoPreview;
-            private set => _moreInfoPreview = value;
-        }
 
-        private string _moreInfoPreview = "";
-        public string MoreInfoFullText { get; private set; } = "";
+        private const int MoreInfoCollapseThreshold = 90;
+        private string _moreInfoText = "";
         private bool _moreInfoExpandedFlag;
 
+        public string MoreInfoText
+        {
+            get => _moreInfoText;
+            private set => _moreInfoText = value ?? "";
+        }
+
+        public string MoreInfoFullText => MoreInfoText;
+
         public bool MoreInfoVisible => !string.IsNullOrWhiteSpace(MoreInfoText);
-        public bool MoreInfoHasMore => !string.IsNullOrWhiteSpace(MoreInfoFullText);
+        public bool MoreInfoHasMore => MoreInfoText.Length > MoreInfoCollapseThreshold;
         public bool MoreInfoExpanded => _moreInfoExpandedFlag;
 
         /// <summary>Two lines of note until the reader asks for the rest of it.</summary>
         public int MoreInfoMaxLines => MoreInfoExpanded ? int.MaxValue : 2;
-        public string MoreInfoToggleText => MoreInfoExpanded ? "Show less" : "Show full note";
+        public string MoreInfoToggleText => MoreInfoExpanded ? "Show less" : "Show more";
         public bool MoreInfoToggleVisible => MoreInfoHasMore;
 
         public void SetMoreInfoExpanded()
@@ -549,7 +552,6 @@ namespace MALPlus.XShared.ViewModels.Details
             if (!MoreInfoHasMore)
                 return;
             _moreInfoExpandedFlag = !_moreInfoExpandedFlag;
-            RaisePropertyChanged(() => MoreInfoText);
             RaisePropertyChanged(() => MoreInfoExpanded);
             RaisePropertyChanged(() => MoreInfoMaxLines);
             RaisePropertyChanged(() => MoreInfoToggleText);
@@ -707,27 +709,6 @@ private static string FormatCompact(int value)
             if (scoredBy != null && !string.IsNullOrWhiteSpace(scoredBy.Item2))
                 MalStatRows.Add(new Tuple<string, string>("Scored by", scoredBy.Item2.Trim()));
             RaisePropertyChanged(() => MalStatsVisible);
-        }
-
-        /// <summary>
-        ///     Tenrai's moreinfo is AniDB's note field, which for a long show is a wall of
-        ///     crossover trivia and schedule history. Only a short note is worth showing on its
-        ///     own; anything longer has to be opened deliberately.
-        /// </summary>
-        private const int MoreInfoPreviewLength = 200;
-
-        private static string BuildMoreInfoPreview(string moreInfo)
-        {
-            var clean = CleanMoreInfo(moreInfo);
-            if (string.IsNullOrWhiteSpace(clean))
-                return "";
-            return clean.Length <= MoreInfoPreviewLength ? clean : clean.Substring(0, MoreInfoPreviewLength).TrimEnd() + "…";
-        }
-
-        private static string BuildMoreInfoFull(string moreInfo)
-        {
-            var clean = CleanMoreInfo(moreInfo);
-            return clean.Length <= MoreInfoPreviewLength ? "" : clean;
         }
 
         private static string CleanMoreInfo(string moreInfo)
@@ -948,7 +929,6 @@ private static string FormatCompact(int value)
                 ProducersText = "";
                 StreamingText = "";
                 MoreInfoText = "";
-                MoreInfoFullText = "";
                 _moreInfoExpandedFlag = false;
                 GenreChips.Clear();
                 StudioChips.Clear();
@@ -2128,8 +2108,7 @@ RaisePropertyChanged(() => GeneralSeason);
             StreamingText = data.Streaming != null && data.Streaming.Any()
                 ? string.Join(", ", data.Streaming)
                 : string.Join(", ", data.Licensors ?? new List<string>());
-            MoreInfoText = BuildMoreInfoPreview(data.MoreInfo);
-            MoreInfoFullText = BuildMoreInfoFull(data.MoreInfo);
+            MoreInfoText = CleanMoreInfo(data.MoreInfo);
             _moreInfoExpandedFlag = false;
             // The text itself, not just the visibility: announcing only the flags is what left the
             // NOTE panel visible but blank.
@@ -2150,6 +2129,7 @@ RaisePropertyChanged(() => GeneralSeason);
             RaisePropertyChanged(() => MoreInfoHasMore);
             RaisePropertyChanged(() => MoreInfoToggleVisible);
             RaisePropertyChanged(() => MoreInfoMaxLines);
+            RaisePropertyChanged(() => MoreInfoToggleText);
             RaisePropertyChanged(() => ProducersVisible);
             _imgUrl = MalImageUrl.Normalize((_animeItemReference as AnimeItemViewModel)?.ImgUrl ?? data.ImgUrl);
             if (Settings.SelectedApiType == ApiType.Hummingbird)
@@ -2419,8 +2399,8 @@ RaisePropertyChanged(() => GeneralSeason);
                     continue;
                 var step = steps[i];
 
-                // hand the UI thread back between tabs so the entry stays interactive
-                await Task.Delay(1);
+                // hand the UI thread and CPU back between tabs so the entry stays interactive
+                await Task.Delay(400);
                 try
                 {
                     await step();
@@ -3020,8 +3000,12 @@ RaisePropertyChanged(() => ProducersVisible);
                     foreach (var item in recomm)
                     {
                         item.AirDayTillBind = ComputeAirCountdown(item.Id);
-                        var libraryMatch = _animeLibraryDataStorage?.AllLoadedAuthAnimeItems?
-                            .FirstOrDefault(x => x.RepresentsAnime && (x.MalId == item.Id || x.Id == item.Id));
+                        var isAnimeItem = item.Type == RelatedItemType.Anime || (item.Type != RelatedItemType.Manga && AnimeMode);
+                        var libraryMatch = isAnimeItem
+                            ? _animeLibraryDataStorage?.AllLoadedAuthAnimeItems?
+                                .FirstOrDefault(x => x.RepresentsAnime && (x.MalId == item.Id || x.Id == item.Id))
+                            : _animeLibraryDataStorage?.AllLoadedAuthMangaItems?
+                                .FirstOrDefault(x => !x.RepresentsAnime && (x.MalId == item.Id || x.Id == item.Id));
                         var libraryViewModel = libraryMatch?.ViewModel;
                         item.IsOnMyList = libraryMatch != null;
                         item.MyEpisodesForBadge = libraryMatch?.MyEpisodes ?? 0;

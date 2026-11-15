@@ -51,20 +51,11 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                         Padding="12,12" BackgroundColor="{StaticResource EmBackground}">
                 <HorizontalStackLayout Spacing="8">
                     <Button x:Name="ArticlesTab" Text="Articles" Clicked="OnWorkModeClicked"
-                            CommandParameter="Articles" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="#0066FF" TextColor="White"
-                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                            Padding="12,6" HeightRequest="32" />
+                            CommandParameter="Articles" Style="{StaticResource TabChipActiveButtonStyle}" />
                     <Button x:Name="NewsTab" Text="News" Clicked="OnWorkModeClicked"
-                            CommandParameter="News" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="Transparent" TextColor="#A0FFFFFF"
-                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                            Padding="12,6" HeightRequest="32" />
+                            CommandParameter="News" Style="{StaticResource TabChipButtonStyle}" />
                     <Button x:Name="AnnTab" Text="ANN" Clicked="OnWorkModeClicked"
-                            CommandParameter="AnnNews" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="Transparent" TextColor="#A0FFFFFF"
-                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                            Padding="12,6" HeightRequest="32" />
+                            CommandParameter="AnnNews" Style="{StaticResource TabChipButtonStyle}" />
                 </HorizontalStackLayout>
             </ScrollView>
 

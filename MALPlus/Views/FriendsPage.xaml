@@ -18,19 +18,11 @@
         <Grid RowDefinitions="Auto,Auto,*">
             <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                         Padding="16,12" Margin="0,8,0,4">
-                <HorizontalStackLayout Spacing="16">
-                    <Label x:Name="FriendsTab" Text="Friends" FontFamily="InterSemiBold" FontSize="13"
-                           Padding="0,6" TextColor="#FF6B00">
-                        <Label.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="0" />
-                        </Label.GestureRecognizers>
-                    </Label>
-                    <Label x:Name="RequestsTab" Text="Requests" FontFamily="InterSemiBold" FontSize="13"
-                           Padding="0,6" TextColor="White">
-                        <Label.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="1" />
-                        </Label.GestureRecognizers>
-                    </Label>
+                <HorizontalStackLayout Spacing="8">
+                    <Button x:Name="TabFriends" Text="Friends" Clicked="OnTabButtonClicked" CommandParameter="0"
+                            Style="{StaticResource TabChipActiveButtonStyle}" />
+                    <Button x:Name="TabRequests" Text="Requests" Clicked="OnTabButtonClicked" CommandParameter="1"
+                            Style="{StaticResource TabChipButtonStyle}" />
                 </HorizontalStackLayout>
             </ScrollView>
 
@@ -97,16 +89,21 @@
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12">
                                 <Grid ColumnDefinitions="48,*,Auto,Auto" ColumnSpacing="10">
-                                    <Border Grid.Column="0" WidthRequest="44" HeightRequest="44"
-                                            StrokeShape="RoundRectangle 22"
-                                            Stroke="{StaticResource EmBorder}" StrokeThickness="1">
-                                        <Image Source="{Binding User.ImgUrl, Converter={StaticResource ImageConverter}}"
-                                               Aspect="AspectFill" />
-                                    </Border>
-                                    <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                                        <Label Text="{Binding User.Name}" FontFamily="InterBold" FontSize="14"
-                                               TextColor="{StaticResource BrushText}" />
-                                    </VerticalStackLayout>
+                                    <Grid Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="48,*" ColumnSpacing="10" BackgroundColor="Transparent">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnRequestUserTapped" CommandParameter="{Binding .}" />
+                                        </Grid.GestureRecognizers>
+                                        <Border Grid.Column="0" WidthRequest="44" HeightRequest="44"
+                                                StrokeShape="RoundRectangle 22"
+                                                Stroke="{StaticResource EmBorder}" StrokeThickness="1">
+                                            <Image Source="{Binding User.ImgUrl, Converter={StaticResource ImageConverter}}"
+                                                   Aspect="AspectFill" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding User.Name}" FontFamily="InterBold" FontSize="14"
+                                                   TextColor="{StaticResource BrushText}" />
+                                        </VerticalStackLayout>
+                                    </Grid>
                                     <Button Grid.Column="2" Text="Accept" Clicked="OnAcceptClicked"
                                             CommandParameter="{Binding .}"
                                             FontFamily="InterSemiBold" FontSize="12"

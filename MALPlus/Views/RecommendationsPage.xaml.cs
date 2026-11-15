@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using MALPlus.Controls;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.AnimeScrapped;
 using MALPlus.XShared.NavArgs;
@@ -7,7 +8,7 @@ using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Views;
 
-public partial class RecommendationsPage : ContentPage
+public partial class RecommendationsPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     private RecommendationsViewModel Vm => (RecommendationsViewModel)BindingContext;
@@ -123,8 +124,32 @@ public partial class RecommendationsPage : ContentPage
 
     private void SetTabStyle(Button btn, bool isActive)
     {
-        if (btn == null) return;
-        btn.BackgroundColor = isActive ? Color.FromArgb("#0066FF") : Colors.Transparent;
-        btn.TextColor = isActive ? Colors.White : Color.FromArgb("#80FFFFFF");
+        TabChipHelper.ApplyStyle(btn, isActive);
+    }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        // Swipe lateral entre recomendaciones (no entre opciones de arriba)
+        if (Vm == null || Vm.Loading || !Vm.HasAny)
+            return false;
+
+        if (direction > 0) // swipe left -> next recommendation
+        {
+            if (Vm.GoToNextItemCommand.CanExecute(null))
+            {
+                Vm.GoToNextItemCommand.Execute(null);
+                return true;
+            }
+        }
+        else if (direction < 0) // swipe right -> previous recommendation
+        {
+            if (Vm.GoToPreviousItemCommand.CanExecute(null))
+            {
+                Vm.GoToPreviousItemCommand.Execute(null);
+                return true;
+            }
+        }
+
+        return false;
     }
 }

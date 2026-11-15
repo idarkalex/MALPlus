@@ -197,7 +197,8 @@
                     </Border>
                     <CollectionView Grid.Row="1" x:Name="VoiceActorsList"
                                     ItemsSource="{Binding VoiceActors}"
-                                    ItemTemplate="{StaticResource CharacterVoiceActorTemplate}">
+                                    ItemTemplate="{StaticResource CharacterVoiceActorTemplate}"
+                                    ItemSizingStrategy="MeasureFirstItem">
                         <CollectionView.ItemsLayout>
                             <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />
                         </CollectionView.ItemsLayout>
@@ -217,6 +218,7 @@
                     <CollectionView Grid.Row="1" x:Name="AnimeographyList"
                                     ItemsSource="{Binding Data.Animeography}"
                                     ItemTemplate="{StaticResource CharacterMediaCardTemplate}"
+                                    ItemSizingStrategy="MeasureFirstItem"
                                     IsVisible="{Binding AnimeographyVisibility}">
                         <CollectionView.ItemsLayout>
                             <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />
@@ -243,6 +245,7 @@
                     <CollectionView Grid.Row="1" x:Name="MangaographyList"
                                     ItemsSource="{Binding Data.Mangaography}"
                                     ItemTemplate="{StaticResource CharacterMediaCardTemplate}"
+                                    ItemSizingStrategy="MeasureFirstItem"
                                     IsVisible="{Binding MangaographyVisibility}">
                         <CollectionView.ItemsLayout>
                             <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />

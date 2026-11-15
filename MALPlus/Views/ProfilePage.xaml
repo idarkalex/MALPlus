@@ -146,17 +146,17 @@
                         </Grid>
                     </Border>
 
-                    <!-- Horizontal Tab Bar (Pill design) -->
+                    <!-- Horizontal Tab Bar (Option A Chip design) -->
                     <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                                 VerticalScrollBarVisibility="Never" Padding="0,2">
                         <HorizontalStackLayout Spacing="8">
-                            <Button x:Name="TabBtnGeneral" Text="General" Style="{StaticResource ProfileTabButtonStyle}"
+                            <Button x:Name="TabBtnGeneral" Text="General" Style="{StaticResource TabChipActiveButtonStyle}"
                                     Clicked="OnTabButtonClicked" CommandParameter="0" />
-                            <Button x:Name="TabBtnHistory" Text="History" Style="{StaticResource ProfileTabButtonStyle}"
+                            <Button x:Name="TabBtnHistory" Text="History" Style="{StaticResource TabChipButtonStyle}"
                                     Clicked="OnTabButtonClicked" CommandParameter="1" />
-                            <Button x:Name="TabBtnFavourites" Text="Favourites" Style="{StaticResource ProfileTabButtonStyle}"
+                            <Button x:Name="TabBtnFavourites" Text="Favourites" Style="{StaticResource TabChipButtonStyle}"
                                     Clicked="OnTabButtonClicked" CommandParameter="2" />
-                            <Button x:Name="TabBtnStats" Text="Stats" Style="{StaticResource ProfileTabButtonStyle}"
+                            <Button x:Name="TabBtnStats" Text="Stats" Style="{StaticResource TabChipButtonStyle}"
                                     Clicked="OnTabButtonClicked" CommandParameter="3" />
                         </HorizontalStackLayout>
                     </ScrollView>

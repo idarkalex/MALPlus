@@ -234,6 +234,7 @@ public partial class AnimePosterCard : ContentView
     public AnimePosterCard()
     {
         InitializeComponent();
+        RootGrid.BindingContext = this;
     }
 
     /// <summary>

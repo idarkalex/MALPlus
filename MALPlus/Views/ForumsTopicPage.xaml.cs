@@ -10,13 +10,25 @@ using Microsoft.Maui.Controls;
 namespace MALPlus.Views;
 
 [QueryProperty(nameof(TopicId), "id")]
-public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollInfoProvider,
+[QueryProperty(nameof(InitialPage), "page")]
+[QueryProperty(nameof(LastPost), "lastpost")]
+public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTopicViewModel.IScrollInfoProvider,
     System.ComponentModel.INotifyPropertyChanged
 {
-    private bool _initialized;
+    private string _lastLoadedKey;
     private bool _handlerAttached;
     private bool _replyPreviewVisible;
     public string TopicId { get; set; }
+    public string InitialPage { get; set; }
+    public string LastPost { get; set; }
+
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        TopicId = query.TryGetValue("id", out var id) ? id?.ToString() : null;
+        InitialPage = query.TryGetValue("page", out var p) ? p?.ToString() : null;
+        LastPost = query.TryGetValue("lastpost", out var lp) ? lp?.ToString() : null;
+        _ = LoadTopicIfReadyAsync();
+    }
 
     public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
 
@@ -117,13 +129,33 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         }
         ConfigureTopicWebView(TopicWebView?.Handler?.PlatformView as global::Android.Views.View);
 #endif
-        if (_initialized || string.IsNullOrWhiteSpace(TopicId))
+        _ = LoadTopicIfReadyAsync();
+    }
+
+    private async Task LoadTopicIfReadyAsync()
+    {
+        if (string.IsNullOrWhiteSpace(TopicId))
             return;
-        _initialized = true;
+
+        var pageNum = 1;
+        if (!int.TryParse(InitialPage, out pageNum) || pageNum < 1)
+            pageNum = 1;
+        var isLastPost = string.Equals(LastPost, "true", StringComparison.OrdinalIgnoreCase);
+
+        var loadKey = $"{TopicId}_{pageNum}_{isLastPost}";
+        if (_lastLoadedKey == loadKey)
+            return;
+        _lastLoadedKey = loadKey;
+
         try
         {
-            await Vm.Init(new ForumsTopicNavigationArgs(TopicId, null, 1));
-            Vm.RegisterSelfBackNav();
+            if (Vm != null)
+            {
+                Vm.PageHtml = string.Empty;
+                Vm.Messages?.Clear();
+            }
+            await Vm.Init(new ForumsTopicNavigationArgs(TopicId, isLastPost ? (int?)-1 : null, pageNum));
+            Vm?.RegisterSelfBackNav();
         }
         catch (Exception ex)
         {
@@ -131,9 +163,15 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         }
     }
 
+    private async Task PopBackAsync()
+    {
+        await Shell.Current.GoToAsync("..");
+    }
+
     protected override void OnDisappearing()
     {
 #if ANDROID
+        global::MALPlus.MainActivity.DisarmMenuBackCallback();
         if (_handlerAttached)
         {
             TopicWebView.HandlerChanged -= OnTopicWebViewHandlerChanged;
@@ -157,21 +195,23 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
         }
     }
 
-    private async void OnBackTapped(object sender, TappedEventArgs e)
+    private void OnBackTapped(object sender, TappedEventArgs e)
     {
-        await Shell.Current.GoToAsync("..");
+        _ = PopBackAsync();
     }
 
     private void OnPreviousPageTapped(object sender, TappedEventArgs e)
     {
-        if (Vm?.CanPreviousPage == true)
-            Vm.PreviousPageCommand?.Execute(null);
+        var vm = Vm;
+        if (vm != null && vm.CanPreviousPage)
+            vm.LoadPageCommand?.Execute(vm.CurrentPage - 1);
     }
 
     private void OnNextPageTapped(object sender, TappedEventArgs e)
     {
-        if (Vm?.CanNextPage == true)
-            Vm.NextPageCommand?.Execute(null);
+        var vm = Vm;
+        if (vm != null && vm.CanNextPage)
+            vm.LoadPageCommand?.Execute(vm.CurrentPage + 1);
     }
 
     private async void OnPageJumpTapped(object sender, TappedEventArgs e)
@@ -259,7 +299,7 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
                 return;
             }
 
-            _ = Shell.Current.GoToAsync("..");
+            _ = PopBackAsync();
         });
     }
 #endif
@@ -272,7 +312,8 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
             return true;
         }
 
-        return base.OnBackButtonPressed();
+        _ = PopBackAsync();
+        return true;
     }
 
     private void OnFormatBBCodeTapped(object sender, EventArgs e)
@@ -481,6 +522,61 @@ public partial class ForumsTopicPage : ContentPage, ForumTopicViewModel.IScrollI
                         ReplyOverlayEditor.Focus();
                     });
                 });
+                return;
+            }
+
+            if (e.Url.StartsWith("malplusvote:", StringComparison.OrdinalIgnoreCase))
+            {
+                e.Cancel = true;
+                var prefix = "malplusvote:";
+                var rest = Uri.UnescapeDataString(e.Url.Substring(prefix.Length));
+                var sep = rest.IndexOf('?');
+                var topicId = sep >= 0 ? rest.Substring(0, sep) : rest;
+                var optionId = "";
+                if (sep >= 0)
+                {
+                    foreach (var pair in rest.Substring(sep + 1).Split('&'))
+                    {
+                        var kv = pair.Split('=', 2);
+                        if (kv.Length == 2 && string.Equals(kv[0], "option", StringComparison.OrdinalIgnoreCase))
+                            optionId = Uri.UnescapeDataString(kv[1]);
+                    }
+                }
+
+                if (!MALPlus.XShared.Utils.Credentials.Authenticated)
+                {
+                    _ = DisplayAlert("Poll", "Please log in first to vote in forum polls.", "OK");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(optionId))
+                    return;
+
+                _ = Task.Run(async () =>
+                {
+                    var ok = await (Vm?.VotePollOptionAsync(optionId) ?? Task.FromResult(false));
+                    if (!ok)
+                    {
+                        await MainThread.InvokeOnMainThreadAsync(async () =>
+                        {
+                            await DisplayAlert("Poll", "Could not submit vote to MyAnimeList (you may have already voted or this poll is closed).", "OK");
+                        });
+                    }
+                });
+                return;
+            }
+
+            if (e.Url.StartsWith("malplusresults:", StringComparison.OrdinalIgnoreCase))
+            {
+                e.Cancel = true;
+                Vm?.TogglePollResults(true);
+                return;
+            }
+
+            if (e.Url.StartsWith("malpluspoll:", StringComparison.OrdinalIgnoreCase))
+            {
+                e.Cancel = true;
+                Vm?.TogglePollResults(false);
                 return;
             }
 

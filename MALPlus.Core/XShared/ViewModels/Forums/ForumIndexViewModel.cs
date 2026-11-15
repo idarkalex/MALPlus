@@ -125,7 +125,7 @@ namespace MALPlus.XShared.ViewModels.Forums
                         }
                     }
                 }
-                return result.OrderByDescending(p => p.PostTime).ToList();
+                return result.OrderByDescending(p => p.ParsedTime).ToList();
             }
         }
 

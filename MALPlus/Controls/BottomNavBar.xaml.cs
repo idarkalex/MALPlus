@@ -31,6 +31,11 @@ public partial class BottomNavBar : ContentView
     public BottomNavBar()
     {
         InitializeComponent();
+        if (SharedHostInstalled)
+        {
+            HeightRequest = 0;
+            IsVisible = false;
+        }
         Loaded += OnBarLoaded;
     }
 
@@ -104,9 +109,13 @@ public partial class BottomNavBar : ContentView
 
         if (SharedHostInstalled)
         {
+            HeightRequest = 0;
             IsVisible = false;
             if (view != null && !ReferenceEquals(view, SharedBarView))
+            {
+                view.Visibility = global::Android.Views.ViewStates.Gone;
                 InstallPageBarGuard();
+            }
         }
     }
 
@@ -116,9 +125,13 @@ public partial class BottomNavBar : ContentView
             return;
 
         IsVisible = false;
+        HeightRequest = 0;
         if (Handler?.PlatformView is global::Android.Views.View view &&
             !ReferenceEquals(view, SharedBarView))
+        {
+            view.Visibility = global::Android.Views.ViewStates.Gone;
             InstallPageBarGuard();
+        }
     }
 
     private global::Android.Views.ViewGroup _guardParent;
@@ -184,7 +197,7 @@ public partial class BottomNavBar : ContentView
             return;
 
         _watchRoot = root;
-        root.ViewTreeObserver?.AddOnPreDrawListener(new BarWatch());
+        // Disabled diagnostic listener to eliminate frame render overhead
         global::Android.Util.Log.Info("MALPLUS", "BARWATCH attached");
     }
 
@@ -275,13 +288,16 @@ public partial class BottomNavBar : ContentView
 
     private void HideForSharedHost(global::Android.Views.View sharedView)
     {
-        Opacity = 1;
+        Opacity = 0;
         IsVisible = false;
+        HeightRequest = 0;
+        MaximumHeightRequest = 0;
 
         if (Handler?.PlatformView is not global::Android.Views.View view ||
             ReferenceEquals(view, sharedView))
             return;
 
+        view.Visibility = global::Android.Views.ViewStates.Gone;
         InstallPageBarGuard();
     }
 
@@ -545,6 +561,8 @@ public partial class BottomNavBar : ContentView
             return;
         }
 
+        MALPlus.Services.Navigation.BackRouter.Clear();
+
         if (IsListSection(section))
             MALPlus.Views.AnimeListPage.SetPendingRootRoute(route);
 
@@ -593,12 +611,7 @@ public partial class BottomNavBar : ContentView
             // A bar on another root (More, Discover) navigates to a list section that
             // already exists, and Shell drops the route query on the way; the page's
             // own SectionActivated never fires because this is not its bar.
-            if (shell.CurrentPage is MALPlus.Views.AnimeListPage listPage)
-            {
-                if (!ReferenceEquals(HostingPage(), listPage))
-                    listPage.ApplyRouteFromShell(route);
-            }
-            else if (IsListSection(section))
+            if (IsListSection(section) && shell.CurrentPage is not MALPlus.Views.AnimeListPage)
             {
                 MALPlus.Views.AnimeListPage.ClearPendingRootRoute(route);
             }

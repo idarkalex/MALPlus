@@ -16,7 +16,7 @@
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
 
-        <Grid RowDefinitions="Auto,*,Auto" IsVisible="{Binding LoadingSideContentVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert, FallbackValue=true}">
+        <Grid RowDefinitions="Auto,*" IsVisible="{Binding LoadingSideContentVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert, FallbackValue=true}">
             <!-- Tab strip -->
             <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                         Padding="12,8,12,0">
@@ -40,23 +40,16 @@
                                                     <Border BackgroundColor="{StaticResource EmSheet}"
                                                             Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                             StrokeShape="RoundRectangle 8" Padding="14,12" Margin="0,0,0,4">
-                                                        <Grid>
-                                                            <VerticalStackLayout Spacing="4">
-                                                                <Label Text="{Binding Entry.Name}" FontFamily="InterBold" FontSize="14"
-                                                                       TextColor="{StaticResource BrushText}" />
-                                                                <Label Text="{Binding Entry.Description}" FontFamily="Inter" FontSize="12"
-                                                                       TextColor="#80FFFFFF" MaxLines="2"
-                                                                       LineBreakMode="TailTruncation" />
-                                                            </VerticalStackLayout>
-                                                            <Button Text=""
-                                                                    BackgroundColor="Transparent"
-                                                                    BorderWidth="0"
-                                                                    Padding="0"
-                                                                    HorizontalOptions="Fill"
-                                                                    VerticalOptions="Fill"
-                                                                    Clicked="OnBoardButtonClicked"
-                                                                    CommandParameter="{Binding .}" />
-                                                        </Grid>
+                                                        <Border.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnBoardTapped" CommandParameter="{Binding .}" />
+                                                        </Border.GestureRecognizers>
+                                                        <VerticalStackLayout Spacing="4">
+                                                            <Label Text="{Binding Entry.Name}" FontFamily="InterBold" FontSize="14"
+                                                                   TextColor="{StaticResource BrushText}" />
+                                                            <Label Text="{Binding Entry.Description}" FontFamily="Inter" FontSize="12"
+                                                                   TextColor="#80FFFFFF" MaxLines="2"
+                                                                   LineBreakMode="TailTruncation" />
+                                                        </VerticalStackLayout>
                                                     </Border>
                                                 </DataTemplate>
                                             </BindableLayout.ItemTemplate>
@@ -80,42 +73,36 @@
                     </CollectionView.EmptyView>
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
+                            <Border Margin="12,3" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12">
-                                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+                                    StrokeShape="RoundRectangle 8" Padding="12,10">
+                                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="5">
                                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <Label Grid.Column="0" Text="{Binding BoardName}" FontFamily="InterBold" FontSize="11"
-                                               TextColor="{StaticResource EmAccent}" />
+                                               TextColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                                         <Label Grid.Column="1" Text="{Binding PostTime}" FontFamily="Inter" FontSize="11"
-                                               TextColor="#80FFFFFF" />
+                                               TextColor="#8FA8C0" VerticalOptions="Center" />
                                     </Grid>
-                                    <Label Grid.Row="1" Text="{Binding Title}" FontFamily="InterBold" FontSize="13"
+                                    <Label Grid.Row="1" Text="{Binding Title}" FontFamily="InterBold" FontSize="14"
                                            TextColor="{StaticResource BrushText}" MaxLines="2"
                                            LineBreakMode="TailTruncation" />
-                                    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                        <Border Grid.Column="0" WidthRequest="24" HeightRequest="24"
-                                                StrokeShape="RoundRectangle 12"
-                                                Stroke="{StaticResource EmBorder}" StrokeThickness="1">
+                                    <HorizontalStackLayout Grid.Row="2" Spacing="6" VerticalOptions="Center">
+                                        <Border WidthRequest="20" HeightRequest="20"
+                                                StrokeShape="RoundRectangle 10"
+                                                Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                                VerticalOptions="Center">
                                             <Image Source="{Binding User.ImgUrl, Converter={StaticResource ImageConverter}}"
-                                                   Aspect="AspectFill" />
+                                                   Aspect="AspectFill" WidthRequest="20" HeightRequest="20" />
                                         </Border>
-                                        <Label Grid.Column="1" Text="{Binding User.Name}" FontFamily="Inter" FontSize="11"
-                                               TextColor="#80FFFFFF" VerticalOptions="Center" />
-                                    </Grid>
+                                        <Label Text="{Binding User.Name}" FontFamily="InterSemiBold" FontSize="11"
+                                               TextColor="#8FA8C0" VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
                                 </Grid>
                             </Border>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
             </RefreshView>
-
-            <!-- Loading indicator at bottom of recent posts -->
-            <Grid Grid.Row="2" HeightRequest="48" IsVisible="{Binding LoadingSideContentVisibility, FallbackValue=false}"
-                  VerticalOptions="End">
-                <ActivityIndicator IsRunning="True" Color="{StaticResource EmAccent}"
-                                   WidthRequest="24" HeightRequest="24" HorizontalOptions="Center" VerticalOptions="Center" />
-            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

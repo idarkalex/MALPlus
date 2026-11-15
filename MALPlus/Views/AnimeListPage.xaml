@@ -173,7 +173,7 @@
                  Discover all get their span, cell size and spacing from AnimePosterGrid.
                  It binds DisplayedItems rather than AnimeItems so the magnifier can narrow the
                  panel without touching the collection the infinite scroll appends to. -->
-            <controls:AnimePosterGrid x:Name="AnimeGrid" ItemsSource="{Binding DisplayedItems}" />
+            <controls:AnimePosterGrid x:Name="AnimeGrid" />
         </RefreshView>
 
         <Label Text="{Binding EmptyNoticeContent}" IsVisible="{Binding EmptyNoticeVisibility}"

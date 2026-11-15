@@ -1,12 +1,14 @@
+using MALPlus.Controls;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Forums;
 using MALPlus.XShared.ViewModels.Forums.Items;
 
 namespace MALPlus.Views;
 
-public partial class ForumsIndexPage : ContentPage
+public partial class ForumsIndexPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
+    private bool _navigating;
     private int _forumsTabIndex = 0;
     private ForumIndexViewModel Vm => (ForumIndexViewModel)BindingContext;
 
@@ -25,6 +27,10 @@ public partial class ForumsIndexPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        _navigating = false;
+#if ANDROID
+        global::MALPlus.MainActivity.ArmMenuBackCallback(() => _ = Shell.Current.GoToAsync(".."));
+#endif
         if (_initialized) return;
         _initialized = true;
         BuildTabs();
@@ -43,6 +49,15 @@ public partial class ForumsIndexPage : ContentPage
         }
     }
 
+    protected override void OnDisappearing()
+    {
+        _navigating = false;
+#if ANDROID
+        global::MALPlus.MainActivity.DisarmMenuBackCallback();
+#endif
+        base.OnDisappearing();
+    }
+
     private void BuildTabs()
     {
         TabStrip.Children.Clear();
@@ -50,21 +65,8 @@ public partial class ForumsIndexPage : ContentPage
         for (int i = 0; i < tabs.Length; i++)
         {
             var (label, index) = tabs[i];
-            var button = new Button
-            {
-                Text = label,
-                FontFamily = "InterSemiBold",
-                FontSize = 12,
-                Padding = new Thickness(12, 6),
-                HeightRequest = 32,
-                CornerRadius = 16,
-                BorderColor = Color.FromArgb("#29FFFFFF"),
-                BorderWidth = 1,
-                BackgroundColor = Colors.Transparent,
-                TextColor = Color.FromArgb("#FFFFFF")
-            };
             int captured = index;
-            button.Clicked += (s, e) => OnTabClicked(captured);
+            var button = TabChipHelper.CreateChip(label, captured, (s, e) => OnTabClicked(captured), index == _forumsTabIndex);
             TabStrip.Children.Add(button);
         }
     }
@@ -75,10 +77,19 @@ public partial class ForumsIndexPage : ContentPage
         {
             if (TabStrip.Children[i] is Button b)
             {
-                b.BackgroundColor = i == activeIndex ? Color.FromArgb("#0066FF") : Colors.Transparent;
-                b.TextColor = i == activeIndex ? Colors.White : Color.FromArgb("#FFFFFF");
+                TabChipHelper.ApplyStyle(b, i == activeIndex);
             }
         }
+    }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        var next = _forumsTabIndex + (direction > 0 ? 1 : -1);
+        if (next < 0 || next > 1)
+            return false;
+
+        OnTabClicked(next);
+        return true;
     }
 
     private void OnTabClicked(int index)
@@ -88,38 +99,61 @@ public partial class ForumsIndexPage : ContentPage
         HighlightTab(index);
     }
 
-    private async void OnBoardButtonClicked(object sender, EventArgs e)
+    private async void OnBoardTapped(object sender, TappedEventArgs e)
     {
+        if (_navigating)
+            return;
         try
         {
-            if (sender is Button b && b.BindingContext is ForumBoardEntryViewModel item)
+            if (sender is BindableObject bo && bo.BindingContext is ForumBoardEntryViewModel item)
             {
+                _navigating = true;
                 await Shell.Current.GoToAsync($"forumboard?board={(int)item.Board}");
             }
         }
-        catch
+        catch (Exception ex)
         {
+            global::System.Diagnostics.Debug.WriteLine($"MALPLUS OnBoardTapped navigation failed: {ex}");
+        }
+        finally
+        {
+            _ = Task.Delay(400).ContinueWith(_ => _navigating = false);
         }
     }
 
     private async void OnRecentPostTapped(object sender, SelectionChangedEventArgs e)
     {
+        if (_navigating)
+            return;
         try
         {
-            if (e.CurrentSelection.FirstOrDefault() is MALPlus.Models.Models.Forums.ForumBoardEntryPeekPost post)
+            if (e.CurrentSelection?.FirstOrDefault() is MALPlus.Models.Models.Forums.ForumBoardEntryPeekPost post && !string.IsNullOrEmpty(post.Id))
             {
-                ((CollectionView)sender).SelectedItem = null;
+                _navigating = true;
+                if (sender is CollectionView cv)
+                    cv.SelectedItem = null;
                 await Shell.Current.GoToAsync(
                     $"forumtopic?id={post.Id}");
             }
         }
-        catch
+        catch (Exception ex)
         {
+            global::System.Diagnostics.Debug.WriteLine($"MALPLUS OnRecentPostTapped navigation failed: {ex}");
+        }
+        finally
+        {
+            _ = Task.Delay(400).ContinueWith(_ => _navigating = false);
         }
     }
 
     private void OnRefreshing(object sender, EventArgs e)
     {
         try { Vm.Init(true); } catch { }
+    }
+
+    protected override bool OnBackButtonPressed()
+    {
+        _ = Shell.Current.GoToAsync("..");
+        return true;
     }
 }

@@ -94,8 +94,14 @@ public partial class AnimePosterGrid : ContentView
     private void OnItemsSourceCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
             _airWarmed = 0;
-        ApplyLayout(force: true);
+            ApplyLayout(force: true);
+        }
+        else
+        {
+            ApplyLayout(force: false);
+        }
         WarmAirTimes();
     }
 
@@ -343,13 +349,32 @@ public partial class AnimePosterGrid : ContentView
                     ?? 0;
         IsEmpty = count == 0;
 
+        var span = EffectiveSpan(0);
+
+        if (_appliedCellHeight != DefaultCellHeight)
+        {
+            _appliedCellHeight = DefaultCellHeight;
+            CellHeight = DefaultCellHeight;
+            RowHeight = CellHeight + Spacing;
+        }
+
+        if (FixedHeight)
+        {
+            var effectiveRowHeight = RowHeight > 0 ? RowHeight : DefaultCellHeight + Spacing;
+            var wantedHeight = CalculateHeight(count, span, effectiveRowHeight);
+            if (Math.Abs(HeightRequest - wantedHeight) > 0.5)
+            {
+                HeightRequest = wantedHeight;
+                ItemsView.HeightRequest = wantedHeight;
+            }
+        }
+
         if (!force && _spanApplied)
             return;
 
         // Span and cell template do NOT depend on the width. A grid hosted inside a CarouselView
         // can be measured at zero width on its first pass and never get a second one, and bailing
         // out there left the calendar day pages rendering nothing at all.
-        var span = EffectiveSpan(0);
         if (!_spanApplied || (ItemsView.ItemsLayout is GridItemsLayout grid && grid.Span != span))
         {
             // The gutter lives in the layout, not in a card margin: a margin insets the artwork on
@@ -363,36 +388,26 @@ public partial class AnimePosterGrid : ContentView
         }
 
         // The card template reads these through x:Reference, so no page has to repeat the numbers.
-//
-// Every one of these is only written when it actually changes, and that is the whole point of
-// this method: it is called on EVERY collection change, so while scrolling a long list. Assigning
-// ItemTemplate again, even to the same template, makes the CollectionView drop its adapter and
-// re-template every visible cell, and re-writing the sizing properties invalidates the layout of
-// every card again. That is what a scroll through already-loaded posters was stuttering against:
-// nothing about the grid had changed, but all of it was being rebuilt on every row that arrived.
-var wantedTemplate = CellTemplate ?? (DataTemplate)Root.Resources["DefaultCellTemplate"];
-if (!ReferenceEquals(_appliedTemplate, wantedTemplate))
-{
-    _appliedTemplate = wantedTemplate;
-    ItemsView.ItemTemplate = wantedTemplate;
-}
+        //
+        // Every one of these is only written when it actually changes, and that is the whole point of
+        // this method: it is called on EVERY collection change, so while scrolling a long list. Assigning
+        // ItemTemplate again, even to the same template, makes the CollectionView drop its adapter and
+        // re-template every visible cell, and re-writing the sizing properties invalidates the layout of
+        // every card again. That is what a scroll through already-loaded posters was stuttering against:
+        // nothing about the grid had changed, but all of it was being rebuilt on every row that arrived.
+        var wantedTemplate = CellTemplate ?? (DataTemplate)Root.Resources["DefaultCellTemplate"];
+        if (!ReferenceEquals(_appliedTemplate, wantedTemplate))
+        {
+            _appliedTemplate = wantedTemplate;
+            ItemsView.ItemTemplate = wantedTemplate;
+        }
 
-if (_appliedCellHeight != DefaultCellHeight)
-{
-    _appliedCellHeight = DefaultCellHeight;
-    CellHeight = DefaultCellHeight;
-    RowHeight = CellHeight + Spacing;
-}
-
-if (_appliedMargin != NoMargin)
-{
-    _appliedMargin = NoMargin;
-    CellMargin = NoMargin;
-}
-
-if (FixedHeight)
-    HeightRequest = CalculateHeight(count, span, RowHeight);
-}
+        if (_appliedMargin != NoMargin)
+        {
+            _appliedMargin = NoMargin;
+            CellMargin = NoMargin;
+        }
+    }
 
 private static readonly Thickness NoMargin = new Thickness(0);
 private DataTemplate _appliedTemplate;

@@ -1,5 +1,7 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Interfaces;
 
@@ -40,7 +42,20 @@ namespace MALPlus.Models.Models.AnimeScrapped
         public string ImageUrl { get; set; }
         public int Id { get; set; }
         public string Title { get; set; }
-        public RelatedItemType Type { get; set; }
+        private RelatedItemType _type;
+        public RelatedItemType Type
+        {
+            get => _type;
+            set
+            {
+                if (_type == value)
+                    return;
+                _type = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(MediaType));
+                OnPropertyChanged(nameof(TypeTag));
+            }
+        }
         public string AirDayTillBind
         {
             get => _airDayTillBind;
@@ -105,15 +120,33 @@ namespace MALPlus.Models.Models.AnimeScrapped
         /// </remarks>
         public string MediaType
         {
-            get => _mediaType;
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(_mediaType))
+                    return _mediaType;
+                if (Type == RelatedItemType.Manga)
+                    return "Manga";
+                if (Type == RelatedItemType.Anime)
+                    return "TV";
+                return "";
+            }
             set
             {
-                if (_mediaType == value)
+                var normalized = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+                if (_mediaType == normalized)
                     return;
-                _mediaType = value;
+                _mediaType = normalized;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(TypeTag));
+                OnPropertyChanged(nameof(HasSpecificMediaType));
             }
         }
+
+        [JsonIgnore]
+        public string TypeTag => MediaType;
+
+        [JsonIgnore]
+        public bool HasSpecificMediaType => !string.IsNullOrWhiteSpace(_mediaType);
 
         /// <summary>
         ///     Total episodes or chapters of the recommended entry, 0 when unknown.
@@ -203,6 +236,19 @@ public string LibraryBadgeMain
 
         public double SplitWidth { get; set; }
         public double SplitTitleHeight { get; set; }
+
+        private double _minTopHeight;
+        public double MinTopHeight
+        {
+            get => _minTopHeight;
+            set
+            {
+                if (Math.Abs(_minTopHeight - value) < 1)
+                    return;
+                _minTopHeight = value;
+                OnPropertyChanged();
+            }
+        }
 
         public void SetDescriptionSplit(string top, string bottom)
         {

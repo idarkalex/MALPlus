@@ -26,6 +26,7 @@ internal static class HorizontalSwipeObserver
     private static long _downTime;
     private static float _density = 1;
     private static ISwipePreviewHost _previewHost;
+    private static ITabSwipeHost _tabHost;
     private static bool _previewStarted;
     private static bool _previewUnavailable;
     private static bool _suppressChildren;
@@ -104,20 +105,10 @@ internal static class HorizontalSwipeObserver
             return;
         }
 
-        if (Microsoft.Maui.Controls.Shell.Current?.CurrentPage is not ITabSwipeHost)
-        {
-            _cancelled = true;
-            return;
-        }
-
-        _previewHost = Microsoft.Maui.Controls.Shell.Current?.CurrentPage as ISwipePreviewHost;
-
-        // A page above the roots is served by the shellitem pager, not by the section
-        // pager: a drag there has nothing to swipe, and letting the host answer it moved
-        // the root section behind the page. Stack depth is the whole test, so every
-        // pushed page is covered instead of a list of them. The details preview keeps
-        // its gesture; it is the one stacked page with a pager of its own to drive.
-        if (_previewHost == null && IsAboveRoot())
+        var page = Microsoft.Maui.Controls.Shell.Current?.CurrentPage;
+        _previewHost = page as ISwipePreviewHost;
+        _tabHost = page as ITabSwipeHost;
+        if (_previewHost == null && _tabHost == null)
         {
             _cancelled = true;
             return;
@@ -150,33 +141,42 @@ internal static class HorizontalSwipeObserver
             return;
         }
 
-        if (_previewHost == null || _previewUnavailable)
-            return;
-
-        var slop = PreviewStartSlopDp * _density;
-        if (Math.Abs(dxPx) < slop || Math.Abs(dxPx) < Math.Abs(dyPx) * PreviewHorizontalRatio)
-            return;
-
-        var direction = dxPx < 0 ? 1 : -1;
-        var started = false;
-        try
+        if (_previewHost != null && !_previewUnavailable)
         {
-            started = _previewHost.BeginSwipePreview(direction);
-        }
-        catch (Exception ex)
-        {
-            Android.Util.Log.Warn(LogTag, "preview begin failed: " + ex);
-        }
+            var slop = PreviewStartSlopDp * _density;
+            if (Math.Abs(dxPx) < slop || Math.Abs(dxPx) < Math.Abs(dyPx) * PreviewHorizontalRatio)
+                return;
 
-        if (!started)
-        {
-            _previewUnavailable = true;
+            var direction = dxPx < 0 ? 1 : -1;
+            var started = false;
+            try
+            {
+                started = _previewHost.BeginSwipePreview(direction);
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn(LogTag, "preview begin failed: " + ex);
+            }
+
+            if (!started)
+            {
+                return;
+            }
+
+            _previewStarted = true;
+            _suppressChildren = true;
+            _previewHost.UpdateSwipePreview(ToDips(dxPx));
             return;
         }
 
-        _previewStarted = true;
-        _suppressChildren = true;
-        _previewHost.UpdateSwipePreview(ToDips(dxPx));
+        if (_tabHost != null && _previewHost == null)
+        {
+            var slop = PreviewStartSlopDp * 1.5 * _density;
+            if (Math.Abs(dxPx) >= slop && Math.Abs(dxPx) >= Math.Abs(dyPx) * HorizontalToVerticalRatio)
+            {
+                _suppressChildren = true;
+            }
+        }
     }
 
     private static void End(MotionEvent e)
@@ -212,33 +212,30 @@ internal static class HorizontalSwipeObserver
             return;
         }
 
-        if (!_cancelled && _previewHost == null && e.PointerCount == 1 && !IsAboveRoot())
+        if (!_cancelled && _previewHost == null && _tabHost != null && e.PointerCount == 1)
         {
             var dx = e.GetX() - _downX;
             var dy = e.GetY() - _downY;
             var duration = e.EventTime - _downTime;
-            var minTravel = MinTravelDp * _density;
+            var minTravel = (MinTravelDp * 0.7) * _density;
             var horizontal = Math.Abs(dx) >= minTravel
                              && Math.Abs(dx) >= Math.Abs(dy) * HorizontalToVerticalRatio
                              && duration <= MaxDurationMs;
             if (horizontal)
             {
-                var host = Microsoft.Maui.Controls.Shell.Current?.CurrentPage as ITabSwipeHost;
-                if (host != null)
+                var host = _tabHost;
+                var direction = dx < 0 ? 1 : -1;
+                Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    var direction = dx < 0 ? 1 : -1;
-                    Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                    try
                     {
-                        try
-                        {
-                            host.TrySwipe(direction);
-                        }
-                        catch (Exception ex)
-                        {
-                            Android.Util.Log.Warn(LogTag, "swipe host failed: " + ex);
-                        }
-                    });
-                }
+                        host.TrySwipe(direction);
+                    }
+                    catch (Exception ex)
+                    {
+                        Android.Util.Log.Warn(LogTag, "tab host swipe failed: " + ex);
+                    }
+                });
             }
         }
 
@@ -332,6 +329,7 @@ internal static class HorizontalSwipeObserver
         _tracking = false;
         _cancelled = false;
         _previewHost = null;
+        _tabHost = null;
         _previewStarted = false;
         _previewUnavailable = false;
         _suppressChildren = false;

@@ -82,42 +82,19 @@
          space for it up here. -->
     <Grid RowDefinitions="Auto,*">
         <!-- Top tab strip: Main / Characters / Genres / Studios -->
-        <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
+        <ScrollView x:Name="TabStripScroll" Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                     Padding="12,12,12,0" BackgroundColor="{StaticResource EmBackground}">
-            <HorizontalStackLayout Spacing="6">
-                <!-- Anime and Manga are entries of this same row, not a separate one below it. Both
-                     host the search UI, so the strip is the only place the mode is chosen and there
-                     is nothing else competing for the space under the tab strip. -->
-                <Label Text="Anime" FontFamily="InterSemiBold" FontSize="13"
-                       Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=0}">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="0" />
-                    </Label.GestureRecognizers>
-                </Label>
-                <Label Text="Manga" FontFamily="InterSemiBold" FontSize="13"
-                       Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=1}">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="1" />
-                    </Label.GestureRecognizers>
-                </Label>
-                <Label Text="Characters" FontFamily="InterSemiBold" FontSize="13"
-                       Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=2}">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="2" />
-                    </Label.GestureRecognizers>
-                </Label>
-                <Label Text="Genres" FontFamily="InterSemiBold" FontSize="13"
-                       Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=3}">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="3" />
-                    </Label.GestureRecognizers>
-                </Label>
-                <Label Text="Studios" FontFamily="InterSemiBold" FontSize="13"
-                       Padding="12,8" TextColor="{Binding SearchTabIndex, Source={x:Reference Page}, Converter={StaticResource TabColorConverter}, ConverterParameter=4}">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnSearchTabTapped" CommandParameter="4" />
-                    </Label.GestureRecognizers>
-                </Label>
+            <HorizontalStackLayout Spacing="8">
+                <Button x:Name="TabAnime" Text="Anime" Clicked="OnSearchButtonClicked" CommandParameter="0"
+                        Style="{StaticResource TabChipActiveButtonStyle}" />
+                <Button x:Name="TabManga" Text="Manga" Clicked="OnSearchButtonClicked" CommandParameter="1"
+                        Style="{StaticResource TabChipButtonStyle}" />
+                <Button x:Name="TabCharacters" Text="Characters" Clicked="OnSearchButtonClicked" CommandParameter="2"
+                        Style="{StaticResource TabChipButtonStyle}" />
+                <Button x:Name="TabGenres" Text="Genres" Clicked="OnSearchButtonClicked" CommandParameter="3"
+                        Style="{StaticResource TabChipButtonStyle}" />
+                <Button x:Name="TabStudios" Text="Studios" Clicked="OnSearchButtonClicked" CommandParameter="4"
+                        Style="{StaticResource TabChipButtonStyle}" />
             </HorizontalStackLayout>
         </ScrollView>
 
@@ -229,7 +206,7 @@
                                      results only differ in which values the card shows. -->
                                 <DataTemplate>
                                     <controls:AnimePosterCard
-                                        HeightRequest="{Binding Source={x:Reference ResultsGrid}, Path=CellHeight}"
+                                        HeightRequest="195"
                                         PosterUrl="{Binding ImgUrl}"
                                         Title="{Binding Title}"
                                         TitleOverlay="True"
@@ -305,6 +282,7 @@
                             CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="0" />
                 </Grid>
                 <CollectionView Grid.Row="1" ItemsSource="{Binding CharacterResults, Source={x:Reference Page}}"
+                                ItemSizingStrategy="MeasureFirstItem"
                                 SelectionMode="Single" SelectionChanged="OnCharacterSelected">
                     <CollectionView.EmptyView>
                         <Label Text="Type a character name to search"

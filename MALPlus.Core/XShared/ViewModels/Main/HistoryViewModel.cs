@@ -7,6 +7,7 @@ using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
 using MALPlus.Models.Models.AnimeScrapped;
 using MALPlus.Models.Models.MalSpecific;
+using MALPlus.XShared.Comm.Anime;
 using MALPlus.XShared.Comm.Profile;
 using MALPlus.XShared.Interfaces;
 using MALPlus.XShared.NavArgs;
@@ -248,6 +249,8 @@ namespace MALPlus.XShared.ViewModels.Main
                                 vm = new AnimeItemViewModel(seasonal, abstraction);
                             }
 
+                            EnsureEntryImage(vm, distinctId, firstEntry.IsAnime);
+
                             entries.Add(new Tuple<AnimeItemViewModel, List<MalProfileHistoryEntry>>(vm,
                                 history[key].Where(entry => entry.Id == distinctId).ToList()));
                         }
@@ -290,6 +293,8 @@ namespace MALPlus.XShared.ViewModels.Main
                                 vm = new AnimeItemViewModel(seasonal, abstraction);
                             }
 
+                            EnsureEntryImage(vm, distinctId, anime);
+
                             entries.Add(new Tuple<AnimeItemViewModel, List<MalProfileHistoryEntry>>(
                                 vm, history[key].Where(entry => entry.Id == distinctId).ToList()));
                         }
@@ -303,6 +308,32 @@ namespace MALPlus.XShared.ViewModels.Main
             }
 
             return data;
+        }
+
+        private static void EnsureEntryImage(AnimeItemViewModel vm, int id, bool isAnime)
+        {
+            if (vm == null || !string.IsNullOrEmpty(vm.ImgUrl))
+                return;
+
+            string cachedUrl = null;
+            if (AnimeImageQuery.IsCached(id, isAnime, ref cachedUrl) && !string.IsNullOrEmpty(cachedUrl))
+            {
+                vm.SetImageUrl(cachedUrl);
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var url = await AnimeImageQuery.GetImageUrl(id, isAnime);
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        vm.SetImageUrl(url);
+                    }
+                }
+                catch { }
+            });
         }
 
         /// <summary>

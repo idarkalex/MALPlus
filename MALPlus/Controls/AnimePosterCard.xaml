@@ -5,8 +5,8 @@
              x:Class="MALPlus.Controls.AnimePosterCard"
              x:Name="PosterCard">
 
-    <Grid BackgroundColor="#0D0D0D">
-        <Image Source="{Binding PosterUrl, Source={x:Reference PosterCard}, Converter={StaticResource ImageConverter}}"
+    <Grid x:Name="RootGrid" BackgroundColor="#0D0D0D">
+        <Image Source="{Binding PosterUrl, Converter={StaticResource ImageConverter}}"
                Aspect="AspectFill" />
 
         <VerticalStackLayout Spacing="4" Margin="6,6,0,0"
@@ -14,8 +14,8 @@
             <Border Padding="6,2" StrokeShape="RoundRectangle 6"
                     BackgroundColor="#0066FF" Stroke="Transparent"
                     HorizontalOptions="Start"
-                    IsVisible="{Binding TypeTag, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
-                <Label Text="{Binding TypeTag, Source={x:Reference PosterCard}}"
+                    IsVisible="{Binding TypeTag, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
+                <Label Text="{Binding TypeTag}"
                        FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
             </Border>
 
@@ -24,8 +24,8 @@
             <Border Padding="6,2" StrokeShape="RoundRectangle 6"
                     BackgroundColor="#0066FF" Stroke="Transparent"
                     HorizontalOptions="Start"
-                    IsVisible="{Binding ScoreTag, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
-                <Label Text="{Binding ScoreTag, Source={x:Reference PosterCard}}"
+                    IsVisible="{Binding ScoreTag, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
+                <Label Text="{Binding ScoreTag}"
                        FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
             </Border>
 
@@ -33,16 +33,16 @@
             <Border Padding="6,2" StrokeShape="RoundRectangle 6"
                     BackgroundColor="#0066FF" Stroke="Transparent"
                     HorizontalOptions="Start"
-                    IsVisible="{Binding SeasonTag, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
-                <Label Text="{Binding SeasonTag, Source={x:Reference PosterCard}}"
+                    IsVisible="{Binding SeasonTag, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
+                <Label Text="{Binding SeasonTag}"
                        FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
             </Border>
 
             <VerticalStackLayout Spacing="0"
                                  HorizontalOptions="Start"
-                                 BindableLayout.ItemsSource="{Binding ChipSource, Source={x:Reference PosterCard}}"
-                                 BindableLayout.ItemTemplate="{Binding ChipTemplate, Source={x:Reference PosterCard}}"
-                                 IsVisible="{Binding ChipSource, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}" />
+                                 BindableLayout.ItemsSource="{Binding ChipSource}"
+                                 BindableLayout.ItemTemplate="{Binding ChipTemplate}"
+                                 IsVisible="{Binding ChipSource, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}" />
         </VerticalStackLayout>
 
         <!-- Top-right counter pill: status, episodes watched and countdown. Styled in solid blue matching the left chips -->
@@ -50,30 +50,30 @@
                 StrokeShape="RoundRectangle 6" Padding="6,2"
                 HorizontalOptions="End" VerticalOptions="Start"
                 Margin="0,6,6,0"
-                IsVisible="{Binding HasBadge, Source={x:Reference PosterCard}}">
+                IsVisible="{Binding HasBadge}">
             <VerticalStackLayout Spacing="2" HorizontalOptions="End">
                 <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                    <Label Text="{Binding BadgeAccent, Source={x:Reference PosterCard}}"
+                    <Label Text="{Binding BadgeAccent}"
                            FontFamily="InterBold" FontSize="9"
-                           TextColor="{Binding BadgeAccentColor, Source={x:Reference PosterCard}}" VerticalOptions="Center"
-                           IsVisible="{Binding BadgeAccent, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
-                    <Label Text="{Binding BadgeMain, Source={x:Reference PosterCard}}"
+                           TextColor="{Binding BadgeAccentColor}" VerticalOptions="Center"
+                           IsVisible="{Binding BadgeAccent, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
+                    <Label Text="{Binding BadgeMain}"
                            FontFamily="InterBold" FontSize="9" TextColor="White" VerticalOptions="Center"
-                           IsVisible="{Binding BadgeMain, Source={x:Reference PosterCard}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
+                           IsVisible="{Binding BadgeMain, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
                     <BoxView WidthRequest="1" HeightRequest="10" Color="#59FFFFFF"
                              VerticalOptions="Center"
-                             IsVisible="{Binding HasBadgeExtra, Source={x:Reference PosterCard}}" />
-                    <Label Text="{Binding BadgeExtra, Source={x:Reference PosterCard}}"
+                             IsVisible="{Binding HasBadgeExtra}" />
+                    <Label Text="{Binding BadgeExtra}"
                            FontFamily="InterBold" FontSize="9" TextColor="White"
                            VerticalOptions="Center" MaxLines="1" LineBreakMode="TailTruncation"
-                           IsVisible="{Binding HasBadgeExtraTop, Source={x:Reference PosterCard}}" />
+                           IsVisible="{Binding HasBadgeExtraTop}" />
                 </HorizontalStackLayout>
-                <Label Text="{Binding BadgeExtra, Source={x:Reference PosterCard}}"
+                <Label Text="{Binding BadgeExtra}"
                        FontFamily="InterBold" FontSize="9"
                        TextColor="#C0E0FF"
                        HorizontalOptions="End" VerticalOptions="Center"
                        MaxLines="1" LineBreakMode="TailTruncation"
-                       IsVisible="{Binding IsAiringExtra, Source={x:Reference PosterCard}}" />
+                       IsVisible="{Binding IsAiringExtra}" />
             </VerticalStackLayout>
         </Border>
 
@@ -88,17 +88,17 @@
              Off unless the grid asked for them, which only the anime library list does. -->
         <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="Start"
                                Margin="0,30,6,0" Spacing="4"
-                               IsVisible="{Binding HasAnyIndicator, Source={x:Reference PosterCard}}"
+                               IsVisible="{Binding HasAnyIndicator}"
                                InputTransparent="True">
             <Border WidthRequest="18" HeightRequest="18" Padding="0" StrokeShape="RoundRectangle 5"
                     BackgroundColor="#99000000" Stroke="Black" StrokeThickness="1"
-                    IsVisible="{Binding HasTagIndicator, Source={x:Reference PosterCard}}">
+                    IsVisible="{Binding HasTagIndicator}">
                 <Image Source="icon_tag" WidthRequest="11" HeightRequest="11" Aspect="AspectFit"
                        Opacity="0.75" />
             </Border>
             <Border WidthRequest="18" HeightRequest="18" Padding="0" StrokeShape="RoundRectangle 5"
                     BackgroundColor="#99000000" Stroke="Black" StrokeThickness="1"
-                    IsVisible="{Binding HasNoteIndicator, Source={x:Reference PosterCard}}">
+                    IsVisible="{Binding HasNoteIndicator}">
                 <Image Source="icon_note" WidthRequest="11" HeightRequest="11" Aspect="AspectFit"
                        Opacity="0.75" />
             </Border>
@@ -108,7 +108,7 @@
              Label. The outline used to come from an OutlinedLabel, i.e. an
              SKCanvasView, which on Android is a TextureView: the grid kept ~30 of
              them alive and each cell bind created and measured one. -->
-        <Border IsVisible="{Binding TitleOverlay, Source={x:Reference PosterCard}}"
+        <Border IsVisible="{Binding TitleOverlay}"
                 StrokeThickness="0">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -131,22 +131,22 @@
                 HorizontalOptions="End" VerticalOptions="End"
                 Margin="0,0,6,40"
                 InputTransparent="True"
-                IsVisible="{Binding HasRank, Source={x:Reference PosterCard}}">
-            <Label Text="{Binding RankTag, Source={x:Reference PosterCard}}"
+                IsVisible="{Binding HasRank}">
+            <Label Text="{Binding RankTag}"
                    FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
         </Border>
 
         <!-- The label box is two lines tall so long titles have room, which used to leave a one
              line hole under a short title. Anchoring the text to the bottom keeps every card's
              title sitting on the same baseline. -->
-        <Label Text="{Binding Title, Source={x:Reference PosterCard}}"
+        <Label Text="{Binding Title}"
                FontFamily="Inter" FontSize="11"
                TextColor="White"
                MaxLines="2" LineBreakMode="TailTruncation"
                HeightRequest="32" VerticalOptions="End"
                VerticalTextAlignment="End"
                Margin="6,0,6,4" InputTransparent="True"
-               IsVisible="{Binding TitleOverlay, Source={x:Reference PosterCard}}" />
+               IsVisible="{Binding TitleOverlay}" />
     </Grid>
 
     <!-- The long press lives here, on the shared card, rather than in each grid's template: every

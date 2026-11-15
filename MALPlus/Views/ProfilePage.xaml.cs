@@ -1,3 +1,4 @@
+using MALPlus.Controls;
 using MALPlus.XShared.NavArgs;
 using MALPlus.XShared.Utils;
 using MALPlus.XShared.ViewModels;
@@ -6,7 +7,7 @@ using MALPlus.XShared.ViewModels.Main;
 namespace MALPlus.Views;
 
 [QueryProperty(nameof(TargetUser), "user")]
-public partial class ProfilePage : ContentPage
+public partial class ProfilePage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
 
@@ -89,16 +90,23 @@ public partial class ProfilePage : ContentPage
 
         var selected = Vm?.SelectedTab ?? 0;
         var buttons = new[] { TabBtnGeneral, TabBtnHistory, TabBtnFavourites, TabBtnStats };
-        var accentColor = Application.Current?.Resources?.TryGetValue("EmAccent", out var acc) == true && acc is Color c
-            ? c
-            : Color.FromArgb("#0066FF");
-
         for (var i = 0; i < buttons.Length; i++)
         {
-            var active = i == selected;
-            buttons[i].BackgroundColor = active ? accentColor : Color.FromArgb("#141D2B");
-            buttons[i].TextColor = active ? Colors.White : Color.FromArgb("#8899A6");
+            TabChipHelper.ApplyStyle(buttons[i], i == selected);
         }
+    }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        if (Vm == null) return false;
+        var current = Vm.SelectedTab;
+        var next = current + (direction > 0 ? 1 : -1);
+        if (next < 0 || next > 3)
+            return false;
+
+        Vm.SelectedTab = next;
+        ApplyProfileTabColors();
+        return true;
     }
 
     private void OnAddFriendClicked(object sender, EventArgs e)

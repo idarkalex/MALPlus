@@ -31,15 +31,19 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
 
             <!-- Tab strip: Inbox / Sent -->
             <ScrollView Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
-                        Padding="12,0,12,8">
-                <HorizontalStackLayout x:Name="TabStrip" Spacing="8" />
+                        Padding="16,0,16,10">
+                <HorizontalStackLayout Spacing="8">
+                    <Button x:Name="TabInbox" Text="Inbox" Clicked="OnTabButtonClicked" CommandParameter="0"
+                            Style="{StaticResource TabChipActiveButtonStyle}" />
+                    <Button x:Name="TabSent" Text="Sent" Clicked="OnTabButtonClicked" CommandParameter="1"
+                            Style="{StaticResource TabChipButtonStyle}" />
+                </HorizontalStackLayout>
             </ScrollView>
 
             <!-- Inbox tab -->
             <RefreshView Grid.Row="2" IsRefreshing="{Binding LoadingVisibility, Mode=OneWay}" Refreshing="OnRefreshing"
                          IsVisible="{Binding DisplaySentMessages, Converter={StaticResource BoolVis}, ConverterParameter=invert, FallbackValue=true}">
-                <CollectionView ItemsSource="{Binding MessageIndex}" SelectionMode="Single"
-                                SelectionChanged="OnMessageTapped"
+                <CollectionView ItemsSource="{Binding MessageIndex}" SelectionMode="None"
                                 RemainingItemsThreshold="3"
                                 RemainingItemsThresholdReachedCommand="{Binding LoadMoreCommand}">
                     <CollectionView.EmptyView>
@@ -52,6 +56,9 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnMessageTapped" CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
                                 <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
                                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <Label Grid.Column="0" Text="{Binding Subject}" FontFamily="InterBold" FontSize="14"
@@ -74,8 +81,7 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
             <!-- Sent tab -->
             <RefreshView Grid.Row="2" IsRefreshing="{Binding LoadingVisibility, Mode=OneWay}" Refreshing="OnRefreshing"
                          IsVisible="{Binding DisplaySentMessages, FallbackValue=false}">
-                <CollectionView ItemsSource="{Binding MessageIndex}" SelectionMode="Single"
-                                SelectionChanged="OnMessageTapped">
+                <CollectionView ItemsSource="{Binding MessageIndex}" SelectionMode="None">
                     <CollectionView.EmptyView>
                         <Label Text="No sent messages" FontFamily="Inter" FontSize="13"
                                TextColor="#80FFFFFF" HorizontalOptions="Center" VerticalOptions="Center" />
@@ -86,6 +92,9 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnMessageTapped" CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
                                 <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
                                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <Label Grid.Column="0" Text="{Binding Subject}" FontFamily="InterBold" FontSize="14"

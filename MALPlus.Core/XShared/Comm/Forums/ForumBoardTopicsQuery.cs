@@ -187,15 +187,24 @@ namespace MALPlus.XShared.Comm.Forums
         /// </summary>
         private static int ReadPageCount(HtmlDocument doc)
         {
+            var pagesNode = doc.DocumentNode.Descendants()
+                .FirstOrDefault(n => n.InnerText != null && n.InnerText.Contains("Pages ("));
+            if (pagesNode != null)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(pagesNode.InnerText, @"Pages\s*\(\s*(\d+)\s*\)");
+                if (match.Success && int.TryParse(match.Groups[1].Value, out var total) && total > 0)
+                    return total - 1; // 0-indexed last page index
+            }
+
             var shows = doc.DocumentNode.Descendants("a")
                 .Select(a => a.Attributes["href"]?.Value)
-                .Where(h => !string.IsNullOrEmpty(h) && h.Contains("show="))
+                .Where(h => !string.IsNullOrEmpty(h) && h.Contains("show=") && !h.Contains("topicid="))
                 .Select(h =>
                 {
                     var idx = h.IndexOf("show=", StringComparison.Ordinal);
                     return int.TryParse(h.Substring(idx + 5).Split('&')[0], out var v) ? (int?)v : null;
                 })
-                .Where(v => v.HasValue)
+                .Where(v => v.HasValue && v.Value >= 0)
                 .Select(v => v!.Value)
                 .ToList();
             if (shows.Count == 0)
@@ -235,26 +244,47 @@ namespace MALPlus.XShared.Comm.Forums
             if (tds.Count < 4 + tdOffset)
                 throw new ArgumentOutOfRangeException(nameof(tds), $"row has {tds.Count} cells");
 
-            current.Type = tds[1].ChildNodes.Count > 0 ? tds[1].ChildNodes[0].InnerText : string.Empty;
+            var titleTd = tds[1];
+            var tdClass = titleTd.Attributes["class"]?.Value ?? string.Empty;
+            var tdHtml = titleTd.InnerHtml ?? string.Empty;
+            var rowHtml = topicRow.InnerHtml ?? string.Empty;
 
-            var titleLinks = tds[1].Descendants("a")
+            current.Type = titleTd.ChildNodes.Count > 0 ? titleTd.ChildNodes[0].InnerText : string.Empty;
+
+            current.IsSticky = tdClass.IndexOf("sticky", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               tdClass.IndexOf("rules", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               tdHtml.IndexOf("Sticky:", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               tdHtml.IndexOf("Rules:", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            current.IsLocked = rowHtml.IndexOf("fa-lock", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               rowHtml.IndexOf("fa-lock-keyhole", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               rowHtml.IndexOf("icon-forum-locked", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               rowHtml.IndexOf("Topic is locked", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            var pollIdx = tdHtml.IndexOf("Poll:", StringComparison.OrdinalIgnoreCase);
+            var linkIdx = tdHtml.IndexOf("<a", StringComparison.OrdinalIgnoreCase);
+            current.IsPoll = pollIdx >= 0 && (linkIdx < 0 || pollIdx < linkIdx);
+
+            var titleLinks = titleTd.Descendants("a")
                 .Where(a => !string.IsNullOrEmpty(a.InnerText))
                 .ToList();
             if (titleLinks.Count == 0)
                 throw new InvalidOperationException("row has no title link");
             var titleLink = titleLinks[0];
 
-            current.Title = WebUtility.HtmlDecode(titleLink.InnerText);
-            var link = titleLink.Attributes["href"]?.Value;
-            if (string.IsNullOrEmpty(link))
-                throw new InvalidOperationException("title link has no href");
-            if (link.Contains("&goto="))
+            current.Title = WebUtility.HtmlDecode(titleLink.InnerText)?.Trim() ?? string.Empty;
+            if (current.Title.StartsWith("Poll:", StringComparison.OrdinalIgnoreCase))
+                current.Title = current.Title.Substring(5).Trim();
+            if (topicRow.Attributes.Contains("data-topic-id") && !string.IsNullOrWhiteSpace(topicRow.Attributes["data-topic-id"].Value))
             {
-                var pos = link.IndexOf("&goto=");
-                link = link.Substring(0, pos);
+                current.Id = topicRow.Attributes["data-topic-id"].Value;
             }
-
-            current.Id = link.Split('=').Last();
+            else
+            {
+                var link = titleLink.Attributes["href"]?.Value ?? string.Empty;
+                var match = System.Text.RegularExpressions.Regex.Match(link, @"topicid=(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                current.Id = match.Success ? match.Groups[1].Value : link.Split('=').Last();
+            }
 
 
             var spans = tds[1].Descendants("span").Where(node => !string.IsNullOrEmpty(node.InnerText)).ToList();

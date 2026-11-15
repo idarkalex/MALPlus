@@ -1,3 +1,4 @@
+using MALPlus.Controls;
 using System.Collections.ObjectModel;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Favourites;
@@ -13,7 +14,7 @@ namespace MALPlus.Views;
 
 [QueryProperty(nameof(InitialQuery), "query")]
 [QueryProperty(nameof(InitialMode), "mode")]
-public partial class SearchPage : ContentPage
+public partial class SearchPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     private int _searchTabIndex;
@@ -33,6 +34,7 @@ public partial class SearchPage : ContentPage
             _searchTabIndex = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsMainTabVisible));
+            UpdateTabChipStyles();
         }
     }
 
@@ -121,27 +123,33 @@ protected override void OnDisappearing()
         }
     }
 
+    private void OnSearchButtonClicked(object sender, EventArgs e)
+    {
+        if (sender is Button b && b.CommandParameter is string s && int.TryParse(s, out var idx))
+        {
+            SelectTab(idx);
+        }
+    }
+
     private void OnSearchTabTapped(object sender, TappedEventArgs e)
     {
         if (e.Parameter is not string s || !int.TryParse(s, out var idx))
             return;
 
+        SelectTab(idx);
+    }
+
+    private void SelectTab(int idx)
+    {
         SearchTabIndex = idx;
         CloseRecentSearches();
-        // The keyboard goes with it. Leaving it up over a tab that has no text field just covers
-        // the list, and it kept re-opening the dropdown because the entry still held focus.
         SearchEntry.Unfocus();
         CharSearchEntry.Unfocus();
         HideKeyboard();
+        ScrollTabIntoView(idx);
         switch (idx)
         {
-            // Anime and Manga are the two halves of the same screen, so picking one is also what
-            // switches the mode. Setting it before anything else means the filter bar is rebuilt
-            // for the right format list by the time the tab paints.
             case 0:
-                // Coming back to a search tab has to take the picker with it. Visiting Genres or
-                // Studios raises GenreSelectionGridVisibility, and nothing lowered it again, so the
-                // picker stayed drawn over the search results with the chips still above it.
                 MainVm.GenreSelectionGridVisibility = false;
                 MainVm.AnimeSearch = true;
                 _catalogueOpen = false;
@@ -161,9 +169,6 @@ protected override void OnDisappearing()
             case 4:
                 _catalogueModeIsGenre = false;
                 MainVm.Init(new SearchPageNavigationArgs { ByStudio = true, Anime = true, IsCatalogue = true });
-                // Bounded warm: it pages Tenrai until every studio id in the list is accounted for
-                // and then stops, which is around 25 small responses once, saved as one file. Fire
-                // and forget, and the per studio fetch covers anything it misses.
                 var studioIds = MainVm.AvailableSelectionChoices
                     .Where(choice => choice.MalId > 0)
                     .Select(choice => choice.MalId);
@@ -171,6 +176,52 @@ protected override void OnDisappearing()
                 RestoreListScroll(StudioList, _studioListScrollIndex);
                 break;
         }
+    }
+
+    private void ScrollTabIntoView(int idx)
+    {
+        Button target = idx switch
+        {
+            0 => TabAnime,
+            1 => TabManga,
+            2 => TabCharacters,
+            3 => TabGenres,
+            4 => TabStudios,
+            _ => null
+        };
+        if (target != null && TabStripScroll != null)
+        {
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                try
+                {
+                    await TabStripScroll.ScrollToAsync(target, ScrollToPosition.MakeVisible, true);
+                }
+                catch { }
+            });
+        }
+    }
+
+    private void UpdateTabChipStyles()
+    {
+        if (TabAnime == null || TabManga == null || TabCharacters == null || TabGenres == null || TabStudios == null)
+            return;
+
+        TabChipHelper.ApplyStyle(TabAnime, _searchTabIndex == 0);
+        TabChipHelper.ApplyStyle(TabManga, _searchTabIndex == 1);
+        TabChipHelper.ApplyStyle(TabCharacters, _searchTabIndex == 2);
+        TabChipHelper.ApplyStyle(TabGenres, _searchTabIndex == 3);
+        TabChipHelper.ApplyStyle(TabStudios, _searchTabIndex == 4);
+    }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        var next = _searchTabIndex + (direction > 0 ? 1 : -1);
+        if (next < 0 || next > 4)
+            return false;
+
+        SelectTab(next);
+        return true;
     }
 
     /// <summary>

@@ -128,11 +128,15 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             {
                 SubtitleLabel.Text = "";
                 SubtitleLabel.IsVisible = false;
+                SubtitleLabel.MaxLines = 1;
+                SubtitleLabel.LineBreakMode = LineBreakMode.TailTruncation;
             }
             else
             {
                 SubtitleLabel.Text = subtitle;
                 SubtitleLabel.IsVisible = true;
+                SubtitleLabel.MaxLines = 6;
+                SubtitleLabel.LineBreakMode = LineBreakMode.WordWrap;
             }
 
             View field;
@@ -238,27 +242,93 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         }
     }
 
+    private Action _capturedBack;
+
+    private void OnBackTapped(object sender, TappedEventArgs e)
+    {
+        _capturedBack?.Invoke();
+    }
+
+    public enum ActionButtonKind
+    {
+        Primary,
+        Secondary,
+        Destructive
+    }
+
+    public static Border CreateActionButton(string label, Action onTap, ActionButtonKind kind = ActionButtonKind.Primary)
+    {
+        var (bgColor, textColor, fontFamily) = kind switch
+        {
+            ActionButtonKind.Primary => (_colorUpdateOk, Colors.White, "InterSemiBold"),
+            ActionButtonKind.Destructive => (Color.FromArgb("#24141E"), _colorDestructive, "InterSemiBold"),
+            _ => (_colorUpdateCancel, _colorUpdateCancelText, "InterMedium")
+        };
+
+        var border = new Border
+        {
+            BackgroundColor = bgColor,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+            Padding = new Thickness(10, 0),
+            HeightRequest = 44,
+            HorizontalOptions = LayoutOptions.Fill
+        };
+
+        border.Content = new Label
+        {
+            Text = label,
+            FontFamily = fontFamily,
+            FontSize = 14,
+            TextColor = textColor,
+            HorizontalTextAlignment = TextAlignment.Center,
+            VerticalTextAlignment = TextAlignment.Center,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 1,
+            InputTransparent = true
+        };
+
+        if (onTap != null)
+        {
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (_, _) => onTap();
+            border.GestureRecognizers.Add(tap);
+        }
+
+        return border;
+    }
+
+    public static Grid CreateActionPair(View left, View right)
+    {
+        var row = new Grid
+        {
+            ColumnSpacing = 8,
+            ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("*") },
+            Margin = new Thickness(0, 6, 0, 0)
+        };
+        Microsoft.Maui.Controls.Grid.SetColumn(left, 0);
+        Microsoft.Maui.Controls.Grid.SetColumn(right, 1);
+        row.Add(left);
+        row.Add(right);
+        return row;
+    }
+
     /// <summary>
     ///     A question with two answers, and both of them in the same row.
     /// </summary>
-    /// <remarks>
-    ///     A confirm used to be built by handing <see cref="OpenCompactWithSubtitle" /> a list of
-    ///     ordinary rows, which stacks them. That reads as a menu rather than a question, and it is
-    ///     worse when the caller has a real label for each answer: the two labels then land in two
-    ///     rows with a full row height between them, so "Yes" and "No" do not look like the two sides
-    ///     of one decision.
-    /// </remarks>
     public void OpenConfirm(string title, string subtitle, string okLabel, string cancelLabel,
         bool destructive = false, Action onConfirm = null)
     {
         try
         {
             ApplyCompactShape();
+            Panel.WidthRequest = 310;
+
+            var hasCancel = !string.IsNullOrWhiteSpace(cancelLabel);
 
             Header.IsVisible = true;
-            CloseButton.IsVisible = false;
+            CloseButton.IsVisible = !hasCancel;
+            BackButton.IsVisible = false;
             TitleLabel.Text = title ?? "";
-            // Same size the prompts use: the smaller one is for a title that has a subtitle under it.
             TitleLabel.FontSize = string.IsNullOrWhiteSpace(subtitle) ? 16 : 15;
             if (string.IsNullOrWhiteSpace(subtitle))
             {
@@ -271,96 +341,39 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             {
                 SubtitleLabel.Text = subtitle;
                 SubtitleLabel.IsVisible = true;
-                // The question under the title is a sentence, not a caption. It was declared for one
-                // line with a tail, so every confirmation that said anything longer than the card's
-                // width lost the end of itself behind an ellipsis: "Are you sure about deleting this
-                // entry fro...". Wrapped, with a ceiling so a long one still cannot take the card over.
-                SubtitleLabel.MaxLines = 4;
+                SubtitleLabel.MaxLines = 8;
                 SubtitleLabel.LineBreakMode = LineBreakMode.WordWrap;
             }
 
             var capturedConfirm = onConfirm;
 
-            // Returns the Border itself, not a View, so the caller can place it in a column: SetColumn needs
-            // an IView and the declared return type was hiding that.
-            Border MakeButton(string label, bool commit, bool danger, bool cancels)
-            {
-                // A centred label, no icon chip. The rows in the sheet carry a 32dp chip because they
-                // are full width, but two of them side by side leaves each about 128dp, and a chip plus
-                // a 12dp gap in there costs 44 of it. That is why "I'm sure" was cut at "I'm sur":
-                // the label had no room left. Here the label fills the button and is centred, and the
-                // accent carries the answer rather than a block of colour.
-                var labelColor = danger ? _colorDestructive : commit ? _colorConfirmOk : Colors.White;
-
-                var border = new Border
-                {
-                    BackgroundColor = _colorConfirmBg,
-                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-                    Padding = new Thickness(12, 0),
-                    HeightRequest = 48,
-                    HorizontalOptions = LayoutOptions.Fill
-                };
-
-                border.Content = new Label
-                {
-                    Text = label,
-                    FontFamily = danger ? "InterSemiBold" : "InterMedium",
-                    FontSize = 15,
-                    TextColor = labelColor,
-                    HorizontalTextAlignment = TextAlignment.Center,
-                    VerticalTextAlignment = TextAlignment.Center,
-                    LineBreakMode = LineBreakMode.TailTruncation,
-                    MaxLines = 1,
-                    InputTransparent = true
-                };
-
-                var tap = new TapGestureRecognizer();
-                tap.Tapped += (_, _) =>
-                {
-                    // The commit has to close as a choice, for the same reason Choose marks it: a
-                    // plain Dismiss raises Closed, and a host listening to that answers the question
-                    // with "no" a moment before the commit gets to answer it with yes.
-                    if (cancels)
-                    {
-                        Dismiss();
-                    }
-                    else
-                    {
-                        ClosingByChoice = true;
-                        Dismiss();
-                        ClosingByChoice = false;
-                        capturedConfirm?.Invoke();
-                    }
-                };
-                border.GestureRecognizers.Add(tap);
-                return border;
-            }
-
-            // No margin above: the panel's own padding already opens the card, and a second one here
-            // is the gap that made this panel look emptier than the prompts beside it.
-            // Two equal columns, so the pair spans it the way the rows span the sheet's panel. Measured
-            // as a stack, the two sat together in the middle with the card's width either side of them,
-            // which read as a narrower card than the prompt above it came from.
-            // Two equal columns, so the pair spans the card the way the rows span the sheet's panel.
-            // Measured as a stack, the two sat together in the middle with the card's width either
-            // side of them, which read as a narrower card than the prompt above it came from.
-            var row = new Grid
-            {
-                ColumnSpacing = 8,
-                ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("*") }
-            };
-            var okButton = MakeButton(okLabel, true, destructive, false);
-            var cancelButton = MakeButton(cancelLabel, false, false, true);
-            // Set on the buttons themselves before they go in: in MAUI an element added to a Grid
-            // without a column goes to column 0, so both would otherwise stack in the left one and the
-            // confirm row would come out as a single button.
-            Microsoft.Maui.Controls.Grid.SetColumn(okButton, 0);
-            Microsoft.Maui.Controls.Grid.SetColumn(cancelButton, 1);
-            row.Add(okButton);
-            row.Add(cancelButton);
-
             ItemsHost.Clear();
-            ItemsHost.Add(row);
+
+            if (hasCancel)
+            {
+                var cancelButton = CreateActionButton(cancelLabel, () => Dismiss(), ActionButtonKind.Secondary);
+                var okButton = CreateActionButton(okLabel ?? "OK", () =>
+                {
+                    ClosingByChoice = true;
+                    Dismiss();
+                    ClosingByChoice = false;
+                    capturedConfirm?.Invoke();
+                }, destructive ? ActionButtonKind.Destructive : ActionButtonKind.Primary);
+
+                ItemsHost.Add(CreateActionPair(cancelButton, okButton));
+            }
+            else
+            {
+                var okButton = CreateActionButton(okLabel ?? "OK", () =>
+                {
+                    ClosingByChoice = true;
+                    Dismiss();
+                    ClosingByChoice = false;
+                    capturedConfirm?.Invoke();
+                }, destructive ? ActionButtonKind.Destructive : ActionButtonKind.Primary);
+                okButton.Margin = new Thickness(0, 6, 0, 0);
+                ItemsHost.Add(okButton);
+            }
 
             IsVisible = true;
         }
@@ -393,8 +406,8 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             {
                 SubtitleLabel.Text = subtitle;
                 SubtitleLabel.IsVisible = true;
-                SubtitleLabel.MaxLines = 2;
-                SubtitleLabel.LineBreakMode = LineBreakMode.TailTruncation;
+                SubtitleLabel.MaxLines = 4;
+                SubtitleLabel.LineBreakMode = LineBreakMode.WordWrap;
             }
 
             ItemsHost.Clear();
@@ -427,168 +440,133 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 ItemsHost.Add(notesBorder);
             }
 
-            Border MakeButton(string label, bool commit, bool cancels)
+            Action performUpdateAction = () =>
             {
-                var labelColor = commit ? Colors.White : _colorUpdateCancelText;
-                var border = new Border
+                if (onPerformUpdate != null)
                 {
-                    BackgroundColor = commit ? _colorUpdateOk : _colorUpdateCancel,
-                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-                    Padding = new Thickness(10, 0),
-                    HeightRequest = 44,
-                    HorizontalOptions = LayoutOptions.Fill
-                };
-
-                border.Content = new Label
-                {
-                    Text = label,
-                    FontFamily = commit ? "InterSemiBold" : "InterMedium",
-                    FontSize = 14,
-                    TextColor = labelColor,
-                    HorizontalTextAlignment = TextAlignment.Center,
-                    VerticalTextAlignment = TextAlignment.Center,
-                    LineBreakMode = LineBreakMode.TailTruncation,
-                    MaxLines = 1,
-                    InputTransparent = true
-                };
-
-                var tap = new TapGestureRecognizer();
-                tap.Tapped += (_, _) =>
-                {
-                    if (cancels)
+                    try
                     {
-                        Dismiss();
-                        onCancel?.Invoke();
-                    }
-                    else if (onPerformUpdate != null)
-                    {
-                        try
+                        ItemsHost.Clear();
+                        Header.IsVisible = true;
+                        CloseButton.IsVisible = false;
+                        BackButton.IsVisible = false;
+                        TitleLabel.Text = title ?? "Updating MAL+";
+                        SubtitleLabel.Text = "Downloading update package...";
+                        SubtitleLabel.IsVisible = true;
+
+                        var progressStack = new VerticalStackLayout
                         {
-                            ItemsHost.Clear();
-                            Header.IsVisible = true;
-                            CloseButton.IsVisible = false;
-                            TitleLabel.Text = title ?? "Updating MAL+";
-                            SubtitleLabel.Text = "Downloading update package...";
-                            SubtitleLabel.IsVisible = true;
+                            Spacing = 10,
+                            Padding = new Thickness(4, 12, 4, 12),
+                            HorizontalOptions = LayoutOptions.Fill
+                        };
 
-                            var progressStack = new VerticalStackLayout
+                        var spinner = new ActivityIndicator
+                        {
+                            IsRunning = true,
+                            Color = _colorUpdateOk,
+                            HeightRequest = 32,
+                            WidthRequest = 32,
+                            HorizontalOptions = LayoutOptions.Center
+                        };
+
+                        var progressBar = new ProgressBar
+                        {
+                            Progress = 0,
+                            ProgressColor = _colorUpdateOk,
+                            BackgroundColor = _colorUpdateCancel,
+                            HeightRequest = 8,
+                            HorizontalOptions = LayoutOptions.Fill
+                        };
+
+                        var statusLabel = new Label
+                        {
+                            Text = "Connecting to server...",
+                            FontFamily = "InterMedium",
+                            FontSize = 12,
+                            TextColor = _colorUpdateCancelText,
+                            HorizontalTextAlignment = TextAlignment.Center
+                        };
+
+                        progressStack.Add(spinner);
+                        progressStack.Add(progressBar);
+                        progressStack.Add(statusLabel);
+                        ItemsHost.Add(progressStack);
+
+                        Action<double, string> reportProgress = (fraction, status) =>
+                        {
+                            MainThread.BeginInvokeOnMainThread(() =>
                             {
-                                Spacing = 10,
-                                Padding = new Thickness(4, 12, 4, 12),
-                                HorizontalOptions = LayoutOptions.Fill
-                            };
+                                if (fraction >= 0)
+                                    progressBar.Progress = Math.Clamp(fraction, 0.0, 1.0);
+                                if (!string.IsNullOrWhiteSpace(status))
+                                    statusLabel.Text = status;
+                            });
+                        };
 
-                            var spinner = new ActivityIndicator
+                        Task.Run(async () =>
+                        {
+                            try
                             {
-                                IsRunning = true,
-                                Color = _colorUpdateOk,
-                                HeightRequest = 32,
-                                WidthRequest = 32,
-                                HorizontalOptions = LayoutOptions.Center
-                            };
-
-                            var progressBar = new ProgressBar
-                            {
-                                Progress = 0,
-                                ProgressColor = _colorUpdateOk,
-                                BackgroundColor = _colorUpdateCancel,
-                                HeightRequest = 8,
-                                HorizontalOptions = LayoutOptions.Fill
-                            };
-
-                            var statusLabel = new Label
-                            {
-                                Text = "Connecting to server...",
-                                FontFamily = "InterMedium",
-                                FontSize = 12,
-                                TextColor = _colorUpdateCancelText,
-                                HorizontalTextAlignment = TextAlignment.Center
-                            };
-
-                            progressStack.Add(spinner);
-                            progressStack.Add(progressBar);
-                            progressStack.Add(statusLabel);
-                            ItemsHost.Add(progressStack);
-
-                            Action<double, string> reportProgress = (fraction, status) =>
-                            {
-                                MainThread.BeginInvokeOnMainThread(() =>
-                                {
-                                    if (fraction >= 0)
-                                        progressBar.Progress = Math.Clamp(fraction, 0.0, 1.0);
-                                    if (!string.IsNullOrWhiteSpace(status))
-                                        statusLabel.Text = status;
-                                });
-                            };
-
-                            Task.Run(async () =>
-                            {
-                                try
-                                {
-                                    var success = await onPerformUpdate(reportProgress);
-                                    if (success)
-                                    {
-                                        MainThread.BeginInvokeOnMainThread(() =>
-                                        {
-                                            ClosingByChoice = true;
-                                            Dismiss();
-                                            ClosingByChoice = false;
-                                        });
-                                    }
-                                }
-                                catch (Exception ex)
+                                var success = await onPerformUpdate(reportProgress);
+                                if (success)
                                 {
                                     MainThread.BeginInvokeOnMainThread(() =>
                                     {
-                                        spinner.IsRunning = false;
-                                        spinner.IsVisible = false;
-                                        progressBar.IsVisible = false;
-                                        statusLabel.Text = $"Download failed: {ex.Message}";
-                                        statusLabel.TextColor = _colorError;
-                                        CloseButton.IsVisible = true;
-
-                                        var closeBtn = MakeButton("Close", false, true);
-                                        ItemsHost.Add(closeBtn);
+                                        ClosingByChoice = true;
+                                        Dismiss();
+                                        ClosingByChoice = false;
                                     });
                                 }
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine("MALPLUS OpenUpdate download transition failed: " + ex.Message);
-                        }
+                            }
+                            catch (Exception ex)
+                            {
+                                MainThread.BeginInvokeOnMainThread(() =>
+                                {
+                                    spinner.IsRunning = false;
+                                    spinner.IsVisible = false;
+                                    progressBar.IsVisible = false;
+                                    statusLabel.Text = $"Download failed: {ex.Message}";
+                                    statusLabel.TextColor = _colorError;
+                                    CloseButton.IsVisible = true;
+
+                                    var closeBtn = CreateActionButton("Close", () => Dismiss(), ActionButtonKind.Secondary);
+                                    closeBtn.Margin = new Thickness(0, 6, 0, 0);
+                                    ItemsHost.Add(closeBtn);
+                                });
+                            }
+                        });
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        ClosingByChoice = true;
-                        Dismiss();
-                        ClosingByChoice = false;
-                        onConfirm?.Invoke();
+                        Console.WriteLine("MALPLUS OpenUpdate download transition failed: " + ex.Message);
                     }
-                };
-                border.GestureRecognizers.Add(tap);
-                return border;
-            }
+                }
+                else
+                {
+                    ClosingByChoice = true;
+                    Dismiss();
+                    ClosingByChoice = false;
+                    onConfirm?.Invoke();
+                }
+            };
 
             if (string.IsNullOrWhiteSpace(cancelLabel))
             {
-                var singleBtn = MakeButton(okLabel ?? "OK", true, false);
+                var singleBtn = CreateActionButton(okLabel ?? "OK", performUpdateAction, ActionButtonKind.Primary);
+                singleBtn.Margin = new Thickness(0, 6, 0, 0);
                 ItemsHost.Add(singleBtn);
             }
             else
             {
-                var row = new Grid
+                var cancelButton = CreateActionButton(cancelLabel, () =>
                 {
-                    ColumnSpacing = 8,
-                    ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("*") }
-                };
-                var cancelButton = MakeButton(cancelLabel, false, true);
-                var okButton = MakeButton(okLabel ?? "OK", true, false);
-                Microsoft.Maui.Controls.Grid.SetColumn(cancelButton, 0);
-                Microsoft.Maui.Controls.Grid.SetColumn(okButton, 1);
-                row.Add(cancelButton);
-                row.Add(okButton);
-                ItemsHost.Add(row);
+                    Dismiss();
+                    onCancel?.Invoke();
+                }, ActionButtonKind.Secondary);
+
+                var okButton = CreateActionButton(okLabel ?? "OK", performUpdateAction, ActionButtonKind.Primary);
+                ItemsHost.Add(CreateActionPair(cancelButton, okButton));
             }
 
             IsVisible = true;
@@ -603,7 +581,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     {
         Panel.HorizontalOptions = LayoutOptions.Center;
         Panel.VerticalOptions = LayoutOptions.Center;
-        Panel.WidthRequest = 264;
+        Panel.WidthRequest = 310;
         Panel.Margin = new Thickness(0);
         Panel.StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(20) };
         // A centred card carries its own breathing room: the sheet shape gets it from being flush to
@@ -625,6 +603,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         TitleLabel.VerticalOptions = LayoutOptions.Start;
         SubtitleLabel.VerticalOptions = LayoutOptions.Start;
         CloseButton.VerticalOptions = LayoutOptions.Start;
+        BackButton.VerticalOptions = LayoutOptions.Start;
 
         // The drag handle belongs to the sheet shape, and hiding the BoxView is not enough to take its
         // row with it. IsVisible=false, HeightRequest=0 and Margin=0 together all left the row 24dp
@@ -694,69 +673,29 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                             withClose;
             Header.IsVisible = hasHeader;
             CloseButton.IsVisible = withClose;
+            BackButton.IsVisible = onBack != null;
+            _capturedBack = onBack;
             if (hasHeader)
             {
-                // No chevron in the title: there is a real Back row right underneath, and a title
-                // that looks like it goes somewhere it does not is worse than a plain heading.
                 TitleLabel.Text = title ?? "";
-                TitleLabel.FontSize = onBack != null ? 14 : 16;
+                TitleLabel.FontSize = 16;
             }
             if (string.IsNullOrWhiteSpace(subtitle))
             {
                 SubtitleLabel.Text = "";
                 SubtitleLabel.IsVisible = false;
+                SubtitleLabel.MaxLines = 1;
+                SubtitleLabel.LineBreakMode = LineBreakMode.TailTruncation;
             }
             else
             {
                 SubtitleLabel.Text = subtitle;
                 SubtitleLabel.IsVisible = true;
+                SubtitleLabel.MaxLines = 6;
+                SubtitleLabel.LineBreakMode = LineBreakMode.WordWrap;
             }
 
             ItemsHost.Clear();
-            if (onBack != null)
-            {
-                var back = new Border
-                {
-                    BackgroundColor = _colorSheet,
-                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-                    Padding = new Thickness(12, 0),
-                    HeightRequest = 48
-                };
-                var backContent = new HorizontalStackLayout { Spacing = 12, VerticalOptions = LayoutOptions.Center };
-                var backChip = new Border
-                {
-                    WidthRequest = 32,
-                    HeightRequest = 32,
-                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
-                    BackgroundColor = _colorBackChip,
-                    Padding = new Thickness(0)
-                };
-                backChip.Content = new Image
-                {
-                    Source = "icon_chevron_left",
-                    WidthRequest = 18,
-                    HeightRequest = 18,
-                    Aspect = Aspect.AspectFit,
-                    HorizontalOptions = LayoutOptions.Center,
-                    VerticalOptions = LayoutOptions.Center,
-                    InputTransparent = true
-                };
-                backContent.Add(backChip);
-                backContent.Add(new Label
-                {
-                    Text = "Back",
-                    FontFamily = "InterMedium",
-                    FontSize = 15,
-                    TextColor = _colorMuted,
-                    VerticalOptions = LayoutOptions.Center
-                });
-                back.Content = backContent;
-                var backTap = new TapGestureRecognizer();
-                var captured = onBack;
-                backTap.Tapped += (_, _) => captured();
-                back.GestureRecognizers.Add(backTap);
-                ItemsHost.Add(back);
-            }
 
             foreach (var item in items ?? Enumerable.Empty<OptionsSheetItem>())
             {
@@ -783,14 +722,23 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
 
     /// <summary>
     ///     One row.
-    ///     <para>
-    ///     It is a Border rather than a Button because a Button cannot host content in this MAUI
-    ///     version, and the row needs an icon chip, a label and a trailing element side by side. The
-    ///     background is therefore the panel's own fill, which is what makes a Border carrying only a
-    ///     tap recognizer hit tested on Android.
-    ///     </para>
     /// </summary>
     private View BuildRow(OptionsSheetItem item)
+    {
+        if (item.SecondaryItem != null)
+        {
+            var leftKind = item.Destructive ? ActionButtonKind.Destructive : ActionButtonKind.Secondary;
+            var rightKind = item.SecondaryItem.Destructive ? ActionButtonKind.Destructive : ActionButtonKind.Primary;
+
+            var left = CreateActionButton(item.Label, () => Choose(item), leftKind);
+            var right = CreateActionButton(item.SecondaryItem.Label, () => Choose(item.SecondaryItem), rightKind);
+            return CreateActionPair(left, right);
+        }
+
+        return BuildSingleRow(item);
+    }
+
+    private View BuildSingleRow(OptionsSheetItem item)
     {
         var border = new Border
         {

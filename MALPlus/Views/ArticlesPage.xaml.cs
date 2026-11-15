@@ -1,3 +1,4 @@
+using MALPlus.Controls;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.MalSpecific;
 using MALPlus.XShared.NavArgs;
@@ -7,7 +8,7 @@ using MALPlus.XShared.ViewModels.Main;
 namespace MALPlus.Views;
 
 [QueryProperty(nameof(InitialWorkMode), "mode")]
-public partial class ArticlesPage : ContentPage
+public partial class ArticlesPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     private ArticlePageWorkMode _currentMode = ArticlePageWorkMode.Articles;
@@ -188,18 +189,32 @@ private async void RestoreListScroll()
 
     private void HighlightTab(ArticlePageWorkMode mode)
     {
-        ArticlesTab.BackgroundColor = mode == ArticlePageWorkMode.Articles
-            ? Color.FromArgb("#0066FF") : Colors.Transparent;
-        ArticlesTab.TextColor = mode == ArticlePageWorkMode.Articles
-            ? Colors.White : Color.FromArgb("#A0FFFFFF");
-        NewsTab.BackgroundColor = mode == ArticlePageWorkMode.News
-            ? Color.FromArgb("#0066FF") : Colors.Transparent;
-        NewsTab.TextColor = mode == ArticlePageWorkMode.News
-            ? Colors.White : Color.FromArgb("#A0FFFFFF");
-        AnnTab.BackgroundColor = mode == ArticlePageWorkMode.AnnNews
-            ? Color.FromArgb("#0066FF") : Colors.Transparent;
-        AnnTab.TextColor = mode == ArticlePageWorkMode.AnnNews
-            ? Colors.White : Color.FromArgb("#A0FFFFFF");
+        TabChipHelper.ApplyStyle(ArticlesTab, mode == ArticlePageWorkMode.Articles);
+        TabChipHelper.ApplyStyle(NewsTab, mode == ArticlePageWorkMode.News);
+        TabChipHelper.ApplyStyle(AnnTab, mode == ArticlePageWorkMode.AnnNews);
+    }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        if (Vm?.PendingArticle != null)
+            return false;
+
+        var modes = new[] { ArticlePageWorkMode.Articles, ArticlePageWorkMode.News, ArticlePageWorkMode.AnnNews };
+        var idx = Array.IndexOf(modes, _currentMode);
+        if (idx < 0) idx = 0;
+        var nextIdx = idx + (direction > 0 ? 1 : -1);
+        if (nextIdx < 0 || nextIdx >= modes.Length)
+            return false;
+
+        var targetMode = modes[nextIdx];
+        _currentMode = targetMode;
+        _firstVisibleIndex = 0;
+        _savedScrollIndex = -1;
+        _savedScrollMode = null;
+        _lastVisitedMode = _currentMode;
+        Vm.Init(MakeArgs(_currentMode), true);
+        HighlightTab(_currentMode);
+        return true;
     }
 
     private void OnArticleTapped(object sender, SelectionChangedEventArgs e)

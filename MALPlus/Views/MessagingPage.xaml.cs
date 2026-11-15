@@ -1,12 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using MALPlus.Controls;
 using MALPlus.Models.Models.MalSpecific;
-using MALPlus.XShared.NavArgs;
-using MALPlus.XShared.Utils;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.Views;
 
-public partial class MessagingPage : ContentPage
+public partial class MessagingPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     private int _messagingTabIndex = 0;
@@ -27,9 +30,9 @@ public partial class MessagingPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        SetMessagingTab(_messagingTabIndex);
         if (_initialized) return;
         _initialized = true;
-        BuildTabs();
         try
         {
             if (Vm == null)
@@ -43,7 +46,6 @@ public partial class MessagingPage : ContentPage
                 await Task.Delay(200);
                 if (Vm.LoadingVisibility == false) break;
             }
-            HighlightTab(0);
         }
         catch (Exception ex)
         {
@@ -51,58 +53,45 @@ public partial class MessagingPage : ContentPage
         }
     }
 
-    private void BuildTabs()
-    {
-        TabStrip.Children.Clear();
-        var tabs = new[] { ("Inbox", 0), ("Sent", 1) };
-        for (int i = 0; i < tabs.Length; i++)
-        {
-            var (label, index) = tabs[i];
-            var button = new Button
-            {
-                Text = label,
-                FontFamily = "InterSemiBold",
-                FontSize = 12,
-                Padding = new Thickness(12, 6),
-                HeightRequest = 32,
-                CornerRadius = 16,
-                BorderColor = Color.FromArgb("#29FFFFFF"),
-                BorderWidth = 1,
-                BackgroundColor = Colors.Transparent,
-                TextColor = Color.FromArgb("#FFFFFF")
-            };
-            int captured = index;
-            button.Clicked += (s, e) => OnTabClicked(captured);
-            TabStrip.Children.Add(button);
-        }
-    }
-
-    private void HighlightTab(int activeIndex)
-    {
-        for (int i = 0; i < TabStrip.Children.Count; i++)
-        {
-            if (TabStrip.Children[i] is Button b)
-            {
-                b.BackgroundColor = i == activeIndex ? Color.FromArgb("#0066FF") : Colors.Transparent;
-                b.TextColor = i == activeIndex ? Colors.White : Color.FromArgb("#FFFFFF");
-            }
-        }
-    }
-
-    private void OnTabClicked(int index)
+    private void SetMessagingTab(int index)
     {
         _messagingTabIndex = index;
         OnPropertyChanged(nameof(MessagingTabIndex));
-        HighlightTab(index);
-        // Toggle DisplaySentMessages in VM
-        Vm.DisplaySentMessages = index == 1;
+        if (TabInbox != null && TabSent != null)
+        {
+            TabChipHelper.ApplyStyle(TabInbox, index == 0);
+            TabChipHelper.ApplyStyle(TabSent, index == 1);
+        }
+        if (Vm != null)
+        {
+            Vm.DisplaySentMessages = index == 1;
+        }
+    }
+
+    private void OnTabButtonClicked(object sender, EventArgs e)
+    {
+        if (sender is Button b && b.CommandParameter is string s && int.TryParse(s, out int idx))
+        {
+            SetMessagingTab(idx);
+        }
+    }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        var current = _messagingTabIndex;
+        var next = current + (direction > 0 ? 1 : -1);
+        if (next < 0 || next > 1)
+            return false;
+
+        SetMessagingTab(next);
+        return true;
     }
 
     private void OnRefreshing(object sender, EventArgs e)
-        {
-            if (Vm.LoadingVisibility) return;
-            try { Vm.Init(true); } catch { }
-        }
+    {
+        if (Vm.LoadingVisibility) return;
+        try { Vm.Init(true); } catch { }
+    }
 
     private async void OnComposeClicked(object sender, EventArgs e)
     {
@@ -116,15 +105,22 @@ public partial class MessagingPage : ContentPage
         }
     }
 
-    private async void OnMessageTapped(object sender, SelectionChangedEventArgs e)
+    private async void OnMessageTapped(object sender, TappedEventArgs e)
     {
         try
         {
-            if (e.CurrentSelection.FirstOrDefault() is MalMessageModel msg)
+            if (e.Parameter is MalMessageModel msg)
             {
-                ((CollectionView)sender).SelectedItem = null;
+                var id = !string.IsNullOrEmpty(msg.Id) && msg.Id != "0" ? msg.Id : (msg.ThreadId ?? "0");
+                var threadId = !string.IsNullOrEmpty(msg.ThreadId) ? msg.ThreadId : id;
+                var subject = msg.Subject ?? "";
+                var to = msg.Target ?? msg.Sender ?? "";
                 await Shell.Current.GoToAsync(
-                    $"messagedetails?id={Uri.EscapeDataString(msg.ThreadId ?? msg.Id)}&subject={Uri.EscapeDataString(msg.Subject ?? "")}");
+                    $"messagedetails?id={Uri.EscapeDataString(id)}&threadid={Uri.EscapeDataString(threadId)}&subject={Uri.EscapeDataString(subject)}&to={Uri.EscapeDataString(to)}",
+                    new Dictionary<string, object>
+                    {
+                        { "message", msg }
+                    });
             }
         }
         catch (Exception ex)

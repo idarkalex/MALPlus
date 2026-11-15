@@ -2,8 +2,8 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
-xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
-xmlns:mnotifications="clr-namespace:MALPlus.Models.Models.Notifications;assembly=MALPlus.Core"
+             xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
+             xmlns:mnotifications="clr-namespace:MALPlus.Models.Models.Notifications;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.NotificationsHubPage"
              x:DataType="vm:NotificationsHubViewModel"
              BackgroundColor="{StaticResource EmBackground}">
@@ -19,7 +19,7 @@ xmlns:mnotifications="clr-namespace:MALPlus.Models.Models.Notifications;assembly
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
 
-        <Grid RowDefinitions="Auto,Auto,*" IsVisible="{Binding Loading, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+        <Grid RowDefinitions="Auto,Auto,*">
             <Grid Grid.Row="0" Padding="16,12" ColumnDefinitions="*,Auto">
                 <Label Grid.Column="0" Text="Notifications" FontFamily="InterBold" FontSize="22"
                        TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
@@ -30,34 +30,39 @@ xmlns:mnotifications="clr-namespace:MALPlus.Models.Models.Notifications;assembly
                         HeightRequest="32" Padding="10,0" />
             </Grid>
 
+            <!-- Tab strip -->
             <ScrollView Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
-                        Padding="12,0,12,8">
-                <HorizontalStackLayout x:Name="TypeTabsStrip" Spacing="6" />
+                        Padding="16,0,16,10">
+                <HorizontalStackLayout Spacing="8">
+                    <Button x:Name="TabAll" Text="All" Clicked="OnTabButtonClicked" CommandParameter="0"
+                            Style="{StaticResource TabChipActiveButtonStyle}" />
+                    <Button x:Name="TabAiring" Text="Airing" Clicked="OnTabButtonClicked" CommandParameter="1"
+                            Style="{StaticResource TabChipButtonStyle}" />
+                    <Button x:Name="TabReplies" Text="Replies" Clicked="OnTabButtonClicked" CommandParameter="2"
+                            Style="{StaticResource TabChipButtonStyle}" />
+                    <Button x:Name="TabMessages" Text="Messages" Clicked="OnTabButtonClicked" CommandParameter="3"
+                            Style="{StaticResource TabChipButtonStyle}" />
+                    <Button x:Name="TabOthers" Text="Others" Clicked="OnTabButtonClicked" CommandParameter="4"
+                            Style="{StaticResource TabChipButtonStyle}" />
+                </HorizontalStackLayout>
             </ScrollView>
 
-            <RefreshView Grid.Row="2" IsRefreshing="{Binding Loading}" Refreshing="OnRefreshing">
+            <RefreshView Grid.Row="2" IsRefreshing="{Binding Loading, Mode=OneWay}" Refreshing="OnRefreshing">
                 <CollectionView x:Name="NotificationList" ItemsSource="{Binding Notifications}"
-                                SelectionMode="Single" SelectionChanged="OnNotificationTapped">
+                                SelectionMode="None">
                     <CollectionView.EmptyView>
                         <Label Text="No notifications" FontFamily="Inter" FontSize="13"
                                TextColor="#80FFFFFF" HorizontalOptions="Center" VerticalOptions="Center" />
                     </CollectionView.EmptyView>
                     <CollectionView.ItemTemplate>
-                        <DataTemplate
-                        x:DataType="mnotifications:MalNotification">
+                        <DataTemplate x:DataType="mnotifications:MalNotification">
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12">
-<Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                                     <!-- Two images on one slot: the picture when the source had one,
-                                          the per-type glyph when it did not. Only two of the twelve
-                                          notification types carry an image at all, so leaving the slot
-                                          empty left a fixed 40dp gutter of nothing on the left of
-                                          almost every row, which read as a broken layout rather than
-                                          as "this notification has no picture".
-                                          The trigger is on HasImage and not on ImgUrl being null,
-                                          because an empty ImgUrl is just as common as a missing one and
-                                          used to leave the glyph out entirely. -->
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnNotificationItemTapped" CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                                      <Image Grid.Column="0"
                                             Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
                                             Aspect="AspectFill" WidthRequest="36" HeightRequest="36">
@@ -77,9 +82,6 @@ xmlns:mnotifications="clr-namespace:MALPlus.Models.Models.Notifications;assembly
                                                TextColor="#C0FFFFFF" MaxLines="3"
                                                LineBreakMode="TailTruncation" />
                                     </VerticalStackLayout>
-                                    <!-- Third column of three. It used to be placed on column 2 of a grid
-                                         that only declared two, so the date was laid over the text column
-                                         instead of beside it and the two ran into each other. -->
                                     <Label Grid.Column="2" Text="{Binding Date}" FontFamily="Inter" FontSize="11"
                                            TextColor="#80FFFFFF" VerticalOptions="Center"
                                            MaxLines="2" LineBreakMode="TailTruncation" />

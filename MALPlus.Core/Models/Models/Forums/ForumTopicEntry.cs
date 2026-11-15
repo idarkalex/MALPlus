@@ -19,6 +19,9 @@ namespace MALPlus.Models.Models.Forums
         public string Created { get; set; }
         public string Id { get; set; }
         public string LastPoster { get; set; }
+        public bool IsSticky { get; set; }
+        public bool IsLocked { get; set; }
+        public bool IsPoll { get; set; }
     }
 
     /// <summary>

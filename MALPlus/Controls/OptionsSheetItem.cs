@@ -79,4 +79,15 @@ public class OptionsSheetItem
         ///     a command, and the panel stays open. Returns true when it handled itself.
         /// </summary>
         public Func<OptionsSheet, bool> Submenu { get; }
+
+        /// <summary>
+        ///     Optional second action item displayed side-by-side in the same row.
+        /// </summary>
+        public OptionsSheetItem SecondaryItem { get; set; }
+
+        public static OptionsSheetItem Pair(OptionsSheetItem left, OptionsSheetItem right)
+        {
+            left.SecondaryItem = right;
+            return left;
+        }
     }

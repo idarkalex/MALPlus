@@ -57,6 +57,31 @@ namespace MALPlus.XShared.ViewModels.Forums
         private bool _addingToWatchedTopics;
         private string _pageHtml;
         private string _loadError;
+        public bool ShowPollResults { get; set; }
+
+        public void TogglePollResults(bool showResults)
+        {
+            ShowPollResults = showResults;
+            if (CurrentTopicData != null)
+            {
+                CurrentTopicData.ShowPollResults = showResults;
+                PageHtml = ForumTopicQueries.BuildTopicPresentationHtml(CurrentTopicData);
+            }
+        }
+
+        public async Task<bool> VotePollOptionAsync(string optionId)
+        {
+            if (CurrentTopicData == null || string.IsNullOrWhiteSpace(CurrentTopicData.Id))
+                return false;
+
+            var ok = await ForumTopicQueries.VotePollOptionAsync(CurrentTopicData.Id, optionId);
+            if (ok)
+            {
+                ShowPollResults = true;
+                await ReloadAsync();
+            }
+            return ok;
+        }
 
         public IScrollInfoProvider ScrollInfoProvider { get; set; }
 
@@ -65,8 +90,11 @@ namespace MALPlus.XShared.ViewModels.Forums
             _handyDataStorage = handyDataStorage;
         }
 
+        private int _topicLoadCounter;
+
         public async Task Init(ForumsTopicNavigationArgs args)
         {
+            var myGen = ++_topicLoadCounter;
             var forumsMain = ViewModelLocator.ForumsMain;
             if (forumsMain != null)
                 forumsMain.CurrentBackNavRegistrar = this;
@@ -83,12 +111,11 @@ namespace MALPlus.XShared.ViewModels.Forums
                 SetLoadError("Unable to load this topic.");
                 return;
             }
-            if (LoadingTopic)
-                return;
 
             LoadingTopic = true;
             _prevArgs = args;
             _prevArgs.TopicPage = Math.Max(1, _prevArgs.TopicPage);
+            _currentPage = _prevArgs.TopicPage;
             CurrentTopicData = null;
             Messages = new ObservableCollection<ForumTopicMessageEntryViewModel>();
             PageHtml = string.Empty;
@@ -96,17 +123,27 @@ namespace MALPlus.XShared.ViewModels.Forums
             ReplyMessage = string.Empty;
             AvailablePages.Clear();
             ToggleWatchingButtonText = "Toggle watching";
+            RaisePropertyChanged(() => CurrentPage);
+            RaisePropertyChanged(() => PageText);
+            RaisePropertyChanged(() => CanPreviousPage);
+            RaisePropertyChanged(() => CanNextPage);
 
             try
             {
-                CurrentTopicData = await ForumTopicQueries.GetTopicData(
+                var data = await ForumTopicQueries.GetTopicData(
                     _prevArgs.TopicId, _prevArgs.TopicPage, _prevArgs.LastPost, _prevArgs.MessageId);
-                if (CurrentTopicData == null)
+
+                if (myGen != _topicLoadCounter)
+                    return;
+
+                if (data == null)
                 {
                     SetLoadError("Unable to load this topic.");
                     return;
                 }
 
+                data.ShowPollResults = ShowPollResults;
+                CurrentTopicData = data;
                 CurrentPage = CurrentTopicData.CurrentPage > 0 ? CurrentTopicData.CurrentPage : _prevArgs.TopicPage;
                 _prevArgs.TopicId = CurrentTopicData.Id;
                 _prevArgs.TopicPage = CurrentPage;
@@ -139,11 +176,14 @@ namespace MALPlus.XShared.ViewModels.Forums
             }
             catch (Exception)
             {
+                if (myGen != _topicLoadCounter)
+                    return;
                 SetLoadError("Unable to load this topic.");
             }
             finally
             {
-                LoadingTopic = false;
+                if (myGen == _topicLoadCounter)
+                    LoadingTopic = false;
             }
         }
 
@@ -184,8 +224,13 @@ namespace MALPlus.XShared.ViewModels.Forums
                 RaisePropertyChanged(() => PageText);
                 RaisePropertyChanged(() => CanPreviousPage);
                 RaisePropertyChanged(() => CanNextPage);
+                RaisePropertyChanged(() => CanReply);
+                RaisePropertyChanged(() => ReplyButtonText);
             }
         }
+
+        public bool CanReply => CurrentTopicData != null && !CurrentTopicData.IsLocked;
+        public string ReplyButtonText => CurrentTopicData?.IsLocked == true ? "Locked 🔒" : "Reply";
 
         public string PageHtml
         {
@@ -546,20 +591,25 @@ public ICommand CreateReplyCommand => _createReplyCommand ?? (_createReplyComman
 
         private async Task LoadCurrentTopicPageAsync(bool force = false,bool lastpost = false,int? requestedPage = null)
         {
-            if (CurrentTopicData?.Id == null || LoadingTopic)
+            if (CurrentTopicData?.Id == null)
                 return;
 
+            var myGen = ++_topicLoadCounter;
             var page = Math.Max(1, requestedPage ?? CurrentPage);
             LoadingTopic = true;
             try
             {
                 var data = await ForumTopicQueries.GetTopicData(CurrentTopicData.Id, page, lastpost, null, force);
+                if (myGen != _topicLoadCounter)
+                    return;
+
                 if (data == null || data.Messages == null || !data.Messages.Any())
                 {
                     SetLoadError("Unable to load this page.");
                     return;
                 }
 
+                data.ShowPollResults = ShowPollResults;
                 CurrentTopicData = data;
                 Messages = new ObservableCollection<ForumTopicMessageEntryViewModel>(
                     data.Messages.Select(entry => new ForumTopicMessageEntryViewModel(entry)));
@@ -571,11 +621,14 @@ public ICommand CreateReplyCommand => _createReplyCommand ?? (_createReplyComman
             }
             catch (Exception)
             {
+                if (myGen != _topicLoadCounter)
+                    return;
                 SetLoadError("Unable to load this page.");
             }
             finally
             {
-                LoadingTopic = false;
+                if (myGen == _topicLoadCounter)
+                    LoadingTopic = false;
             }
         }
 

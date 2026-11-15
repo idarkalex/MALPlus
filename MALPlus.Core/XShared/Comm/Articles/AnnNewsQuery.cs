@@ -32,31 +32,20 @@ namespace MALPlus.XShared.Comm.Articles
         {
             var cached = force
                 ? null
-                : await DataCache.RetrieveData<List<MalNewsUnitModel>>("ann_news_index_v8.json", "Articles", 1);
+                : await DataCache.RetrieveData<List<MalNewsUnitModel>>("ann_news_index_v9.json", "Articles", 1);
             if (cached != null && cached.Count > 0)
             {
-                // The index is cached for a day, so the images learned from opened stories have
-                // to be topped up here too, otherwise a card stays blank until the cache expires.
                 await ApplyRememberedThumbs(cached);
                 _ = PrefetchThumbs(cached);
                 return cached;
             }
 
-            string raw = null;
-            for (var attempt = 1; attempt <= 3 && raw == null; attempt++)
-            {
-                try
-                {
-                    raw = await AnnClient.GetStringAsync(RssUrl);
-                    if (string.IsNullOrWhiteSpace(raw))
-                        raw = null;
-                }
-                catch (Exception)
-                {
-                    if (attempt < 3)
-                        await Task.Delay(TimeSpan.FromSeconds(attempt));
-                }
-            }
+            // Fetch RSS XML and news page thumbnails in parallel to cut loading latency in half
+            var rssTask = FetchRssAsync();
+            var thumbsTask = FetchThumbMap();
+            await Task.WhenAll(rssTask, thumbsTask);
+
+            var raw = await rssTask;
             if (string.IsNullOrEmpty(raw))
             {
                 return new List<MalNewsUnitModel>();
@@ -65,7 +54,7 @@ namespace MALPlus.XShared.Comm.Articles
             var output = ParseRss(raw);
             if (output.Count > 0)
             {
-                var thumbs = await FetchThumbMap();
+                var thumbs = await thumbsTask;
                 var filled = 0;
                 foreach (var entry in output)
                 {
@@ -75,12 +64,30 @@ namespace MALPlus.XShared.Comm.Articles
                         filled++;
                     }
                 }
-                // Stories whose image only exists on their own page fill in as they get opened.
                 await ApplyRememberedThumbs(output);
-                DataCache.SaveData(output, "ann_news_index_v8.json", "Articles");
+                DataCache.SaveData(output, "ann_news_index_v9.json", "Articles");
                 _ = PrefetchThumbs(output);
             }
             return output;
+        }
+
+        private static async Task<string> FetchRssAsync()
+        {
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    var raw = await AnnClient.GetStringAsync(RssUrl);
+                    if (!string.IsNullOrWhiteSpace(raw))
+                        return raw;
+                }
+                catch (Exception)
+                {
+                    if (attempt < 3)
+                        await Task.Delay(TimeSpan.FromSeconds(attempt));
+                }
+            }
+            return null;
         }
 
         public static async Task<string> GetAnnArticleHtml(string url, string id)
@@ -242,7 +249,7 @@ namespace MALPlus.XShared.Comm.Articles
         ///     fetched at most once and never again. Only the top of the list is worth it: that is
         ///     what the user can see.
         /// </summary>
-        private const int AnnThumbPrefetchCount = 40;
+        private const int AnnThumbPrefetchCount = 12;
 
         /// <summary>
         ///     Cheap part: only reads what earlier visits already learned. Awaited, because it is
@@ -331,7 +338,7 @@ namespace MALPlus.XShared.Comm.Articles
             }
             try
             {
-                DataCache.SaveData(entries, "ann_news_index_v8.json", "Articles");
+                DataCache.SaveData(entries, "ann_news_index_v9.json", "Articles");
             }
             catch (Exception)
             {
@@ -429,25 +436,47 @@ public static async Task<Dictionary<string, string>> FetchThumbMap()
                         {
                             var dataSrc = node.Attributes["data-src"].Value;
                             var thumbUrl = SanitizeUrl(dataSrc);
-                            if (string.IsNullOrEmpty(thumbUrl) || !thumbUrl.Contains("/thumbnails/"))
+                            if (string.IsNullOrEmpty(thumbUrl) || (!thumbUrl.Contains("/thumbnails/") && !thumbUrl.Contains("/images/cms/")))
                                 continue;
-                            // The article id sits in the image path itself
-                            // ("/thumbnails/crop900x350gY9/cms/news.9/242181/x.jpg"),
-                            // which is far more reliable than walking up to the
-                            // surrounding link: most thumbnails are not inside one.
-                            var id = Regex.Match(thumbUrl, @"/news\.\d+/(\d+)/").Groups[1].Value;
+
+                            string id = null;
+                            // 1. Check parent herald container data-topics attribute (e.g. data-topics="article243810 news novels")
+                            var topicsAttr = node.Ancestors().FirstOrDefault(a => a.Attributes["data-topics"] != null)?.Attributes["data-topics"]?.Value;
+                            if (!string.IsNullOrEmpty(topicsAttr))
+                            {
+                                var m = Regex.Match(topicsAttr, @"article(\d+)");
+                                if (m.Success)
+                                    id = m.Groups[1].Value;
+                            }
+
+                            // 2. Check child or surrounding <a> link
                             if (string.IsNullOrEmpty(id))
                             {
-                                var parentLink = node.Ancestors("a").FirstOrDefault(a => a.Attributes["href"] != null);
-                                if (parentLink == null) continue;
-                                var href = parentLink.Attributes["href"].Value;
-                                var idMatch = Regex.Match(href, @"\.(\d+)(?:$|[?#])");
-                                if (!idMatch.Success)
-                                    idMatch = Regex.Match(href, @"(\d+)(?:$|\.html|\?)");
-                                if (!idMatch.Success) continue;
-                                id = idMatch.Groups[1].Value;
+                                var link = node.Descendants("a").Concat(node.Ancestors("a")).FirstOrDefault(a => a.Attributes["href"] != null);
+                                if (link != null)
+                                {
+                                    var href = link.Attributes["href"].Value;
+                                    var idMatch = Regex.Match(href, @"\.(\d+)(?:$|[?#])");
+                                    if (idMatch.Success)
+                                        id = idMatch.Groups[1].Value;
+                                }
                             }
-                            if (!map.ContainsKey(id))
+
+                            // 3. Extract article ID from image URL path (e.g. /news.10/243813/, /daily-briefs/243795/, etc.)
+                            if (string.IsNullOrEmpty(id))
+                            {
+                                var match = Regex.Match(thumbUrl, @"/(?:news\.\d+|daily-briefs|herald/\d+|cms/\w+)/(\d+)/");
+                                if (match.Success)
+                                    id = match.Groups[1].Value;
+                                else
+                                {
+                                    var digitMatch = Regex.Match(thumbUrl, @"/(\d{5,7})/");
+                                    if (digitMatch.Success)
+                                        id = digitMatch.Groups[1].Value;
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(id) && !map.ContainsKey(id))
                                 map[id] = thumbUrl;
                         }
                         return map;

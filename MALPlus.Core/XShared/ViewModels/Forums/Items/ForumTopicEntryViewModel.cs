@@ -16,7 +16,24 @@ namespace MALPlus.XShared.ViewModels.Forums.Items
             Data = data;
         }
 
-        public FontAwesomeIcon FontAwesomeIcon => TypeToIcon(Data.Type);
+        public bool IsSticky => Data?.IsSticky == true;
+        public bool IsLocked => Data?.IsLocked == true;
+        public bool IsPoll => Data?.IsPoll == true;
+        public bool HasIndicator => IsSticky || IsLocked || IsPoll;
+
+        public string DisplayTitle
+        {
+            get
+            {
+                var prefix = "";
+                if (IsSticky) prefix += "📌 ";
+                if (IsLocked) prefix += "🔒 ";
+                if (IsPoll) prefix += "📊 ";
+                return prefix + (Data?.Title ?? string.Empty);
+            }
+        }
+
+        public FontAwesomeIcon FontAwesomeIcon => TypeToIcon(Data?.Type);
 
         private FontAwesomeIcon TypeToIcon(string type)
         {

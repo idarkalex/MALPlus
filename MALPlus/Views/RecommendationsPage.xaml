@@ -23,25 +23,13 @@
                         Padding="12,0,12,8">
                 <HorizontalStackLayout Spacing="8">
                     <Button x:Name="TopAnimeTab" Text="Top Anime" Clicked="OnModeClicked"
-                            CommandParameter="TopAnime" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="#0066FF" TextColor="White"
-                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                            Padding="12,6" HeightRequest="32" />
+                            CommandParameter="TopAnime" Style="{StaticResource TabChipActiveButtonStyle}" />
                     <Button x:Name="RecentAnimeTab" Text="Recent Anime" Clicked="OnModeClicked"
-                            CommandParameter="Anime" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                            Padding="12,6" HeightRequest="32" />
+                            CommandParameter="Anime" Style="{StaticResource TabChipButtonStyle}" />
                     <Button x:Name="TopMangaTab" Text="Top Manga" Clicked="OnModeClicked"
-                            CommandParameter="TopManga" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                            Padding="12,6" HeightRequest="32" />
+                            CommandParameter="TopManga" Style="{StaticResource TabChipButtonStyle}" />
                     <Button x:Name="RecentMangaTab" Text="Recent Manga" Clicked="OnModeClicked"
-                            CommandParameter="Manga" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="Transparent" TextColor="{StaticResource BrushText}"
-                            BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="16"
-                            Padding="12,6" HeightRequest="32" />
+                            CommandParameter="Manga" Style="{StaticResource TabChipButtonStyle}" />
                 </HorizontalStackLayout>
             </ScrollView>
 

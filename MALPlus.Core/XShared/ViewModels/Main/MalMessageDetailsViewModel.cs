@@ -80,7 +80,16 @@ namespace MALPlus.XShared.ViewModels.Main
 
         public string MessageText { get; set; } //body from text box
         public string MessageTarget { get; set; } //targetted user
-        public string MessageSubject { get; set; }
+        private string _messageSubject;
+        public string MessageSubject
+        {
+            get => _messageSubject;
+            set
+            {
+                _messageSubject = value;
+                RaisePropertyChanged(() => MessageSubject);
+            }
+        }
 
         private bool _newMessage;
         private MalMessageModel _prevMsg;
@@ -111,20 +120,23 @@ namespace MALPlus.XShared.ViewModels.Main
                     NewMessageFieldsVisibility = false;
                     _newMessage = false;
 
-                    if (!force &&_prevMsg?.Id == arg.Id)
+                    if (!force && _prevMsg?.Id == arg.Id)
                         return;
                     _prevMsg = arg;
-                    MessageSet.Clear();
                     LoadingVisibility = true;
                     if (!force && arg.ThreadId != null && MessageThreads.ContainsKey(arg.ThreadId))
                     {
-                        MessageSet.AddRange(MessageThreads[arg.ThreadId]);
+                        MessageSet.ReplaceRange(MessageThreads[arg.ThreadId]);
                     }
                     else
                     {
                         var msgs = await new MalMessageDetailsQuery().GetMessagesInThread(arg);
                         msgs.Reverse();
-                        MessageSet.AddRange(msgs);
+                        MessageSet.ReplaceRange(msgs);
+                        if (!string.IsNullOrEmpty(arg.ThreadId))
+                        {
+                            MessageThreads[arg.ThreadId] = msgs;
+                        }
                     }
 
                 }

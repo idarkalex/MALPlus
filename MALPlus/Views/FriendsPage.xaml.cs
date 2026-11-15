@@ -1,3 +1,4 @@
+using MALPlus.Controls;
 using MALPlus.XShared.NavArgs;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Main;
@@ -6,7 +7,7 @@ using MALPlus.XShared.Utils;
 namespace MALPlus.Views;
 
 [QueryProperty(nameof(TargetUser), "user")]
-public partial class FriendsPage : ContentPage
+public partial class FriendsPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     public string TargetUser { get; set; }
@@ -22,6 +23,7 @@ public partial class FriendsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        SetFriendsTab(Vm?.FriendsTabIndex ?? 0);
         if (_initialized) return;
         _initialized = true;
         try
@@ -39,15 +41,43 @@ public partial class FriendsPage : ContentPage
         }
     }
 
+    private void OnTabButtonClicked(object sender, EventArgs e)
+    {
+        if (sender is Button b && b.CommandParameter is string s && int.TryParse(s, out int idx))
+        {
+            SetFriendsTab(idx);
+        }
+    }
+
     private void OnTabTapped(object sender, TappedEventArgs e)
     {
         if (e.Parameter is string s && int.TryParse(s, out int idx))
         {
-            Vm.FriendsTabIndex = idx;
-            // recolor the two tab labels manually
-            FriendsTab.TextColor = idx == 0 ? Color.FromArgb("#FF6B00") : Colors.White;
-            RequestsTab.TextColor = idx == 1 ? Color.FromArgb("#FF6B00") : Colors.White;
+            SetFriendsTab(idx);
         }
+    }
+
+    private void SetFriendsTab(int idx)
+    {
+        if (Vm == null) return;
+        Vm.FriendsTabIndex = idx;
+        if (TabFriends != null && TabRequests != null)
+        {
+            TabChipHelper.ApplyStyle(TabFriends, idx == 0);
+            TabChipHelper.ApplyStyle(TabRequests, idx == 1);
+        }
+    }
+
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        if (Vm == null) return false;
+        var current = Vm.FriendsTabIndex;
+        var next = current + (direction > 0 ? 1 : -1);
+        if (next < 0 || next > 1)
+            return false;
+
+        SetFriendsTab(next);
+        return true;
     }
 
     private void OnRefreshFriends(object sender, EventArgs e)
@@ -58,6 +88,20 @@ public partial class FriendsPage : ContentPage
     private void OnRefreshRequests(object sender, EventArgs e)
     {
         try { Vm.RefreshPendingCommand?.Execute(null); } catch { }
+    }
+
+    private async void OnRequestUserTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            var req = e.Parameter as MALPlus.Models.Models.MalSpecific.MalFriendRequest;
+            var username = req?.User?.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                await Shell.Current.GoToAsync($"profile?user={Uri.EscapeDataString(username)}");
+            }
+        }
+        catch { }
     }
 
     private async void OnFriendTapped(object sender, SelectionChangedEventArgs e)

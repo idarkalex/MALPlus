@@ -4,64 +4,90 @@
              xmlns:converters="clr-namespace:MALPlus.Converters"
              xmlns:mforumsitems="clr-namespace:MALPlus.XShared.ViewModels.Forums.Items;assembly=MALPlus.Core"
              xmlns:mforums="clr-namespace:MALPlus.XShared.ViewModels.Forums;assembly=MALPlus.Core"
-x:Class="MALPlus.Views.ForumsBoardPage"
-               x:Name="BoardPageRoot"
-               x:DataType="mforums:ForumBoardViewModel"
-               BackgroundColor="{StaticResource EmBackground}">
+             x:Class="MALPlus.Views.ForumsBoardPage"
+             x:Name="BoardPageRoot"
+             x:DataType="mforums:ForumBoardViewModel"
+             BackgroundColor="{StaticResource EmBackground}">
     <ContentPage.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
     </ContentPage.Resources>
 
     <Grid>
+        <!-- Loading spinner overlay -->
         <Grid IsVisible="{Binding LoadingTopics}" BackgroundColor="#80000000" ZIndex="99">
             <ActivityIndicator IsRunning="True" Color="{StaticResource EmAccent}"
                                WidthRequest="36" HeightRequest="36" />
         </Grid>
 
-<Grid RowDefinitions="Auto,*">
-              <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,10,12,4">
-                  <Label Grid.Column="0" Text="{Binding Title}" FontFamily="InterBold" FontSize="22"
-                         TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                  <!-- A Border rather than a Button: Button has no StrokeShape, and a Border
-                       carries a real background so it stays hit tested. -->
-                  <Border Grid.Column="1" Padding="14,7" StrokeThickness="1"
-                          StrokeShape="RoundRectangle 8"
-                          BackgroundColor="{StaticResource EmSheet}"
-                          Stroke="{StaticResource EmBorder}" VerticalOptions="Center">
-                      <Border.GestureRecognizers>
-                          <TapGestureRecognizer Tapped="OnNewTopicTapped" />
-                      </Border.GestureRecognizers>
-                      <Label Text="New topic" FontFamily="InterSemiBold" FontSize="13"
-                             TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                  </Border>
-              </Grid>
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- Header: Back button, Title, New Topic button -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Padding="12,10,12,4">
+                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="#141d2b"
+                        Stroke="#29FFFFFF" WidthRequest="38" HeightRequest="38" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnBackTapped" />
+                    </Border.GestureRecognizers>
+                    <Label Text="←" FontFamily="InterBold" FontSize="18" TextColor="{StaticResource BrushText}"
+                           InputTransparent="True"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
 
+                <Label Grid.Column="1" Text="{Binding Title}" FontFamily="InterBold" FontSize="20"
+                       TextColor="{StaticResource BrushText}" VerticalOptions="Center"
+                       MaxLines="1" LineBreakMode="TailTruncation" />
+
+                <Border Grid.Column="2" Padding="14,7" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        BackgroundColor="{StaticResource EmSheet}"
+                        Stroke="{StaticResource EmBorder}" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnNewTopicTapped" />
+                    </Border.GestureRecognizers>
+                    <Label Text="New topic" FontFamily="InterSemiBold" FontSize="13"
+                           TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                </Border>
+            </Grid>
+
+            <!-- Error view: only shown if the load actually failed and LoadingTopics is false -->
+            <VerticalStackLayout Grid.Row="1" IsVisible="{Binding ShowEmptyError}" ZIndex="50"
+                                 HorizontalOptions="Center" VerticalOptions="Center" Spacing="12" Padding="24">
+                <Border WidthRequest="56" HeightRequest="56" StrokeShape="RoundRectangle 28"
+                        BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        HorizontalOptions="Center">
+                    <Label Text="⚠️" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+                <Label Text="Could not load this board" FontFamily="InterSemiBold" FontSize="16"
+                       TextColor="{StaticResource EmAccent}" HorizontalOptions="Center" />
+                <Label Text="MyAnimeList did not return the topic list. Check your connection or retry."
+                       FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF"
+                       HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+                <Border StrokeShape="RoundRectangle 8" BackgroundColor="{StaticResource EmAccent}"
+                        Padding="20,10" HorizontalOptions="Center" Margin="0,8,0,0">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRetryTapped" />
+                    </Border.GestureRecognizers>
+                    <Label Text="Retry" FontFamily="InterSemiBold" FontSize="13" TextColor="#FFFFFF" HorizontalOptions="Center" />
+                </Border>
+            </VerticalStackLayout>
+
+            <!-- Topics Collection -->
             <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingTopics}" Refreshing="OnRefreshing">
                 <CollectionView ItemsSource="{Binding Topics}">
-                    <CollectionView.EmptyView>
-                        <VerticalStackLayout Spacing="10" HorizontalOptions="Center">
-                            <Label Text="Could not load this board" FontFamily="InterSemiBold" FontSize="14"
-                                   TextColor="{StaticResource EmAccent}" HorizontalOptions="Center" />
-                            <Label Text="MyAnimeList is not returning the topic list to the app right now."
-                                   FontFamily="Inter" FontSize="12" TextColor="#80FFFFFF"
-                                   HorizontalOptions="Center" />
-                            <Label Text="Pull down to retry" FontFamily="Inter" FontSize="12"
-                                   TextColor="#80FFFFFF" HorizontalOptions="Center" />
-                        </VerticalStackLayout>
-                    </CollectionView.EmptyView>
                     <CollectionView.ItemTemplate>
-                        <DataTemplate
-                        x:DataType="mforumsitems:ForumTopicEntryViewModel">
-                            <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
+                        <DataTemplate x:DataType="mforumsitems:ForumTopicEntryViewModel">
+                            <Border Margin="12,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnTopicRowTapped" CommandParameter="{Binding .}" />
                                 </Border.GestureRecognizers>
-                                <Grid RowDefinitions="Auto,Auto" RowSpacing="4">
-                                    <Label Grid.Row="0" Text="{Binding Data.Title}" FontFamily="InterBold" FontSize="14"
+                                <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+                                    <!-- Title Row with inline Pin / Lock / Poll icons -->
+                                    <Label Grid.Row="0" Text="{Binding DisplayTitle}" FontFamily="InterBold" FontSize="14"
                                            TextColor="{StaticResource BrushText}" MaxLines="2"
-                                           LineBreakMode="TailTruncation" />
+                                           LineBreakMode="TailTruncation" VerticalOptions="Center" />
+
+                                    <!-- Metadata Row -->
                                     <HorizontalStackLayout Grid.Row="1" Spacing="8">
                                         <Label Text="{Binding Data.Op}" FontFamily="Inter" FontSize="11"
                                                TextColor="{StaticResource EmAccent}" />
@@ -79,6 +105,44 @@ x:Class="MALPlus.Views.ForumsBoardPage"
                     </CollectionView.ItemTemplate>
                 </CollectionView>
             </RefreshView>
+
+            <!-- Bottom pagination bar -->
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Padding="12,8,12,12" BackgroundColor="#051522"
+                  IsVisible="{Binding LoadingTopics, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                <HorizontalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 6" BackgroundColor="#141d2b"
+                            Stroke="#29FFFFFF" WidthRequest="36" HeightRequest="42"
+                            IsVisible="{Binding CanPreviousPage}" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPreviousPageTapped" />
+                        </Border.GestureRecognizers>
+                        <Label Text="‹" FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}"
+                               InputTransparent="True"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+
+                    <Border Padding="10,0" HeightRequest="42" BackgroundColor="#141d2b" Stroke="#29FFFFFF" StrokeThickness="1"
+                            StrokeShape="RoundRectangle 6" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPageJumpTapped" />
+                        </Border.GestureRecognizers>
+                        <Label Text="{Binding PageText}" FontFamily="InterSemiBold" FontSize="12"
+                               InputTransparent="True"
+                               TextColor="{StaticResource EmAccent}" VerticalOptions="Center" HorizontalOptions="Center" />
+                    </Border>
+
+                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 6" BackgroundColor="#141d2b"
+                            Stroke="#29FFFFFF" WidthRequest="36" HeightRequest="42"
+                            IsVisible="{Binding CanNextPage}" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNextPageTapped" />
+                        </Border.GestureRecognizers>
+                        <Label Text="›" FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}"
+                               InputTransparent="True"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </HorizontalStackLayout>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

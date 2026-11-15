@@ -42,10 +42,13 @@
                         <TapGestureRecognizer Tapped="OnBackTapped" />
                     </Border.GestureRecognizers>
                     <Label Text="←" FontFamily="InterBold" FontSize="18" TextColor="{StaticResource BrushText}"
+                           InputTransparent="True"
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
 
-                <Button Grid.Column="1" Text="Reply" Clicked="OnOpenReplyPageTapped"
+                <Button Grid.Column="1" Text="{Binding ReplyButtonText, FallbackValue='Reply'}"
+                        IsEnabled="{Binding CanReply}"
+                        Clicked="OnOpenReplyPageTapped"
                         FontFamily="InterSemiBold" FontSize="14"
                         BackgroundColor="#0066FF" TextColor="White"
                         CornerRadius="8" HeightRequest="42" />
@@ -58,6 +61,7 @@
                             <TapGestureRecognizer Tapped="OnPreviousPageTapped" />
                         </Border.GestureRecognizers>
                         <Label Text="‹" FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}"
+                               InputTransparent="True"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
 
@@ -67,6 +71,7 @@
                             <TapGestureRecognizer Tapped="OnPageJumpTapped" />
                         </Border.GestureRecognizers>
                         <Label Text="{Binding PageText}" FontFamily="InterSemiBold" FontSize="12"
+                               InputTransparent="True"
                                TextColor="{StaticResource EmAccent}" VerticalOptions="Center" HorizontalOptions="Center" />
                     </Border>
 
@@ -77,6 +82,7 @@
                             <TapGestureRecognizer Tapped="OnNextPageTapped" />
                         </Border.GestureRecognizers>
                         <Label Text="›" FontFamily="InterBold" FontSize="20" TextColor="{StaticResource BrushText}"
+                               InputTransparent="True"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                 </HorizontalStackLayout>

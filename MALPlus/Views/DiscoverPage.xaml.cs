@@ -624,11 +624,6 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
                     }));
             }
 
-            rows.Add(new OptionsSheetItem("Done", "icon_check", hideChevron: true, submenu: s =>
-            {
-                BackToFilters();
-                return true;
-            }));
             return rows;
         }
 
@@ -691,12 +686,6 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
                 }));
             }
 
-            rows.Add(new OptionsSheetItem("Done", "icon_check", submenu: s =>
-            {
-                BackToFilters();
-                return true;
-            }));
-
             return rows;
         }
 
@@ -735,7 +724,7 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
                     s.OpenSubmenu("Genres", GenreRows(), BackToFilters);
                     return true;
                 }));
-            rows.Add(new OptionsSheetItem("Clear all", "icon_close", destructive: true,
+            var clearAllItem = new OptionsSheetItem("Clear all", "icon_close", destructive: true,
                 hideChevron: true,
                 submenu: s =>
                 {
@@ -750,11 +739,9 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
                     _ = SaveFilterAsync(manga, filter);
                     BackToFilters();
                     return true;
-                }));
-            // No submenu, so choosing it is what finishes: PickAsync hands the label back and the panel closes.
-            // Without it the only way out was the close button, which reads as abandoning the panel
-            // rather than as being done with the filters.
-            rows.Add(new OptionsSheetItem("Done", "icon_check"));
+                });
+            var doneItem = new OptionsSheetItem("Done", "icon_check");
+            rows.Add(OptionsSheetItem.Pair(clearAllItem, doneItem));
             return rows;
         }
 
@@ -970,9 +957,16 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
         }
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
+#if ANDROID
+        if (Handler?.PlatformView is global::Android.Views.View v)
+        {
+            v.RequestLayout();
+        }
+#endif
+        InvalidateMeasure();
     }
 
     private static string Summarize(RandomFilter filter)

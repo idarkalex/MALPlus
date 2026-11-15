@@ -103,9 +103,45 @@ public class MainActivity : MauiAppCompatActivity
         }
     }
 
+    private sealed class GlobalNavigationInsetsListener : global::Java.Lang.Object,
+        global::AndroidX.Core.View.IOnApplyWindowInsetsListener
+    {
+        public global::AndroidX.Core.View.WindowInsetsCompat OnApplyWindowInsets(
+            global::Android.Views.View v, global::AndroidX.Core.View.WindowInsetsCompat insets)
+        {
+            try
+            {
+                var navBars = insets.GetInsets(global::AndroidX.Core.View.WindowInsetsCompat.Type.NavigationBars());
+                v.SetPadding(0, 0, 0, navBars.Bottom);
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPLUS", "Global insets failed: " + ex.Message);
+            }
+
+            return insets;
+        }
+    }
+
     protected override void OnCreate(Bundle savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+
+        try
+        {
+            var content = FindViewById(global::Android.Resource.Id.Content);
+            if (content != null)
+            {
+                global::AndroidX.Core.View.ViewCompat.SetOnApplyWindowInsetsListener(content,
+                    new GlobalNavigationInsetsListener());
+            }
+
+            Window?.SetNavigationBarColor(global::Android.Graphics.Color.ParseColor("#0A1F2E"));
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPLUS", "global insets listener failed: " + ex.Message);
+        }
 
         // Edge to edge, declared in the manifest AND applied here. The manifest attribute only
         // tells the system the app is willing to draw under the cutout; this is what makes the

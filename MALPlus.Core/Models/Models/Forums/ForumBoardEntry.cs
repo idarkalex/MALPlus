@@ -18,6 +18,7 @@ namespace MALPlus.Models.Models.Forums
         public string PostTime { get; set; }
         public string Id { get; set; }
         public string BoardName { get; set; }
+        public System.DateTime ParsedTime { get; set; }
     }
 
     public class ForumIndexContent

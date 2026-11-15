@@ -90,29 +90,31 @@ Write-Host "  config     : $Configuration"
 Write-Host "  device     : $Device"
 Write-Host "  fastDeploy : $FastDeploy"
 
-Write-Host ""
-Write-Host "[1/3] device" -ForegroundColor Yellow
-$step = [System.Diagnostics.Stopwatch]::StartNew()
-& $adb connect $Device 2>&1 | Out-Null
-
-# Bounded wait instead of `adb wait-for-device`, which blocks forever when the
-# wireless-debugging port changed and the phone has to be re-paired first.
-$deadline = (Get-Date).AddSeconds($DeviceTimeoutSeconds)
-$state = ""
-while ((Get-Date) -lt $deadline) {
+if (!$SkipInstall) {
+    Write-Host ""
+    Write-Host "[1/3] device" -ForegroundColor Yellow
+    $step = [System.Diagnostics.Stopwatch]::StartNew()
     & $adb connect $Device 2>&1 | Out-Null
-    $state = (& $adb -s $Device get-state 2>&1 | Out-String).Trim()
-    if ($state -eq "device") {
-        break
-    }
-    Start-Sleep -Seconds 2
-}
 
-if ($state -ne "device") {
-    throw "device '$Device' never reached state 'device' (last: '$state'). The wireless-debugging port changes every time adb restarts on the phone: open Developer options > Wireless debugging and read the current port, then rerun with -Device <ip>:<port>."
+    # Bounded wait instead of `adb wait-for-device`, which blocks forever when the
+    # wireless-debugging port changed and the phone has to be re-paired first.
+    $deadline = (Get-Date).AddSeconds($DeviceTimeoutSeconds)
+    $state = ""
+    while ((Get-Date) -lt $deadline) {
+        & $adb connect $Device 2>&1 | Out-Null
+        $state = (& $adb -s $Device get-state 2>&1 | Out-String).Trim()
+        if ($state -eq "device") {
+            break
+        }
+        Start-Sleep -Seconds 2
+    }
+
+    if ($state -ne "device") {
+        throw "device '$Device' never reached state 'device' (last: '$state'). The wireless-debugging port changes every time adb restarts on the phone: open Developer options > Wireless debugging and read the current port, then rerun with -Device <ip>:<port>."
+    }
+    $step.Stop()
+    Write-Host ("      ready ({0})" -f (Format-Duration $step.Elapsed.TotalSeconds)) -ForegroundColor DarkGray
 }
-$step.Stop()
-Write-Host ("      ready ({0})" -f (Format-Duration $step.Elapsed.TotalSeconds)) -ForegroundColor DarkGray
 
 $buildArguments = @(
     "build",

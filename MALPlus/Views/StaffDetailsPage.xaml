@@ -196,7 +196,8 @@
                     </Border>
                     <CollectionView Grid.Row="1" x:Name="VoiceRolesList"
                                     ItemsSource="{Binding Data.ShowCharacterPairs}"
-                                    ItemTemplate="{StaticResource StaffVoiceRoleTemplate}">
+                                    ItemTemplate="{StaticResource StaffVoiceRoleTemplate}"
+                                    ItemSizingStrategy="MeasureFirstItem">
                         <CollectionView.ItemsLayout>
                             <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />
                         </CollectionView.ItemsLayout>
@@ -215,7 +216,8 @@
                     </Border>
                     <CollectionView Grid.Row="1" x:Name="ProductionRolesList"
                                     ItemsSource="{Binding Data.StaffPositions}"
-                                    ItemTemplate="{StaticResource StaffProductionRoleTemplate}">
+                                    ItemTemplate="{StaticResource StaffProductionRoleTemplate}"
+                                    ItemSizingStrategy="MeasureFirstItem">
                         <CollectionView.ItemsLayout>
                             <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />
                         </CollectionView.ItemsLayout>

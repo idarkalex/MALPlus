@@ -169,15 +169,15 @@ namespace MALPlus.XShared.Comm.Anime
                         else if (entryUrl.Contains("/anime/"))
                             current.Type = RelatedItemType.Anime;
                         else
-                            current.Type = RelatedItemType.Unknown;
-                        current.MediaType = NormalizeMediaType(GetString(entry, "media_type"));
-                        if (string.IsNullOrEmpty(current.MediaType))
-                        {
-                            var entryType = GetString(entry, "type");
-                            if (!string.Equals(entryType, "anime", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(entryType, "manga", StringComparison.OrdinalIgnoreCase))
-                                current.MediaType = NormalizeMediaType(entryType);
-                        }
+                            current.Type = _animeMode ? RelatedItemType.Anime : RelatedItemType.Manga;
+
+                        var rawType = GetString(entry, "media_type");
+                        if (string.IsNullOrEmpty(rawType))
+                            rawType = GetString(entry, "type");
+                        if (!string.IsNullOrEmpty(rawType))
+                            current.MediaType = NormalizeMediaType(rawType);
+                        else
+                            current.MediaType = current.Type == RelatedItemType.Manga ? "Manga" : "TV";
 
                         if (entry.TryGetProperty("images", out var images) && images.ValueKind == JsonValueKind.Object &&
                             images.TryGetProperty("jpg", out var jpg) && jpg.ValueKind == JsonValueKind.Object &&
@@ -233,13 +233,13 @@ namespace MALPlus.XShared.Comm.Anime
                 while (!cancellation.IsCancellationRequested)
                 {
                     var before = output.Count(item => item.Id > 0 &&
-                                                     (string.IsNullOrEmpty(item.MediaType) ||
+                                                     (!item.HasSpecificMediaType ||
                                                       item.AllEpisodes == 0));
                     await PopulateMetadataAsync(output, cancellation.Token);
                     await DataCache.SaveDirectRecommendationsData(_animeId, output, _animeMode);
 
                     var after = output.Count(item => item.Id > 0 &&
-                                                    (string.IsNullOrEmpty(item.MediaType) ||
+                                                    (!item.HasSpecificMediaType ||
                                                      item.AllEpisodes == 0));
                     Console.WriteLine($"MALPLUS RecBg anime={_animeId} pending {before} -> {after}");
                     if (after == 0)
@@ -325,7 +325,7 @@ namespace MALPlus.XShared.Comm.Anime
         {
             var pending = output
                 .Where(item => item.Id > 0 &&
-                               (string.IsNullOrEmpty(item.MediaType) || item.AllEpisodes == 0))
+                               (!item.HasSpecificMediaType || item.AllEpisodes == 0))
                 .Take(MetadataEnrichmentBudget)
                 .ToList();
 
@@ -340,12 +340,12 @@ namespace MALPlus.XShared.Comm.Anime
                 var cached = await DataCache.RetrieveAnimeSearchResultsData(item.Id.ToString(), animeMode);
                 if (cached != null)
                 {
-                    if (string.IsNullOrEmpty(item.MediaType) && !string.IsNullOrEmpty(cached.Type))
+                    if (!item.HasSpecificMediaType && !string.IsNullOrEmpty(cached.Type))
                         item.MediaType = NormalizeMediaType(cached.Type);
                     if (item.AllEpisodes == 0 && cached.AllEpisodes > 0)
                         item.AllEpisodes = cached.AllEpisodes;
                 }
-                if (string.IsNullOrEmpty(item.MediaType) || item.AllEpisodes == 0)
+                if (!item.HasSpecificMediaType || item.AllEpisodes == 0)
                     stillMissing.Add(item);
             }
 
@@ -375,17 +375,22 @@ namespace MALPlus.XShared.Comm.Anime
 
                         try
                         {
-                            var data = await TenraiClient.GetDataAsync(endpoint, MetadataRequestTimeout);
-                            if (data.ValueKind != JsonValueKind.Object)
+                            var raw = await TenraiClient.GetRawJsonAsync(endpoint);
+                            if (string.IsNullOrEmpty(raw))
                                 continue;
 
+                            using var doc = JsonDocument.Parse(raw);
                             var entries = new List<JsonElement>();
-                            if (data.TryGetProperty("data", out var mainData) && mainData.ValueKind == JsonValueKind.Object)
-                                entries.Add(mainData);
-                            else
-                                entries.Add(data);
 
-                            if (data.TryGetProperty("included", out var includedArr) && includedArr.ValueKind == JsonValueKind.Array)
+                            if (doc.RootElement.TryGetProperty("data", out var dataEl))
+                            {
+                                if (dataEl.ValueKind == JsonValueKind.Object)
+                                    entries.Add(dataEl);
+                                else if (dataEl.ValueKind == JsonValueKind.Array)
+                                    entries.AddRange(dataEl.EnumerateArray());
+                            }
+
+                            if (doc.RootElement.TryGetProperty("included", out var includedArr) && includedArr.ValueKind == JsonValueKind.Array)
                             {
                                 foreach (var inc in includedArr.EnumerateArray())
                                     if (inc.ValueKind == JsonValueKind.Object)
@@ -396,19 +401,35 @@ namespace MALPlus.XShared.Comm.Anime
                             {
                                 var malId = ReadInt(entry, "mal_id");
                                 if (malId <= 0)
+                                    malId = ReadInt(entry, "id");
+                                if (malId <= 0)
                                     continue;
 
                                 var targetItem = chunk.FirstOrDefault(x => x.Id == malId);
                                 if (targetItem == null)
                                     continue;
 
-                                if (string.IsNullOrEmpty(targetItem.MediaType))
-                                    targetItem.MediaType = NormalizeMediaType(GetString(entry, "type"));
+                                var rawType = GetString(entry, "type");
+                                if (string.IsNullOrEmpty(rawType))
+                                    rawType = GetString(entry, "media_type");
+
+                                if (!string.IsNullOrEmpty(rawType))
+                                    targetItem.MediaType = NormalizeMediaType(rawType);
 
                                 if (targetItem.AllEpisodes == 0)
-                                    targetItem.AllEpisodes = isAnime
+                                {
+                                    var eps = isAnime
                                         ? ReadInt(entry, "episodes")
                                         : ReadInt(entry, "chapters");
+                                    if (eps <= 0)
+                                    {
+                                        eps = isAnime
+                                            ? ReadInt(entry, "num_episodes")
+                                            : ReadInt(entry, "num_chapters");
+                                    }
+                                    if (eps > 0)
+                                        targetItem.AllEpisodes = eps;
+                                }
                             }
                         }
                         catch (Exception ex)
@@ -530,29 +551,57 @@ namespace MALPlus.XShared.Comm.Anime
                         var current = new DirectRecommendationData();
 
                         var tds = recommNode.Descendants("td").Take(2).ToList();
-                         var img = tds[0].Descendants("img").First().Attributes["data-src"].Value;
-                         if (!img.Contains("questionmark"))
-                         {
-                             img = Regex.Replace(img, @"\/r\/\d+x\d+", "");
-                             var qPos = img.IndexOf('?');
-                             if (qPos > 0) img = img.Substring(0, qPos);
-                             current.ImageUrl = img;
-                         }
-                        current.Description = WebUtility.HtmlDecode(tds[1].Descendants("div").First(
+                        if (tds.Count < 2)
+                            continue;
+
+                        var imgNode = tds[0].Descendants("img").FirstOrDefault();
+                        if (imgNode != null && imgNode.Attributes.Contains("data-src"))
+                        {
+                            var img = imgNode.Attributes["data-src"].Value;
+                            if (!img.Contains("questionmark"))
+                            {
+                                img = Regex.Replace(img, @"\/r\/\d+x\d+", "");
+                                var qPos = img.IndexOf('?');
+                                if (qPos > 0) img = img.Substring(0, qPos);
+                                current.ImageUrl = img;
+                            }
+                        }
+
+                        var descDiv = tds[1].Descendants("div").FirstOrDefault(
                             node =>
                                 node.Attributes.Contains("class") &&
-                                node.Attributes["class"].Value ==
-                                "borderClass bgColor1")
-                            .Descendants("div")
-                            .First().InnerText.Trim().Replace("&nbsp", "").Replace("read more", ""));
-                        current.Description = current.Description.Substring(0, current.Description.Length - 1);
-                        var titleNode = tds[1].ChildNodes[3].Descendants("a").First();
-                        current.Title = titleNode.Descendants("strong").First().InnerText.Trim();
-                        var link = titleNode.Attributes["href"].Value.Split('/');
-                        current.Id = Convert.ToInt32(link[4]);
-                        current.Type = link[3] == "anime"
-                            ? RelatedItemType.Anime
-                            : link[3] == "manga" ? RelatedItemType.Manga : RelatedItemType.Unknown;
+                                node.Attributes["class"].Value == "borderClass bgColor1");
+                        if (descDiv != null)
+                        {
+                            var innerDiv = descDiv.Descendants("div").FirstOrDefault();
+                            var rawDesc = innerDiv != null ? innerDiv.InnerText : descDiv.InnerText;
+                            var cleanDesc = WebUtility.HtmlDecode(rawDesc ?? "").Trim().Replace("&nbsp", "").Replace("read more", "").Trim();
+                            current.Description = cleanDesc;
+                        }
+
+                        var titleNode = tds[1].Descendants("a").FirstOrDefault(a =>
+                            a.Attributes["href"] != null &&
+                            (a.Attributes["href"].Value.Contains("/anime/") || a.Attributes["href"].Value.Contains("/manga/")));
+                        if (titleNode == null)
+                            continue;
+
+                        var strongNode = titleNode.Descendants("strong").FirstOrDefault();
+                        current.Title = WebUtility.HtmlDecode(strongNode != null ? strongNode.InnerText.Trim() : titleNode.InnerText.Trim());
+
+                        var href = titleNode.Attributes["href"].Value;
+                        var match = Regex.Match(href, @"/(anime|manga)/(\d+)");
+                        if (match.Success)
+                        {
+                            var typeStr = match.Groups[1].Value;
+                            current.Id = int.Parse(match.Groups[2].Value);
+                            current.Type = typeStr == "anime" ? RelatedItemType.Anime : RelatedItemType.Manga;
+                        }
+                        else
+                        {
+                            current.Type = _animeMode ? RelatedItemType.Anime : RelatedItemType.Manga;
+                        }
+
+                        current.MediaType = current.Type == RelatedItemType.Manga || !_animeMode ? "Manga" : "TV";
                         output.Add(current);
                     }
                     catch (Exception)
@@ -580,7 +629,8 @@ namespace MALPlus.XShared.Comm.Anime
         {
             if (string.IsNullOrWhiteSpace(type))
                 return type;
-            return type switch
+            var clean = type.Trim().ToLowerInvariant();
+            return clean switch
             {
                 "tv" => "TV",
                 "tv_special" => "TV Special",
@@ -594,13 +644,14 @@ namespace MALPlus.XShared.Comm.Anime
                 "manga" => "Manga",
                 "novel" => "Novel",
                 "light_novel" => "Light Novel",
+                "lightnovel" => "Light Novel",
                 "one_shot" => "One-shot",
                 "oneshot" => "One-shot",
                 "doujinshi" => "Doujinshi",
                 "doujin" => "Doujinshi",
                 "manhwa" => "Manhwa",
                 "manhua" => "Manhua",
-                _ => type
+                _ => char.ToUpperInvariant(clean[0]) + clean.Substring(1)
             };
         }
 

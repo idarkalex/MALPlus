@@ -150,7 +150,12 @@ public class MauiMainViewModel : MainViewModelBase
                 if (args is ForumsTopicNavigationArgs ftn && !string.IsNullOrEmpty(ftn.TopicId))
                 {
                     route = "forumtopic";
-                    query = $"?id={Uri.EscapeDataString(ftn.TopicId)}";
+                    var topicParams = new System.Collections.Generic.List<string> { $"id={Uri.EscapeDataString(ftn.TopicId)}" };
+                    if (ftn.TopicPage > 1)
+                        topicParams.Add($"page={ftn.TopicPage}");
+                    if (ftn.LastPost)
+                        topicParams.Add("lastpost=true");
+                    query = "?" + string.Join("&", topicParams);
                 }
                 else if (args is ForumsBoardNavigationArgs fbn)
                 {
@@ -270,7 +275,7 @@ public class MauiMainViewModel : MainViewModelBase
                 {
                     // When navigating to a root section, clear any pushed pages (e.g. LogInPage, Settings)
                     // so we return cleanly to root and restore the shared bottom bar.
-                    if (!isPushedList && Shell.Current.Navigation?.NavigationStack != null)
+                    if (IsListRootPage(index) && !isPushedList && Shell.Current.Navigation?.NavigationStack != null)
                     {
                         while (Shell.Current.Navigation.NavigationStack.Count > 1)
                         {
