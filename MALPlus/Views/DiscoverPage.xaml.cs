@@ -53,7 +53,32 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
 
     private async void OnSearchTapped(object sender, EventArgs e)
     {
-        try { await Shell.Current.GoToAsync("search"); } catch { }
+        NavigateSearchWithCurrentQuery();
+    }
+
+    private void OnSearchInputCompleted(object sender, EventArgs e)
+    {
+        NavigateSearchWithCurrentQuery();
+    }
+
+    private void OnSearchInputHandlerChanged(object sender, EventArgs e)
+    {
+#if ANDROID
+        StripEntryUnderline();
+#endif
+    }
+
+    private async void NavigateSearchWithCurrentQuery()
+    {
+        var text = SearchInputField?.Text?.Trim();
+        if (!string.IsNullOrEmpty(text))
+        {
+            try { await Shell.Current.GoToAsync($"search?query={Uri.EscapeDataString(text)}"); } catch { }
+        }
+        else
+        {
+            try { await Shell.Current.GoToAsync("search"); } catch { }
+        }
     }
 
     private async void OnNewsTapped(object sender, EventArgs e)
@@ -965,9 +990,27 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
         {
             v.RequestLayout();
         }
+        StripEntryUnderline();
 #endif
         InvalidateMeasure();
     }
+
+#if ANDROID
+    private void StripEntryUnderline()
+    {
+        try
+        {
+            if (SearchInputField?.Handler?.PlatformView is global::Android.Widget.EditText edit)
+            {
+                edit.Background = null;
+                edit.SetPadding(0, 0, 0, 0);
+                edit.Gravity = global::Android.Views.GravityFlags.CenterVertical |
+                               global::Android.Views.GravityFlags.Start;
+            }
+        }
+        catch { }
+    }
+#endif
 
     private static string Summarize(RandomFilter filter)
     {
