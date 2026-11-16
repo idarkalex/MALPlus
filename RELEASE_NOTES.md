@@ -1,21 +1,18 @@
-## Navigation & Shell
-- Unified Tab Header Chips: Standardized squircle 8dp chip styling across all multi-tab screens (Articles, Forums, Profile, Search, History, Friends, Clubs, Messages, Notifications, Recommendations).
-- Global Lateral Swiping: Enabled horizontal swipe navigation (ITabSwipeHost) across multi-page sections.
-- Root Transition & Bottom Bar: Placed the persistent shared bottom navigation bar outside the root pager to eliminate flickering during section switches.
-- Edge-to-Edge Experience: Improved native window insets handling for consistent full-screen layout.
+## Discover & Exploration Redesign
+- Redesigned Discover Hub: Transformed Discover with native vector category cards, borderless modern styling, and optimized vertical spacing.
+- Direct Search Access: Integrated functional search bar directly into Discover that transitions smoothly into search results.
+- Daily Hidden Gem: Converted the featured recommendation into a daily rotating gem with clean single-line descriptions and responsive layout.
+- Trending & Recommendations Visual Overhaul: Redesigned DiscoveryResultsPage and RecommendationsPage with unified EmSheet containers, squircle artwork corners, circular action chips, and streamlined subtitles.
 
-## Messaging & Notifications
-- Thread Resolution: Resolved message duplication and missing content in thread history.
-- Immediate Preview: Messages now display preview content immediately upon selection without requiring a manual refresh.
-- Unified Navigation: Added lateral swiping and standard header chips to Messages (Inbox/Sent) and Notifications (All/Airing/Replies/Messages/Others).
-- Direct Interaction: Switched list item selection to reliable gesture recognizers on item containers.
+## Global Search Experience
+- Dedicated "All" Global Tab: Introduced a top-level "All" search tab categorizing results across Anime, Manga, Characters, Staff, and Studios with clean dividers and 10-item previews.
 
-## Media & Discover
-- Enhanced Video Player: Integrated ExoPlayer support with landscape auto-rotation and interactive media controls for trailers and seasonal themes.
-- Discover Layout Stability: Maintained root tabs in memory (OffscreenPageLimit = 3) to prevent blank pages after navigating through More sub-panels.
-- Poster Loading: Added asynchronous background poster resolution for History entries without blocking UI rendering.
+## Top Lists & Subcategories Stability
+- In-Place Filter Navigation: Changing subcategories (e.g., OVAs, Popular, Movies) in Top Anime and Top Manga now updates the view model in place, avoiding redundant Shell navigation and keeping the persistent bottom bar visible.
+- Subcategory Stream Order Fix: Filtered Top lists (Popular, Favourited, Airing, Upcoming, etc.) now strictly preserve the source category order across paginated loads rather than re-sorting by global score rank.
+- Query Parameter Correction: Resolved malformed query string parameter issues on Top Manga Popular and Favourited endpoints.
+- Left-Aligned Dropdown Popup: Aligned the top selector dropdown popup completely flush against the display edge with tailored corner geometry and zero offset gaps.
 
-## Performance & Stability
-- Enforced SdkOnly link mode on Android builds to eliminate JIT latency spikes.
-- Normalized route resets so bare navigation routes consistently restore the primary user library.
-- Hardened HTML and query parsers against malformed network responses.
+## Network & Freshness
+- Tenrai Seasonal Optimizations: Added server-side content filter support (`rating_exclude=rx`) and updated API documentation.
+- Cache Invalidation: Bumped internal top list cache versions to immediately serve cleanly sorted data.
