@@ -11,10 +11,27 @@ on:
       - '**/*.md'
       - 'docs/**'
       - 'images/**'
-      - '.github/ISSUE_TEMPLATE/**'
+      - 'Branding/**'
+      - 'buttons/**'
+      - 'tools/**'
+      - '.github/**'
+      - '.gitignore'
+      - '.gitattributes'
+      - 'build_and_deploy.ps1'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'images/**'
+      - 'Branding/**'
+      - 'buttons/**'
+      - 'tools/**'
+      - '.github/**'
+      - '.gitignore'
+      - '.gitattributes'
+      - 'build_and_deploy.ps1'
   workflow_dispatch:
     inputs:
       create_release:
