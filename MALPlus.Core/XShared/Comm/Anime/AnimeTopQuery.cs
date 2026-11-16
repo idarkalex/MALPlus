@@ -305,8 +305,9 @@ namespace MALPlus.XShared.Comm.Anime
                 // No limit here on purpose. The filtered tabs page twenty five at a time and the
                 // grid's own page maths is built on that, so asking for fifty would quietly double
                 // how far those tabs reach. Only a range asks for the bigger page.
-                var endpoint = $"{api}?{query}&page={Math.Max(_page + 1, 1)}";
-                return await ReadTopPageAsync(endpoint);
+                var pageNumber = Math.Max(_page + 1, 1);
+                var endpoint = $"{api}?{query}&page={pageNumber}";
+                return await ReadTopPageAsync(endpoint, pageNumber);
             }
             catch (Exception)
             {
@@ -399,7 +400,7 @@ namespace MALPlus.XShared.Comm.Anime
             return byId.Count > 0 ? byId.Values.OrderBy(row => row.Index).ToList() : null;
         }
 
-        private async Task<List<TopAnimeData>> ReadTopPageAsync(string endpoint)
+        private async Task<List<TopAnimeData>> ReadTopPageAsync(string endpoint, int pageNumber = 1)
         {
             try
             {
@@ -417,6 +418,7 @@ namespace MALPlus.XShared.Comm.Anime
                     return null;
 
                 var output = new List<TopAnimeData>();
+                var itemIndex = 0;
                 foreach (var item in items.EnumerateArray())
                 {
                     try
@@ -476,34 +478,23 @@ namespace MALPlus.XShared.Comm.Anime
                             ContentFilter.IsHiddenBySetting(ratingProp.GetString()))
                             continue;
 
-                        // The chip is the entry's own place in MAL's global ranking, on every tab
-                        // that has one, and a row that cannot be placed is only dropped where the
-                        // place IS the question.
-                        // <para>
-                        // Two different rules, and mixing them up is what broke Upcoming. A band is
-                        // defined by rank, so a row without one is not in it and has to go. A FILTERED
-                        // list is not defined by rank at all: Upcoming is what has not aired yet, and
-                        // MAL does not rank anything until it has aired, so every single row of that
-                        // list comes back with no rank at all. Measured: twenty five rows, zero of them
-                        // ranked. Treating those rows as unrankable emptied the tab completely, and it
-                        // had been doing so before this change as well, since the old numbering branch
-                        // dropped them for the filtered tabs too.
-                        // </para>
-                        // <para>
-                        // So here the rank is read if it is there and the row is kept either way. The
-                        // card decides whether to show a chip from the rank itself, which is why an
-                        // entry keeps its place in a filtered list with an honest blank chip instead of
-                        // being given a made-up number. The unfiltered list used to invent numbers for
-                        // unranked rows to keep the sequence unbroken, which is how "Idol" and "Alien
-                        // Stage" ended up in the top: both arrive with no rank and were handed the next
-                        // number. That run was never a run.
-                        // </para>
-                        if (item.TryGetProperty("rank", out var rankProp) &&
-                            rankProp.ValueKind == JsonValueKind.Number &&
-                            rankProp.GetInt32() > 0)
-                            current.Index = rankProp.GetInt32();
-                        else if (_rangeIndex >= 0)
-                            continue;
+                        // In a band (_rangeIndex >= 0), rows are filtered by MAL's global rank.
+                        // On filtered tabs (_rangeIndex < 0: Popular, Favourited, Airing, Upcoming, etc.),
+                        // the rows arrive in exact category order and are numbered sequentially by category rank.
+                        itemIndex++;
+                        if (_rangeIndex >= 0)
+                        {
+                            if (item.TryGetProperty("rank", out var rankProp) &&
+                                rankProp.ValueKind == JsonValueKind.Number &&
+                                rankProp.GetInt32() > 0)
+                                current.Index = rankProp.GetInt32();
+                            else
+                                continue;
+                        }
+                        else
+                        {
+                            current.Index = (pageNumber - 1) * ItemsPerPage + itemIndex;
+                        }
 
                         output.Add(current);
                     }
@@ -585,9 +576,9 @@ namespace MALPlus.XShared.Comm.Anime
                 case MangaTopType.Manhua:
                     return ContentFilter.Query("type=manhua");
                 case MangaTopType.Popular:
-                    return "filter=bypopularity&ContentFilter.Query(";
+                    return ContentFilter.Query("filter=bypopularity");
                 case MangaTopType.Favourited:
-                    return "filter=favorite&ContentFilter.Query(";
+                    return ContentFilter.Query("filter=favorite");
                 default:
                     return null;
             }

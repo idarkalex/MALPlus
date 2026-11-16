@@ -883,12 +883,12 @@ var finished = !string.IsNullOrEmpty(data.Status) &&
         private static string TopAnimeFileName(TopAnimeType type, int rangeIndex) =>
             rangeIndex >= 0
                 ? $"top_{type}_r{rangeIndex}_{Comm.ContentFilter.CacheTag}_v4.json"
-                : $"top_{type}_{Comm.ContentFilter.CacheTag}_v4.json";
+                : $"top_{type}_{Comm.ContentFilter.CacheTag}_v5.json";
 
         private static string TopMangaFileName(MangaTopType type, int rangeIndex) =>
             rangeIndex >= 0
                 ? $"topmanga_{type}_r{rangeIndex}_{Comm.ContentFilter.CacheTag}_v5.json"
-                : $"topmanga_{type}_{Comm.ContentFilter.CacheTag}_v5.json";
+                : $"topmanga_{type}_{Comm.ContentFilter.CacheTag}_v6.json";
 
         /// <summary>
         ///     Persists one of the Top manga lists. Awaited for the same reason as the anime one: a

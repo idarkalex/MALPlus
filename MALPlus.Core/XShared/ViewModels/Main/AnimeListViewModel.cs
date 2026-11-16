@@ -938,13 +938,13 @@ namespace MALPlus.XShared.ViewModels.Main
                 }
 
             }
-            if (WorkMode == AnimeListWorkModes.TopAnime || WorkMode == AnimeListWorkModes.TopManga)
-                // Items that carry no rank (some rows in the API come back without one, notably a lot
-                // of the Music type) keep their Index at zero instead of being told the list put them
-                // top. OrderBy alone would send those zeros to the very top of the panel, which is why
-                // Music entries were showing as numbers one and two on the Airing tab. Send them to
-                // the very end, where they belong when the source cannot rank them.
+            if (HasBandRange)
+                // In ranking bands (1-250, 251-500), pages are fetched in parallel and need sorting by global rank.
                 items = items.OrderBy(item => item.Index > 0 ? item.Index : int.MaxValue);
+            else if (WorkMode == AnimeListWorkModes.TopAnime || WorkMode == AnimeListWorkModes.TopManga)
+                // Filtered Top tabs (Airing, Popular, Favourited, etc.) have their items numbered
+                // sequentially by category rank (1..25, 26..50). Sorting by Index preserves the exact category stream order.
+                items = items.OrderBy(item => item.Index);
             else
                 items = ApplySorting(items, SortOption, SortDescending, WorkMode);
             //Add all abstractions to current set (spread across pages)

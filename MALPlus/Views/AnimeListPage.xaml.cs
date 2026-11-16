@@ -337,6 +337,7 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
 
         if (string.IsNullOrEmpty(RootRoute))
         {
+            SetLiveLibrary(true);
             ApplyRoute(null);
             return;
         }
@@ -635,6 +636,8 @@ Season? routeSeason = null, int? routeYear = null)
             // down instead of keeping requests queued ahead of theirs.
             SeasonCacheWarmer.StopWarming();
             await Vm.Init(args);
+            SetLiveLibrary(true);
+            TryBindLive();
             // Changing what the app is allowed to show asks a different question of the source, so the
             // panel reads again and opens at its first row. Left where the reader was, they would be
             // looking at row two hundred of a list that had just been replaced underneath them, and
@@ -1209,11 +1212,24 @@ Season? routeSeason = null, int? routeYear = null)
         CloseStatusDropdown();
         try
         {
-            // Same route the panel was opened with, so the whole path is the one that already works:
-            // mode plus the typed parameter, and the page's own ParseTypeQuery turns it back into the
-            // field the grid reads.
-            var query = $"animelist?mode={mode}&type={Uri.EscapeDataString(type)}&reset=1";
-            await Shell.Current.GoToAsync(query);
+            if (string.Equals(_appliedType, type, StringComparison.Ordinal) && _appliedMode == mode)
+                return;
+
+            ParseTypeQuery(mode, type);
+            _appliedType = type;
+            _applied = true;
+            _appliedMode = mode;
+            _lastMode = mode;
+            _rangeIndex = 0;
+            _panelFilterOpen = false;
+            Vm.PanelFilter = "";
+            UpdateContextBars();
+
+            var args = BuildArgs(mode, _lastStatus);
+            await Vm.Init(args);
+            SetLiveLibrary(true);
+            TryBindLive();
+            ScrollGridToFirstRow();
         }
         catch (Exception ex)
         {
@@ -1624,7 +1640,7 @@ Season? routeSeason = null, int? routeYear = null)
         {
             BackgroundColor = sheetColor,
             HeightRequest = 44,
-            Padding = new Thickness(12, 0),
+            Padding = new Thickness(14, 0, 16, 0),
             ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("Auto") }
         };
         row.Add(new Label
@@ -1665,10 +1681,21 @@ Season? routeSeason = null, int? routeYear = null)
         {
             CloseStatusDropdown();
             Unfocus();
-            var query = $"animelist?mode={mode}&status={_lastStatus}" +
-                        (string.IsNullOrEmpty(type) ? "" : $"&type={Uri.EscapeDataString(type)}") +
-                        RangeQuerySuffix();
-            await Shell.Current.GoToAsync(query);
+            ParseTypeQuery(mode, type);
+            _appliedType = type;
+            _applied = true;
+            _appliedMode = mode;
+            _lastMode = mode;
+            _rangeIndex = 0;
+            _panelFilterOpen = false;
+            Vm.PanelFilter = "";
+            UpdateContextBars();
+
+            var args = BuildArgs(mode, _lastStatus);
+            await Vm.Init(args);
+            SetLiveLibrary(true);
+            TryBindLive();
+            ScrollGridToFirstRow();
         }
         catch (Exception ex)
         {
@@ -1880,6 +1907,8 @@ case AnimeListWorkModes.SeasonalAnime:
         Reset = null;
         _applied = false;
         _rootResetSuppressedFor = null;
+        if (string.IsNullOrEmpty(RootRoute))
+            SetLiveLibrary(false);
         RestoreTabAfterFilterPush();
         if (_navConnected)
         {

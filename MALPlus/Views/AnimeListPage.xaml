@@ -228,8 +228,9 @@
                 </Grid.GestureRecognizers>
             </Grid>
             <Border HorizontalOptions="Start" VerticalOptions="Start" WidthRequest="266"
-                    Margin="0,-3,0,0" Padding="14,8"
-                    BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 0 0 16 16">
+                    Margin="0,-3,0,0" Padding="0,6,0,6"
+                    StrokeThickness="0" Stroke="{x:Null}"
+                    BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 0 0 0 16">
                 <VerticalStackLayout x:Name="StatusDropdownList" Spacing="0" />
             </Border>
         </Grid>
