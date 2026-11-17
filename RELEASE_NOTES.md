@@ -6,6 +6,10 @@
 - **YouTube WebView freeze fix:** Calling `_fullscreenCallback.OnCustomViewHidden()` on `OnHideCustomView` prevents the WebView from locking up after exiting the YouTube player's native fullscreen.
 - **ExoPlayer buffer fix:** Corrected the parameter order in `SetBufferDurationsMs` (`minBufferMs`, `maxBufferMs`, `bufferForPlaybackMs`, `bufferForPlaybackAfterRebufferMs`) — the previous inversion caused an `IllegalArgumentException` at startup and stuttery playback; videos now load and play smoothly.
 
+## User Score
+
+- **Score sync fix:** User score changes made inside the app are now correctly submitted to MyAnimeList and reflected in the list without requiring a manual refresh.
+
 ## Season OP/ED Themes
 
 - **Sort order:** Series that have OP/ED themes available are now sorted to the top of the list; series with no themes fall to the bottom.
