@@ -326,6 +326,11 @@ public override void HandleOnBackPressed()
             {
                 try
                 {
+                    if (Services.VideoWebViewHelper.TryExitCustomView())
+                    {
+                        return;
+                    }
+
                     if (Services.VideoWebViewHelper.BackHandler?.Invoke() == true)
                     {
                             return;

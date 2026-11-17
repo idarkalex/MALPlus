@@ -48,6 +48,7 @@ namespace MALPlus.XShared.Comm.Anime
                         var airingData = new AiringInfoProvider.AiringData
                         {
                             MalId = malId,
+                            Score = (float)GetDouble(entry, "score"),
                             // Deliberately empty. This used to hold fifty-two weekly slots rolled
                             // forward from today, and those fabrications are what put a countdown on
                             // One Piece months after its last real episode and on Bleach on the old
@@ -120,6 +121,9 @@ namespace MALPlus.XShared.Comm.Anime
 
         private static int GetInt(JsonElement el, string prop) =>
             el.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 0;
+
+        private static double GetDouble(JsonElement el, string prop) =>
+            el.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : 0.0;
 
         private static string GetString(JsonElement el, string prop)
         {

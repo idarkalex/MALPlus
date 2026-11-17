@@ -202,6 +202,8 @@ public partial class DiscoveryResultsPage : ContentPage, INotifyPropertyChanged
         {
             var webView = EnsureVideoWebView();
             VideoOverlay.IsVisible = true;
+            OrientationPolicy.SetVideoActive(true);
+            VideoWebViewHelper.ActivePlatformWebView = webView.Handler?.PlatformView as global::Android.Webkit.WebView;
             // Opening in portrait too: the bars are visible and reserve space of their own.
             VideoOverlayInsets.Apply(null, VideoCloseButton);
             VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
@@ -252,6 +254,16 @@ private void OnCloseVideo(object sender, EventArgs e)
     {
         try
         {
+            if (FullscreenVideo.IsActive)
+            {
+                if (VideoWebViewHelper.TryExitCustomView())
+                    return;
+                FullscreenVideo.Exit();
+                return;
+            }
+
+            OrientationPolicy.SetVideoActive(false);
+            VideoWebViewHelper.ActivePlatformWebView = null;
             // Leaving full screen belongs to closing: an overlay that went away while the activity
             // was still landscape left the whole app sideways.
             FullscreenVideo.Exit();

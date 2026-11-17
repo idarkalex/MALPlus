@@ -71,6 +71,8 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
         // Same reasoning as closing the overlay by hand: a page that goes away still sideways stays
         // sideways, and the next page opens looking broken.
         FullscreenVideo.Exit();
+        OrientationPolicy.SetVideoActive(false);
+        VideoWebViewHelper.ActivePlatformWebView = null;
         StopDirectMedia();
     }
 
@@ -272,15 +274,27 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
         VideoOverlayInsets.Apply(null, CloseButton);
         VideoWebViewHelper.BackHandler = OnVideoBackPressed;
         MainActivity.ArmVideoBackCallback();
+        OrientationPolicy.SetVideoActive(true);
 
-        // One player for everything, direct media included, on Chromium's native controls. The old
-        // comment here claimed ExoPlayer gave "a real scrub bar" while the WebView could not, and that
-        // was backwards: the hand written bar was a four pixel strip with an onclick and no thumb, which
-        // is why it was unreadable and undraggable on touch. Native controls have the real bar, and the
-        // origin sees the same kind of request from either player.
+        if (VideoWebViewHelper.IsDirectMedia(url))
+        {
+            if (_videoWebView != null)
+            {
+                VideoWebViewHelper.StopMediaAndClear(_videoWebView);
+                _videoWebView.IsVisible = false;
+            }
+            _currentVideoUrl = url;
+            _directMediaUrl = url;
+            DirectVideoPlayer.IsVisible = true;
+            DirectVideoPlayer.Source = url;
+            VideoWebViewHelper.ActivePlatformWebView = null;
+            return;
+        }
+
         StopDirectMedia();
         var webView = EnsureVideoWebView();
         webView.IsVisible = true;
+        VideoWebViewHelper.ActivePlatformWebView = webView.Handler?.PlatformView as global::Android.Webkit.WebView;
         VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
 
         // Only when this theme follows another one closely, which is what flipping down the list
@@ -426,7 +440,8 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
         {
             HorizontalOptions = LayoutOptions.Fill,
             VerticalOptions = LayoutOptions.Fill,
-            BackgroundColor = Colors.Black
+            BackgroundColor = Colors.Black,
+            ZIndex = 1
         };
         VideoOverlay.Add(_videoWebView);
 #if ANDROID
@@ -541,9 +556,19 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
 
     private void OnCloseVideoTapped(object sender, EventArgs e)
     {
+        if (FullscreenVideo.IsActive)
+        {
+            if (VideoWebViewHelper.TryExitCustomView())
+                return;
+            FullscreenVideo.Exit();
+            return;
+        }
+
         // Leaving full screen belongs to closing: an overlay that went away while the activity was
         // still landscape left the whole app sideways.
         FullscreenVideo.Exit();
+        OrientationPolicy.SetVideoActive(false);
+        VideoWebViewHelper.ActivePlatformWebView = null;
         StopDirectMedia();
         // Source = null on its own leaves the media element running, so the overlay went away and the
         // audio carried on. StopMediaAndClear pauses it and navigates the WebView away.

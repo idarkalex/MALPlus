@@ -94,6 +94,13 @@ public partial class VideosPage : ContentPage
         }
     }
 
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        if (VideoOverlayVisibility)
+            OnCloseVideo(this, EventArgs.Empty);
+    }
+
     private void OnRefreshing(object sender, EventArgs e)
     {
         // Refreshing is set here rather than trusting the binding: RefreshView has already written true
@@ -135,6 +142,8 @@ MALPlus.Services.VideoWebViewHelper.BackHandler = OnVideoBackPressed;
                   // MainActivity.OnCreate, so a callback added back then never sees the press.
                   MainActivity.ArmVideoBackCallback();
                   SetSystemBars(true);
+                  OrientationPolicy.SetVideoActive(true);
+                  VideoWebViewHelper.ActivePlatformWebView = VideoWebView?.Handler?.PlatformView as global::Android.Webkit.WebView;
                 VideoOverlayVisibility = true;
                 VideoOverlay.IsVisible = true;
                 VideoListRoot.IsVisible = false;
@@ -150,9 +159,19 @@ private void OnCloseVideo(object sender, EventArgs e)
     {
         try
         {
+            if (FullscreenVideo.IsActive)
+            {
+                if (MALPlus.Services.VideoWebViewHelper.TryExitCustomView())
+                    return;
+                FullscreenVideo.Exit();
+                return;
+            }
+
             // Leaving full screen belongs to closing: an overlay that went away while the activity
             // was still landscape left the whole app sideways.
             FullscreenVideo.Exit();
+            OrientationPolicy.SetVideoActive(false);
+            MALPlus.Services.VideoWebViewHelper.ActivePlatformWebView = null;
             MALPlus.Services.VideoWebViewHelper.BackHandler = null;
               MainActivity.DisarmVideoBackCallback();
               // Not Source = null on its own: that unloads the document but leaves the media element

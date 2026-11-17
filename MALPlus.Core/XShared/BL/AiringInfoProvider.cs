@@ -90,8 +90,9 @@ namespace MALPlus.XShared.BL
             //self-heal: a cache persisted from the legacy feed only carries mal_id+episodes
             //(no titles/images). Treat it as stale so we try to re-fetch the full schedules data.
             var oldSchema = data != null && data.Any() && data.All(x => string.IsNullOrEmpty(x.Title));
+            var needsScores = data != null && data.Any() && data.All(x => x.Score <= 0);
 
-            if (data != null && data.Any() && fresh && !oldSchema)
+            if (data != null && data.Any() && fresh && !oldSchema && !needsScores)
             {
                 ApplyData(data);
                 return;
@@ -676,6 +677,8 @@ namespace MALPlus.XShared.BL
         {
             [JsonProperty("mal_id")]
             public int MalId { get; set; }
+            [JsonProperty("score")]
+            public float Score { get; set; }
             [JsonProperty("airing")]
             public List<Episode> Episodes { get; set; }
             [JsonProperty("title")]

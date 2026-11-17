@@ -143,10 +143,11 @@
         <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="110">
             <controls:NativeVideoView x:Name="DirectVideoPlayer"
                                       VerticalOptions="Fill" HorizontalOptions="Fill"
-                                      IsVisible="False" PlayFailed="OnDirectVideoFailed" />
+                                      IsVisible="False" PlayFailed="OnDirectVideoFailed"
+                                      ZIndex="1" />
             <Border x:Name="CloseButton" HorizontalOptions="End" VerticalOptions="Start" Margin="12"
                     WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18"
-                    BackgroundColor="#99000000">
+                    BackgroundColor="#99000000" ZIndex="50">
                 <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
                        HorizontalOptions="Center" VerticalOptions="Center" />
                 <Border.GestureRecognizers>

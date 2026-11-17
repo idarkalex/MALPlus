@@ -338,23 +338,25 @@ namespace MALPlus.XShared.ViewModels.Main
             // and most of them produce the same days with the same entries, so identical content
             // keeps the live collection untouched and the pager keeps its input.
             var changed = !firstPublish && !CalendarContentMatches(CalendarData, pages);
-            if (firstPublish || changed)
-            {
-                CalendarData = new ObservableCollection<CalendarPivotPage>(pages);
-                RaisePropertyChanged(() => CalendarData);
-            }
+
             if (firstPublish || modeChanged)
             {
-                // The landing is applied half a second after the first publish on purpose:
-                // setting Position while the pager is still attaching its pages for the first
-                // time leaves the platform pager deaf to real swipes (taps and programmatic
-                // moves keep working). The data itself is already on screen when this runs.
-                await Task.Delay(500);
-                await GoToDesiredTab();
+                var desired = ResolveDesiredTabIndex(pages);
+                if (desired >= 0 && desired < pages.Count)
+                {
+                    _calendarPivotIndex = desired;
+                    RaisePropertyChanged(() => CalendarPivotIndex);
+                }
             }
             else if (CalendarPivotIndex >= pages.Count)
             {
                 CalendarPivotIndex = pages.Count - 1;
+            }
+
+            if (firstPublish || changed)
+            {
+                CalendarData = new ObservableCollection<CalendarPivotPage>(pages);
+                RaisePropertyChanged(() => CalendarData);
             }
 
             // Safety net only: almost everything already carries a date from the provider.
@@ -414,7 +416,11 @@ namespace MALPlus.XShared.ViewModels.Main
                     // watches on: a 07:30 JST Tuesday slot airs Monday night west of Tokyo.
                     var day = (int) CalendarTimeZone.ToZoneDay(airUtc, timeZone);
                     if (day >= 0 && day <= 6)
+                    {
+                        if (abstraction.ViewModel.GlobalScore <= 0 && DataCache.TryRetrieveDataForId(abstraction.Id, out var vdScore) && vdScore.GlobalScore > 0)
+                            abstraction.ViewModel.GlobalScore = vdScore.GlobalScore;
                         pages[day].Items.Add(abstraction.ViewModel);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -807,19 +813,16 @@ namespace MALPlus.XShared.ViewModels.Main
                 var result = new List<AnimeItemAbstraction>();
                 var nowUtc = DateTime.UtcNow;
 
+                // Start the seasonal query concurrently with the provider check
+                var seasonTask = SeasonalAiringAsync();
+
                 // The provider's ids are one of the three sources below, so it has to be in before
                 // they are read: at startup it is reset and refilled behind a network bound, and
-                // reading it early is how a whole season of provider ids goes missing. The wait is
-                // short on purpose: with a disk cache the provider publishes it within milliseconds
-                // and this exits at once; if it lands later, AiringsUpdated rebuilds this calendar
-                // instead of holding a spinner in front of the user.
-                await WaitForProviderAsync(1500);
+                // reading it early is how a whole season of provider ids goes missing.
+                await WaitForProviderAsync(1000);
 
                 // The ids worth asking about. The schedule endpoint is one source, but it misses
-                // series that really are airing: JoJo's Steel Ball Run, Link Click III, Seitokai ni
-                // mo Ana wa Aru! and three more were all absent from it while airing this week, and
-                // each of them is a series nobody would accept missing from a calendar. The user's
-                // own list and the current season cover the rest.
+                // series that really are airing. The user's own list and the current season cover the rest.
                 var ids = new HashSet<int>();
                 try
                 {
@@ -842,12 +845,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 var seasonalData = new Dictionary<int, SeasonalAnimeData>();
                 try
                 {
-                    // The season is a supplement, so it gets a short bound of its own: a cold season
-                    // cache is a multi page fetch, and the calendar is not worth holding for it when
-                    // the provider alone already covers the schedule. If it lands later with ids the
-                    // build did not have, the calendar rebuilds once to pick them up.
-                    var seasonTask = SeasonalAiringAsync();
-                    var seasonDone = await Task.WhenAny(seasonTask, Task.Delay(2000));
+                    var seasonDone = await Task.WhenAny(seasonTask, Task.Delay(1000));
                     if (seasonDone == seasonTask)
                     {
                         foreach (var season in await seasonTask)
@@ -865,6 +863,10 @@ namespace MALPlus.XShared.ViewModels.Main
                             try
                             {
                                 if (!t.IsCompletedSuccessfully || t.Result == null || t.Result.Count == 0 || !_initialized)
+                                    return;
+                                // Trigger rebuild if season data wasn't ready yet or returned new IDs
+                                var hasNewIds = seasonalData.Count == 0 || t.Result.Any(s => s != null && s.Id > 0 && !ids.Contains(s.Id));
+                                if (!hasNewIds)
                                     return;
                                 ResourceLocator.DispatcherAdapter.Run(() => _ = Init(true));
                             }
@@ -919,6 +921,14 @@ namespace MALPlus.XShared.ViewModels.Main
                         var libraryItem = _animeLibraryDataStorage.AllLoadedAuthAnimeItems
                             .FirstOrDefault(a => a != null && a.RepresentsAnime && a.MalId == id);
 
+                        float score = 0f;
+                        if (seasonalData.TryGetValue(id, out var s) && s.Score > 0)
+                            score = s.Score;
+                        else if (hasEntry && entry.Score > 0)
+                            score = entry.Score;
+                        else if (DataCache.TryRetrieveDataForId(id, out var vd) && vd.GlobalScore > 0)
+                            score = vd.GlobalScore;
+
                         AnimeItemAbstraction abstraction;
                         if (libraryItem != null)
                         {
@@ -927,6 +937,8 @@ namespace MALPlus.XShared.ViewModels.Main
                             // feed misses, and reusing it gives the card the same badge the
                             // library shows instead of a synthesized one.
                             abstraction = libraryItem;
+                            if (abstraction.GlobalScore <= 0 && score > 0)
+                                abstraction.GlobalScore = score;
                         }
                         else if (hasEntry)
                         {
@@ -938,8 +950,11 @@ namespace MALPlus.XShared.ViewModels.Main
                                 ImgUrl = entry.ImgUrl,
                                 AllEpisodes = entry.AllEpisodes,
                                 Type = entry.Type,
-                                AlternateTitle = entry.Title ?? ""
+                                AlternateTitle = entry.Title ?? "",
+                                GlobalScore = score
                             });
+                            if (score > 0)
+                                abstraction.GlobalScore = score;
                         }
                         else if (seasonalData.TryGetValue(id, out var season))
                         {
@@ -947,6 +962,8 @@ namespace MALPlus.XShared.ViewModels.Main
                             // the title and the poster. Without this the cell is a hole: it used
                             // to be built from the missing feed entry alone and drew blank.
                             abstraction = new AnimeItemAbstraction(season, true);
+                            if (season.Score > 0)
+                                abstraction.GlobalScore = season.Score;
                         }
                         else
                         {
@@ -959,6 +976,9 @@ namespace MALPlus.XShared.ViewModels.Main
                         // source and the card sits with an empty counter.
                         if (ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(id, out var declared))
                             abstraction.ViewModel.SetNextAirCache(declared);
+
+                        if (score > 0 && abstraction.ViewModel.GlobalScore <= 0)
+                            abstraction.ViewModel.GlobalScore = score;
 
                         result.Add(abstraction);
                     }
@@ -991,40 +1011,55 @@ namespace MALPlus.XShared.ViewModels.Main
             }
         }
 
-        public async Task GoToDesiredTab()
+        public static int ResolveDesiredTabIndex(IList<CalendarPivotPage> pages)
         {
-            await Task.Delay(10);
-            // The summary is the last page, but only while no day was removed: after a rebuild with
-            // "remove empty days" the count no longer means anything, so find it by type.
+            if (pages == null || pages.Count == 0)
+                return 0;
+
             var summaryIndex = -1;
-            for (int i = 0; i < CalendarData.Count; i++)
-                if (CalendarData[i] is CalendarSummaryPivotPage)
+            for (int i = 0; i < pages.Count; i++)
+            {
+                if (pages[i] is CalendarSummaryPivotPage)
                 {
                     summaryIndex = i;
                     break;
                 }
-            var fallback = summaryIndex >= 0 ? summaryIndex : CalendarData.Count - 1;
+            }
+            var fallback = summaryIndex >= 0 ? summaryIndex : pages.Count - 1;
 
             if (Settings.CalendarStartOnToday)
             {
-                // we have to find it because it may have been removed
-                // we will do this by comparing header string
-                string today = Utils.Utilities.DayToString(DateTime.Now.DayOfWeek, true);
-                int index = fallback;
-                for (int i = 0; i < CalendarData.Count; i++)
+                var timeZone = CalendarTimeZone.Resolve();
+                var todayDayOfWeek = CalendarTimeZone.ToZoneDay(DateTime.UtcNow, timeZone);
+                string today = Utilities.DayToString(todayDayOfWeek, true);
+
+                for (int i = 0; i < pages.Count; i++)
                 {
                     if (i == summaryIndex)
                         continue;
-                    if (CalendarData[i].Header == today)
-                    {
-                        index = i;
-                        break;
-                    }
+                    if (string.Equals(pages[i].Header, today, StringComparison.OrdinalIgnoreCase))
+                        return i;
                 }
-                CalendarPivotIndex = index;
+
+                // If today is empty / was removed, find the first available non-summary day page
+                for (int i = 0; i < pages.Count; i++)
+                {
+                    if (i != summaryIndex)
+                        return i;
+                }
+                return 0;
             }
-            else
-                CalendarPivotIndex = fallback;
+
+            return fallback;
+        }
+
+        public async Task GoToDesiredTab()
+        {
+            await Task.Delay(10);
+            if (CalendarData != null && CalendarData.Count > 0)
+            {
+                CalendarPivotIndex = ResolveDesiredTabIndex(CalendarData);
+            }
         }
 
     }

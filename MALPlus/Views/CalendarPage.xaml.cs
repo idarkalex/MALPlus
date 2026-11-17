@@ -54,11 +54,11 @@ public partial class CalendarPage : ContentPage
     {
         try
         {
-            if (_posterOpening)
+            if (_posterOpening || !_initialized || Vm?.CalendarData == null || Vm.CalendarData.Count == 0)
                 return;
             var position = CalendarCarousel.Position;
             global::Android.Util.Log.Info("MALPlus Calendar", $"current item -> {position}");
-            if (position >= 0 && Vm != null && position != Vm.CalendarPivotIndex)
+            if (position >= 0 && position < Vm.CalendarData.Count && position != Vm.CalendarPivotIndex)
             {
                 Vm.CalendarPivotIndex = position;
                 HighlightActiveTab();
@@ -85,10 +85,10 @@ public partial class CalendarPage : ContentPage
         {
             try
             {
-                if (generation != _stripSyncGeneration || Vm == null || _posterOpening)
+                if (generation != _stripSyncGeneration || Vm?.CalendarData == null || Vm.CalendarData.Count == 0 || _posterOpening || !_initialized)
                     return;
                 var position = CalendarCarousel.Position;
-                if (position >= 0 && position != Vm.CalendarPivotIndex)
+                if (position >= 0 && position < Vm.CalendarData.Count && position != Vm.CalendarPivotIndex)
                     Vm.CalendarPivotIndex = position;
                 HighlightActiveTab();
             }
@@ -198,9 +198,9 @@ public partial class CalendarPage : ContentPage
     {
         try
         {
-            if (e.CurrentPosition < 0 || _posterOpening)
+            if (e.CurrentPosition < 0 || _posterOpening || !_initialized || Vm?.CalendarData == null || Vm.CalendarData.Count == 0)
                 return;
-            var changed = Vm != null && e.CurrentPosition != Vm.CalendarPivotIndex;
+            var changed = e.CurrentPosition < Vm.CalendarData.Count && Vm != null && e.CurrentPosition != Vm.CalendarPivotIndex;
             if (changed)
             {
                 global::Android.Util.Log.Info("MALPlus Calendar", $"day -> {e.CurrentPosition}");
@@ -218,8 +218,12 @@ public partial class CalendarPage : ContentPage
     {
         try
         {
-            if (Vm != null && CalendarCarousel.Position != Vm.CalendarPivotIndex)
-                CalendarCarousel.Position = Vm.CalendarPivotIndex;
+            if (Vm?.CalendarData != null && Vm.CalendarData.Count > 0 &&
+                Vm.CalendarPivotIndex >= 0 && Vm.CalendarPivotIndex < Vm.CalendarData.Count)
+            {
+                if (CalendarCarousel.Position != Vm.CalendarPivotIndex)
+                    CalendarCarousel.Position = Vm.CalendarPivotIndex;
+            }
             // The day change can also arrive through the Position binding (the view model picks
             // the landing day while it builds), which moves the element but not necessarily the
             // pager: the platform sync below is what makes the move real.
@@ -251,14 +255,19 @@ public partial class CalendarPage : ContentPage
             var target = Vm?.CalendarPivotIndex ?? -1;
             if (target < 0 || CalendarCarousel.Handler?.PlatformView is not AndroidX.RecyclerView.Widget.RecyclerView platform)
                 return;
-            if (platform.GetLayoutManager() is not AndroidX.RecyclerView.Widget.LinearLayoutManager lm)
+            if (platform.GetAdapter() == null || target >= platform.GetAdapter().ItemCount)
                 return;
-            var current = lm.FindFirstCompletelyVisibleItemPosition();
+            var lm = platform.GetLayoutManager() as AndroidX.RecyclerView.Widget.LinearLayoutManager;
+            var current = lm?.FindFirstCompletelyVisibleItemPosition() ?? -1;
             if (current < 0)
-                current = lm.FindFirstVisibleItemPosition();
+                current = lm?.FindFirstVisibleItemPosition() ?? -1;
             if (current < 0 || current == target)
                 return;
-            platform.ScrollBy((target - current) * platform.Width, 0);
+
+            if (CalendarCarousel.Position != target)
+                CalendarCarousel.Position = target;
+
+            platform.ScrollToPosition(target);
         }
         catch (Exception ex)
         {
@@ -378,7 +387,17 @@ public partial class CalendarPage : ContentPage
     {
         if (e.PropertyName == nameof(CalendarPageViewModel.CalendarPivotIndex))
         {
-            MainThread.BeginInvokeOnMainThread(HighlightActiveTab);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                HighlightActiveTab();
+                if (Vm?.CalendarData != null && Vm.CalendarData.Count > 0 &&
+                    Vm.CalendarPivotIndex >= 0 && Vm.CalendarPivotIndex < Vm.CalendarData.Count)
+                {
+                    if (CalendarCarousel.Position != Vm.CalendarPivotIndex)
+                        CalendarCarousel.Position = Vm.CalendarPivotIndex;
+                    SyncPagerToElement();
+                }
+            });
             return;
         }
         if (e.PropertyName != nameof(CalendarPageViewModel.CalendarData)) return;
@@ -387,6 +406,7 @@ public partial class CalendarPage : ContentPage
         {
             ReassertCarouselSwipe();
             BuildDayStrip();
+            SyncCarouselPosition();
         });
     }
 
@@ -402,7 +422,10 @@ public partial class CalendarPage : ContentPage
             CalendarCarousel.IsSwipeEnabled = false;
             CalendarCarousel.IsSwipeEnabled = true;
             if (CalendarCarousel.Handler?.PlatformView is Microsoft.Maui.Controls.Handlers.Items.MauiCarouselRecyclerView platform)
+            {
                 platform.IsSwipeEnabled = true;
+                platform.SetItemViewCacheSize(8);
+            }
             ArmCarouselTouchShield();
         }
         catch (Exception ex)
@@ -672,8 +695,16 @@ public partial class CalendarPage : ContentPage
                 var tap = new TapGestureRecognizer();
                 tap.Tapped += (s, e) =>
                 {
-                    Vm.CalendarPivotIndex = index;
-                    SyncPagerToElement();
+                    if (Vm == null)
+                        return;
+                    if (Vm.CalendarPivotIndex != index)
+                    {
+                        Vm.CalendarPivotIndex = index;
+                    }
+                    else
+                    {
+                        SyncPagerToElement();
+                    }
                 };
                 cell.GestureRecognizers.Add(tap);
 
@@ -733,6 +764,31 @@ public partial class CalendarPage : ContentPage
     ///     press-and-hold is not available on Android in MAUI 8, so "Add to List" and
     ///     "Export to calendar" both live on the details page instead.
     /// </summary>
+    private async void OnGridItemTapped(object sender, object itemContext)
+    {
+        AnimeItemViewModel item = itemContext as AnimeItemViewModel;
+        if (item == null && itemContext is AnimeItemAbstraction abs)
+            item = abs.ViewModel;
+        if (item == null)
+            return;
+        try
+        {
+            HighlightActiveTab();
+            _backArmed = false;
+#if ANDROID
+            MainActivity.ArmMenuBackCallback(() => _ = PopBackAsync());
+#endif
+            _posterOpening = true;
+            await Shell.Current.GoToAsync(
+                $"animedetails?id={item.Id}&title={Uri.EscapeDataString(item.Title ?? string.Empty)}");
+        }
+        catch (Exception ex)
+        {
+            _posterOpening = false;
+            global::Android.Util.Log.Warn("MALPlus Calendar", "grid item nav failed: " + ex.GetType().Name);
+        }
+    }
+
     private async void OnPosterTapped(object sender, TappedEventArgs e)
     {
         if (e.Parameter is not AnimeItemViewModel item)

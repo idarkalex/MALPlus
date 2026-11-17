@@ -26,17 +26,62 @@ public static class VideoWebViewHelper
     /// </summary>
     public static Func<bool> BackHandler { get; set; }
 
+    public static global::Android.Webkit.WebView ActivePlatformWebView { get; set; }
+
+    private static LoggingWebChromeClient CurrentChromeClient { get; set; }
+
+    public static bool TryExitCustomView()
+    {
+        if (CurrentChromeClient != null && CurrentChromeClient.HasFullscreenView)
+        {
+            CurrentChromeClient.ExitCustomView();
+            return true;
+        }
+        return false;
+    }
+
+    public static void RequestWebViewFullscreen()
+    {
+        var wv = ActivePlatformWebView;
+        if (wv == null) return;
+        wv.Post(() =>
+        {
+            try
+            {
+                wv.EvaluateJavascript(
+                    "(function(){" +
+                    "try{" +
+                    "  var el = document.getElementById('player') || document.querySelector('iframe');" +
+                    "  if (el) {" +
+                    "    if (el.requestFullscreen) { el.requestFullscreen(); }" +
+                    "    else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); }" +
+                    "  }" +
+                    "}catch(e){ console.log('REQ_FS_ERR: ' + e); }" +
+                    "})()",
+                    null);
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPlus Video", "RequestWebViewFullscreen failed: " + ex.Message);
+            }
+        });
+    }
+
     public static void ConfigurePlatformView(global::Android.Views.View platformView)
     {
         if (platformView is not global::Android.Webkit.WebView wv) return;
         try
         {
+            ActivePlatformWebView = wv;
+            wv.SetLayerType(global::Android.Views.LayerType.Hardware, null);
             wv.Settings.JavaScriptEnabled = true;
             wv.Settings.DomStorageEnabled = true;
             wv.Settings.MediaPlaybackRequiresUserGesture = false;
             // YouTube needs third-party cookies to authenticate video streams (blocked by default on Android 13+)
             global::Android.Webkit.CookieManager.Instance.SetAcceptThirdPartyCookies(wv, true);
-            wv.SetWebChromeClient(new LoggingWebChromeClient());
+            var chromeClient = new LoggingWebChromeClient();
+            CurrentChromeClient = chromeClient;
+            wv.SetWebChromeClient(chromeClient);
             // A client of our own, so a media element's error reaches the app. The stock client swallows
             // it and the overlay is left on a black splash with nothing able to answer, which is what made
             // a refusal look like a broken player instead of a file worth asking for again.
@@ -84,6 +129,7 @@ public static class VideoWebViewHelper
     /// </summary>
     public static void StopMediaAndClear(global::Microsoft.Maui.Controls.WebView webView)
     {
+        ActivePlatformWebView = null;
         if (webView?.Handler?.PlatformView is not global::Android.Webkit.WebView wv)
         {
             if (webView != null)
@@ -480,6 +526,87 @@ public static class VideoWebViewHelper
         // random theme page, which has no button of its own at all.
         private global::Android.Views.View _fullscreenView;
         private ICustomViewCallback _fullscreenCallback;
+        private global::Android.Views.View _fullscreenCloseButton;
+
+        public bool HasFullscreenView => _fullscreenView != null;
+
+        public void ExitCustomView()
+        {
+            OnHideCustomView();
+        }
+
+        private void ShowFullscreenCloseButton(global::Android.Views.ViewGroup decor)
+        {
+            try
+            {
+                HideFullscreenCloseButton();
+                if (decor == null)
+                    return;
+
+                var context = decor.Context;
+                var density = context.Resources.DisplayMetrics.Density;
+                int sizePx = (int)(44 * density);
+                int marginPx = (int)(16 * density);
+                int paddingPx = (int)(10 * density);
+
+                var closeButton = new global::Android.Widget.ImageView(context)
+                {
+                    ContentDescription = "Exit fullscreen"
+                };
+
+                var resId = context.Resources.GetIdentifier("icon_close", "drawable", context.PackageName);
+                if (resId != 0)
+                {
+                    closeButton.SetImageResource(resId);
+                }
+                closeButton.SetPadding(paddingPx, paddingPx, paddingPx, paddingPx);
+
+                var bgDrawable = new global::Android.Graphics.Drawables.GradientDrawable();
+                bgDrawable.SetShape(global::Android.Graphics.Drawables.ShapeType.Oval);
+                bgDrawable.SetColor(global::Android.Graphics.Color.ParseColor("#B3051522"));
+                bgDrawable.SetStroke((int)(1 * density), global::Android.Graphics.Color.ParseColor("#4DFFFFFF"));
+                closeButton.Background = bgDrawable;
+
+                var layoutParams = new global::Android.Widget.FrameLayout.LayoutParams(sizePx, sizePx)
+                {
+                    Gravity = global::Android.Views.GravityFlags.Top | global::Android.Views.GravityFlags.End,
+                    TopMargin = marginPx,
+                    RightMargin = marginPx
+                };
+                closeButton.LayoutParameters = layoutParams;
+                closeButton.Elevation = 300f;
+                closeButton.TranslationZ = 300f;
+
+                closeButton.Click += (s, e) =>
+                {
+                    ExitCustomView();
+                };
+
+                _fullscreenCloseButton = closeButton;
+                decor.AddView(closeButton);
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPlus Video", "ShowFullscreenCloseButton failed: " + ex.Message);
+            }
+        }
+
+        private void HideFullscreenCloseButton()
+        {
+            try
+            {
+                if (_fullscreenCloseButton != null)
+                {
+                    if (_fullscreenCloseButton.Parent is global::Android.Views.ViewGroup parent)
+                        parent.RemoveView(_fullscreenCloseButton);
+                    _fullscreenCloseButton = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPlus Video", "HideFullscreenCloseButton failed: " + ex.Message);
+            }
+        }
 
         /// <summary>
         ///     The web content asked for full screen. WebView builds the surface and hands it over;
@@ -520,6 +647,8 @@ public static class VideoWebViewHelper
                     global::Android.Views.ViewGroup.LayoutParams.MatchParent,
                     global::Android.Views.ViewGroup.LayoutParams.MatchParent));
 
+                ShowFullscreenCloseButton(decor);
+
                 // Landscape, bars hidden and the cutout released: the whole of what a video wants,
                 // and already handled for the three overlays that used to carry a button of our own.
                 FullscreenVideo.Enter();
@@ -540,6 +669,8 @@ public static class VideoWebViewHelper
 
             try
             {
+                HideFullscreenCloseButton();
+
                 if (_fullscreenView == null)
                     return;
 
@@ -547,7 +678,9 @@ public static class VideoWebViewHelper
                     parent.RemoveView(_fullscreenView);
 
                 _fullscreenView = null;
+                var callback = _fullscreenCallback;
                 _fullscreenCallback = null;
+                callback?.OnCustomViewHidden();
 
                 FullscreenVideo.Exit();
             }

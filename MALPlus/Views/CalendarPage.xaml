@@ -60,47 +60,22 @@
 
             <CarouselView x:Name="CalendarCarousel"
                           ItemsSource="{Binding CalendarData}"
-                          Position="{Binding CalendarPivotIndex, Mode=TwoWay}"
+                          Position="0"
                           IsSwipeEnabled="True"
                           Loop="False">
                 <CarouselView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Padding="16">
-                            <!-- No day header here: the fixed strip above already names the day
-                                 and shows its count, so repeating it inside the pager was pure
-                                 duplication. It also left a blank band on the summary page, whose
-                                 header never had any text to show. -->
-                            <Grid Loaded="OnDayPageLoaded">
-                                <controls:AnimePosterGrid x:Name="DayGrid"
-                                    ItemsSource="{Binding Items}">
-                                    <controls:AnimePosterGrid.CellTemplate>
-                                        <DataTemplate>
-                                            <Grid BackgroundColor="Transparent">
-                                                <Grid.GestureRecognizers>
-                                                    <TapGestureRecognizer Tapped="OnPosterTapped"
-                                                                          CommandParameter="{Binding .}" />
-                                                </Grid.GestureRecognizers>
-                                                <controls:AnimePosterCard
-                                                    HeightRequest="195"
-                                                    PosterUrl="{Binding ImgUrl}"
-                                                    Title="{Binding Title}"
-                                                    TitleOverlay="True"
-                                                    TypeTag="{Binding TypeTag}"
-                                                    BadgeVisible="True"
-                                                    BadgeAccent="{Binding LibraryBadgeAccent}"
-                                                    BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
-                                                    BadgeMain="{Binding CalendarBadgeMain}"
-                                                    BadgeExtra="{Binding AirDayTillBind}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </controls:AnimePosterGrid.CellTemplate>
-                                </controls:AnimePosterGrid>
+                        <!-- No day header here: the fixed strip above already names the day
+                             and shows its count. Edge-to-edge poster grid matches the rest of the app. -->
+                        <Grid Loaded="OnDayPageLoaded">
+                            <controls:AnimePosterGrid x:Name="DayGrid"
+                                ItemsSource="{Binding Items}"
+                                ItemTapped="OnGridItemTapped" />
 
-                                <Label Text="Nothing airing today" FontFamily="Inter" FontSize="14"
-                                       TextColor="#80FFFFFF" HorizontalOptions="Center"
-                                       VerticalOptions="Center"
-                                       IsVisible="{Binding Source={x:Reference DayGrid}, Path=IsEmpty}" />
-                            </Grid>
+                            <Label Text="Nothing airing today" FontFamily="Inter" FontSize="14"
+                                   TextColor="#80FFFFFF" HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   IsVisible="{Binding Source={x:Reference DayGrid}, Path=IsEmpty}" />
                         </Grid>
                     </DataTemplate>
                 </CarouselView.ItemTemplate>

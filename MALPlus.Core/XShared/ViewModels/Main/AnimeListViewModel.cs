@@ -2427,9 +2427,9 @@ catch (Exception)
 
                 var match = anime
                     ? _animeLibraryDataStorage.AllLoadedAuthAnimeItems.FirstOrDefault(abstraction =>
-                        forceMal ? abstraction.MalId == id : abstraction.Id == id)
+                        abstraction.MalId == id || abstraction.Id == id)
                     : _animeLibraryDataStorage.AllLoadedAuthMangaItems.FirstOrDefault(abstraction =>
-                        forceMal ? abstraction.MalId == id : abstraction.Id == id);
+                        abstraction.MalId == id || abstraction.Id == id);
                 return match?.ViewModel;
             }
             catch (Exception)
@@ -2446,9 +2446,9 @@ catch (Exception)
             {
                 var match = anime
                     ? _animeLibraryDataStorage.AllLoadedAuthAnimeItems.FirstOrDefault(abstraction =>
-                        forceMal ? abstraction.MalId == id : abstraction.Id == id)
+                        abstraction.MalId == id || abstraction.Id == id)
                     : _animeLibraryDataStorage.AllLoadedAuthMangaItems.FirstOrDefault(abstraction =>
-                        forceMal ? abstraction.MalId == id : abstraction.Id == id);
+                        abstraction.MalId == id || abstraction.Id == id);
                 return match?.ViewModel;
             }
             catch (Exception)

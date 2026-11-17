@@ -1909,6 +1909,7 @@ private async void OnJapaneseVoiceClicked(object sender, EventArgs e)
             // video; sizing the video to row 1 left a dead band across the top of the picture.
             Grid.SetRow(_videoWebView, 0);
             Grid.SetRowSpan(_videoWebView, 2);
+            _videoWebView.ZIndex = 1;
             VideoOverlay.Add(_videoWebView);
 #if ANDROID
         _videoWebView.HandlerChanged += OnVideoWebViewHandlerChanged;
@@ -1950,13 +1951,28 @@ private async void OnJapaneseVoiceClicked(object sender, EventArgs e)
                 return;
             VideoWebViewHelper.BackHandler = OnVideoBackPressed;
             MainActivity.ArmVideoBackCallback();
+            OrientationPolicy.SetVideoActive(true);
             VideoOverlay.IsVisible = true;
             SetSystemBars(true);
 
-            // Everything plays on the WebView now, direct media included. ExoPlayer is still wired up
-            // below but no URL is routed to it, so this branch reads as what it is: one player.
+            if (VideoWebViewHelper.IsDirectMedia(url))
+            {
+                if (_videoWebView != null)
+                {
+                    VideoWebViewHelper.StopMediaAndClear(_videoWebView);
+                    _videoWebView.IsVisible = false;
+                }
+                _directMediaUrl = url;
+                DirectVideoPlayer.IsVisible = true;
+                DirectVideoPlayer.Source = url;
+                VideoWebViewHelper.ActivePlatformWebView = null;
+                return;
+            }
+
             StopDirectMedia();
             var webView = EnsureVideoWebView();
+            webView.IsVisible = true;
+            VideoWebViewHelper.ActivePlatformWebView = webView.Handler?.PlatformView as global::Android.Webkit.WebView;
             VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
 
             // Only when this theme is asked for right after the last one was. Tapping down the list
@@ -1978,7 +1994,7 @@ private async void OnJapaneseVoiceClicked(object sender, EventArgs e)
         }
         catch (Exception ex)
         {
-            global::Android.Util.Log.Warn("MALPlus Video", "ShowVideoOverlay: " + ex.GetType().Name);
+            global::Android.Util.Log.Warn("MALPlus Video", "ShowVideoOverlay: " + ex);
         }
     }
 
@@ -2288,6 +2304,8 @@ private void HideVideoLoading()
             // Leaving full screen is part of closing, not something to remember: an overlay that went
             // away while the activity was still landscape left the whole app sideways.
             FullscreenVideo.Exit();
+            OrientationPolicy.SetVideoActive(false);
+            VideoWebViewHelper.ActivePlatformWebView = null;
             if (VideoOverlay != null && VideoOverlay.IsVisible)
                 VideoWebViewHelper.BackHandler = null;
 
@@ -2307,6 +2325,13 @@ private void HideVideoLoading()
 
     private void CloseVideoOverlay(object sender, EventArgs e)
     {
+        if (FullscreenVideo.IsActive)
+        {
+            if (VideoWebViewHelper.TryExitCustomView())
+                return;
+            FullscreenVideo.Exit();
+            return;
+        }
         HideVideoLoading();
     }
 

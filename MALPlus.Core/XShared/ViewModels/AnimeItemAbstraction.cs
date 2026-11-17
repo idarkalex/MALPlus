@@ -83,8 +83,10 @@ namespace MALPlus.XShared.ViewModels
             if (string.IsNullOrEmpty(VolatileData.AirStartDate) && !string.IsNullOrEmpty(entry?.AirStartDate))
                 VolatileData.AirStartDate = entry.AirStartDate;
 
-            if (VolatileData.GlobalScore <= 0)
-                GlobalScore = entry?.GlobalScore ?? 0;
+            if (VolatileData.GlobalScore <= 0 && (entry?.GlobalScore ?? 0) > 0)
+                GlobalScore = entry.GlobalScore;
+            else if (GlobalScore <= 0 && VolatileData.GlobalScore > 0)
+                GlobalScore = VolatileData.GlobalScore;
         }
 
         //three constructors depending on original init

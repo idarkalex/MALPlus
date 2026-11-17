@@ -39,7 +39,7 @@ public static class FullscreenVideo
             // closes itself the moment it opens.
             OrientationPolicy.Suspended = true;
 
-            activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Landscape;
+            activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.SensorLandscape;
 
             var window = activity.Window;
             if (window == null)
@@ -153,14 +153,12 @@ public static class FullscreenVideo
                 }
             }
 
+            IsActive = false;
+
             // The lock starts applying again BEFORE the orientation is handed back, so the rotation to
             // portrait it causes cannot be undone by a later configuration change.
             OrientationPolicy.Suspended = false;
             RestoreDesiredOrientation();
-
-            // The overlays paint the bars themselves on close, so the colour is left to them; all
-            // that matters here is that they are visible again.
-            IsActive = false;
         }
         catch (Exception ex)
         {

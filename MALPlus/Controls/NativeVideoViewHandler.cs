@@ -208,10 +208,10 @@ protected override FrameLayout CreatePlatformView() =>
         // moment requires.
         builder.SetLoadControl(new DefaultLoadControl.Builder()
             .SetBufferDurationsMs(
-                2500,  // bufferForPlayback: enough to start without a stall
-                500,   // bufferForPlaybackAfterRebuffer: only rebuffer on a real underrun
-                1500,  // minBuffer: never drop below this
-                3000)  // upper bound kept small on purpose
+                15000, // minBufferMs: keep 15s buffered ahead to absorb CDN jitter
+                30000, // maxBufferMs: 30s buffer ahead
+                2500,  // bufferForPlaybackMs: enough to start without delay
+                5000)  // bufferForPlaybackAfterRebufferMs: wait for 5s on rebuffer
             .SetPrioritizeTimeOverSizeThresholds(true)
             .Build());
 

@@ -35,14 +35,38 @@ public static class OrientationPolicy
     ///     True while a video is in full screen, which is the one moment the app is allowed to leave
     ///     portrait on a phone.
     /// </summary>
-    /// <remarks>
-    ///     Without this the two features cancel each other out. A landscape video rotates the window,
-    ///     which raises a configuration change, which re-applies the portrait lock, which rotates it
-    ///     straight back, which WebView reports as the video leaving full screen: the picture closes
-    ///     itself the instant it opens. The lock and the full screen video were each correct on their
-    ///     own and fought each other through this callback.
-    /// </remarks>
     public static bool Suspended { get; internal set; }
+
+    /// <summary>
+    ///     True while any video overlay is active.
+    /// </summary>
+    public static bool IsVideoActive { get; set; }
+
+    /// <summary>
+    ///     Updates video active state, starts/stops physical orientation tracking, and re-applies policy.
+    /// </summary>
+    public static void SetVideoActive(bool active)
+    {
+        IsVideoActive = active;
+        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+#if ANDROID
+        if (active)
+        {
+            if (_orientationListener == null && activity != null)
+                _orientationListener = new VideoOrientationListener(activity);
+
+            _orientationListener?.Reset();
+            if (_orientationListener?.CanDetectOrientation() == true)
+                _orientationListener.Enable();
+        }
+        else
+        {
+            _orientationListener?.Disable();
+        }
+#endif
+        if (activity != null)
+            Apply(activity);
+    }
 
     /// <summary>
     ///     What the activity should be asked for, given its current configuration. Exposed because
@@ -59,8 +83,8 @@ public static class OrientationPolicy
     public static global::Android.Content.PM.ScreenOrientation Desired(
         global::Android.Content.Res.Configuration configuration, bool videoFullscreen = false)
     {
-        if (videoFullscreen)
-            return global::Android.Content.PM.ScreenOrientation.Landscape;
+        if (videoFullscreen || FullscreenVideo.IsActive)
+            return global::Android.Content.PM.ScreenOrientation.SensorLandscape;
 
         if (configuration == null)
             return global::Android.Content.PM.ScreenOrientation.UserPortrait;
@@ -109,4 +133,89 @@ public static class OrientationPolicy
             global::Android.Util.Log.Warn("MALPlus", "orientation policy failed: " + ex.GetType().Name);
         }
     }
+
+#if ANDROID
+    private static VideoOrientationListener _orientationListener;
+
+    private sealed class VideoOrientationListener : global::Android.Views.OrientationEventListener
+    {
+        private bool? _wasLandscape;
+        private long _lastTransitionTime;
+
+        public VideoOrientationListener(global::Android.Content.Context context)
+            : base(context, global::Android.Hardware.SensorDelay.Ui)
+        {
+        }
+
+        public void Reset()
+        {
+            _wasLandscape = null;
+            _lastTransitionTime = 0;
+        }
+
+        public override void OnOrientationChanged(int orientation)
+        {
+            if (orientation == OrientationUnknown || !IsVideoActive)
+                return;
+
+            // Landscape posture: right landscape 60°..120° or left landscape 240°..300°
+            bool isLandscape = (orientation >= 60 && orientation <= 120) ||
+                               (orientation >= 240 && orientation <= 300);
+
+            // Portrait posture: upright 330°..360°/0°..30° or upside down 150°..210°
+            bool isPortrait = (orientation >= 330 || orientation <= 30) ||
+                              (orientation >= 150 && orientation <= 210);
+
+            if (!isLandscape && !isPortrait)
+                return; // Transitional angle, do not switch yet
+
+            if (_wasLandscape.HasValue && _wasLandscape.Value == isLandscape)
+                return; // Posture hasn't changed
+
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (_wasLandscape.HasValue &&
+                (now - _lastTransitionTime) < (System.Diagnostics.Stopwatch.Frequency * 350 / 1000))
+            {
+                return; // Debounce rapid tilts
+            }
+
+            _wasLandscape = isLandscape;
+            _lastTransitionTime = now;
+
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (!IsVideoActive)
+                    return;
+
+                if (isLandscape)
+                {
+                    if (!FullscreenVideo.IsActive)
+                    {
+                        if (VideoWebViewHelper.ActivePlatformWebView != null)
+                        {
+                            global::Android.Util.Log.Info("MALPlus Video", "Rotation triggering RequestWebViewFullscreen");
+                            VideoWebViewHelper.RequestWebViewFullscreen();
+                        }
+                        else
+                        {
+                            global::Android.Util.Log.Info("MALPlus Video", "Rotation entering ExoPlayer fullscreen");
+                            FullscreenVideo.Enter();
+                        }
+                    }
+                }
+                else
+                {
+                    if (FullscreenVideo.IsActive)
+                    {
+                        global::Android.Util.Log.Info("MALPlus Video", "Rotation triggered FullscreenVideo.Exit()");
+                        if (!VideoWebViewHelper.TryExitCustomView())
+                        {
+                            FullscreenVideo.Exit();
+                        }
+                    }
+                }
+            });
+        }
+    }
+#endif
 }

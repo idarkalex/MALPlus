@@ -991,24 +991,9 @@
                     <Button Grid.Column="0" Text="Add to List" Command="{Binding AddAnimeCommand}" IsVisible="{Binding AddAnimeVisibility}"
                             IsEnabled="{Binding IsAddAnimeButtonEnabled}" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
                             TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0" />
-                    <Button Grid.Column="0" Text="★ Unranked" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
-                            TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0">
-                        <Button.IsVisible>
-                            <MultiBinding Converter="{StaticResource MultiAnd}">
-                                <Binding Path="AddAnimeVisibility" Converter="{StaticResource BoolVis}" ConverterParameter="invert" />
-                                <Binding Path="IsMyScoreSet" Converter="{StaticResource BoolVis}" ConverterParameter="invert" />
-                            </MultiBinding>
-                        </Button.IsVisible>
-                    </Button>
                     <Button Grid.Column="0" Text="{Binding MyScoreBind, StringFormat='★ {0}'}" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="#141d2b" TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0">
-                        <Button.IsVisible>
-                            <MultiBinding Converter="{StaticResource MultiAnd}">
-                                <Binding Path="AddAnimeVisibility" Converter="{StaticResource BoolVis}" ConverterParameter="invert" />
-                                <Binding Path="IsMyScoreSet" />
-                            </MultiBinding>
-                        </Button.IsVisible>
-                    </Button>
+                            BackgroundColor="#141d2b" TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0"
+                            IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
                     <Button Grid.Column="1" x:Name="FavouriteButton" Text="♥ Favorite" Command="{Binding ToggleFavouriteCommand}"
                             IsEnabled="{Binding IsFavouriteButtonEnabled}" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
                             TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0">
@@ -1079,21 +1064,15 @@
             <Border x:Name="VideoCloseButton" Grid.Row="0" HorizontalOptions="End" VerticalOptions="Center"
                     Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
                     BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 20">
+                    StrokeShape="RoundRectangle 20" ZIndex="50">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="CloseVideoOverlay" />
                 </Border.GestureRecognizers>
                 <Label Text="✕" FontFamily="InterBold" FontSize="18" TextColor="White"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-<!-- Direct media (AnimeThemes WebM) plays on ExoPlayer here. The WebView below handles YouTube,
-                   which ExoPlayer cannot load at all because a watch page is HTML with an iframe.
-                   The WebView is created by ShowVideoOverlay rather than declared here: an Android
-                   WebView spawns a Chromium child process and costs 100-400ms plus tens of MB,
-                   and MAUI builds handlers for the whole tree when the page attaches, so declaring
-                   it stalled EVERY details open for a video nobody played. -->
-                <controls:NativeVideoView x:Name="DirectVideoPlayer" Grid.Row="1" IsVisible="False"
-                                           VerticalOptions="Fill" HorizontalOptions="Fill"
+                <controls:NativeVideoView x:Name="DirectVideoPlayer" Grid.Row="0" Grid.RowSpan="2" IsVisible="False"
+                                           VerticalOptions="Fill" HorizontalOptions="Fill" ZIndex="1"
                                            PlayFailed="OnDirectVideoFailed" />
 
             </Grid>

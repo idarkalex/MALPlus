@@ -983,6 +983,16 @@ RaisePropertyChanged(() => GeneralSeason);
             var heroSyncBefore = _timeTillNextAirCache;
             //basic init assignment
             _animeItemReference = param.AnimeItem;
+            if (_animeItemReference is AnimeItemViewModel immediateAuth && immediateAuth.Auth)
+            {
+                MyDetailsVisibility = true;
+                AddAnimeVisibility = false;
+                RaisePropertyChanged(() => MyScoreBind);
+                RaisePropertyChanged(() => IsMyScoreSet);
+                RaisePropertyChanged(() => MyStatusBind);
+                RaisePropertyChanged(() => MyEpisodesBind);
+                RaisePropertyChanged(() => MyEpisodesStepperBind);
+            }
             // Pre-populate hero from grid item for instant visual feedback (like v2)
             if (param.AnimeItem is AnimeItemViewModel heroVm && !string.IsNullOrEmpty(heroVm.ImgUrl))
             {
@@ -1106,12 +1116,15 @@ RaisePropertyChanged(() => GeneralSeason);
                     var collection = new ObservableCollection<string>(tags);
                     MyTags = collection;
                 }
+                UpdateAnimeReferenceUiBindings(param.Id);
             }
             else
             {
                 IsRemoveAnimeButtonEnabled = false;
                 IsAddAnimeButtonEnabled = true;
                 MyTags = new ObservableCollection<string>();
+                RaisePropertyChanged(() => MyScoreBind);
+                RaisePropertyChanged(() => IsMyScoreSet);
             }
 
             switch (param.Source)
@@ -1232,7 +1245,9 @@ RaisePropertyChanged(() => GeneralSeason);
             RaisePropertyChanged(() => MyEpisodesStepperBind);
             RaisePropertyChanged(() => MyVolumesBind);
             RaisePropertyChanged(() => MyStatusBind);
+            RaisePropertyChanged(() => MyScore);
             RaisePropertyChanged(() => MyScoreBind);
+            RaisePropertyChanged(() => IsMyScoreSet);
             RaisePropertyChanged(() => MyStartDate);
             RaisePropertyChanged(() => MyEndDate);
             RaisePropertyChanged(() => IncrementEpsCommand);
