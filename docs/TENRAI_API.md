@@ -117,6 +117,62 @@ The following endpoints and capabilities are available in Tenrai API and can be 
     - `genres`, `genres_exclude`, `sort=asc|desc`
     - `exclude_ids`: Exclude titles already in user's library (up to 1,000 IDs).
 
+#### 🆕 Top anime parameter additions (Nov 2026)
+Added to `/top/anime`. Ranking order unchanged:
+- `status`, `status_exclude` — Filter/exclude by airing status.
+- `type_exclude` — Exclude selected types (opposite of `type`).
+- `rating_exclude` — Exclude selected rating buckets server-side.
+- `source`, `source_exclude` — Filter/exclude by source material (e.g. `manga`, `light_novel`, `original`).
+- `year`, `min_year`, `max_year` — Filter by calendar year the anime started airing.
+- `season`, `season_year` — Filter by MAL's debut season and its year.
+- `min_score`, `max_score` — Filter by score.
+- `min_scored_by`, `max_scored_by` — Filter by number of scoring users.
+- `min_reviews`, `max_reviews` — Filter by review count.
+- `has_trailer` — Filter by trailer availability.
+- `has_relations` — Filter by whether the entry has related anime/manga.
+- `streaming_service` — Filter by streaming provider (`crunchyroll`, `netflix`, `hidive`, etc.). Case-insensitive, known aliases accepted. Does not verify regional availability.
+
+#### 🆕 Top manga parameter additions (Nov 2026)
+Added to `/top/manga`. Ranking order unchanged:
+- `status`, `status_exclude` — Filter/exclude by publication status.
+- `type_exclude` — Exclude selected manga types.
+- `year`, `min_year`, `max_year` — Filter by calendar year publishing started.
+- `min_score`, `max_score` — Filter by score.
+- `min_scored_by`, `max_scored_by` — Filter by number of scoring users.
+- `solo_author` — Filter by whether one person both wrote and drew it.
+- `min_reviews`, `max_reviews` — Filter by review count.
+
+#### 🆕 Top episodes parameter additions (Nov 2026)
+- `aired_after`, `aired_before` — Filter by episode air date.
+- `year`, `min_year`, `max_year` — Filter by air year.
+- `min_episode`, `max_episode` — Filter by episode number.
+- `filler` — Filter by MAL filler flag.
+- `recap` — Filter by MAL recap flag.
+- `min_duration`, `max_duration` — Filter by episode length in seconds.
+- `max_per_anime` — Limit results to N episodes per anime.
+- `exclude_ids` — Exclude anime (and all their episodes) by MAL ID.
+- Anime-level filters: `type`, `type_exclude`, `rating`, `rating_exclude`, `status`, `status_exclude`, `source`, `source_exclude`, `genres`, `genres_exclude`, `season`, `season_year`, `min_anime_score`, `max_anime_score`, `min_anime_members`, `max_anime_members`, `min_anime_episodes`, `max_anime_episodes`.
+- Sorting: `order_by` adds `rank` (default), `aired`, `duration`, `title`, `title_japanese`, `title_romanji`; `sort` and `nulls` apply as usual.
+
+#### 🆕 Top videos parameter additions (Nov 2026)
+- `min_views`, `max_views` — Filter by YouTube view count.
+- `min_likes`, `max_likes` — Filter by YouTube like count.
+- `min_dislikes`, `max_dislikes` — Filter by estimated dislike count.
+- `min_comments`, `max_comments` — Filter by comment count.
+- `published_after`, `published_before` — Filter by upload date.
+- `uploaded_within` — Only videos uploaded in the last `7d`, `30d`, or `90d`.
+- `max_per_anime` — Limit results to N videos per anime.
+- Sorting: `order_by` adds `duration`; `nulls` applies; `order_by=title` now puts untitled videos last.
+
+#### 🆕 Top people & characters SFW flags (Nov 2026)
+- `sfw`, `sfw-strict` on `/top/people` — Filter out people who only worked on non-SFW entries.
+- `sfw`, `sfw-strict` on `/top/characters` — Filter out characters that only appear in non-SFW entries.
+
+**Integration opportunities in MAL+:**
+- `AnimeTopQuery` currently builds query strings via `GetAnimeApiQuery`/`GetMangaApiQuery`. The new `source`, `season`, `season_year`, `streaming_service`, `year` and score-range params can back richer filter chips in the Top Anime/Manga UI with zero extra plumbing.
+- `max_per_anime` on `/top/videos` and `/top/episodes` is immediately useful for the Videos page to avoid one anime dominating the feed.
+- `uploaded_within=30d` on `/top/videos` can power a "Recent PVs" surface in Discover.
+
 ### 2. Manga Adapted to Anime (`/adapted`)
 - **`GET /adapted`**
   - Dedicated endpoint listing exclusively manga series that have received an anime adaptation.
@@ -135,6 +191,24 @@ The following endpoints and capabilities are available in Tenrai API and can be 
   - Full weekly airing broadcast schedule with precise timezones (`broadcast.day`, `broadcast.time`, `broadcast.timezone`, `broadcast.string`).
   - Parameters: `filter` (`monday` ... `sunday`), `type`, `rating`, `genres`, `genres_exclude`, `exclude_ids`.
   - Replaces external third-party schedule JSON feeds.
+
+#### 🆕 Schedule endpoint additions (Nov 2026)
+New parameters added to `/schedules`:
+- `filter` — Now also accepts **`today`** and **`tomorrow`**, evaluated relative to midnight **Japan time (JST)**. Useful for a "today's airing" view without client-side day calculation.
+- `type_exclude` — Exclude selected anime types (opposite of `type`). E.g. `type_exclude=music,cm,pv`.
+- `status`, `status_exclude` — Filter by airing status (`currently_airing`, `finished_airing`, etc.) or exclude selected statuses.
+- `rating_exclude` — Exclude selected rating buckets on the server (e.g. `rating_exclude=rx`). Complements the existing `rating_exclude` on seasonal endpoints.
+- `exclude_ids` — Comma-separated MAL IDs to omit from results (e.g. exclude already-watched series from the schedule view).
+
+**Sorting:**
+- `order_by` — Sort results by `mal_id`, `title`, `title_english`, `title_japanese`, `start_date`, `end_date`, `episodes`, `score`, `scored_by`, `rank`, `popularity`, `members`, `favorites`, or `added`.
+- `sort` — `asc` (default) or `desc`. Only applies when `order_by` is set.
+- `nulls` — Control placement of entries missing the sorted value (`first` or `last`). Requires `order_by`.
+
+**Integration opportunity in MAL+:**
+- `AnimeSchedulesQuery.GetScheduleAsync()` currently fetches all pages and filters client-side. The `filter=today` / `filter=tomorrow` shortcut can back a "Today's Airing" summary card in Discover.
+- `order_by=score&sort=desc` on the schedule could power a "Best airing today" surface without extra ranking logic.
+- `exclude_ids` with the user's completed/dropped IDs could auto-hide finished shows from the airing view.
 
 ### 4. High-Performance Batch Lookups
 - **`GET /anime/{id}/full?ids={id1},{id2},...` & `GET /manga/{id}/full?ids=...`**
