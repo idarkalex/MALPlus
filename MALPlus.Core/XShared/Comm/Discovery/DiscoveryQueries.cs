@@ -115,14 +115,10 @@ public class DiscoveryItem
                     if (item == null)
                         continue;
 
-                    // Justify the trend with rank and formatted members so users know why it's trending:
-                    var memberStr = item.Members >= 1_000_000
-                        ? $"{item.Members / 1_000_000.0:F1}M"
-                        : item.Members >= 1_000
-                            ? $"{item.Members / 1_000.0:F1}K"
-                            : item.Members.ToString();
-
-                    item.Subtitle = $"#{rank} in weekly member growth · {memberStr} members";
+                    // Justify the trend with rank and clean momentum indicator (Option A):
+                    item.Subtitle = rank == 1
+                        ? "#1 Trending · Top weekly growth"
+                        : $"#{rank} Trending · High weekly growth";
                     output.Add(item);
                     rank++;
 
