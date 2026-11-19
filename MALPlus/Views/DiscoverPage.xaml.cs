@@ -103,18 +103,17 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
         if (!await GuardAsync()) return;
         try
         {
-            // AniList's own trending metric, restricted to what is currently airing.
-            // See AniListTrendingQuery for why that restriction is the whole trick.
-            var items = await AniListTrendingQuery.GetAsync(TrendingResultCount);
+            // Native Tenrai weekly momentum: airing anime sorted by net members gained over the past 7 days.
+            var items = await DiscoveryTrendingQuery.GetAsync(TrendingResultCount);
             if (items.Count == 0)
             {
                 global::Android.Util.Log.Warn("MALPlus Discover",
-                    "trending failed: " + AniListTrendingQuery.LastError);
+                    "trending failed: " + DiscoveryTrendingQuery.LastError);
                 await Alert("Could not load trending.");
             }
             else
             {
-                await ShowResults("Trending now", items);
+                await ShowResults("Trending this week", items);
             }
         }
         catch { }
