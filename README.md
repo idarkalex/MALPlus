@@ -71,9 +71,11 @@
 ## 📱 Preview & Screenshots
 
 <p align="center">
-  <img src="images/preview-library.png" alt="Library View" width="330px" />
+  <img src="images/preview-library.png" alt="Library View" width="260px" />
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="images/preview-details.png" alt="Anime Details Hero" width="330px" />
+  <img src="images/preview-details.png" alt="Anime Details Hero" width="260px" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="images/preview-discover.png" alt="Discover Hub" width="260px" />
 </p>
 
 ---
