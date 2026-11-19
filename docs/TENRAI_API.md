@@ -153,6 +153,7 @@ Added to `/top/manga`. Ranking order unchanged:
 - `filler` — Filter by MAL filler flag.
 - `recap` — Filter by MAL recap flag.
 - `min_duration`, `max_duration` — Filter by episode length in seconds.
+- `min_votes`, `max_votes` — Filter by the number of votes in the episode's discussion poll.
 - `max_per_anime` — Limit results to N episodes per anime.
 - `exclude_ids` — Exclude anime (and all their episodes) by MAL ID.
 - Anime-level filters: `type`, `type_exclude`, `rating`, `rating_exclude`, `status`, `status_exclude`, `source`, `source_exclude`, `genres`, `genres_exclude`, `season`, `season_year`, `min_anime_score`, `max_anime_score`, `min_anime_members`, `max_anime_members`, `min_anime_episodes`, `max_anime_episodes`.
@@ -235,47 +236,80 @@ Available on both `/anime` and `/manga`:
 
 ### 6. Expanded Character, People & Producer Endpoints
 - **`GET /characters`:** Search with filters: `anime`, `manga`, `role`, `role_only`, `appears_in=anime|manga|both`, `airing`, `voice_actors`, `voice_language`, `min_appearances`, `min_main_roles`.
+  - `sfw`, `sfw-strict` on `/characters/{id}/full` — Filter out non-SFW anime and manga, and voice actors who only appear in non-SFW anime.
+  - `sfw`, `sfw-strict` on `/characters/{id}/voices` — Filter out voice actors who only appear in non-SFW anime.
 - **`GET /people`:** Search voice actors and creators by `anime`, `manga`, `characters`, `credit` (`voice`, `staff`, `author`), `position`, `voice_language`, `min_voice_roles`.
 - **`GET /producers`:** Search studios by `role` (`studio`, `producer`, `licensor`), `worked_with`, `airing`, `min_anime`, `debut_after`, `established_after`.
+- **`GET /magazines`:**
+  - `sfw`, `sfw-strict` — Count only manga that pass the SFW filter.
 
 ### 7. Community Reviews, News & Articles
-- **`GET /news` & `GET /articles`:** Search with `order_by=published_at|comments`, `published_after`, `published_before`, and `author_username`.
-- **`GET /reviews/anime` & `GET /reviews/manga`:** Global reviews catalogue across all titles with deep filtering and sorting (Nov 2026):
+- **`GET /news` & `GET /articles`:**
+  - `tag`: Filter by tag name (now accepts several comma-separated values).
+  - `tag_exclude`: Exclude posts with any of these tags.
+  - `anime_ids`, `manga_ids`: Restrict items to specific anime or manga IDs.
+  - `people_ids`, `character_ids`: Restrict articles to specific people or characters (`/articles` only).
+  - `author_username`: Filter by author.
+  - `published_after`, `published_before`: Date range filtering.
+  - `order_by`: Sort by `published_at` (default), `comments`, `title`, or `mal_id`.
+  - `sfw`, `sfw-strict` on `/news/tags` and `/articles/tags` — Count only posts that pass the SFW filter.
+
+- **`GET /news/{id}` & `GET /articles/{id}` (Text format):**
+  - `format`: Return text as `markdown`, `html`, or `both` (default is `both`).
+  - Response envelope: `data.content.markdown` and/or `data.content.html`.
+  - **MAL+ Integration:** Directly integrated into `MalArticleQuery` (`MALPlus.Core/XShared/Comm/Articles/MalArticleQuery.cs`). When opening any MAL news or featured article, the app requests `format=html` to obtain sanitized, responsive article HTML directly from Tenrai without downloading the entire desktop page or running fragile web scrapers.
+
+- **`GET /anime/{id}/reviews` & `GET /manga/{id}/reviews` (Title Reviews):**
   - **Reviewer & Post Filters:**
-    - `score`, `min_score`, `max_score`: Filter by the numerical score given by the reviewer (1-10).
-    - `published_after`, `published_before`: Filter by date posted (ISO 8601).
+    - `score`, `min_score`, `max_score`: Filter by reviewer's given score (1-10).
+    - `published_after`, `published_before`: Filter by date posted.
     - `sentiment`: Filter by reviewer sentiment (accepts several values).
+    - `min_reactions`, `max_reactions`: Filter by review's total reaction count.
+    - `reaction`, `min_reaction_count`: Require specific reaction kinds and minimum counts.
+  - **Review Sorting:**
+    - `order_by`: Sort by `score` (reviewer score) or one of the seven reaction kinds (`nice`, `love_it`, `funny`, `confusing`, `informative`, `well_written`, `creative`), highest first. The selected sort breaks ties.
+    - `nulls`: Control placement of reviews missing the sorted value (`first` or `last`).
+
+- **`GET /reviews/anime` & `GET /reviews/manga` (Global Reviews Catalogue):**
+  - Full cross-title reviews catalogue supporting all reviewer/post filters above plus:
     - `anime_ids`, `manga_ids`: Restrict reviews to specific MAL IDs.
     - `exclude_ids`: Omit reviews belonging to selected MAL IDs.
-    - `min_reactions`, `max_reactions`: Filter by review's total reactions.
-    - `reaction`, `min_reaction_count`: Require specific reaction types and minimum thresholds.
     - `max_per_entry`: Cap number of reviews returned per anime/manga (e.g. `max_per_entry=1` for diverse feeds).
-  - **Review Target Entry Filters:**
     - `type`, `type_exclude`: Filter/exclude by entry format (`tv`, `movie`, `manga`, etc.).
     - `status`, `status_exclude`: Filter/exclude by airing/publishing status.
     - `genres`, `genres_exclude`: Filter/exclude by genre, theme, or demographic IDs.
     - `source`, `source_exclude`: Filter/exclude by source material (Anime only).
     - `producers`, `producers_exclude`: Filter/exclude by producer/studio MAL IDs (Anime only).
-  - **Review Sorting:**
-    - `order_by`: `score` (reviewer's score) and individual reaction buckets (`funny`, `nice`, `love_it`, `confusing`, `informative`, `well_written`), sorting highest first. Ties broken by secondary criteria.
-    - `nulls`: Controls placement of reviews missing the sorted value (`first` or `last`).
 
-### 8. Trend Metrics & Momentum Sorting (Nov 2026)
+### 8. Interest Stacks (`/stacks`, `/anime/{id}/stacks`, `/manga/{id}/stacks`)
+Thematic user-curated interest stacks from MyAnimeList:
+- `author_username`: Only stacks by this curator.
+- `has_notes`, `min_noted_entries`: Filter by whether/how many entries have a curator note.
+- `has_author_scores`, `min_scored_entries`: Filter by whether/how many entries have a curator score.
+- `min_entries`, `max_entries`: Filter by stack entry count.
+- `min_restacks`, `max_restacks`: Filter by restack (bookmark/save) count.
+- `created_after`, `created_before`: Filter by stack creation date.
+- `max_per_author`: Show at most this many stacks from each curator.
+- `anime_ids`, `manga_ids`: Restrict stacks to those containing any of these anime or manga (`/stacks` only).
+- `order_by`: Adds `entry_count`, `title`, and `mal_id` (plus relevance).
+
+### 9. Trend Metrics & Momentum Sorting (Nov 2026)
 Added to `/anime`, `/manga`, `/manga/adapted`, `/schedules`, and all seasonal lists (`/seasons/{year}/{season}`, `/seasons/now`, `/seasons/previous`, `/seasons/upcoming`):
 
-- **`order_by=members_gained_7d`**: Net change in member count over the past 7 days. Reflects real-time community momentum and current viewing trends. (Integrated in MAL+ Discover Hub as a resilient native fallback for trending shows).
+- **`order_by=members_gained_7d`**: Net change in member count over the past 7 days. Reflects real-time community momentum and current viewing trends. (Integrated in MAL+ Discover Hub as the primary driver for "Trending this week").
 - **`order_by=score_change_30d`**: Net change in community rating over the past 30 days. Surfaces sleeper hits and rapidly improving series.
 - **`order_by=score_spread`**: Standard deviation of user ratings. Highlights controversial, divisive, or conversation-sparking titles.
 
 *Note: Trend metrics are computed daily from Tenrai's historical analytics database.*
 
-### 9. Random Pick Endpoints Overhaul (`/random/*`) (Nov 2026)
+### 10. Random Pick Endpoints Overhaul (`/random/*`) (Nov 2026)
 Tenrai provides single-shot randomized discovery endpoints with full filter parity:
 
 #### `GET /random/anime`
 - `q`: Search query string; returns a randomized entry chosen from the matching search results.
 - `letter`: Restricts picks to titles starting with this alphanumeric character.
 - `status`: Accepts multiple status values (e.g. `status=currently_airing,finished_airing`).
+- `min_id`, `max_id`: Only pick from entries whose MAL ID is in this numerical range.
 - `type_exclude`, `status_exclude`, `rating_exclude`, `source_exclude`, `producers_exclude`: Server-side exclusions.
 - `streaming_service`: Filter by platform (`crunchyroll`, `netflix`, `hidive`, etc.).
 - `voice_language`: Filter by credited voice cast language (e.g. `english` dubs).
@@ -286,6 +320,7 @@ Tenrai provides single-shot randomized discovery endpoints with full filter pari
 #### `GET /random/manga`
 - `q` & `letter`: Random search results or starting letter.
 - `status`: Accepts multiple status values.
+- `min_id`, `max_id`: Only pick from entries whose MAL ID is in this numerical range.
 - `type_exclude`, `status_exclude`, `magazines_exclude`, `authors_exclude`: Clean exclusions.
 - `magazines`: Serialized in specific magazine/platform IDs.
 - `solo_author`: `true` for single creator (written & drawn by same person), `false` for multi-author collaborations.
@@ -295,6 +330,7 @@ Tenrai provides single-shot randomized discovery endpoints with full filter pari
 
 #### `GET /random/characters`
 - `letter`: Character name initial.
+- `min_id`, `max_id`: Only pick from characters whose MAL ID is in this numerical range.
 - Profile completeness: `has_about`, `has_image`, `has_nicknames`, `has_kanji`, `has_family_name`.
 - Entry & Role: `anime` or `manga` ID filter, `role` (`main` or `supporting`), `appears_in` (`anime`, `manga`, or `both`).
 - Status & Airing: `airing`, `upcoming`, `publishing` (in currently broadcasting anime or publishing manga), `season`, `season_year`.
@@ -303,6 +339,7 @@ Tenrai provides single-shot randomized discovery endpoints with full filter pari
 
 #### `GET /random/people`
 - `letter`: Person name initial.
+- `min_id`, `max_id`: Only pick from people whose MAL ID is in this numerical range.
 - Bio completeness: `has_about`, `has_image`, `has_birthday`, `has_website`, `has_alternate_names`, `has_family_name`.
 - Entries & Roles: `anime` or `manga` ID filter, `credit` / `credit_exclude` (`voice`, `staff`, `author`), `position` / `position_exclude` (e.g. `director`).
 - Career & Timing: `airing`, `upcoming`, `publishing`, `season`, `season_year`, `active_after`, `active_before`, `debut_after`, `last_credit_before`.
@@ -319,8 +356,10 @@ With recent Tenrai capabilities, the status of legacy scrapers is as follows:
 
 | Feature / Legacy Scraper | Legacy Method | Modern Tenrai Replacement | Migration Status |
 |---|---|---|---|
+| **News & Articles Reader** (`MalArticleQuery`) | HTML scraping (`div.news-container`) | `GET /news/{id}?format=html`<br>`GET /articles/{id}?format=html` | **Migrated & Integrated:** Tenrai provides clean, sanitized article HTML directly in `data.content.html` without loading heavy web pages. |
 | **Manga Adapted to Anime** (`AnimeAdaptedToAnimeQuery`) | HTML scraping | `GET /adapted` | **Ready for migration:** Fully supported by Tenrai with rich filtering and sorting. |
 | **Popular & Promotional Videos** (`PopularVideosQuery`) | HTML scraping (`/watch/promotion`) | `GET /v1/top/videos` | **Ready for migration:** Tenrai provides structured YT video entries. |
 | **Community Recommendations** (`AnimeRecomendationsQuery`) | HTML scraping (`recommendations.php`) | `GET /top/recommendations` | **Ready for migration:** Provides structured recommended pairs. |
 | **Weekly Airing Schedules** (`AiringInfoProvider`) | Third-party feeds | `GET /schedules` | **Ready for migration:** Provides official broadcast timestamps and timezone data. |
+| **Interest Stacks Collections** | None / Web view | `GET /stacks`<br>`GET /anime/{id}/stacks`<br>`GET /manga/{id}/stacks` | **Ready for UI:** First-class API available for curated anime/manga stacks. |
 | **Forums & Discussions** | HTML scraping | None (stays HTML) | **Kept as HTML:** The official MAL API does not expose post message bodies (returns 404/empty). |
