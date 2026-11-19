@@ -8,6 +8,7 @@ using MALPlus.Adapters;
 using MALPlus.XShared.Comm.Anime;
 using MALPlus.XShared.Interfaces;
 using MALPlus.XShared.Utils;
+using MALPlus.XShared.ViewModels;
 using Newtonsoft.Json;
 
 namespace MALPlus.XShared.BL
@@ -156,6 +157,7 @@ namespace MALPlus.XShared.BL
         #region Real next air dates
 
         private const string NextAirCacheFile = "anilist_next_air_v1.json";
+        private const string NextAirEpisodesCacheFile = "anilist_next_air_episodes_v1.json";
         private const string NextAirUpdatedKey = "AiringInfoProviderNextAirLastUpdate";
 
         /// <summary>
@@ -168,6 +170,7 @@ namespace MALPlus.XShared.BL
         ///     </para>
         /// </summary>
         private Dictionary<int, DateTime> _nextAirByMalId = new();
+        private Dictionary<int, int> _nextAirEpisodeByMalId = new();
         private readonly object _nextAirMapLock = new();
         private DateTime _nextAirFetchedAtUtc = DateTime.MinValue;
         private readonly SemaphoreSlim _nextAirGate = new(1, 1);
@@ -234,6 +237,9 @@ namespace MALPlus.XShared.BL
 
         private bool _nextAirKnown(int malId)
         {
+            if (!_nextAirEpisodeByMalId.ContainsKey(malId))
+                return false;
+
             // A date that has already passed is not an answer: the episode aired, and the series'
             // next one is a different date nobody has fetched yet.
             if (_nextAirByMalId.TryGetValue(malId, out var known) && known > DateTime.UtcNow)
@@ -344,8 +350,8 @@ namespace MALPlus.XShared.BL
                     withinWindow = _nextAirFetchedAtUtc > DateTime.MinValue &&
                                    now - _nextAirFetchedAtUtc < window;
                     wanted = ids
-                        .Where(id => !_nextAirByMalId.TryGetValue(id, out var known) || known <= now)
-                        .Where(id => force || !withinWindow || !_nextAirAsked.Contains(id))
+                        .Where(id => !_nextAirByMalId.TryGetValue(id, out var known) || known <= now || !_nextAirEpisodeByMalId.ContainsKey(id))
+                        .Where(id => force || !withinWindow || !_nextAirAsked.Contains(id) || !_nextAirEpisodeByMalId.ContainsKey(id))
                         .ToList();
                     foreach (var id in ids)
                         _nextAirAsked.Add(id);
@@ -354,7 +360,7 @@ namespace MALPlus.XShared.BL
                 if (wanted.Count == 0)
                     return 0;
 
-                var fetched = await AniListAiringQuery.GetNextAiringAsync(wanted);
+                var fetched = await AniListAiringQuery.GetNextAiringInfoAsync(wanted);
                 if (fetched == null || fetched.Count == 0)
                     return 0;
 
@@ -367,14 +373,30 @@ namespace MALPlus.XShared.BL
                         // JoJo's two entries that way, and keeping the first left the series looking
                         // like it had no announced episode. The query drops those on the way in;
                         // this is the belt to that pair of braces.
-                        _nextAirByMalId[pair.Key] = pair.Value;
+                        _nextAirByMalId[pair.Key] = pair.Value.NextAirUtc;
+                        if (pair.Value.NextEpisodeNumber.HasValue)
+                            _nextAirEpisodeByMalId[pair.Key] = pair.Value.NextEpisodeNumber.Value;
+                        else
+                            _nextAirEpisodeByMalId[pair.Key] = 0;
                     }
 
                     // A passed date is dropped rather than kept: it is not a schedule any more, and
                     // keeping it makes the entry look answered forever instead of asked again.
                     foreach (var id in ids)
+                    {
                         if (_nextAirByMalId.TryGetValue(id, out var stale) && stale <= now)
+                        {
                             _nextAirByMalId.Remove(id);
+                            _nextAirEpisodeByMalId.Remove(id);
+                        }
+                    }
+
+                    // For any wanted ID not returned by AniList, mark it as checked (0) so we don't spam AniList
+                    foreach (var id in wanted)
+                    {
+                        if (!_nextAirEpisodeByMalId.ContainsKey(id))
+                            _nextAirEpisodeByMalId[id] = 0;
+                    }
                 }
 
                 _nextAirFetchedAtUtc = now;
@@ -382,10 +404,22 @@ namespace MALPlus.XShared.BL
                 try
                 {
                     Dictionary<int, DateTime> snapshot;
-                    lock (_nextAirMapLock) { snapshot = new Dictionary<int, DateTime>(_nextAirByMalId); }
+                    Dictionary<int, int> epSnapshot;
+                    lock (_nextAirMapLock)
+                    {
+                        snapshot = new Dictionary<int, DateTime>(_nextAirByMalId);
+                        epSnapshot = new Dictionary<int, int>(_nextAirEpisodeByMalId);
+                    }
                     _dataCache.SaveData(snapshot, NextAirCacheFile, null);
+                    _dataCache.SaveData(epSnapshot, NextAirEpisodesCacheFile, null);
                 }
                 catch { }
+
+                if (fetched.Count > 0)
+                {
+                    NotifyUpdated();
+                    SettingsViewModelBase.RefreshAllLoadedCards(refreshTitles: false);
+                }
 
                 return fetched.Count;
             }
@@ -412,9 +446,9 @@ namespace MALPlus.XShared.BL
                                    now - _nextAirFetchedAtUtc < TimeSpan.FromHours(8);
                 foreach (var id in ids)
                 {
-                    if (_nextAirByMalId.TryGetValue(id, out var known) && known > now)
+                    if (_nextAirByMalId.TryGetValue(id, out var known) && known > now && _nextAirEpisodeByMalId.ContainsKey(id))
                         continue;
-                    if (!force && withinWindow && _nextAirAsked.Contains(id))
+                    if (!force && withinWindow && _nextAirAsked.Contains(id) && _nextAirEpisodeByMalId.ContainsKey(id))
                         continue;
                     return true;
                 }
@@ -471,6 +505,16 @@ namespace MALPlus.XShared.BL
                             _nextAirByMalId[pair.Key] = pair.Value;
                     }
                 }
+
+                var cachedEps = _dataCache.RetrieveData<Dictionary<int, int>>(NextAirEpisodesCacheFile, null, 0).Result;
+                if (cachedEps != null && cachedEps.Count > 0)
+                {
+                    lock (_nextAirMapLock)
+                    {
+                        foreach (var pair in cachedEps)
+                            _nextAirEpisodeByMalId[pair.Key] = pair.Value;
+                    }
+                }
             }
             catch (Exception)
             {
@@ -483,6 +527,15 @@ namespace MALPlus.XShared.BL
         public bool TryGetCurrentEpisode(int id, out int episode, DateTime? forDay = null)
         {
             episode = 0;
+            lock (_nextAirMapLock)
+            {
+                if (_nextAirEpisodeByMalId.TryGetValue(id, out var nextEp) && nextEp > 0)
+                {
+                    episode = nextEp;
+                    return true;
+                }
+            }
+
             if (_lookupDictionary == null) return false;
             var currentTimestamp = Utilities.ConvertToUnixTimestamp(DateTime.UtcNow);
             var data = _lookupDictionary[id];
@@ -550,6 +603,19 @@ namespace MALPlus.XShared.BL
         public bool TryGetNextAirDate(int id, DateTime forDay, out DateTime date)
         {
             date = DateTime.MinValue;
+            try
+            {
+                // Where the real next episode lands, not where the weekly slot would.
+                // Checked first so series not present in MAL's static schedule still resolve their verified date.
+                if (TryGetDeclaredNextAirDate(id, out var declared) &&
+                    (declared > DateTime.UtcNow || AirTimeUtils.IsInAiringWindow(declared, DateTime.UtcNow)))
+                {
+                    date = declared;
+                    return true;
+                }
+            }
+            catch { }
+
             if (_lookupDictionary == null) return false;
 
             var data = _lookupDictionary[id];
@@ -558,16 +624,6 @@ namespace MALPlus.XShared.BL
 
             try
             {
-                // Where the real next episode lands, not where the weekly slot would. This used to
-                // read the fabricated slots, which meant every airing entry always had a future date
-                // and a series that had stopped still counted down to it.
-                if (TryGetDeclaredNextAirDate(id, out var declared) &&
-                    (declared > DateTime.UtcNow || AirTimeUtils.IsInAiringWindow(declared, DateTime.UtcNow)))
-                {
-                    date = declared;
-                    return true;
-                }
-
                 if (data.Episodes == null || data.Episodes.Count == 0)
                     return false;
 

@@ -46,7 +46,7 @@
                     <DataTemplate>
                         <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8" Padding="10">
+                                StrokeShape="RoundRectangle 14" Padding="10">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnHistoryEntryTapped"
                                                       CommandParameter="{Binding Value.Item1}" />
@@ -85,8 +85,8 @@
                                            IsVisible="{Binding LoadingMore}" />
 
                         <!-- End of History Card -->
-                        <Border BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                StrokeShape="RoundRectangle 10" Padding="16,12"
+                        <Border BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14" Padding="16,12"
                                 IsVisible="{Binding LoadingVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                             <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
                                 <HorizontalStackLayout Spacing="6" HorizontalOptions="Center">
@@ -95,7 +95,7 @@
                                            TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                                 </HorizontalStackLayout>
                                 <Label Text="MyAnimeList preserves activity logs for up to 3 weeks."
-                                       FontFamily="Inter" FontSize="11" TextColor="#8899A6"
+                                       FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}"
                                        HorizontalOptions="Center" HorizontalTextAlignment="Center" />
                             </VerticalStackLayout>
                         </Border>

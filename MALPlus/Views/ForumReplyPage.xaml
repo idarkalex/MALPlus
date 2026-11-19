@@ -6,7 +6,7 @@
              BackgroundColor="{StaticResource EmBackground}"
              Title="Reply">
     <Grid RowDefinitions="Auto,*">
-        <Grid Padding="16,12,16,8" BackgroundColor="#051522">
+        <Grid Padding="16,12,16,8" BackgroundColor="{StaticResource EmBackground}">
             <Label Text="Reply to topic" FontFamily="InterBold" FontSize="20"
                    TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
         </Grid>

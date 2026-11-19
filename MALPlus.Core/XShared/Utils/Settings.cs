@@ -79,10 +79,27 @@ namespace MALPlus.XShared.Utils
             set => ApplicationDataService["SelectedTheme"] = value;
         }
 
+        public static int AppTheme
+        {
+            get => (int)(ApplicationDataService[nameof(AppTheme)] ?? (DarkThemeAmoled ? (DarkThemeAmoledRealDark ? 2 : 1) : 0));
+            set
+            {
+                ApplicationDataService[nameof(AppTheme)] = value;
+                DarkThemeAmoled = value != 0;
+                DarkThemeAmoledRealDark = value == 2;
+            }
+        }
+
         public static bool DarkThemeAmoled
         {
             get => (bool)(ApplicationDataService[nameof(DarkThemeAmoled)] ?? false);
             set => ApplicationDataService[nameof(DarkThemeAmoled)] = value;
+        }
+
+        public static bool DarkThemeAmoledRealDark
+        {
+            get => (bool)(ApplicationDataService[nameof(DarkThemeAmoledRealDark)] ?? true);
+            set => ApplicationDataService[nameof(DarkThemeAmoledRealDark)] = value;
         }
 
         public static bool IsCachingEnabled
@@ -469,6 +486,18 @@ namespace MALPlus.XShared.Utils
         {
             get => (int)(ApplicationDataService["PosterScoreDisplay"] ?? 0);
             set => ApplicationDataService["PosterScoreDisplay"] = value;
+        }
+
+        public static bool ShowAiredEpisodes
+        {
+            get => (bool)(ApplicationDataService["ShowAiredEpisodes"] ?? true);
+            set => ApplicationDataService["ShowAiredEpisodes"] = value;
+        }
+
+        public static bool ShowAiringCountdown
+        {
+            get => (bool)(ApplicationDataService["ShowAiringCountdown"] ?? true);
+            set => ApplicationDataService["ShowAiringCountdown"] = value;
         }
 
         public static bool EnableImageCache

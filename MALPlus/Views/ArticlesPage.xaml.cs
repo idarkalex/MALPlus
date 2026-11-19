@@ -16,38 +16,39 @@ public partial class ArticlesPage : ContentPage, ITabSwipeHost
 
     private MalArticlesViewModel Vm => (MalArticlesViewModel)BindingContext;
 
-    // EM theme CSS (Electric Midnight) — matches v2's "CssManager.GetArticleBody()".
-    private const string EmCss = @"
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
-background:#051522;color:#d4e4f7;line-height:1.6;padding:16px;margin:0;font-size:14px;}
-h1,h2,h3{color:#FFFFFF;font-weight:600;line-height:1.3;margin:18px 0 10px;}
-h1{font-size:20px;} h2{font-size:17px;} h3{font-size:15px;}
-p{margin:0 0 12px;}
-a{color:#0066FF;text-decoration:none;} a:hover{text-decoration:underline;}
-img{max-width:100%;height:auto;border-radius:6px;margin:8px 0;background:#000;}
-blockquote{border-left:3px solid #0066FF;margin:12px 0;padding:8px 14px;color:#a8c5e0;background:rgba(0,102,255,0.05);}
-cite{font-style:italic;color:#a8c5e0;}
-ul,ol{margin:0 0 12px 22px;padding:0;}
-li{margin:4px 0;}
-table{border-collapse:collapse;width:auto;min-width:100%;max-width:none;table-layout:auto;margin:12px 0;font-size:12px;}
-td,th{border:1px solid #1E3A52;padding:6px 8px;text-align:left;overflow-wrap:break-word;word-break:break-word;vertical-align:top;}
-/* A wide table must scroll inside its own box. Squeezing it into the viewport with
-   width:100% turned every extra column into one unreadable word per line, and the
-   page itself cannot scroll sideways because of overflow-x:hidden below. */
-.tw{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch;margin:12px 0;}
-.tw table{margin:0;}
-.unsupported{margin:12px 0;padding:12px 14px;border:1px solid #1E3A52;border-radius:8px;
-            background:rgba(0,102,255,0.05);color:#a8c5e0;font-size:13px;}
-th{background:#0d1d2c;color:#FFFFFF;}
-/* Nothing may push the page sideways: wide media and long code lines have to
-   fit the screen instead of forcing a horizontal scroll through the article.
-   Words are only broken when a single one cannot fit, never mid-word. */
-img,video,iframe,embed,object{max-width:100%!important;height:auto;}
-html,body{max-width:100%;overflow-x:hidden;}
-.intro,.meat{color:#d4e4f7;}
-hr{border:none;border-top:1px solid #1E3A52;margin:18px 0;}
-pre,code{background:#0a1d2e;padding:6px 10px;border-radius:4px;font-size:12px;color:#a8c5e0;white-space:pre-wrap;overflow-wrap:anywhere;}
+    private static string GetArticleCss()
+    {
+        var theme = MALPlus.XShared.Utils.Settings.AppTheme;
+        var bg = theme != 0 ? "#000000" : "#051522";
+        var border = theme == 2 ? "#282828" : (theme == 1 ? "#262626" : "#1E3A52");
+        var thBg = theme == 2 ? "#000000" : (theme == 1 ? "#0D0D0D" : "#0d1d2c");
+        var codeBg = theme == 2 ? "#080808" : (theme == 1 ? "#121212" : "#0a1d2e");
+        return $@"
+body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+background:{bg};color:#d4e4f7;line-height:1.6;padding:16px;margin:0;font-size:14px;}}
+h1,h2,h3{{color:#FFFFFF;font-weight:600;line-height:1.3;margin:18px 0 10px;}}
+h1{{font-size:20px;}} h2{{font-size:17px;}} h3{{font-size:15px;}}
+p{{margin:0 0 12px;}}
+a{{color:#0066FF;text-decoration:none;}} a:hover{{text-decoration:underline;}}
+img{{max-width:100%!important;height:auto;border-radius:6px;margin:8px 0;background:#000;}}
+blockquote{{border-left:3px solid #0066FF;margin:12px 0;padding:8px 14px;color:#a8c5e0;background:rgba(0,102,255,0.05);}}
+cite{{font-style:italic;color:#a8c5e0;}}
+ul,ol{{margin:0 0 12px 22px;padding:0;}}
+li{{margin:4px 0;}}
+table{{border-collapse:collapse;width:auto;min-width:100%;max-width:none;table-layout:auto;margin:12px 0;font-size:12px;}}
+td,th{{border:1px solid {border};padding:6px 8px;text-align:left;overflow-wrap:break-word;word-break:break-word;vertical-align:top;}}
+.tw{{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch;margin:12px 0;}}
+.tw table{{margin:0;}}
+.unsupported{{margin:12px 0;padding:12px 14px;border:1px solid {border};border-radius:8px;
+            background:rgba(0,102,255,0.05);color:#a8c5e0;font-size:13px;}}
+th{{background:{thBg};color:#FFFFFF;}}
+img,video,iframe,embed,object{{max-width:100%!important;height:auto;}}
+html,body{{max-width:100%;overflow-x:hidden;}}
+.intro,.meat{{color:#d4e4f7;}}
+hr{{border:none;border-top:1px solid {border};margin:18px 0;}}
+pre,code{{background:{codeBg};padding:6px 10px;border-radius:4px;font-size:12px;color:#a8c5e0;white-space:pre-wrap;overflow-wrap:anywhere;}}
 ";
+    }
 
     public ArticlesPage()
     {
@@ -285,7 +286,7 @@ private async void RestoreListScroll()
 
             var wrapped = "<html><head><meta charset='utf-8'/>" +
                           "<meta name='viewport' content='width=device-width,initial-scale=1'/>" +
-                          "<style>" + EmCss + "</style></head><body>" + WrapTables(html, model?.Url) + "</body></html>";
+                          "<style>" + GetArticleCss() + "</style></head><body>" + WrapTables(html, model?.Url) + "</body></html>";
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 ArticleWebView.IsVisible = true;

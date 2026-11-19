@@ -47,7 +47,7 @@
                     TextColor="{StaticResource EmAccent}" />
         </VerticalStackLayout>
     </ScrollView>
-    <Grid x:Name="WebOverlay" IsVisible="False" BackgroundColor="#051522"
+    <Grid x:Name="WebOverlay" IsVisible="False" BackgroundColor="{StaticResource EmBackground}"
           VerticalOptions="Fill" HorizontalOptions="Fill">
         <Grid RowDefinitions="Auto,Auto,*">
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Padding="12,8,12,4">
@@ -70,7 +70,7 @@
                  happened instead, because the manual sign-in is the last way into the app and a
                  blank box there is indistinguishable from a broken build. -->
             <VerticalStackLayout Grid.Row="2" x:Name="WebEmptyState" IsVisible="False"
-                                 BackgroundColor="#051522" Spacing="10"
+                                 BackgroundColor="{StaticResource EmBackground}" Spacing="10"
                                  HorizontalOptions="Center" VerticalOptions="Center" Margin="28">
                 <Label Text="The MyAnimeList page did not load" FontFamily="InterSemiBold" FontSize="15"
                        TextColor="{StaticResource BrushText}" HorizontalTextAlignment="Center" />

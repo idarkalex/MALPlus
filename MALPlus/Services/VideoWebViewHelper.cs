@@ -527,12 +527,68 @@ public static class VideoWebViewHelper
         private global::Android.Views.View _fullscreenView;
         private ICustomViewCallback _fullscreenCallback;
         private global::Android.Views.View _fullscreenCloseButton;
+        // Transparent overlay that sits above the video surface to intercept taps.
+        // The YouTube SurfaceView consumes touches internally, so a listener on
+        // _fullscreenView never fires. This sibling view is added on top (last in
+        // the decor child list) and always returns false from its touch listener,
+        // so the event falls through to the video underneath.
+        private global::Android.Views.View _touchInterceptorView;
+        // Token used to cancel the auto-hide timer when the user taps before it fires.
+        private System.Threading.CancellationTokenSource _autoHideCts;
+
+        // Duration the close button stays visible before auto-hiding.
+        private static readonly TimeSpan AutoHideDelay = TimeSpan.FromSeconds(3);
 
         public bool HasFullscreenView => _fullscreenView != null;
 
         public void ExitCustomView()
         {
+            // Exit the WebView's custom (fullscreen) view first, then fire the BackHandler so
+            // the video overlay itself is closed. Without the BackHandler call the app only
+            // returned to portrait while the video kept playing behind the page.
             OnHideCustomView();
+            BackHandler?.Invoke();
+        }
+
+        // ── Close-button visibility helpers ──────────────────────────────────────
+
+        /// <summary>
+        /// Shows the close button and schedules an auto-hide after <see cref="AutoHideDelay"/>.
+        /// Call on every tap detected via the transparent interceptor so the button
+        /// reappears and the timer restarts.
+        /// </summary>
+        private void ShowCloseButtonTemporarily()
+        {
+            if (_fullscreenCloseButton == null) return;
+            try
+            {
+                _fullscreenCloseButton.Visibility = global::Android.Views.ViewStates.Visible;
+                // Cancel any pending hide and start a fresh one.
+                _autoHideCts?.Cancel();
+                _autoHideCts = new System.Threading.CancellationTokenSource();
+                var token = _autoHideCts.Token;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(AutoHideDelay, token);
+                        global::Android.App.Application.SynchronizationContext?.Post(_ =>
+                        {
+                            try
+                            {
+                                if (_fullscreenCloseButton != null)
+                                    _fullscreenCloseButton.Visibility = global::Android.Views.ViewStates.Gone;
+                            }
+                            catch { }
+                        }, null);
+                    }
+                    catch (TaskCanceledException) { /* new tap — timer restarted */ }
+                });
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPlus Video", "ShowCloseButtonTemporarily: " + ex.Message);
+            }
         }
 
         private void ShowFullscreenCloseButton(global::Android.Views.ViewGroup decor)
@@ -549,6 +605,28 @@ public static class VideoWebViewHelper
                 int marginPx = (int)(16 * density);
                 int paddingPx = (int)(10 * density);
 
+                // ── Transparent touch interceptor ──────────────────────────────
+                // The YouTube fullscreen surface (SurfaceView/TextureView) swallows
+                // all touch events, so a listener on _fullscreenView never fires.
+                // This transparent sibling sits above the video in Z order; its touch
+                // listener returns false (Handled = false) so the event falls through
+                // to the player controls underneath.
+                var interceptor = new global::Android.Widget.FrameLayout(context);
+                interceptor.LayoutParameters = new global::Android.Views.ViewGroup.LayoutParams(
+                    global::Android.Views.ViewGroup.LayoutParams.MatchParent,
+                    global::Android.Views.ViewGroup.LayoutParams.MatchParent);
+                interceptor.SetBackgroundColor(global::Android.Graphics.Color.Transparent);
+                interceptor.Clickable = false;
+                interceptor.Touch += (s, e) =>
+                {
+                    if (e.Event?.Action == global::Android.Views.MotionEventActions.Down)
+                        ShowCloseButtonTemporarily();
+                    e.Handled = false; // pass through to video
+                };
+                decor.AddView(interceptor);
+                _touchInterceptorView = interceptor;
+
+                // ── Close button ───────────────────────────────────────────────
                 var closeButton = new global::Android.Widget.ImageView(context)
                 {
                     ContentDescription = "Exit fullscreen"
@@ -556,9 +634,8 @@ public static class VideoWebViewHelper
 
                 var resId = context.Resources.GetIdentifier("icon_close", "drawable", context.PackageName);
                 if (resId != 0)
-                {
                     closeButton.SetImageResource(resId);
-                }
+
                 closeButton.SetPadding(paddingPx, paddingPx, paddingPx, paddingPx);
 
                 var bgDrawable = new global::Android.Graphics.Drawables.GradientDrawable();
@@ -577,13 +654,13 @@ public static class VideoWebViewHelper
                 closeButton.Elevation = 300f;
                 closeButton.TranslationZ = 300f;
 
-                closeButton.Click += (s, e) =>
-                {
-                    ExitCustomView();
-                };
+                closeButton.Click += (s, e) => ExitCustomView();
 
                 _fullscreenCloseButton = closeButton;
                 decor.AddView(closeButton);
+
+                // Show immediately and start the auto-hide timer.
+                ShowCloseButtonTemporarily();
             }
             catch (Exception ex)
             {
@@ -595,6 +672,16 @@ public static class VideoWebViewHelper
         {
             try
             {
+                _autoHideCts?.Cancel();
+                _autoHideCts = null;
+
+                if (_touchInterceptorView != null)
+                {
+                    if (_touchInterceptorView.Parent is global::Android.Views.ViewGroup ip)
+                        ip.RemoveView(_touchInterceptorView);
+                    _touchInterceptorView = null;
+                }
+
                 if (_fullscreenCloseButton != null)
                 {
                     if (_fullscreenCloseButton.Parent is global::Android.Views.ViewGroup parent)

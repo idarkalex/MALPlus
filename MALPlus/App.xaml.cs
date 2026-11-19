@@ -10,6 +10,8 @@ public partial class App : Application
     {
         StartupTrace.Mark("app-ctor-begin");
         InitializeComponent();
+        MALPlus.XShared.ViewModels.SettingsViewModelBase.OnAmoledThemeChanged = () => ThemeService.ApplyTheme();
+        ThemeService.ApplyTheme();
         MauiCrashDiagnostics.Install();
         MainPage = new AppShell();
         StartupTrace.Mark("shell-built");

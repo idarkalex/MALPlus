@@ -33,7 +33,7 @@
              into two stacked framed boxes and fought the grid underneath it. The fill alone is enough
              to separate them from EmBackground. -->
         <Border x:Name="StatusBar" Grid.Row="0" IsVisible="False"
-                BackgroundColor="{StaticResource EmSheet}" Padding="14,0" HeightRequest="52">
+                BackgroundColor="{DynamicResource EmSheet}" Padding="14,0" HeightRequest="52">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                 <!-- Left aligned, chevron tucked against the word so the pair reads as one control
                      instead of two things fighting for opposite ends of the bar. -->
@@ -128,8 +128,8 @@
                      instead of floating in the middle with dead space beside it. It used to sit in an
                      Auto column at a fixed 200dp, which is what left that gap. -->
                 <Border Grid.Column="1" x:Name="PanelFilterBox" IsVisible="False"
-                        StrokeShape="RoundRectangle 18" Stroke="#24405A" StrokeThickness="1"
-                        BackgroundColor="#0F2536" Padding="12,0,4,0" HeightRequest="36"
+                        StrokeShape="RoundRectangle 18" Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
+                        BackgroundColor="{DynamicResource TabChipInactiveBg}" Padding="12,0,4,0" HeightRequest="36"
                         VerticalOptions="Center" HorizontalOptions="Fill">
                     <Grid ColumnDefinitions="*,Auto">
                         <!-- No placeholder: the field sits next to the panel it filters, so the word
@@ -198,7 +198,7 @@
             <Label Text="Nothing matches that here" FontFamily="InterSemiBold" FontSize="15"
                    TextColor="{StaticResource BrushText}" HorizontalOptions="Center" />
             <Label Text="The magnifier only looks inside this panel" FontFamily="Inter" FontSize="12"
-                   TextColor="#8FA8C0" HorizontalOptions="Center" />
+                   TextColor="{StaticResource TabChipInactiveText}" HorizontalOptions="Center" />
         </VerticalStackLayout>
 
         <!-- Seasonal used to own a second bar here, above the navigation: a pair of chevrons around
@@ -230,7 +230,7 @@
             <Border HorizontalOptions="Start" VerticalOptions="Start" WidthRequest="266"
                     Margin="0,-3,0,0" Padding="0,6,0,6"
                     StrokeThickness="0" Stroke="{x:Null}"
-                    BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 0 0 0 16">
+                    BackgroundColor="{DynamicResource EmSheet}" StrokeShape="RoundRectangle 0 0 0 16">
                 <VerticalStackLayout x:Name="StatusDropdownList" Spacing="0" />
             </Border>
         </Grid>

@@ -14,7 +14,8 @@ public class OptionsSheetItem
     {
         public OptionsSheetItem(string label, string icon, ICommand command = null,
             object commandParameter = null, string value = null, bool destructive = false, bool showChevron = false,
-            Func<OptionsSheet, bool> submenu = null, Action action = null, bool hideChevron = false)
+            Func<OptionsSheet, bool> submenu = null, Action action = null, bool hideChevron = false,
+            string description = null)
         {
             Label = label;
             Icon = icon;
@@ -26,9 +27,13 @@ public class OptionsSheetItem
             Submenu = submenu;
             Action = action;
             HideChevron = hideChevron;
+            Description = description;
         }
 
         public string Label { get; }
+
+        /// <summary>Optional subtitle or description displayed below the label.</summary>
+        public string Description { get; }
 
         /// <summary>Name of an SVG or drawable. Null draws no chip, for plain rows.</summary>
         public string Icon { get; }

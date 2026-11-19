@@ -4,7 +4,7 @@
              xmlns:converters="clr-namespace:MALPlus.Converters"
              x:Class="MALPlus.Views.ForumsTopicPage"
              x:Name="Page"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
         <converters:HtmlSourceConverter x:Key="HtmlSource" />
@@ -22,7 +22,7 @@
                 <RefreshView IsRefreshing="{Binding LoadingTopic, Mode=OneWay}" Refreshing="OnRefreshing">
                     <WebView x:Name="TopicWebView"
                              Source="{Binding PageHtml, Converter={StaticResource HtmlSource}}"
-                             BackgroundColor="{StaticResource EmBackground}"
+                             BackgroundColor="{DynamicResource EmBackground}"
                              Navigating="OnTopicWebViewNavigating" />
                 </RefreshView>
 
@@ -35,9 +35,9 @@
             </Grid>
 
             <!-- Bottom bar: Back button + Reply button on the left, pagination on the right -->
-            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="12,8,12,12" BackgroundColor="#051522" ColumnSpacing="8">
-                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="#141d2b"
-                        Stroke="#29FFFFFF" WidthRequest="42" HeightRequest="42" VerticalOptions="Center">
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="12,8,12,12" BackgroundColor="{DynamicResource EmBackground}" ColumnSpacing="8">
+                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{DynamicResource TabChipInactiveBg}"
+                        Stroke="{DynamicResource EmBorderBrush}" WidthRequest="42" HeightRequest="42" VerticalOptions="Center">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnBackTapped" />
                     </Border.GestureRecognizers>
@@ -54,8 +54,8 @@
                         CornerRadius="8" HeightRequest="42" />
 
                 <HorizontalStackLayout Grid.Column="2" Spacing="4" VerticalOptions="Center">
-                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 6" BackgroundColor="#141d2b"
-                            Stroke="#29FFFFFF" WidthRequest="36" HeightRequest="42"
+                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{DynamicResource TabChipInactiveBg}"
+                            Stroke="{DynamicResource EmBorderBrush}" WidthRequest="36" HeightRequest="42"
                             IsVisible="{Binding CanPreviousPage}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnPreviousPageTapped" />
@@ -65,8 +65,8 @@
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
 
-                    <Border Padding="10,0" HeightRequest="42" BackgroundColor="#141d2b" Stroke="#29FFFFFF" StrokeThickness="1"
-                            StrokeShape="RoundRectangle 6" VerticalOptions="Center">
+                    <Border Padding="10,0" HeightRequest="42" BackgroundColor="{DynamicResource TabChipInactiveBg}" Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
+                            StrokeShape="RoundRectangle 8" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnPageJumpTapped" />
                         </Border.GestureRecognizers>
@@ -75,8 +75,8 @@
                                TextColor="{StaticResource EmAccent}" VerticalOptions="Center" HorizontalOptions="Center" />
                     </Border>
 
-                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 6" BackgroundColor="#141d2b"
-                            Stroke="#29FFFFFF" WidthRequest="36" HeightRequest="42"
+                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{DynamicResource TabChipInactiveBg}"
+                            Stroke="{DynamicResource EmBorderBrush}" WidthRequest="36" HeightRequest="42"
                             IsVisible="{Binding CanNextPage}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNextPageTapped" />
@@ -91,11 +91,11 @@
 
         <Grid x:Name="ReplyOverlay" IsVisible="False" BackgroundColor="#80000000" Padding="16">
             <ScrollView VerticalOptions="Center" HorizontalOptions="Center" WidthRequest="360">
-                <Border StrokeThickness="1" StrokeShape="RoundRectangle 12" BackgroundColor="{StaticResource EmSheet}" Stroke="{StaticResource EmBorder}">
+                <Border StrokeThickness="1" StrokeShape="RoundRectangle 14" BackgroundColor="{DynamicResource EmSheet}" Stroke="{DynamicResource EmBorderBrush}">
                     <VerticalStackLayout Spacing="10" Padding="16">
                         <Label Text="Reply" FontFamily="InterBold" FontSize="18" TextColor="{StaticResource BrushText}" />
                         <Editor x:Name="ReplyOverlayEditor" HeightRequest="180" Text="{Binding ReplyMessage, Mode=TwoWay}"
-                                BackgroundColor="{StaticResource EmBackground}" TextColor="{StaticResource BrushText}"
+                                BackgroundColor="{DynamicResource EmBackground}" TextColor="{StaticResource BrushText}"
                                 Placeholder="Write a reply (BBCode supported)..." AutoSize="Disabled" />
                         <FlexLayout Wrap="Wrap" AlignItems="Center" JustifyContent="Start">
                             <Button Text="B" Clicked="OnFormatBBCodeTapped" CommandParameter="b" FontFamily="InterBold" Margin="2" />
@@ -113,7 +113,7 @@
                         <Button Text="Preview" Clicked="OnReplyOverlayPreviewTapped" BackgroundColor="Transparent" TextColor="{StaticResource EmAccent}" />
                         <WebView x:Name="ReplyOverlayPreview" HeightRequest="180" IsVisible="False" BackgroundColor="Transparent" />
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                            <Button Text="Cancel" Clicked="OnHideReplyOverlayTapped" BackgroundColor="#141d2b" TextColor="{StaticResource BrushText}" />
+                            <Button Text="Cancel" Clicked="OnHideReplyOverlayTapped" BackgroundColor="{DynamicResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}" />
                             <Button Grid.Column="1" Text="Post Reply" Clicked="OnSendReplyOverlayTapped" BackgroundColor="#0066FF" TextColor="White" />
                         </Grid>
                     </VerticalStackLayout>

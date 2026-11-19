@@ -72,7 +72,7 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                         x:DataType="mmalspecific:MalNewsUnitModel">
                             <Border Margin="16,6" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="0">
+                                    StrokeShape="RoundRectangle 14" Padding="0">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="0">
                                     <Grid Grid.Column="0" IsVisible="{Binding ImgUrl, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                                         <!-- Placeholder while the picture has not been fetched yet. Without

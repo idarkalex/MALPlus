@@ -25,6 +25,59 @@ public partial class AnimePosterCard : ContentView
     public static readonly BindableProperty SeasonTagProperty =
         BindableProperty.Create(nameof(SeasonTag), typeof(string), typeof(AnimePosterCard), default(string));
 
+    public static readonly BindableProperty BottomAirTagProperty =
+        BindableProperty.Create(nameof(BottomAirTag), typeof(string), typeof(AnimePosterCard), default(string),
+            propertyChanged: OnBottomAirChanged);
+
+    public string BottomAirTag
+    {
+        get => (string)GetValue(BottomAirTagProperty);
+        set => SetValue(BottomAirTagProperty, value);
+    }
+
+    public static readonly BindableProperty EffectiveBottomAirTextProperty =
+        BindableProperty.Create(nameof(EffectiveBottomAirText), typeof(string), typeof(AnimePosterCard), default(string));
+
+    public string EffectiveBottomAirText
+    {
+        get => (string)GetValue(EffectiveBottomAirTextProperty);
+        private set => SetValue(EffectiveBottomAirTextProperty, value);
+    }
+
+    public static readonly BindableProperty HasBottomAirTagProperty =
+        BindableProperty.Create(nameof(HasBottomAirTag), typeof(bool), typeof(AnimePosterCard), false);
+
+    public bool HasBottomAirTag
+    {
+        get => (bool)GetValue(HasBottomAirTagProperty);
+        private set => SetValue(HasBottomAirTagProperty, value);
+    }
+
+    private static void OnBottomAirChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        var card = (AnimePosterCard)bindable;
+        UpdateBottomAir(card);
+    }
+
+    private static void UpdateBottomAir(AnimePosterCard card)
+    {
+        if (!string.IsNullOrWhiteSpace(card.BottomAirTag))
+        {
+            card.EffectiveBottomAirText = card.BottomAirTag;
+            card.HasBottomAirTag = true;
+        }
+        else if (card.IsAiringExtra)
+        {
+            card.EffectiveBottomAirText = "● Airing now";
+            card.HasBottomAirTag = true;
+        }
+        else
+        {
+            card.EffectiveBottomAirText = string.Empty;
+            card.HasBottomAirTag = false;
+        }
+    }
+
     public static readonly BindableProperty BadgeVisibleProperty =
         BindableProperty.Create(nameof(BadgeVisible), typeof(bool), typeof(AnimePosterCard), false);
 
@@ -89,10 +142,10 @@ public partial class AnimePosterCard : ContentView
     private static void OnBadgeChanged(BindableObject bindable, object oldValue, object newValue)
     {
         var card = (AnimePosterCard)bindable;
+        card.IsAiringExtra = string.Equals(card.BadgeExtra?.Trim(), "Airing now", StringComparison.OrdinalIgnoreCase);
         card.HasBadge = !string.IsNullOrWhiteSpace(card.BadgeAccent)
                         || !string.IsNullOrWhiteSpace(card.BadgeMain)
-                        || !string.IsNullOrWhiteSpace(card.BadgeExtra);
-        card.IsAiringExtra = string.Equals(card.BadgeExtra?.Trim(), "Airing now", StringComparison.OrdinalIgnoreCase);
+                        || (!string.IsNullOrWhiteSpace(card.BadgeExtra) && !card.IsAiringExtra);
         // The dot only earns its place when there is something on both sides of it. The countdown
         // itself shows either way, because on the calendar it is all a non-listed entry has: it
         // used to be gated behind a neighbour, which left those cards with an empty bubble.
@@ -101,6 +154,7 @@ public partial class AnimePosterCard : ContentView
                                   || !string.IsNullOrWhiteSpace(card.BadgeMain))
                               && !card.IsAiringExtra;
         card.HasBadgeExtraTop = !string.IsNullOrWhiteSpace(card.BadgeExtra) && !card.IsAiringExtra;
+        UpdateBottomAir(card);
     }
 
     /// <summary>

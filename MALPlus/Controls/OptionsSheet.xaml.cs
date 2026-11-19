@@ -9,19 +9,23 @@ public partial class OptionsSheet : ContentView
     // These are instantiated once and reused across every BuildRow() call.
     // Before this, Color.FromArgb() was called for EVERY row on EVERY menu open,
     // allocating dozens of short-lived objects per interaction and pressuring the GC.
-    private static readonly Color _colorSheet        = Color.FromArgb("#0A1F2E");
+    private static Color _colorSheet =>
+        Application.Current?.Resources.TryGetValue("EmSheet", out var val) == true && val is Color c ? c : Color.FromArgb("#0A1F2E");
     private static readonly Color _colorDestructive  = Color.FromArgb("#F87171");
-    private static readonly Color _colorMuted        = Color.FromArgb("#8FA8C0");
+    private static Color _colorMuted =>
+        Application.Current?.Resources.TryGetValue("TabChipInactiveText", out var val) == true && val is Color c ? c : Color.FromArgb("#8FA8C0");
     private static readonly Color _colorBorder       = Color.FromArgb("#29FFFFFF");
     private static readonly Color _colorBackChip     = Color.FromArgb("#1A94A3B8");
     private static readonly Color _colorNoteHint     = Color.FromArgb("#66FFFFFF");
     private static readonly Color _colorConfirmOk    = Color.FromArgb("#0066FF");
-    private static readonly Color _colorConfirmBg    = Color.FromArgb("#0A1F2E");
-    private static readonly Color _colorUpdateNotes  = Color.FromArgb("#0A1F2E");
-    private static readonly Color _colorUpdateStroke = Color.FromArgb("#1E3A52");
+    private static Color _colorConfirmBg => _colorSheet;
+    private static Color _colorUpdateNotes => _colorSheet;
+    private static Color _colorUpdateStroke =>
+        Application.Current?.Resources.TryGetValue("EmBorder", out var val) == true && val is Color c ? c : Color.FromArgb("#1E3A52");
     private static readonly Color _colorUpdateText   = Color.FromArgb("#D4E4F7");
     private static readonly Color _colorUpdateOk     = Color.FromArgb("#0066FF");
-    private static readonly Color _colorUpdateCancel = Color.FromArgb("#14293D");
+    private static Color _colorUpdateCancel =>
+        Application.Current?.Resources.TryGetValue("TabChipInactiveBg", out var val) == true && val is Color c ? c : Color.FromArgb("#141D2B");
     private static readonly Color _colorUpdateCancelText = Color.FromArgb("#8FA8C0");
     private static readonly Color _colorPromptBorder = Color.FromArgb("#1F94A3B8");
     private static readonly Color _colorError        = Color.FromArgb("#FF5555");
@@ -581,8 +585,8 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     {
         Panel.HorizontalOptions = LayoutOptions.Center;
         Panel.VerticalOptions = LayoutOptions.Center;
-        Panel.WidthRequest = 310;
-        Panel.Margin = new Thickness(0);
+        Panel.WidthRequest = 330;
+        Panel.Margin = new Thickness(16, 0);
         Panel.StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(20) };
         // A centred card carries its own breathing room: the sheet shape gets it from being flush to
         // the bottom of the screen, and the rows host below only ever padded its sides.
@@ -740,30 +744,51 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
 
     private View BuildSingleRow(OptionsSheetItem item)
     {
+        var label = item.Label ?? string.Empty;
+        var description = item.Description;
+        if (string.IsNullOrEmpty(description) && label.Contains(" — "))
+        {
+            var parts = label.Split(new[] { " — " }, 2, StringSplitOptions.None);
+            if (parts.Length == 2 && parts[1].Length > 5)
+            {
+                label = parts[0].Trim();
+                description = parts[1].Trim();
+            }
+        }
+        var hasDesc = !string.IsNullOrWhiteSpace(description);
+
         var border = new Border
         {
             BackgroundColor = _colorSheet,
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-            Padding = new Thickness(12, 0),
-            HeightRequest = 48
+            Padding = new Thickness(12, hasDesc ? 8 : 0),
+            MinimumHeightRequest = 48
         };
+        if (!hasDesc)
+        {
+            border.HeightRequest = 48;
+        }
 
         var grid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitionCollection { new("*"), new("Auto") }
+            ColumnSpacing = 12
         };
 
-        var rowContent = new HorizontalStackLayout { Spacing = 12, VerticalOptions = LayoutOptions.Center };
-
-        if (!string.IsNullOrWhiteSpace(item.Icon))
+        var hasIcon = !string.IsNullOrWhiteSpace(item.Icon);
+        if (hasIcon)
         {
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
             var chip = new Border
             {
                 WidthRequest = 32,
                 HeightRequest = 32,
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
                 BackgroundColor = ChipTint(item),
-                Padding = new Thickness(0)
+                Padding = new Thickness(0),
+                VerticalOptions = LayoutOptions.Center
             };
             chip.Content = new Image
             {
@@ -773,39 +798,66 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 Aspect = Aspect.AspectFit,
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center,
-                // The row is the tap target; the glyph must not take the touch.
                 InputTransparent = true
             };
-            rowContent.Add(chip);
+            Grid.SetColumn(chip, 0);
+            grid.Add(chip);
+        }
+        else
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         }
 
-        rowContent.Add(new Label
+        var textCol = hasIcon ? 1 : 0;
+        var textStack = new VerticalStackLayout
         {
-            Text = item.Label,
-            // Semibold on the destructive row, medium on the rest, matching the mockup.
-            FontFamily = item.Destructive ? "InterSemiBold" : "InterMedium",
-            FontSize = 15,
-            TextColor = item.Destructive ? _colorDestructive : Colors.White,
+            Spacing = 2,
             VerticalOptions = LayoutOptions.Center
-        });
-        grid.Add(rowContent);
+        };
 
+        var titleLabel = new Label
+        {
+            Text = label,
+            FontFamily = item.Destructive ? "InterSemiBold" : "InterMedium",
+            FontSize = 14,
+            TextColor = item.Destructive ? _colorDestructive : Colors.White,
+            LineBreakMode = LineBreakMode.WordWrap,
+            VerticalOptions = LayoutOptions.Center
+        };
+        textStack.Add(titleLabel);
+
+        if (hasDesc)
+        {
+            var descLabel = new Label
+            {
+                Text = description,
+                FontFamily = "Inter",
+                FontSize = 11,
+                TextColor = _colorMuted,
+                LineBreakMode = LineBreakMode.WordWrap
+            };
+            textStack.Add(descLabel);
+        }
+
+        Grid.SetColumn(textStack, textCol);
+        grid.Add(textStack);
+
+        var endCol = hasIcon ? 2 : 1;
         if (!string.IsNullOrWhiteSpace(item.Value))
         {
+            var isCheck = item.Value == "✓";
             var value = new Label
             {
                 Text = item.Value,
-                FontFamily = "InterMedium",
-                FontSize = 11,
-                TextColor = _colorMuted,
+                FontFamily = isCheck ? "InterBold" : "InterMedium",
+                FontSize = isCheck ? 15 : 11,
+                TextColor = isCheck ? Color.FromArgb("#0066FF") : _colorMuted,
                 VerticalOptions = LayoutOptions.Center
             };
-            Grid.SetColumn(value, 1);
+            Grid.SetColumn(value, endCol);
             grid.Add(value);
         }
-        // A submenu normally means there is a deeper level, which is what the arrow is for. A row
-        // that commits where it stands says so with HideChevron, and one of those pointing at a
-        // sub panel was the Discover format tick boxes promising a list that never opened.
         else if (item.ShowChevron || (item.Submenu != null && !item.HideChevron))
         {
             var chevron = new Image
@@ -817,7 +869,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 VerticalOptions = LayoutOptions.Center,
                 InputTransparent = true
             };
-            Grid.SetColumn(chevron, 1);
+            Grid.SetColumn(chevron, endCol);
             grid.Add(chevron);
         }
 

@@ -55,15 +55,15 @@ namespace MALPlus.XShared.Comm.Anime
             public string Status { get; init; }
         }
 
-        /// <summary>
-        ///     Next airing dates for the given MyAnimeList ids, keyed by id. A series with no
-        ///     declared next episode is simply absent from the result: "nothing scheduled" is not
-        ///     the same as "airing at the weekly slot", and treating it as such is what this exists
-        ///     to stop.
-        /// </summary>
-        public static async Task<Dictionary<int, DateTime>> GetNextAiringAsync(IEnumerable<int> malIds)
+        public sealed class NextAirInfo
         {
-            var result = new Dictionary<int, DateTime>();
+            public DateTime NextAirUtc { get; init; }
+            public int? NextEpisodeNumber { get; init; }
+        }
+
+        public static async Task<Dictionary<int, NextAirInfo>> GetNextAiringInfoAsync(IEnumerable<int> malIds)
+        {
+            var result = new Dictionary<int, NextAirInfo>();
             var ids = malIds?.Where(id => id > 0).Distinct().ToList();
             if (ids == null || ids.Count == 0)
                 return result;
@@ -72,10 +72,28 @@ namespace MALPlus.XShared.Comm.Anime
             foreach (var entry in await FetchBatchAsync(ids.ToArray()))
             {
                 if (entry.NextAirUtc.HasValue)
-                    result[entry.MalId] = entry.NextAirUtc.Value;
+                {
+                    result[entry.MalId] = new NextAirInfo
+                    {
+                        NextAirUtc = entry.NextAirUtc.Value,
+                        NextEpisodeNumber = entry.NextEpisodeNumber
+                    };
+                }
             }
 
             return result;
+        }
+
+        /// <summary>
+        ///     Next airing dates for the given MyAnimeList ids, keyed by id. A series with no
+        ///     declared next episode is simply absent from the result: "nothing scheduled" is not
+        ///     the same as "airing at the weekly slot", and treating it as such is what this exists
+        ///     to stop.
+        /// </summary>
+        public static async Task<Dictionary<int, DateTime>> GetNextAiringAsync(IEnumerable<int> malIds)
+        {
+            var info = await GetNextAiringInfoAsync(malIds);
+            return info.ToDictionary(k => k.Key, v => v.Value.NextAirUtc);
         }
 
         /// <summary>

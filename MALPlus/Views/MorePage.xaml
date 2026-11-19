@@ -51,9 +51,10 @@
 
         <Style x:Key="SectionLabel" TargetType="Label">
             <Setter Property="FontFamily" Value="InterBold" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="CharacterSpacing" Value="1.2" />
-            <Setter Property="TextColor" Value="{StaticResource BrushTextSecondary}" />
+            <Setter Property="TextTransform" Value="Uppercase" />
+            <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
             <Setter Property="VerticalOptions" Value="Center" />
             <Setter Property="HorizontalOptions" Value="Start" />
         </Style>
@@ -62,7 +63,7 @@
             <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
             <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
             <Setter Property="StrokeThickness" Value="1" />
-            <Setter Property="StrokeShape" Value="RoundRectangle 12" />
+            <Setter Property="StrokeShape" Value="RoundRectangle 14" />
             <Setter Property="Padding" Value="0" />
         </Style>
     </ContentPage.Resources>
@@ -70,20 +71,20 @@
     <Grid RowDefinitions="*,Auto">
         <!-- Content: Scrollable List -->
         <ScrollView Grid.Row="0">
-            <VerticalStackLayout Spacing="0" Padding="16,0,16,24" x:Name="MainContent">
+            <VerticalStackLayout Spacing="0" Padding="14,0,14,24" x:Name="MainContent">
 
                 <!-- Header: profile summary -->
                 <Border x:Name="ProfileHeader" Margin="0,12,0,4" Padding="14"
                         BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                        StrokeShape="RoundRectangle 12">
+                        StrokeShape="RoundRectangle 14">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnProfileHeaderTapped" />
                     </Border.GestureRecognizers>
                     <!-- Drutol-style profile avatar: a 50 dp circle, with the local account icon
                          as the fallback when MAL has no user picture ( profiles show "No Picture" ). -->
-                    <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
-                        <Border WidthRequest="50" HeightRequest="50"
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                        <Border Grid.Column="0" WidthRequest="50" HeightRequest="50"
                                 BackgroundColor="{StaticResource EmBackground}"
                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                 StrokeShape="RoundRectangle 25">
@@ -95,27 +96,31 @@
                                        WidthRequest="50" HeightRequest="50" />
                             </Grid>
                         </Border>
-                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                             <Label x:Name="ProfileUsername" Text="Log in"
                                    FontFamily="InterBold" FontSize="16"
                                    TextColor="{StaticResource BrushText}" />
                             <Label x:Name="ProfileCompleted" FontFamily="Inter" FontSize="12"
                                    TextColor="{StaticResource EmAccent}" IsVisible="False" />
                         </VerticalStackLayout>
-                    </HorizontalStackLayout>
+                    <Image Grid.Column="2" Source="icon_chevron_right" WidthRequest="18" HeightRequest="18"
+                           Opacity="0.4" VerticalOptions="Center" InputTransparent="True" />
+                    </Grid>
                 </Border>
 
                 <!-- Primary entry outside the content groups. -->
-                <Border x:Name="SearchHeader" Margin="0,12,0,4" Padding="16,0"
+                <Border x:Name="SearchHeader" Margin="0,12,0,4" Padding="14,0"
                         BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                        StrokeShape="RoundRectangle 12">
+                        StrokeShape="RoundRectangle 14">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnSearchTapped" />
                     </Border.GestureRecognizers>
-                    <Grid HeightRequest="44" ColumnDefinitions="Auto,*" ColumnSpacing="16" Padding="0">
-                        <Image Grid.Column="0" Source="icon_search" Style="{StaticResource RowIcon}" />
-                        <Label Grid.Column="1" Text="Search" Style="{StaticResource RowLabel}" />
+                    <Grid HeightRequest="50" ColumnDefinitions="Auto,*" ColumnSpacing="12" Padding="0">
+                        <Label Grid.Column="0" Text="&#xf002;" FontFamily="FontAwesome" FontSize="16"
+                               TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Search anime, manga…" Style="{StaticResource RowLabel}"
+                               FontSize="14" TextColor="{StaticResource TabChipInactiveText}" />
                     </Grid>
                 </Border>
 
@@ -138,7 +143,7 @@
                         </Grid>
 
                         <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
-                        <Grid x:Name="AnimeListPanel" IsVisible="False" ColumnDefinitions="*" Padding="36,0,0,0">
+                        <Grid x:Name="AnimeListPanel" IsVisible="False" ColumnDefinitions="*" Padding="0">
                         </Grid>
                         <BoxView x:Name="AnimeListDivider" IsVisible="False" HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
 
@@ -161,17 +166,26 @@
                         </Grid>
 
                         <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
-                        <Grid x:Name="TopAnimePanel" IsVisible="False" ColumnDefinitions="*" Padding="36,0,0,0">
+                        <Grid x:Name="TopAnimePanel" IsVisible="False" ColumnDefinitions="*" Padding="0">
                         </Grid>
                         <BoxView x:Name="TopAnimeDivider" IsVisible="False" HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
 
-                        <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
                         <Grid HeightRequest="44" ColumnDefinitions="Auto,*" ColumnSpacing="16" Padding="16,0">
                             <Grid.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnCalendarTapped" />
+                                <TapGestureRecognizer Tapped="OnGlobalCalendarTapped" />
                             </Grid.GestureRecognizers>
                             <Image Grid.Column="0" Source="icon_calendar" Style="{StaticResource RowIcon}" />
-                            <Label Grid.Column="1" Text="Calendar" Style="{StaticResource RowLabel}" />
+                            <Label Grid.Column="1" Text="Broadcast calendar" Style="{StaticResource RowLabel}" />
+                        </Grid>
+
+                        <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
+
+                        <Grid HeightRequest="44" ColumnDefinitions="Auto,*" ColumnSpacing="16" Padding="16,0">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnMyScheduleTapped" />
+                            </Grid.GestureRecognizers>
+                            <Image Grid.Column="0" Source="icon_list" Style="{StaticResource RowIcon}" />
+                            <Label Grid.Column="1" Text="My airing schedule" Style="{StaticResource RowLabel}" />
                         </Grid>
                     </VerticalStackLayout>
                 </Border>
@@ -195,7 +209,7 @@
                         </Grid>
 
                         <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
-                        <Grid x:Name="MangaListPanel" IsVisible="False" ColumnDefinitions="*" Padding="36,0,0,0">
+                        <Grid x:Name="MangaListPanel" IsVisible="False" ColumnDefinitions="*" Padding="0">
                         </Grid>
                         <BoxView x:Name="MangaListDivider" IsVisible="False" HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
 
@@ -209,11 +223,9 @@
                         </Grid>
 
                         <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
-                        <Grid x:Name="TopMangaPanel" IsVisible="False" ColumnDefinitions="*" Padding="36,0,0,0">
+                        <Grid x:Name="TopMangaPanel" IsVisible="False" ColumnDefinitions="*" Padding="0">
                         </Grid>
                         <BoxView x:Name="TopMangaDivider" IsVisible="False" HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
-
-                        <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
 
                         <Grid HeightRequest="44" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16" Padding="16,0">
                             <Grid.GestureRecognizers>
@@ -225,7 +237,7 @@
                         </Grid>
 
                         <BoxView HeightRequest="1" Color="#1AFFFFFF" Margin="56,0,16,0" />
-                        <Grid x:Name="AdaptedPanel" IsVisible="False" ColumnDefinitions="*" Padding="36,0,0,0">
+                        <Grid x:Name="AdaptedPanel" IsVisible="False" ColumnDefinitions="*" Padding="0">
                         </Grid>
                     </VerticalStackLayout>
                 </Border>

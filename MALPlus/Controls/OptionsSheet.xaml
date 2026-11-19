@@ -50,7 +50,7 @@
                         <Label x:Name="TitleLabel" Text="Options" FontFamily="InterBold" FontSize="16"
                                TextColor="{StaticResource BrushText}" />
                         <Label x:Name="SubtitleLabel" Text="" FontFamily="InterMedium" FontSize="13"
-                               TextColor="#8FA8C0" LineBreakMode="WordWrap" MaxLines="8"
+                               TextColor="{StaticResource TabChipInactiveText}" LineBreakMode="WordWrap" MaxLines="8"
                                IsVisible="False" />
                     </VerticalStackLayout>
                     <Border Grid.Column="2" x:Name="CloseButton" WidthRequest="32" HeightRequest="32"

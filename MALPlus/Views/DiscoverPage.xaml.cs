@@ -985,6 +985,7 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        ApplyTheme();
 #if ANDROID
         if (Handler?.PlatformView is global::Android.Views.View v)
         {
@@ -993,6 +994,27 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
         StripEntryUnderline();
 #endif
         InvalidateMeasure();
+    }
+
+    private void ApplyTheme()
+    {
+        try
+        {
+            var bg = MALPlus.Services.ThemeService.CurrentBackground;
+            var sheet = MALPlus.Services.ThemeService.CurrentSheet;
+            var border = MALPlus.Services.ThemeService.CurrentBorder;
+
+            BackgroundColor = bg;
+            foreach (var element in this.GetVisualTreeDescendants())
+            {
+                if (element is Border b && b.Style == (Style)Resources["DiscoverCardStyle"])
+                {
+                    b.BackgroundColor = sheet;
+                    b.Stroke = new SolidColorBrush(border);
+                }
+            }
+        }
+        catch { }
     }
 
 #if ANDROID

@@ -52,7 +52,7 @@
                         x:DataType="tmalspecific:MalFriend">
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12">
+                                    StrokeShape="RoundRectangle 14" Padding="12">
                                 <Grid ColumnDefinitions="48,*,Auto" ColumnSpacing="12">
                                     <Border Grid.Column="0" WidthRequest="44" HeightRequest="44"
                                             StrokeShape="RoundRectangle 22"
@@ -87,7 +87,7 @@
                         x:DataType="tmalspecific:MalFriendRequest">
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12">
+                                    StrokeShape="RoundRectangle 14" Padding="12">
                                 <Grid ColumnDefinitions="48,*,Auto,Auto" ColumnSpacing="10">
                                     <Grid Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="48,*" ColumnSpacing="10" BackgroundColor="Transparent">
                                         <Grid.GestureRecognizers>

@@ -24,6 +24,8 @@ public partial class ProfilePage : ContentPage, ITabSwipeHost
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
+        ApplyProfileTabColors();
         if (_initialized)
             return;
         _initialized = true;

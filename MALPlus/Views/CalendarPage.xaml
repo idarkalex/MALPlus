@@ -13,31 +13,41 @@
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,Auto,Auto,*">
-        <!-- Day strip. A fixed row of equal cells with hairline separators, NOT a ScrollView:
-             seven days plus the summary fit the width without scrolling, and the scroller was
-             swallowing the taps. -->
-        <Grid Grid.Row="0" x:Name="TabStrip" ColumnSpacing="0" Margin="6,8,6,4" />
+        <!-- Modern Header: Back button, Title & Subtitle, and Mode Switch Chip -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Padding="14,10,14,4">
+            <Border Grid.Column="0" WidthRequest="36" HeightRequest="36"
+                    StrokeShape="RoundRectangle 18" BackgroundColor="#14FFFFFF"
+                    VerticalOptions="Center" Padding="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBackTapped" />
+                </Border.GestureRecognizers>
+                <Label Text="&#xf053;" FontFamily="FontAwesome" FontSize="14"
+                       TextColor="{StaticResource BrushText}"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
 
-        <!-- Source filter: the whole season vs only what is on my list. Same shape as v2's
-             segmented bar: accent text plus a 3dp underline on the active side. -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="16,0,16,4">
-            <VerticalStackLayout Grid.Column="0" Spacing="4" x:Name="SeasonSection">
-                <VerticalStackLayout.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnSeasonModeTapped" />
-                </VerticalStackLayout.GestureRecognizers>
-                <Label Text="Current Season" x:Name="SeasonFilterLabel" FontFamily="InterSemiBold"
-                       FontSize="14" HorizontalOptions="Center" />
-                <BoxView HeightRequest="3" BackgroundColor="Transparent" x:Name="SeasonFilterIndicator" />
+            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Margin="12,0,8,0">
+                <Label x:Name="CalendarTitleLabel" Text="Broadcast Calendar"
+                       FontFamily="InterBold" FontSize="18"
+                       TextColor="{StaticResource BrushText}" />
+                <Label x:Name="CalendarSubtitleLabel" Text="Weekly TV &amp; ONA broadcast schedule"
+                       FontFamily="Inter" FontSize="11"
+                       TextColor="{StaticResource TabChipInactiveText}" LineBreakMode="TailTruncation" />
             </VerticalStackLayout>
-            <VerticalStackLayout Grid.Column="1" Spacing="4" x:Name="MyListSection">
-                <VerticalStackLayout.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnMyListModeTapped" />
-                </VerticalStackLayout.GestureRecognizers>
-                <Label Text="My List" x:Name="MyListFilterLabel" FontFamily="InterSemiBold"
-                       FontSize="14" HorizontalOptions="Center" />
-                <BoxView HeightRequest="3" BackgroundColor="Transparent" x:Name="MyListFilterIndicator" />
-            </VerticalStackLayout>
+
+            <!-- Mode Switch Chip (Allows easily jumping between Global and My List) -->
+            <Button Grid.Column="2" x:Name="ModeSwitchButton"
+                    Text="My List" Clicked="OnToggleModeClicked"
+                    Style="{StaticResource TabChipButtonStyle}"
+                    HeightRequest="32" Padding="12,0" FontSize="12"
+                    VerticalOptions="Center" />
         </Grid>
+
+        <!-- Option A Day Chips (Mon, Tue, Wed, Thu, Fri, Sat, Sun, All) -->
+        <ScrollView Grid.Row="1" x:Name="DayChipsScroll" Orientation="Horizontal"
+                    HorizontalScrollBarVisibility="Never" Padding="12,4,12,6">
+            <HorizontalStackLayout x:Name="DayChipsLayout" Spacing="8" VerticalOptions="Center" />
+        </ScrollView>
 
         <!-- Loading overlay -->
         <Grid Grid.Row="2" Grid.RowSpan="2" IsVisible="{Binding CalendarBuildingVisibility}"

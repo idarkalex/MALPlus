@@ -47,43 +47,35 @@ namespace MALPlus.XShared.Utils
             string bodyCss = CssHtmlBodyScrollEnabled;
             string bodyCssMinWidth = CssHtmlBodyMinWidth;
 
+            var bodyBg = Settings.AppTheme != 0 ? "#000000" : (Settings.SelectedTheme == 1 ? "#051522" : "#e6e6e6");
+            var bodyFg = Settings.SelectedTheme == 1 ? "white" : "black";
+            var sepCol = Settings.AppTheme != 0 ? "#262626" : (Settings.SelectedTheme == 1 ? "#424656" : "#b3b3b3");
+            var darkBg = Settings.AppTheme == 2 ? "#000000" : (Settings.AppTheme == 1 ? "#0d0d0d" : (Settings.SelectedTheme == 1 ? "#0d1d2a" : "#dadada"));
+
             css = css.Replace("AccentColourBase", AccentColour)
                 .Replace("AccentColourLight", AccentColourLight)
                 .Replace("AccentColourDark", AccentColourDark)
-                .Replace("BodyBackgroundThemeColor",
-                    Settings.SelectedTheme == 1 ? "#051522" : "#e6e6e6")
-                .Replace("BodyForegroundThemeColor",
-                    Settings.SelectedTheme == 1 ? "white" : "black")
-                .Replace(
-                    "HorizontalSeparatorColor",
-                    Settings.SelectedTheme == 1 ? "#424656" : "#b3b3b3")
-                .Replace("BodyBackgroundThemeDarkerColor",
-                    Settings.SelectedTheme == 1 ? "#0d1d2a" : "#dadada")
+                .Replace("BodyBackgroundThemeColor", bodyBg)
+                .Replace("BodyForegroundThemeColor", bodyFg)
+                .Replace("HorizontalSeparatorColor", sepCol)
+                .Replace("BodyBackgroundThemeDarkerColor", darkBg)
                 .Replace("ShadowDefinition", ShadowsDefinition);
 
             bodyCss = bodyCss.Replace("AccentColourBase", AccentColour).
                 Replace("AccentColourLight", AccentColourLight).
                 Replace("AccentColourDark", AccentColourDark)
-                .Replace("BodyBackgroundThemeColor",
-                    Settings.SelectedTheme == 1 ? "#051522" : "#e6e6e6")
-                .Replace("BodyForegroundThemeColor",
-                    Settings.SelectedTheme == 1 ? "white" : "black").Replace(
-                    "HorizontalSeparatorColor",
-                    Settings.SelectedTheme == 1 ? "#424656" : "#b3b3b3")
-                .Replace("BodyBackgroundThemeDarkerColor",
-                    Settings.SelectedTheme == 1 ? "#0d1d2a" : "#dadada");
+                .Replace("BodyBackgroundThemeColor", bodyBg)
+                .Replace("BodyForegroundThemeColor", bodyFg).Replace(
+                    "HorizontalSeparatorColor", sepCol)
+                .Replace("BodyBackgroundThemeDarkerColor", darkBg);
 
             bodyCssMinWidth = bodyCssMinWidth.Replace("AccentColourBase", AccentColour).
                 Replace("AccentColourLight", AccentColourLight).
                 Replace("AccentColourDark", AccentColourDark)
-                .Replace("BodyBackgroundThemeColor",
-                    Settings.SelectedTheme == 1 ? "#051522" : "#e6e6e6")
-                .Replace("BodyForegroundThemeColor",
-                    Settings.SelectedTheme == 1 ? "white" : "black").Replace(
-                    "HorizontalSeparatorColor",
-                    Settings.SelectedTheme == 1 ? "#424656" : "#b3b3b3")
-                .Replace("BodyBackgroundThemeDarkerColor",
-                    Settings.SelectedTheme == 1 ? "#0d1d2a" : "#dadada");
+                .Replace("BodyBackgroundThemeColor", bodyBg)
+                .Replace("BodyForegroundThemeColor", bodyFg).Replace(
+                    "HorizontalSeparatorColor", sepCol)
+                .Replace("BodyBackgroundThemeDarkerColor", darkBg);
 
             ReplacedBegin = Begin.Replace("$notifyFunction$", NotifyFunction);
             ReplacedCssHtmlBodyScrollEnabled = bodyCss;

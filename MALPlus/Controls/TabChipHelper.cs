@@ -11,9 +11,12 @@ public static class TabChipHelper
 {
     public static readonly Color ActiveBackground = Color.FromArgb("#0066FF");
     public static readonly Color ActiveText = Colors.White;
-    public static readonly Color InactiveBackground = Color.FromArgb("#141D2B");
-    public static readonly Color InactiveText = Color.FromArgb("#8FA8C0");
-    public static readonly Color InactiveBorder = Color.FromArgb("#1E3A52");
+    public static Color InactiveBackground =>
+        Application.Current?.Resources.TryGetValue("TabChipInactiveBg", out var val) == true && val is Color c ? c : Color.FromArgb("#141D2B");
+    public static Color InactiveText =>
+        Application.Current?.Resources.TryGetValue("TabChipInactiveText", out var val) == true && val is Color c ? c : Color.FromArgb("#8FA8C0");
+    public static Color InactiveBorder =>
+        Application.Current?.Resources.TryGetValue("EmBorder", out var val) == true && val is Color c ? c : Color.FromArgb("#1E3A52");
 
     public const double ChipHeight = 34;
     public const int ChipCornerRadius = 8;

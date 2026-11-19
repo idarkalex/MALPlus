@@ -315,6 +315,8 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
+        StatusBar.BackgroundColor = MALPlus.Services.ThemeService.CurrentSheet;
         if (!_navConnected)
         {
             BottomNav.SectionActivated += OnSectionActivated;
@@ -1634,7 +1636,7 @@ Season? routeSeason = null, int? routeYear = null)
     /// </summary>
     private void AddDropdownRow(string label, bool selected, Action onTapped)
     {
-        var sheetColor = Color.FromArgb("#0A1F2E");
+        var sheetColor = Application.Current?.Resources.TryGetValue("EmSheet", out var sv) == true && sv is Color sc ? sc : Color.FromArgb("#0A1F2E");
         var accent = Color.FromArgb("#0066FF");
         var row = new Grid
         {

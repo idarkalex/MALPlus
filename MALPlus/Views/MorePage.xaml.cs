@@ -11,6 +11,8 @@ using MALPlus.XShared.Utils;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Main;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Layouts;
 
 namespace MALPlus.Views;
 
@@ -38,6 +40,7 @@ public partial class MorePage : ContentPage, ITabSwipeHost
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        ApplyTheme();
         if (_initialized)
         {
             if (_appliedContentTag != ContentFilter.CacheTag)
@@ -46,7 +49,7 @@ public partial class MorePage : ContentPage, ITabSwipeHost
                 PopulateTypePanel(TopMangaPanel,
                     Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>()
                         .Where(ContentFilter.AllowsMangaSubcategory)
-                        .Select(t => (t.ToString(), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
+                        .Select(t => (PrettyTopManga(t), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
             }
             if (_appliedSettingsRevision != SettingsViewModelBase.SettingsRevision)
             {
@@ -68,13 +71,13 @@ public partial class MorePage : ContentPage, ITabSwipeHost
         // Populate collapsible panels
         PopulateStatusPanel(AnimeListPanel, false);
         PopulateTypePanel(TopAnimePanel, 
-            Enum.GetValues(typeof(TopAnimeType)).Cast<TopAnimeType>().Select(t => (t.ToString(), (Action)(() => NavigateTo(PageIndex.PageTopAnime, AnimeListPageNavigationArgs.TopAnime(t))))).ToList());
+            Enum.GetValues(typeof(TopAnimeType)).Cast<TopAnimeType>().Select(t => (PrettyTopAnime(t), (Action)(() => NavigateTo(PageIndex.PageTopAnime, AnimeListPageNavigationArgs.TopAnime(t))))).ToList());
         PopulateTypePanel(TopMangaPanel,
-    // Doujinshi is offered only with the content filter off entirely, and it is the same predicate
-    // the dropdown on the top page uses, so the two cannot offer different sets.
-    Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>()
-        .Where(ContentFilter.AllowsMangaSubcategory)
-        .Select(t => (t.ToString(), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
+            // Doujinshi is offered only with the content filter off entirely, and it is the same predicate
+            // the dropdown on the top page uses, so the two cannot offer different sets.
+            Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>()
+                .Where(ContentFilter.AllowsMangaSubcategory)
+                .Select(t => (PrettyTopManga(t), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
         PopulateTypePanel(AdaptedPanel, 
             Enum.GetValues(typeof(MangaAdaptedType)).Cast<MangaAdaptedType>().Select(t => (AnimeAdaptedToAnimeQuery.ToDisplayName(t), (Action)(() => NavigateTo(PageIndex.PageMangaAdapted, AnimeListPageNavigationArgs.MangaAdapted(t))))).ToList());
         PopulateStatusPanel(MangaListPanel, true);
@@ -209,6 +212,16 @@ public partial class MorePage : ContentPage, ITabSwipeHost
     private void OnRecommendationsTapped(object sender, TappedEventArgs e)
     {
         NavigateTo(PageIndex.PageRecomendations, null);
+    }
+
+    private async void OnGlobalCalendarTapped(object sender, TappedEventArgs e)
+    {
+        try { await Shell.Current.GoToAsync("calendar?mode=global"); } catch { }
+    }
+
+    private async void OnMyScheduleTapped(object sender, TappedEventArgs e)
+    {
+        try { await Shell.Current.GoToAsync("calendar?mode=mine"); } catch { }
     }
 
     private void OnCalendarTapped(object sender, TappedEventArgs e)
@@ -406,50 +419,147 @@ public partial class MorePage : ContentPage, ITabSwipeHost
         PopulateTypePanel(panel, items);
     }
 
+    private void ApplyTheme()
+    {
+        try
+        {
+            var bg = MALPlus.Services.ThemeService.CurrentBackground;
+            var sheet = MALPlus.Services.ThemeService.CurrentSheet;
+            var border = MALPlus.Services.ThemeService.CurrentBorder;
+            var sunkenBg = MALPlus.Services.ThemeService.CurrentSunkenBg;
+            var sunkenStroke = MALPlus.Services.ThemeService.CurrentSunkenBorder;
+
+            BackgroundColor = bg;
+            foreach (var element in this.GetVisualTreeDescendants())
+            {
+                if (element is Border b)
+                {
+                    if (b.Margin.Left == 14 && b.Margin.Right == 14 && b.Padding.Left == 0)
+                    {
+                        b.BackgroundColor = sunkenBg;
+                        b.Stroke = new SolidColorBrush(sunkenStroke);
+                    }
+                    else
+                    {
+                        b.BackgroundColor = sheet;
+                        b.Stroke = new SolidColorBrush(border);
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
     private void PopulateTypePanel(Grid panel, List<(string Label, Action OnClick)> items)
     {
         panel.RowDefinitions.Clear();
+        panel.ColumnDefinitions.Clear();
         panel.Children.Clear();
 
-        // The panels are single-column grids; each item is a 44dp row with a
-        // divider underneath, indented like the reference layout.
+        var sunkenBg = MALPlus.Services.ThemeService.CurrentSunkenBg;
+        var sunkenStroke = MALPlus.Services.ThemeService.CurrentSunkenBorder;
+
+        // Inset sub-panel: a sunken container with rounded corners and subtle border,
+        // clearly nesting the submenu under its parent row.
+        var container = new Border
+        {
+            BackgroundColor = sunkenBg,
+            Stroke = sunkenStroke,
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+            Margin = new Thickness(14, 6, 14, 8),
+            Padding = new Thickness(0)
+        };
+
+        var stack = new VerticalStackLayout
+        {
+            Spacing = 0
+        };
+
         for (int i = 0; i < items.Count; i++)
         {
             var item = items[i];
 
             var row = new Grid
             {
-                HeightRequest = 44,
+                HeightRequest = 42,
+                BackgroundColor = sunkenBg,
+                Padding = new Thickness(16, 0, 14, 0),
                 ColumnDefinitions = new ColumnDefinitionCollection
                 {
-                    new ColumnDefinition { Width = GridLength.Star }
+                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = GridLength.Auto }
                 }
             };
+
             row.Add(new Label
             {
                 Text = item.Label,
                 FontFamily = "Inter",
-                FontSize = 16,
-                TextColor = (Color)Application.Current.Resources["BrushText"],
+                FontSize = 14.5,
+                TextColor = Color.FromArgb("#DCE7F2"),
                 VerticalOptions = LayoutOptions.Center
             }, 0, 0);
+
+            row.Add(new Image
+            {
+                Source = "icon_chevron_right",
+                WidthRequest = 14,
+                HeightRequest = 14,
+                Opacity = 0.35,
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalOptions = LayoutOptions.End,
+                InputTransparent = true
+            }, 1, 0);
 
             var tapGesture = new TapGestureRecognizer();
             tapGesture.Tapped += (s, e) => item.OnClick();
             row.GestureRecognizers.Add(tapGesture);
 
-            panel.Add(row, 0, i * 2);
+            stack.Add(row);
 
             if (i < items.Count - 1)
             {
-                panel.Add(new BoxView
+                stack.Add(new BoxView
                 {
                     HeightRequest = 1,
-                    Color = Color.FromArgb("#1AFFFFFF")
-                }, 0, i * 2 + 1);
+                    Color = Color.FromArgb("#0DFFFFFF"),
+                    Margin = new Thickness(16, 0, 14, 0)
+                });
             }
         }
+
+        container.Content = stack;
+        panel.Children.Add(container);
     }
+
+    private static string PrettyTopAnime(TopAnimeType type) => type switch
+    {
+        TopAnimeType.General => "All time",
+        TopAnimeType.Airing => "Airing",
+        TopAnimeType.Upcoming => "Upcoming",
+        TopAnimeType.Tv => "TV",
+        TopAnimeType.Movies => "Movies",
+        TopAnimeType.Ovas => "OVAs",
+        TopAnimeType.Popular => "Popular",
+        TopAnimeType.Favourited => "Favourited",
+        _ => type.ToString()
+    };
+
+    private static string PrettyTopManga(MangaTopType type) => type switch
+    {
+        MangaTopType.All => "All time",
+        MangaTopType.Manga => "Manga",
+        MangaTopType.Novels => "Novels",
+        MangaTopType.LightNovels => "Light Novels",
+        MangaTopType.OneShots => "One-shots",
+        MangaTopType.Doujinshi => "Doujinshi",
+        MangaTopType.Manhwa => "Manhwa",
+        MangaTopType.Manhua => "Manhua",
+        MangaTopType.Popular => "Popular",
+        MangaTopType.Favourited => "Favourited",
+        _ => type.ToString()
+    };
 
     #endregion
 

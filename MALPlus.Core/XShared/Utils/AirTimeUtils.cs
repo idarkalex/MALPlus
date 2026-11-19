@@ -171,7 +171,7 @@ namespace MALPlus.XShared.Utils
         {
             var diff = airDate - now;
             if (diff.TotalSeconds <= 0)
-                return IsInAiringWindow(airDate, now) ? "Airing now" : "";
+                return IsInAiringWindow(airDate, now) ? "Airing" : "";
             if (diff.TotalDays >= 1)
                 return $"{(int)diff.TotalDays}D";
             if (diff.TotalHours >= 1)

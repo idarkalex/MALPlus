@@ -57,6 +57,18 @@ public partial class BottomNavBar : ContentView
     internal static void SetSharedBarView(global::Android.Views.View view)
         => SharedBarView = view;
 
+    internal static void ApplyThemeToAll()
+    {
+        var sheetColor = Services.ThemeService.CurrentSheet;
+        var bars = Snapshot();
+        foreach (var bar in bars)
+        {
+            bar.BackgroundColor = sheetColor;
+        }
+    }
+
+    internal static void ApplyThemeToAll(bool isAmoled) => ApplyThemeToAll();
+
     internal static void ShowAllForFallback()
     {
         SharedHostInstalled = false;

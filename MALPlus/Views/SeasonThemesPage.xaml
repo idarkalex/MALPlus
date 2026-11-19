@@ -91,7 +91,7 @@
                                        TextColor="{StaticResource BrushText}" MaxLines="2"
                                        LineBreakMode="TailTruncation" />
                                 <Label Text="{Binding MetaLine}" FontFamily="Inter" FontSize="11"
-                                       TextColor="#8FA8C0" MaxLines="1" LineBreakMode="TailTruncation" />
+                                       TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" LineBreakMode="TailTruncation" />
 
                                 <!-- Kept as a line of its own rather than hidden, so a season entry
                                      with no theme still reads as a row of the season. -->

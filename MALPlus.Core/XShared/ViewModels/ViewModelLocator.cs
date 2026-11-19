@@ -63,7 +63,7 @@ namespace MALPlus.XShared.ViewModels
 
         public static INavMgr NavMgr => SimpleIoc.Default.GetInstance<INavMgr>();
 
-        public static AnimeDetailsPageViewModel AnimeDetails => SimpleIoc.Default.GetInstanceWithoutCaching<AnimeDetailsPageViewModel>();
+        public static AnimeDetailsPageViewModel AnimeDetails => SimpleIoc.Default.GetInstance<AnimeDetailsPageViewModel>();
 
         public static AnimeListViewModel AnimeList => SimpleIoc.Default.GetInstance<AnimeListViewModel>();
 

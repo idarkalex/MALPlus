@@ -15,48 +15,41 @@ namespace MALPlus.XShared.Utils
         {
             public string Id { get; set; }
             public string Label { get; set; }
+            public string Subtitle { get; set; }
+            public string ShortLabel { get; set; }
             public override string ToString() => Label;
         }
 
         private static readonly List<Option> _options = new List<Option>
         {
-            new Option { Id = "", Label = "System default" },
-            new Option { Id = "UTC", Label = "UTC" },
-            new Option { Id = "Europe/Madrid", Label = "Madrid" },
-            new Option { Id = "Europe/Lisbon", Label = "Lisbon" },
-            new Option { Id = "Europe/London", Label = "London" },
-            new Option { Id = "Europe/Paris", Label = "Paris" },
-            new Option { Id = "Europe/Berlin", Label = "Berlin" },
-            new Option { Id = "Europe/Athens", Label = "Athens" },
-            new Option { Id = "Europe/Kiev", Label = "Kyiv" },
-            new Option { Id = "Europe/Moscow", Label = "Moscow" },
-            new Option { Id = "Europe/Istanbul", Label = "Istanbul" },
-            new Option { Id = "Africa/Lagos", Label = "Lagos" },
-            new Option { Id = "Africa/Cairo", Label = "Cairo" },
-            new Option { Id = "Africa/Johannesburg", Label = "Johannesburg" },
-            new Option { Id = "America/New_York", Label = "New York" },
-            new Option { Id = "America/Chicago", Label = "Chicago" },
-            new Option { Id = "America/Denver", Label = "Denver" },
-            new Option { Id = "America/Los_Angeles", Label = "Los Angeles" },
-            new Option { Id = "America/Mexico_City", Label = "Mexico City" },
-            new Option { Id = "America/Bogota", Label = "Bogota" },
-            new Option { Id = "America/Sao_Paulo", Label = "Sao Paulo" },
-            new Option { Id = "America/Argentina/Buenos_Aires", Label = "Buenos Aires" },
-            new Option { Id = "Pacific/Honolulu", Label = "Honolulu" },
-            new Option { Id = "Asia/Jerusalem", Label = "Jerusalem" },
-            new Option { Id = "Asia/Dubai", Label = "Dubai" },
-            new Option { Id = "Asia/Karachi", Label = "Karachi" },
-            new Option { Id = "Asia/Kolkata", Label = "Kolkata" },
-            new Option { Id = "Asia/Dhaka", Label = "Dhaka" },
-            new Option { Id = "Asia/Bangkok", Label = "Bangkok" },
-            new Option { Id = "Asia/Jakarta", Label = "Jakarta" },
-            new Option { Id = "Asia/Shanghai", Label = "Shanghai" },
-            new Option { Id = "Asia/Hong_Kong", Label = "Hong Kong" },
-            new Option { Id = "Asia/Singapore", Label = "Singapore" },
-            new Option { Id = "Asia/Tokyo", Label = "Tokyo" },
-            new Option { Id = "Australia/Perth", Label = "Perth" },
-            new Option { Id = "Australia/Sydney", Label = "Sydney" },
-            new Option { Id = "Pacific/Auckland", Label = "Auckland" },
+            new Option { Id = "", Label = "System default", Subtitle = "Device local time", ShortLabel = "System default" },
+            new Option { Id = "Pacific/Pago_Pago", Label = "UTC-11:00", Subtitle = "Pago Pago, Midway", ShortLabel = "UTC-11:00" },
+            new Option { Id = "Pacific/Honolulu", Label = "UTC-10:00 — Honolulu", Subtitle = "Hawaii, Papeete", ShortLabel = "Honolulu (UTC-10)" },
+            new Option { Id = "America/Anchorage", Label = "UTC-09:00 — Anchorage", Subtitle = "Alaska Standard Time", ShortLabel = "Anchorage (UTC-9)" },
+            new Option { Id = "America/Los_Angeles", Label = "UTC-08:00 — Los Angeles", Subtitle = "Vancouver, Tijuana (PT)", ShortLabel = "Los Angeles (PT)" },
+            new Option { Id = "America/Denver", Label = "UTC-07:00 — Denver", Subtitle = "Phoenix, Salt Lake City (MT)", ShortLabel = "Denver (MT)" },
+            new Option { Id = "America/Chicago", Label = "UTC-06:00 — Chicago", Subtitle = "Mexico City, Dallas (CT)", ShortLabel = "Chicago (CT)" },
+            new Option { Id = "America/New_York", Label = "UTC-05:00 — New York", Subtitle = "Toronto, Bogota, Miami (ET)", ShortLabel = "New York (ET)" },
+            new Option { Id = "America/Santiago", Label = "UTC-04:00 — Santiago", Subtitle = "Caracas, Halifax, La Paz", ShortLabel = "Santiago (UTC-4)" },
+            new Option { Id = "America/Argentina/Buenos_Aires", Label = "UTC-03:00 — Buenos Aires", Subtitle = "Sao Paulo, Montevideo", ShortLabel = "Buenos Aires (UTC-3)" },
+            new Option { Id = "America/Noronha", Label = "UTC-02:00 — Noronha", Subtitle = "Fernando de Noronha, South Georgia", ShortLabel = "Noronha (UTC-2)" },
+            new Option { Id = "Atlantic/Cape_Verde", Label = "UTC-01:00 — Cape Verde", Subtitle = "Azores, Ponta Delgada", ShortLabel = "Cape Verde (UTC-1)" },
+            new Option { Id = "UTC", Label = "UTC+00:00 — London, UTC", Subtitle = "Lisbon, Dublin, Casablanca", ShortLabel = "London / UTC" },
+            new Option { Id = "Europe/Madrid", Label = "UTC+01:00 — Madrid", Subtitle = "Paris, Berlin, Rome (CET)", ShortLabel = "Madrid (CET)" },
+            new Option { Id = "Europe/Athens", Label = "UTC+02:00 — Athens", Subtitle = "Cairo, Kyiv, Helsinki (EET)", ShortLabel = "Athens (EET)" },
+            new Option { Id = "Europe/Moscow", Label = "UTC+03:00 — Moscow", Subtitle = "Istanbul, Riyadh, Baghdad", ShortLabel = "Moscow (UTC+3)" },
+            new Option { Id = "Asia/Dubai", Label = "UTC+04:00 — Dubai", Subtitle = "Baku, Tbilisi, Yerevan", ShortLabel = "Dubai (UTC+4)" },
+            new Option { Id = "Asia/Karachi", Label = "UTC+05:00 — Karachi", Subtitle = "Tashkent, Islamabad", ShortLabel = "Karachi (UTC+5)" },
+            new Option { Id = "Asia/Kolkata", Label = "UTC+05:30 — New Delhi", Subtitle = "Mumbai, Kolkata (IST)", ShortLabel = "New Delhi (IST)" },
+            new Option { Id = "Asia/Dhaka", Label = "UTC+06:00 — Dhaka", Subtitle = "Almaty, Astana, Omsk", ShortLabel = "Dhaka (UTC+6)" },
+            new Option { Id = "Asia/Bangkok", Label = "UTC+07:00 — Bangkok", Subtitle = "Jakarta, Hanoi, Ho Chi Minh", ShortLabel = "Bangkok (UTC+7)" },
+            new Option { Id = "Asia/Singapore", Label = "UTC+08:00 — Singapore", Subtitle = "Beijing, Perth, Manila, Taipei", ShortLabel = "Singapore / Perth" },
+            new Option { Id = "Asia/Tokyo", Label = "UTC+09:00 — Tokyo", Subtitle = "Seoul, Osaka (JST)", ShortLabel = "Tokyo (JST)" },
+            new Option { Id = "Australia/Sydney", Label = "UTC+10:00 — Sydney", Subtitle = "Melbourne, Brisbane, Guam", ShortLabel = "Sydney (AEST)" },
+            new Option { Id = "Pacific/Noumea", Label = "UTC+11:00 — Noumea", Subtitle = "Solomon Islands, Vladivostok", ShortLabel = "Noumea (UTC+11)" },
+            new Option { Id = "Pacific/Auckland", Label = "UTC+12:00 — Auckland", Subtitle = "Wellington, Suva, Fiji", ShortLabel = "Auckland (UTC+12)" },
+            new Option { Id = "Pacific/Tongatapu", Label = "UTC+13:00 — Tonga", Subtitle = "Nuku'alofa, Apia, Samoa", ShortLabel = "Tonga (UTC+13)" },
+            new Option { Id = "Pacific/Kiritimati", Label = "UTC+14:00 — Kiritimati", Subtitle = "Line Islands", ShortLabel = "Kiritimati (UTC+14)" },
         };
 
         public static IReadOnlyList<Option> Options => _options;
@@ -80,13 +73,14 @@ namespace MALPlus.XShared.Utils
                 return TimeZoneInfo.Local;
             try
             {
+                if (TimeZoneInfo.TryConvertIanaIdToWindowsId(id, out var winId))
+                {
+                    try { return TimeZoneInfo.FindSystemTimeZoneById(winId); } catch { }
+                }
                 return TimeZoneInfo.FindSystemTimeZoneById(id);
             }
             catch
             {
-                //Unknown id (missing tzdata, or a zone the OS spells differently). Staying on the
-                //device zone is the safe answer: the alternative would be silently bucketing by
-                //JST again, which is the bug this setting exists to fix.
                 return TimeZoneInfo.Local;
             }
         }

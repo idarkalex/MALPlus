@@ -12,6 +12,9 @@
             <Color x:Key="EmSheet">#0A1F2E</Color>
             <Color x:Key="EmAccent">#0066FF</Color>
             <Color x:Key="EmBorder">#1E3A52</Color>
+            <SolidColorBrush x:Key="EmBorderBrush" Color="#1E3A52" />
+            <SolidColorBrush x:Key="EmBackgroundBrush" Color="#051522" />
+            <SolidColorBrush x:Key="EmSheetBrush" Color="#0A1F2E" />
             <Color x:Key="BrushText">#FFFFFF</Color>
             <Color x:Key="BrushTextSecondary">#99FFFFFF</Color>
             <x:Double x:Key="EmTitleMd">18</x:Double>
@@ -29,14 +32,14 @@
                 <Setter Property="CornerRadius" Value="8" />
                 <Setter Property="Padding" Value="14,0" />
                 <Setter Property="BorderWidth" Value="1" />
-                <Setter Property="BorderColor" Value="{StaticResource EmBorder}" />
-                <Setter Property="BackgroundColor" Value="{StaticResource TabChipInactiveBg}" />
-                <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
+                <Setter Property="BorderColor" Value="{DynamicResource EmBorder}" />
+                <Setter Property="BackgroundColor" Value="{DynamicResource TabChipInactiveBg}" />
+                <Setter Property="TextColor" Value="{DynamicResource TabChipInactiveText}" />
             </Style>
 
             <Style x:Key="TabChipActiveButtonStyle" TargetType="Button" BasedOn="{StaticResource TabChipButtonStyle}">
-                <Setter Property="BackgroundColor" Value="{StaticResource EmAccent}" />
-                <Setter Property="TextColor" Value="{StaticResource BrushText}" />
+                <Setter Property="BackgroundColor" Value="{DynamicResource EmAccent}" />
+                <Setter Property="TextColor" Value="{DynamicResource BrushText}" />
                 <Setter Property="BorderWidth" Value="0" />
                 <Setter Property="BorderColor" Value="Transparent" />
             </Style>
@@ -46,10 +49,10 @@
                  invisible to the others: a row asking for it throws when it inflates, which takes the
                  whole page's content with it rather than leaving a single cell empty. -->
             <Style x:Key="PanelStyle" TargetType="Border">
-                <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
-                <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
+                <Setter Property="BackgroundColor" Value="{DynamicResource EmSheet}" />
+                <Setter Property="Stroke" Value="{DynamicResource EmBorderBrush}" />
                 <Setter Property="StrokeThickness" Value="1" />
-                <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+                <Setter Property="StrokeShape" Value="RoundRectangle 14" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

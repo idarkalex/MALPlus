@@ -40,7 +40,7 @@
                         x:DataType="tanimescrapped:AnimeVideoData">
                             <Border Margin="16,6" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="0">
+                                    StrokeShape="RoundRectangle 14" Padding="0">
                                 <Grid ColumnDefinitions="120,*" ColumnSpacing="0">
                                     <Image Grid.Column="0" Source="{Binding Thumb, Converter={StaticResource ImageConverter}}"
                                            Aspect="AspectFill" HeightRequest="80" WidthRequest="120" />

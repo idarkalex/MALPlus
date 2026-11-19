@@ -5,7 +5,7 @@
              x:Class="MALPlus.Controls.AnimePosterCard"
              x:Name="PosterCard">
 
-    <Grid x:Name="RootGrid" BackgroundColor="#0D0D0D">
+    <Grid x:Name="RootGrid" BackgroundColor="{DynamicResource EmSheet}">
         <Image Source="{Binding PosterUrl, Converter={StaticResource ImageConverter}}"
                Aspect="AspectFill" />
 
@@ -51,30 +51,22 @@
                 HorizontalOptions="End" VerticalOptions="Start"
                 Margin="0,6,6,0"
                 IsVisible="{Binding HasBadge}">
-            <VerticalStackLayout Spacing="2" HorizontalOptions="End">
-                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                    <Label Text="{Binding BadgeAccent}"
-                           FontFamily="InterBold" FontSize="9"
-                           TextColor="{Binding BadgeAccentColor}" VerticalOptions="Center"
-                           IsVisible="{Binding BadgeAccent, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
-                    <Label Text="{Binding BadgeMain}"
-                           FontFamily="InterBold" FontSize="9" TextColor="White" VerticalOptions="Center"
-                           IsVisible="{Binding BadgeMain, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
-                    <BoxView WidthRequest="1" HeightRequest="10" Color="#59FFFFFF"
-                             VerticalOptions="Center"
-                             IsVisible="{Binding HasBadgeExtra}" />
-                    <Label Text="{Binding BadgeExtra}"
-                           FontFamily="InterBold" FontSize="9" TextColor="White"
-                           VerticalOptions="Center" MaxLines="1" LineBreakMode="TailTruncation"
-                           IsVisible="{Binding HasBadgeExtraTop}" />
-                </HorizontalStackLayout>
-                <Label Text="{Binding BadgeExtra}"
+            <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                <Label Text="{Binding BadgeAccent}"
                        FontFamily="InterBold" FontSize="9"
-                       TextColor="#C0E0FF"
-                       HorizontalOptions="End" VerticalOptions="Center"
-                       MaxLines="1" LineBreakMode="TailTruncation"
-                       IsVisible="{Binding IsAiringExtra}" />
-            </VerticalStackLayout>
+                       TextColor="{Binding BadgeAccentColor}" VerticalOptions="Center"
+                       IsVisible="{Binding BadgeAccent, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
+                <Label Text="{Binding BadgeMain}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" VerticalOptions="Center"
+                       IsVisible="{Binding BadgeMain, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
+                <BoxView WidthRequest="1" HeightRequest="10" Color="#59FFFFFF"
+                         VerticalOptions="Center"
+                         IsVisible="{Binding HasBadgeExtra}" />
+                <Label Text="{Binding BadgeExtra}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White"
+                       VerticalOptions="Center" MaxLines="1" LineBreakMode="TailTruncation"
+                       IsVisible="{Binding HasBadgeExtraTop}" />
+            </HorizontalStackLayout>
         </Border>
 
         <!-- Tag and note indicators, on the same line as the score chip under the type chip. Tag on the
@@ -119,22 +111,24 @@
             </Border.Background>
         </Border>
 
-        <!-- Ranking, for the Top panels only. Sits above the title strip rather than inside it: the
-             title is 32dp tall and runs the full width, so a chip sharing that space either
-             overlaps long titles or the grid grows for one panel. 40dp of bottom margin clears it
-             with a hair of gap, and the title stays at full width underneath.
+        <!-- Bottom-right badges above the title overlay: Airing now indicator and/or Rank tag -->
+        <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="End"
+                               Margin="0,0,6,32" Spacing="4"
+                               InputTransparent="True">
+            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+                    BackgroundColor="#E11D48" Stroke="Transparent"
+                    IsVisible="{Binding HasBottomAirTag}">
+                <Label Text="{Binding EffectiveBottomAirText}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+            </Border>
 
-             Same blue as the type and score tags on the same card, so it reads as part of that
-             family instead of a fourth kind of badge. -->
-        <Border Padding="6,2" StrokeShape="RoundRectangle 6"
-                BackgroundColor="#0066FF" Stroke="Transparent"
-                HorizontalOptions="End" VerticalOptions="End"
-                Margin="0,0,6,40"
-                InputTransparent="True"
-                IsVisible="{Binding HasRank}">
-            <Label Text="{Binding RankTag}"
-                   FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
-        </Border>
+            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+                    BackgroundColor="#0066FF" Stroke="Transparent"
+                    IsVisible="{Binding HasRank}">
+                <Label Text="{Binding RankTag}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+            </Border>
+        </HorizontalStackLayout>
 
         <!-- The label box is two lines tall so long titles have room, which used to leave a one
              line hole under a short title. Anchoring the text to the bottom keeps every card's

@@ -57,6 +57,15 @@ namespace MALPlus.XShared.ViewModels.Details
                             _timeTillNextAirCache = changedVm.TimeTillNextAirCache;
                             RaisePropertyChanged(() => TimeTillNextAir);
                         }
+                        else if (args.PropertyName == nameof(AnimeItemViewModel.MyEpisodesBind) ||
+                                 args.PropertyName == nameof(AnimeItemViewModel.MyEpisodesBindShort) ||
+                                 args.PropertyName == nameof(AnimeItemViewModel.MyEpisodes) ||
+                                 args.PropertyName == nameof(AnimeItemViewModel.MyEpisodesFocused) ||
+                                 args.PropertyName == nameof(AnimeItemViewModel.MyStatus) ||
+                                 args.PropertyName == nameof(AnimeItemViewModel.MyScore))
+                        {
+                            UpdateAnimeReferenceUiBindings(Id);
+                        }
                     };
                 }
                 _airItem.PropertyChanged += _airItemHandler;
@@ -207,12 +216,12 @@ namespace MALPlus.XShared.ViewModels.Details
                 }
 
                 if (string.IsNullOrEmpty(result) &&
-                    ResourceLocator.AiringInfoProvider.InitializationSuccess &&
-                    ResourceLocator.AiringInfoProvider.TryGetNextAirDate(malId, now, out DateTime airDate) &&
+                    ResourceLocator.AiringInfoProvider != null &&
+                    ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(malId, out DateTime airDate) &&
                     (airDate > now || AirTimeUtils.IsInAiringWindow(airDate, now)))
                 {
                     result = FormatAirCountdown(airDate, now);
-                    source = "schedules";
+                    source = "declared-direct";
                 }
 
                 if (string.IsNullOrEmpty(result))
@@ -1331,16 +1340,14 @@ RaisePropertyChanged(() => GeneralSeason);
                     return;
 
                 (_animeItemReference as AnimeItemViewModel)?.IncrementWatchedCommand.Execute(null);
-                RaisePropertyChanged(() => IsIncrementButtonEnabled);
-                RaisePropertyChanged(() => IsDecrementButtonEnabled);
+                UpdateAnimeReferenceUiBindings(Id);
             }));
 
         public ICommand DecrementEpsCommand => _decrementEpsCommand ?? (_decrementEpsCommand =
             new RelayCommand(() =>
             {
                 (_animeItemReference as AnimeItemViewModel)?.DecrementWatchedCommand.Execute(null);
-                RaisePropertyChanged(() => IsIncrementButtonEnabled);
-                RaisePropertyChanged(() => IsDecrementButtonEnabled);
+                UpdateAnimeReferenceUiBindings(Id);
             }));
 
         #endregion
@@ -2879,7 +2886,15 @@ RaisePropertyChanged(() => ProducersVisible);
                     if (_animeItemReference is AnimeItemViewModel itemVm && MalId == currentAnimeId)
                     {
                         DateTime? nextAirUnified = null;
-                        if (ResourceLocator.AiringInfoProvider.TryGetEntry(currentAnimeId, out var sched) && sched.Episodes != null && sched.Episodes.Count > 0)
+                        MALPlus.XShared.BL.AiringInfoProvider.AiringData sched = null;
+                        if (ResourceLocator.AiringInfoProvider != null &&
+                            ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(currentAnimeId, out var declared) &&
+                            (declared > DateTime.UtcNow || AirTimeUtils.IsInAiringWindow(declared, DateTime.UtcNow)))
+                        {
+                            nextAirUnified = declared;
+                        }
+                        else if (ResourceLocator.AiringInfoProvider != null &&
+                                 ResourceLocator.AiringInfoProvider.TryGetEntry(currentAnimeId, out sched) && sched.Episodes != null && sched.Episodes.Count > 0)
                         {
                             var schedEps = sched.Episodes.Select(e => DateTimeOffset.FromUnixTimeSeconds(e.Timestamp).UtcDateTime).Where(d => d <= DateTime.UtcNow).OrderBy(d => d).ToList();
                             if (schedEps.Count > 0)

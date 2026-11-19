@@ -21,11 +21,11 @@
           BackgroundColor="Transparent">
         <BoxView x:Name="AccentBar" Grid.Column="0" WidthRequest="3" Margin="0,1"
                  Color="{Binding Accent, Source={x:Reference Row}}" />
-        <Border Grid.Column="1" Stroke="#24405A" StrokeThickness="1"
+        <Border Grid.Column="1" Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                 StrokeShape="RoundRectangle 8" Padding="10,9"
-                BackgroundColor="#101D2A">
+                BackgroundColor="{DynamicResource TabChipInactiveBg}">
             <Label Text="{Binding Text, Source={x:Reference Row}}" FontFamily="Inter" FontSize="13"
-                   TextColor="#DCE9F5" MaxLines="2" LineBreakMode="TailTruncation" />
+                   TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
         </Border>
     </Grid>
 </ContentView>

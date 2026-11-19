@@ -1,4 +1,7 @@
 using System;
+using System.ComponentModel;
+using System.Linq;
+using MALPlus.Controls;
 using MALPlus.Services;
 using MALPlus.XShared.ViewModels;
 using Microsoft.Maui.ApplicationModel;
@@ -7,6 +10,13 @@ namespace MALPlus.Views;
 
 public partial class SettingsPage : ContentPage
 {
+    private static readonly (string Title, string Desc)[] ContentFilterOptions = new[]
+    {
+        ("Safe", "Hides mild nudity & adult content"),
+        ("Mature", "Allows mild nudity, drops explicit"),
+        ("Unfiltered", "Allow all adult content (18+)")
+    };
+
     private bool _initialized;
     private SettingsViewModelBase Vm => (SettingsViewModelBase)BindingContext;
 
@@ -17,27 +27,20 @@ public partial class SettingsPage : ContentPage
         InitializeComponent();
         BindingContext = ViewModelLocator.Settings;
         UpdateAccountHeader();
-        FillContentFilterPicker();
-    }
-
-    private void FillContentFilterPicker()
-    {
-        if (ContentFilterPicker == null)
-            return;
-        ContentFilterPicker.ItemsSource = new[]
-        {
-            "Safe — hides mild nudity & adult",
-            "Mature — allows mild nudity, drops explicit",
-            "Unfiltered — allow all adult content (18+)"
-        };
+        UpdateSelectorLabels();
     }
 
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        ThemeService.ThemeChanged += OnThemeChanged;
+        if (Vm != null)
+            Vm.PropertyChanged += OnVmPropertyChanged;
+        OnThemeChanged();
         UpdateAccountHeader();
         UpdateCacheCount();
         UpdateDiagnosticsAndVersion();
+        UpdateSelectorLabels();
         if (_initialized) return;
         _initialized = true;
     }
@@ -45,8 +48,288 @@ public partial class SettingsPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        ThemeService.ThemeChanged -= OnThemeChanged;
+        if (Vm != null)
+            Vm.PropertyChanged -= OnVmPropertyChanged;
         // Force refresh of loaded poster cards, titles and preview snapshots on exit from Settings
         SettingsViewModelBase.RefreshAllLoadedCards(refreshTitles: true);
+    }
+
+    private void OnVmPropertyChanged(object sender, PropertyChangedEventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(UpdateSelectorLabels);
+    }
+
+    private void UpdateSelectorLabels()
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+
+            // 1. Theme
+            if (ThemeValueLabel != null)
+            {
+                var idx = vm.AppThemeIndex;
+                ThemeValueLabel.Text = (idx >= 0 && idx < vm.AppThemeOptions.Count)
+                    ? vm.AppThemeOptions[idx]
+                    : "Midnight Blue";
+            }
+
+            // 2. Score chip on posters
+            if (ScoreChipValueLabel != null)
+            {
+                var idx = vm.PosterScoreDisplayIndex;
+                ScoreChipValueLabel.Text = idx switch
+                {
+                    0 => "Community score",
+                    1 => "Personal score",
+                    2 => "Hidden",
+                    _ => "Community score"
+                };
+            }
+
+            // 3. Default start page
+            if (StartPageValueLabel != null)
+            {
+                StartPageValueLabel.Text = vm.StartPageOption ?? "Anime list";
+            }
+
+            // 4. Content rating filter
+            if (ContentFilterValueLabel != null)
+            {
+                var idx = vm.ContentFilterIndex;
+                ContentFilterValueLabel.Text = (idx >= 0 && idx < ContentFilterOptions.Length)
+                    ? ContentFilterOptions[idx].Title
+                    : "Safe";
+            }
+
+            // 5. Start week on
+            if (WeekStartValueLabel != null)
+            {
+                var idx = vm.CalendarWeekStartIndex;
+                WeekStartValueLabel.Text = (idx >= 0 && idx < vm.CalendarWeekStartOptions.Count)
+                    ? vm.CalendarWeekStartOptions[idx]
+                    : "Sunday";
+            }
+
+            // 6. Broadcast time zone
+            if (TimeZoneValueLabel != null)
+            {
+                var options = vm.CalendarTimeZoneOptions;
+                var idx = vm.CalendarTimeZoneIndex;
+                TimeZoneValueLabel.Text = (idx >= 0 && idx < options.Count)
+                    ? (options[idx].ShortLabel ?? options[idx].Label)
+                    : "System default";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS UpdateSelectorLabels failed: " + ex.Message);
+        }
+    }
+
+    private async void OnPickThemeClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var current = vm.AppThemeIndex;
+            var rows = vm.AppThemeOptions.Select((themeName, idx) =>
+                new OptionsSheetItem(themeName, null, value: idx == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Theme",
+                "Visual style and OLED black level", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            var newIndex = vm.AppThemeOptions.IndexOf(picked);
+            if (newIndex >= 0 && newIndex != current)
+            {
+                vm.AppThemeIndex = newIndex;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickThemeClicked failed: " + ex.Message);
+        }
+    }
+
+    private async void OnPickScoreChipClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var current = vm.PosterScoreDisplayIndex;
+            var rows = vm.PosterScoreDisplayOptions.Select((opt, idx) =>
+                new OptionsSheetItem(opt, null, value: idx == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Score chip on posters",
+                "Display community rating, personal rating, or hide score chip", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            var newIndex = Array.IndexOf(vm.PosterScoreDisplayOptions, picked);
+            if (newIndex >= 0 && newIndex != current)
+            {
+                vm.PosterScoreDisplayIndex = newIndex;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickScoreChipClicked failed: " + ex.Message);
+        }
+    }
+
+    private async void OnPickStartPageClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var current = vm.StartPageOption;
+            var rows = vm.StartPageOptions.Select(opt =>
+                new OptionsSheetItem(opt, null, value: opt == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Default start page",
+                "Screen opened automatically when launching the app", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            if (picked != current)
+            {
+                vm.StartPageOption = picked;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickStartPageClicked failed: " + ex.Message);
+        }
+    }
+
+    private async void OnPickContentFilterClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var current = vm.ContentFilterIndex;
+            var rows = ContentFilterOptions.Select((opt, idx) =>
+                new OptionsSheetItem(opt.Title, null, description: opt.Desc, value: idx == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Content rating filter",
+                "Filter mature or adult content across search, discovery, and library", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            var newIndex = -1;
+            for (int i = 0; i < ContentFilterOptions.Length; i++)
+            {
+                if (ContentFilterOptions[i].Title == picked)
+                {
+                    newIndex = i;
+                    break;
+                }
+            }
+            if (newIndex >= 0 && newIndex != current)
+            {
+                vm.ContentFilterIndex = newIndex;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickContentFilterClicked failed: " + ex.Message);
+        }
+    }
+
+    private async void OnPickCalendarWeekStartClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var current = vm.CalendarWeekStartIndex;
+            var rows = vm.CalendarWeekStartOptions.Select((opt, idx) =>
+                new OptionsSheetItem(opt, null, value: idx == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Start week on",
+                "First day column shown in the weekly calendar", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            var newIndex = vm.CalendarWeekStartOptions.ToList().IndexOf(picked);
+            if (newIndex >= 0 && newIndex != current)
+            {
+                vm.CalendarWeekStartIndex = newIndex;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickCalendarWeekStartClicked failed: " + ex.Message);
+        }
+    }
+
+    private async void OnPickCalendarTimeZoneClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var options = vm.CalendarTimeZoneOptions;
+            var current = vm.CalendarTimeZoneIndex;
+            var rows = options.Select((opt, idx) =>
+                new OptionsSheetItem(opt.Label, null, description: opt.Subtitle, value: idx == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Broadcast time zone",
+                "Select a time zone to align weekly broadcast days", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            var newIndex = -1;
+            for (int i = 0; i < options.Count; i++)
+            {
+                if (options[i].Label == picked)
+                {
+                    newIndex = i;
+                    break;
+                }
+            }
+            if (newIndex >= 0 && newIndex != current)
+            {
+                vm.CalendarTimeZoneIndex = newIndex;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickCalendarTimeZoneClicked failed: " + ex.Message);
+        }
+    }
+
+    private void OnThemeChanged()
+    {
+        try
+        {
+            var bg = ThemeService.CurrentBackground;
+            var sheet = ThemeService.CurrentSheet;
+            var border = ThemeService.CurrentBorder;
+            var chipBg = ThemeService.CurrentChipBg;
+
+            BackgroundColor = bg;
+            foreach (var element in this.GetVisualTreeDescendants())
+            {
+                if (element is Border b)
+                {
+                    if (b.HeightRequest == 34 || (b.HeightRequest == 40 && b.Padding.Left == 14))
+                    {
+                        // Action / chip border (e.g. SettingSelectChip, GitHub Issues)
+                        b.BackgroundColor = chipBg;
+                        b.Stroke = new SolidColorBrush(border);
+                    }
+                    else
+                    {
+                        b.BackgroundColor = sheet;
+                        b.Stroke = new SolidColorBrush(border);
+                    }
+                }
+            }
+        }
+        catch { }
     }
 
     private void UpdateDiagnosticsAndVersion()
@@ -177,5 +460,17 @@ public partial class SettingsPage : ContentPage
     private async void OnViewChangelogClicked(object sender, EventArgs e)
     {
         await AppUpdateService.ShowCurrentChangelogAsync();
+    }
+
+    private async void OnGitHubIssuesClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            await Launcher.OpenAsync(new Uri("https://github.com/idarkalex/MALPlus/issues"));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS open github issues failed: " + ex.Message);
+        }
     }
 }

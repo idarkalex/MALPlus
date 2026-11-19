@@ -315,6 +315,24 @@ namespace MALPlus.XShared.ViewModels.Main
                 if (!IsCurrentBuild(version))
                     return;
 
+                var library = _animeLibraryDataStorage.AllLoadedAuthAnimeItems;
+                if (library == null || library.Count == 0)
+                    library = _animeLibraryDataStorage.AllLoadedAnimeItemAbstractions;
+
+                if (library == null || library.Count == 0)
+                {
+                    if (Credentials.Authenticated && !string.IsNullOrWhiteSpace(Credentials.UserName))
+                    {
+                        try
+                        {
+                            await ViewModelLocator.AnimeList.FetchData(false, AnimeListWorkModes.Anime);
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                }
+
                 var built = await Task.Run(BuildMyListFast);
                 abstractions = built.Covered;
                 unresolved = built.Missing;
@@ -353,7 +371,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 CalendarPivotIndex = pages.Count - 1;
             }
 
-            if (firstPublish || changed)
+            if (firstPublish || changed || modeChanged)
             {
                 CalendarData = new ObservableCollection<CalendarPivotPage>(pages);
                 RaisePropertyChanged(() => CalendarData);
@@ -382,19 +400,20 @@ namespace MALPlus.XShared.ViewModels.Main
                     if (AiringOverrides.IsOverriddenAsNotAiring(abstraction.Id))
                         continue;
 
-                    if (ResourceLocator.AiringInfoProvider.TryGetNextAirDate(abstraction.Id, nowUtc, out var nextAirDate) &&
-                        (nextAirDate - nowUtc).TotalDays >= 7)
-                        continue;
-
                     DateTime airUtc;
-                    if (nextAirDate != default)
+                    if (ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(abstraction.Id, out var declaredAir) &&
+                        (declaredAir > nowUtc || AirTimeUtils.IsInAiringWindow(declaredAir, nowUtc)))
                     {
-                        // The provider already told us when this airs, so hand that date
-                        // straight to the item. Season mode has ~297 entries and the grid binds
-                        // the countdown on first paint: without this the pill would be empty
-                        // until something kicked off a fetch per card, which is the exact
-                        // stampede AirTimeUtils guards against. SetNextAirCache is the single
-                        // writer for this value.
+                        if ((declaredAir - nowUtc).TotalDays >= 7)
+                            continue;
+                        abstraction.ViewModel.SetNextAirCache(declaredAir);
+                        airUtc = declaredAir;
+                    }
+                    else if (ResourceLocator.AiringInfoProvider.TryGetNextAirDate(abstraction.Id, nowUtc, out var nextAirDate) &&
+                             (nextAirDate > nowUtc || AirTimeUtils.IsInAiringWindow(nextAirDate, nowUtc)))
+                    {
+                        if ((nextAirDate - nowUtc).TotalDays >= 7)
+                            continue;
                         abstraction.ViewModel.SetNextAirCache(nextAirDate);
                         airUtc = nextAirDate;
                     }
@@ -585,12 +604,20 @@ namespace MALPlus.XShared.ViewModels.Main
         ///     follows with ones they do not, and re-running Add on a listed entry resets local
         ///     progress and score, so the long-press sheet has to know.
         /// </summary>
+        private IEnumerable<AnimeItemAbstraction> GetLoadedAuthAnime()
+        {
+            var list = _animeLibraryDataStorage.AllLoadedAuthAnimeItems;
+            if (list != null && list.Count > 0)
+                return list;
+            return _animeLibraryDataStorage.AllLoadedAnimeItemAbstractions ?? Enumerable.Empty<AnimeItemAbstraction>();
+        }
+
         public bool IsOnMyList(int malId)
         {
             if (malId <= 0)
                 return false;
             if (_myListIds == null)
-                _myListIds = new HashSet<int>(_animeLibraryDataStorage.AllLoadedAuthAnimeItems
+                _myListIds = new HashSet<int>(GetLoadedAuthAnime()
                     .Where(abstraction => abstraction != null)
                     .Select(abstraction => abstraction.MalId));
             return _myListIds.Contains(malId);
@@ -600,8 +627,9 @@ namespace MALPlus.XShared.ViewModels.Main
 
         private List<AnimeItemAbstraction> ProviderMyListAbstractions()
         {
-            var abstractions = _animeLibraryDataStorage.AllLoadedAuthAnimeItems.Where(abstraction =>
-                ResourceLocator.AiringInfoProvider.HasAiringEntry(abstraction.Id)).Where(abstraction =>
+            var abstractions = GetLoadedAuthAnime().Where(abstraction =>
+                ResourceLocator.AiringInfoProvider.HasAiringEntry(abstraction.Id) ||
+                ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(abstraction.Id, out _)).Where(abstraction =>
             {
                 if (DataCache.TryRetrieveDataForId(abstraction.Id, out var vd) && !string.IsNullOrEmpty(vd.LastKnownStatus) && !AirTimeUtils.IsCurrentlyAiringStatus(vd.LastKnownStatus))
                     return false;
@@ -644,7 +672,7 @@ namespace MALPlus.XShared.ViewModels.Main
             var missing = new List<AnimeItemAbstraction>();
             var nowUtc = DateTime.UtcNow;
 
-            foreach (var abstraction in _animeLibraryDataStorage.AllLoadedAuthAnimeItems)
+            foreach (var abstraction in GetLoadedAuthAnime())
             {
                 if (abstraction == null || !abstraction.RepresentsAnime)
                     continue;
@@ -659,9 +687,18 @@ namespace MALPlus.XShared.ViewModels.Main
                 if (coveredIds.Contains(abstraction.Id))
                     continue;
 
-                //defensive: currently-airing library entries NOT in the provider (e.g. partial
-                //cache) are resolved through the same date the countdown already persisted, so
-                //the calendar paints before anything goes to the network.
+                //defensive: currently-airing library entries with declared AniList dates
+                //or persisted countdown dates resolve immediately before going to the network.
+                if (ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(abstraction.Id, out var declared) &&
+                    (declared > nowUtc || AirTimeUtils.IsInAiringWindow(declared, nowUtc)) &&
+                    (declared - nowUtc).TotalDays < 7)
+                {
+                    abstraction.ViewModel.SetNextAirCache(declared);
+                    covered.Add(abstraction);
+                    coveredIds.Add(abstraction.Id);
+                    continue;
+                }
+
                 if (DataCache.TryRetrieveDataForId(abstraction.Id, out var volatileData) &&
                     volatileData.NextAirUtc.HasValue)
                 {
@@ -918,7 +955,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     foreach (var id in wanted)
                     {
                         var hasEntry = ResourceLocator.AiringInfoProvider.TryGetEntry(id, out var entry);
-                        var libraryItem = _animeLibraryDataStorage.AllLoadedAuthAnimeItems
+                        var libraryItem = GetLoadedAuthAnime()
                             .FirstOrDefault(a => a != null && a.RepresentsAnime && a.MalId == id);
 
                         float score = 0f;

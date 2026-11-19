@@ -21,10 +21,10 @@
             <VerticalStackLayout Padding="16,0,16,32" Spacing="12">
                 <Border BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8" Padding="12">
+                        StrokeShape="RoundRectangle 14" Padding="14">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="TITLE" FontFamily="InterBold" FontSize="10"
-                               TextColor="#A0FFFFFF" />
+                        <Label Text="TITLE" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                               TextColor="{StaticResource TabChipInactiveText}" />
                         <Entry Text="{Binding Title, Mode=TwoWay}" Placeholder="Topic title..."
                                FontFamily="Inter" FontSize="14"
                                BackgroundColor="{StaticResource EmBackground}"
@@ -35,10 +35,10 @@
 
                 <Border BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8" Padding="12">
+                        StrokeShape="RoundRectangle 14" Padding="14">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="POLL QUESTION (OPTIONAL)" FontFamily="InterBold" FontSize="10"
-                               TextColor="#A0FFFFFF" />
+                        <Label Text="POLL QUESTION (OPTIONAL)" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                               TextColor="{StaticResource TabChipInactiveText}" />
                         <Entry Text="{Binding Question, Mode=TwoWay}" Placeholder="Ask a question..."
                                FontFamily="Inter" FontSize="14"
                                BackgroundColor="{StaticResource EmBackground}"
@@ -49,11 +49,11 @@
 
                 <Border BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8" Padding="12"
+                        StrokeShape="RoundRectangle 14" Padding="14"
                         IsVisible="{Binding AnswersVisibility}">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="POLL ANSWERS" FontFamily="InterBold" FontSize="10"
-                               TextColor="#A0FFFFFF" />
+                        <Label Text="POLL ANSWERS" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                               TextColor="{StaticResource TabChipInactiveText}" />
                         <CollectionView ItemsSource="{Binding Answers}" SelectionMode="None"
                                         HeightRequest="100">
                             <CollectionView.ItemTemplate>
@@ -72,10 +72,10 @@
 
                 <Border BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8" Padding="12">
+                        StrokeShape="RoundRectangle 14" Padding="14">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="MESSAGE (BBCode supported)" FontFamily="InterBold" FontSize="10"
-                               TextColor="#A0FFFFFF" />
+                        <Label Text="MESSAGE (BBCODE SUPPORTED)" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                               TextColor="{StaticResource TabChipInactiveText}" />
                         <Editor Text="{Binding Message, Mode=TwoWay}" Placeholder="Write your topic..."
                                 FontFamily="Inter" FontSize="14" HeightRequest="240"
                                 BackgroundColor="{StaticResource EmBackground}"
@@ -85,19 +85,19 @@
                         <Button Text="Preview" Command="{Binding PreviewCommand}"
                                 HorizontalOptions="End" Margin="0,6,0,0"
                                 FontFamily="InterSemiBold" FontSize="12"
-                                BackgroundColor="#141d2b" TextColor="White"
-                                BorderColor="#29FFFFFF" BorderWidth="1"
+                                BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                                BorderColor="{StaticResource EmBorder}" BorderWidth="1"
                                 CornerRadius="8" HeightRequest="32" Padding="10,0" />
                     </VerticalStackLayout>
                 </Border>
 
                 <Border BackgroundColor="{StaticResource EmSheet}"
                         Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8" Padding="12"
+                        StrokeShape="RoundRectangle 14" Padding="14"
                         IsVisible="{Binding PreviewAvailable}">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="PREVIEW" FontFamily="InterBold" FontSize="10"
-                               TextColor="#A0FFFFFF" />
+                        <Label Text="PREVIEW" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                               TextColor="{StaticResource TabChipInactiveText}" />
                         <Label x:Name="PreviewLabel" Text="" FontFamily="Inter" FontSize="13"
                                TextColor="{StaticResource BrushText}" />
                     </VerticalStackLayout>

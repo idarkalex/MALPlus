@@ -59,6 +59,14 @@ namespace MALPlus.XShared.ViewModels.Forums
         private string _loadError;
         public bool ShowPollResults { get; set; }
 
+        public void RefreshTopicHtml()
+        {
+            if (CurrentTopicData != null)
+            {
+                PageHtml = ForumTopicQueries.BuildTopicPresentationHtml(CurrentTopicData);
+            }
+        }
+
         public void TogglePollResults(bool showResults)
         {
             ShowPollResults = showResults;

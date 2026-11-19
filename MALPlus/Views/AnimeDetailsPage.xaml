@@ -32,8 +32,9 @@
              card; above it, with the border below, it reads as the heading of what follows. -->
         <Style x:Key="SectionLabelStyle" TargetType="Label">
             <Setter Property="FontFamily" Value="InterBold" />
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="TextColor" Value="#8FA8C0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="CharacterSpacing" Value="1.2" />
+            <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
             <Setter Property="MaxLines" Value="1" />
             <Setter Property="Margin" Value="2,16,2,6" />
         </Style>
@@ -163,7 +164,7 @@
                                 <Label Text="★" FontFamily="Inter" FontSize="9" TextColor="#FFD700"
                                        VerticalOptions="Center" />
                                 <Label Text="{Binding FavoritesText}" FontFamily="Inter" FontSize="11"
-                                       TextColor="#8FA8C0" VerticalOptions="Center" />
+                                       TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
                             </HorizontalStackLayout>
                         </HorizontalStackLayout>
                         <HorizontalStackLayout Spacing="8" IsVisible="{Binding HasJapaneseVoice}">
@@ -212,7 +213,7 @@
                                 <Label Text="★" FontFamily="Inter" FontSize="9" TextColor="#FFD700"
                                        VerticalOptions="Center" />
                                 <Label Text="{Binding FavoritesText}" FontFamily="Inter" FontSize="11"
-                                       TextColor="#8FA8C0" VerticalOptions="Center" />
+                                       TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
                             </HorizontalStackLayout>
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
@@ -294,7 +295,7 @@
                                     <DataTemplate>
                                         <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
                                             <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="#8FA8C0" MaxLines="1" />
+                                                   TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
                                             <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
                                                    TextColor="{StaticResource BrushText}" />
                                         </Grid>
@@ -320,7 +321,7 @@
                                 </Label>
                                 <Label Text="No synopsis available."
                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralSynopsisEmptyVisible}"
-                                       FontFamily="Inter" FontSize="12" TextColor="#8FA8C0" MaxLines="1" />
+                                       FontFamily="Inter" FontSize="12" TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
                             </VerticalStackLayout>
                         </Border>
 
@@ -357,16 +358,16 @@
                                              carrying only a tap recognizer and a transparent fill never
                                              receives the touch on Android. Navigable chips get a real
                                              tint, themes stay flat because there is no list to open. -->
-                                        <Border Stroke="#24405A" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                        <Border Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
                                                 Padding="9,4" Margin="0,3,6,3"
-                                                BackgroundColor="{Binding IsNavigable, Converter={StaticResource BoolColor}, ConverterParameter=#14293D}"
+                                                BackgroundColor="{Binding IsNavigable, Converter={StaticResource BoolColor}, ConverterParameter=TabChipInactiveBg}"
                                                 InputTransparent="{Binding IsNavigable, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnChipTapped" />
                                             </Border.GestureRecognizers>
-<Label Text="{Binding Name}" FontFamily="Inter" FontSize="12"
-                                                       TextColor="#D4E4F7" MaxLines="1" LineBreakMode="NoWrap"
-                                                       InputTransparent="True" />
+                                            <Label Text="{Binding Name}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="NoWrap"
+                                                   InputTransparent="True" />
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
@@ -382,16 +383,16 @@
                                         AlignItems="Start">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="vm:DetailChipViewModel">
-                                        <Border Stroke="#24405A" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                        <Border Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
                                                 Padding="9,4" Margin="0,3,6,3"
-                                                BackgroundColor="{Binding IsNavigable, Converter={StaticResource BoolColor}, ConverterParameter=#14293D}"
+                                                BackgroundColor="{Binding IsNavigable, Converter={StaticResource BoolColor}, ConverterParameter=TabChipInactiveBg}"
                                                 InputTransparent="{Binding IsNavigable, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnChipTapped" />
                                             </Border.GestureRecognizers>
-<Label Text="{Binding Name}" FontFamily="Inter" FontSize="12"
-                                                       TextColor="#D4E4F7" MaxLines="1" LineBreakMode="NoWrap"
-                                                       InputTransparent="True" />
+                                            <Label Text="{Binding Name}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="NoWrap"
+                                                   InputTransparent="True" />
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
@@ -407,7 +408,7 @@
                                     <DataTemplate>
                                         <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
                                             <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="#8FA8C0" MaxLines="1" />
+                                                   TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
                                             <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
                                                    TextColor="{StaticResource BrushText}" />
                                         </Grid>
@@ -446,7 +447,7 @@
                                     <DataTemplate>
                                         <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
                                             <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="#8FA8C0" MaxLines="1" />
+                                                   TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
                                             <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
                                                    TextColor="{StaticResource BrushText}" />
                                         </Grid>
@@ -464,7 +465,8 @@
                                         AlignItems="Start">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Stroke="#1E3A52" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                        <Border Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                                BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                 Padding="11,5" Margin="0,3,6,3">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnExternalLinkTapped"
@@ -619,22 +621,22 @@
                               IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasEpisodeRanges}">
                             <Border Grid.Column="0" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasPrevRange}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8"
-                                    BackgroundColor="#141D2B" Padding="12,8" InputTransparent="False">
+                                    BackgroundColor="{StaticResource TabChipInactiveBg}" Padding="12,8" InputTransparent="False">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnPrevRangeTapped" />
                                 </Border.GestureRecognizers>
                                 <Label Text="{Binding Source={x:Reference DetailsPage}, Path=PrevRangeButtonText}"
-                                       FontFamily="InterMedium" FontSize="12" TextColor="White" HorizontalOptions="Center" />
+                                       FontFamily="InterMedium" FontSize="12" TextColor="{StaticResource BrushText}" HorizontalOptions="Center" />
                             </Border>
 
                             <Border Grid.Column="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasNextRange}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8"
-                                    BackgroundColor="#141D2B" Padding="12,8" InputTransparent="False">
+                                    BackgroundColor="{StaticResource TabChipInactiveBg}" Padding="12,8" InputTransparent="False">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnNextRangeTapped" />
                                 </Border.GestureRecognizers>
                                 <Label Text="{Binding Source={x:Reference DetailsPage}, Path=NextRangeButtonText}"
-                                       FontFamily="InterMedium" FontSize="12" TextColor="White" HorizontalOptions="Center" />
+                                       FontFamily="InterMedium" FontSize="12" TextColor="{StaticResource BrushText}" HorizontalOptions="Center" />
                             </Border>
                         </Grid>
                     </Grid>
@@ -750,10 +752,8 @@
                                 IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RelatedMoreVisible}"
                                 Clicked="OnRelatedMoreTapped"
                                 Margin="0,10,0,0" HorizontalOptions="Center"
-                                FontFamily="InterSemiBold" FontSize="14"
-                                BackgroundColor="#141d2b" TextColor="White"
-                                BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12"
-                                HeightRequest="40" Padding="18,0" />
+                                Style="{StaticResource TabChipButtonStyle}"
+                                HeightRequest="38" Padding="18,0" />
                     </VerticalStackLayout>
 
                     <VerticalStackLayout x:Name="CharactersPanel"
@@ -989,14 +989,17 @@
             <Border x:Name="ActionBar" HorizontalOptions="Fill" BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 24,24,0,0" Stroke="Transparent" Padding="14,12,14,8">
                 <Grid ColumnDefinitions="*,*,Auto,Auto,Auto" ColumnSpacing="6">
                     <Button Grid.Column="0" Text="Add to List" Command="{Binding AddAnimeCommand}" IsVisible="{Binding AddAnimeVisibility}"
-                            IsEnabled="{Binding IsAddAnimeButtonEnabled}" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
-                            TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0" />
+                            IsEnabled="{Binding IsAddAnimeButtonEnabled}" FontFamily="InterSemiBold" FontSize="12"
+                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" Padding="10,0" />
                     <Button Grid.Column="0" Text="{Binding MyScoreBind, StringFormat='★ {0}'}" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="#141d2b" TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0"
+                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" Padding="10,0"
                             IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
                     <Button Grid.Column="1" x:Name="FavouriteButton" Text="♥ Favorite" Command="{Binding ToggleFavouriteCommand}"
-                            IsEnabled="{Binding IsFavouriteButtonEnabled}" FontFamily="InterSemiBold" FontSize="12" BackgroundColor="#141d2b"
-                            TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" Padding="10,0">
+                            IsEnabled="{Binding IsFavouriteButtonEnabled}" FontFamily="InterSemiBold" FontSize="12"
+                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" Padding="10,0">
                         <Button.Triggers>
                             <DataTrigger TargetType="Button" Binding="{Binding IsFavourite}" Value="True">
                                 <Setter Property="Text" Value="♥ Favourited" />
@@ -1006,41 +1009,28 @@
                         </Button.Triggers>
                     </Button>
                     <Button Grid.Column="2" Text="▶" Clicked="OnTrailerClicked" IsVisible="{Binding HasTrailer}" FontFamily="InterBold" FontSize="14"
-                            BackgroundColor="#141d2b" TextColor="#FF6B00" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" WidthRequest="40" Padding="0" />
-                    <Button Grid.Column="3" Text="↻" Command="{Binding RefreshCommand}" FontFamily="InterBold" FontSize="14" BackgroundColor="#141d2b"
-                            TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" WidthRequest="40" Padding="0" />
-                    <Button Grid.Column="4" Text="⋯" Command="{Binding ShowMoreCommand}" FontFamily="InterBold" FontSize="18" BackgroundColor="#141d2b"
-                            TextColor="White" BorderColor="#29FFFFFF" BorderWidth="1" CornerRadius="12" HeightRequest="40" WidthRequest="40" Padding="0" />
+                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="#FF6B00"
+                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" WidthRequest="40" Padding="0" />
+                    <Button Grid.Column="3" Text="↻" Command="{Binding RefreshCommand}" FontFamily="InterBold" FontSize="14"
+                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" WidthRequest="40" Padding="0" />
+                    <Button Grid.Column="4" Text="⋯" Command="{Binding ShowMoreCommand}" FontFamily="InterBold" FontSize="18"
+                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" WidthRequest="40" Padding="0" />
                 </Grid>
             </Border>
 
             <ScrollView x:Name="TabStripScroll" HorizontalOptions="Fill" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
-                        Margin="0,0,0,0" Padding="14,4,14,0" BackgroundColor="{StaticResource EmSheet}">
-                <HorizontalStackLayout Spacing="20">
-                    <Label x:Name="TabGeneral" Text="Overview" Style="{StaticResource TabLabelStyle}">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="0" /></Label.GestureRecognizers>
-                    </Label>
-                    <Label x:Name="TabEpisodes" Text="Episodes" Style="{StaticResource TabLabelStyle}">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="1" /></Label.GestureRecognizers>
-                    </Label>
-                    <Label x:Name="TabOpEd" Text="OP/ED" Style="{StaticResource TabLabelStyle}">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="2" /></Label.GestureRecognizers>
-                    </Label>
-                    <Label x:Name="TabReviews" Text="Reviews" Style="{StaticResource TabLabelStyle}">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="3" /></Label.GestureRecognizers>
-                    </Label>
-                    <Label x:Name="TabRecs" Text="Recommendations" Style="{StaticResource TabLabelStyle}">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="4" /></Label.GestureRecognizers>
-                    </Label>
-                    <Label x:Name="TabRelated" Text="Related" Style="{StaticResource TabLabelStyle}">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="5" /></Label.GestureRecognizers>
-                    </Label>
-                    <Label x:Name="TabCharacters" Text="Characters" Style="{StaticResource TabLabelStyle}">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="6" /></Label.GestureRecognizers>
-                    </Label>
-                    <Label x:Name="TabStaff" Text="Staff" Style="{StaticResource TabLabelStyle}">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnTabTapped" CommandParameter="7" /></Label.GestureRecognizers>
-                    </Label>
+                        Margin="0,0,0,0" Padding="14,4,14,8" BackgroundColor="{StaticResource EmSheet}">
+                <HorizontalStackLayout Spacing="8">
+                    <Button x:Name="TabGeneral" Text="Overview" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="0" />
+                    <Button x:Name="TabEpisodes" Text="Episodes" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="1" />
+                    <Button x:Name="TabOpEd" Text="OP/ED" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="2" />
+                    <Button x:Name="TabReviews" Text="Reviews" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="3" />
+                    <Button x:Name="TabRecs" Text="Recommendations" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="4" />
+                    <Button x:Name="TabRelated" Text="Related" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="5" />
+                    <Button x:Name="TabCharacters" Text="Characters" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="6" />
+                    <Button x:Name="TabStaff" Text="Staff" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="7" />
                 </HorizontalStackLayout>
             </ScrollView>
         </VerticalStackLayout>

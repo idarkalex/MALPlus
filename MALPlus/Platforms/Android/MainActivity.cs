@@ -17,6 +17,7 @@ namespace MALPlus;
     DataScheme = "malplus")]
 public class MainActivity : MauiAppCompatActivity
 {
+    public static MainActivity Instance { get; private set; }
     public static Intent DeepLinkIntent { get; private set; }
     public static string PendingDeepLinkPath { get; private set; }
 
@@ -126,6 +127,7 @@ public class MainActivity : MauiAppCompatActivity
     protected override void OnCreate(Bundle savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        Instance = this;
 
         try
         {
@@ -136,7 +138,7 @@ public class MainActivity : MauiAppCompatActivity
                     new GlobalNavigationInsetsListener());
             }
 
-            Window?.SetNavigationBarColor(global::Android.Graphics.Color.ParseColor("#0A1F2E"));
+            SetWindowThemeColors(MALPlus.XShared.Utils.Settings.DarkThemeAmoled);
         }
         catch (Exception ex)
         {
@@ -194,6 +196,21 @@ public class MainActivity : MauiAppCompatActivity
     ///     what the policy wants, which is what keeps this from looping against itself: assigning
     ///     RequestedOrientation raises a configuration change even when the value does not move.
     /// </remarks>
+    public static void SetWindowThemeColors(bool isAmoled)
+    {
+        try
+        {
+            var navColor = isAmoled
+                ? global::Android.Graphics.Color.Black
+                : global::Android.Graphics.Color.ParseColor("#0A1F2E");
+            Instance?.Window?.SetNavigationBarColor(navColor);
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPLUS", "SetWindowThemeColors failed: " + ex.Message);
+        }
+    }
+
     protected override void OnResume()
     {
         base.OnResume();

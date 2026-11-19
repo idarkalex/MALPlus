@@ -22,8 +22,8 @@
         <Grid RowDefinitions="Auto,*,Auto">
             <!-- Header: Back button, Title, New Topic button -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Padding="12,10,12,4">
-                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="#141d2b"
-                        Stroke="#29FFFFFF" WidthRequest="38" HeightRequest="38" VerticalOptions="Center">
+                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{StaticResource TabChipInactiveBg}"
+                        Stroke="{StaticResource EmBorder}" WidthRequest="38" HeightRequest="38" VerticalOptions="Center">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnBackTapped" />
                     </Border.GestureRecognizers>
@@ -52,7 +52,7 @@
             <VerticalStackLayout Grid.Row="1" IsVisible="{Binding ShowEmptyError}" ZIndex="50"
                                  HorizontalOptions="Center" VerticalOptions="Center" Spacing="12" Padding="24">
                 <Border WidthRequest="56" HeightRequest="56" StrokeShape="RoundRectangle 28"
-                        BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                         HorizontalOptions="Center">
                     <Label Text="⚠️" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
@@ -77,7 +77,7 @@
                         <DataTemplate x:DataType="mforumsitems:ForumTopicEntryViewModel">
                             <Border Margin="12,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12">
+                                    StrokeShape="RoundRectangle 14" Padding="12">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnTopicRowTapped" CommandParameter="{Binding .}" />
                                 </Border.GestureRecognizers>
@@ -107,11 +107,11 @@
             </RefreshView>
 
             <!-- Bottom pagination bar -->
-            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Padding="12,8,12,12" BackgroundColor="#051522"
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Padding="12,8,12,12" BackgroundColor="{StaticResource EmBackground}"
                   IsVisible="{Binding LoadingTopics, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                 <HorizontalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
-                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 6" BackgroundColor="#141d2b"
-                            Stroke="#29FFFFFF" WidthRequest="36" HeightRequest="42"
+                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{StaticResource TabChipInactiveBg}"
+                            Stroke="{StaticResource EmBorder}" WidthRequest="36" HeightRequest="42"
                             IsVisible="{Binding CanPreviousPage}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnPreviousPageTapped" />
@@ -121,8 +121,8 @@
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
 
-                    <Border Padding="10,0" HeightRequest="42" BackgroundColor="#141d2b" Stroke="#29FFFFFF" StrokeThickness="1"
-                            StrokeShape="RoundRectangle 6" VerticalOptions="Center">
+                    <Border Padding="10,0" HeightRequest="42" BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            StrokeShape="RoundRectangle 8" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnPageJumpTapped" />
                         </Border.GestureRecognizers>
@@ -131,8 +131,8 @@
                                TextColor="{StaticResource EmAccent}" VerticalOptions="Center" HorizontalOptions="Center" />
                     </Border>
 
-                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 6" BackgroundColor="#141d2b"
-                            Stroke="#29FFFFFF" WidthRequest="36" HeightRequest="42"
+                    <Border StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{StaticResource TabChipInactiveBg}"
+                            Stroke="{StaticResource EmBorder}" WidthRequest="36" HeightRequest="42"
                             IsVisible="{Binding CanNextPage}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNextPageTapped" />

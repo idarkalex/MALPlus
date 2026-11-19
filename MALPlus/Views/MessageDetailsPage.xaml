@@ -20,8 +20,8 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
         <Grid RowDefinitions="Auto,*,Auto">
             <!-- Header: Back button, Title -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*" ColumnSpacing="10" Padding="12,10,12,4">
-                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="#141d2b"
-                        Stroke="#29FFFFFF" WidthRequest="38" HeightRequest="38" VerticalOptions="Center">
+                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{StaticResource TabChipInactiveBg}"
+                        Stroke="{StaticResource EmBorder}" WidthRequest="38" HeightRequest="38" VerticalOptions="Center">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnBackTapped" />
                     </Border.GestureRecognizers>
@@ -46,7 +46,7 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                         x:DataType="mmalspecific:MalMessageModel">
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12">
+                                    StrokeShape="RoundRectangle 14" Padding="12">
                                 <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
                                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <Label Grid.Column="0" Text="{Binding Sender}" FontFamily="InterBold" FontSize="13"

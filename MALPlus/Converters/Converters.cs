@@ -121,8 +121,15 @@ public class BoolToColorConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         var on = value is bool b && b;
+        if (!on) return Colors.Transparent;
         var onColor = parameter as string;
-        return on ? onColor : Colors.Transparent;
+        if (string.Equals(onColor, "TabChipInactiveBg", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(onColor) || onColor == "#14293D")
+        {
+            return Application.Current?.Resources.TryGetValue("TabChipInactiveBg", out var val) == true && val is Color c
+                ? c
+                : Color.FromArgb("#141D2B");
+        }
+        return onColor;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

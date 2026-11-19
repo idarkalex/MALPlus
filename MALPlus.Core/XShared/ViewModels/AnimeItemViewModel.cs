@@ -283,6 +283,7 @@ namespace MALPlus.XShared.ViewModels
         {
             var brush = AirDayBrush;
             RaisePropertyChanged(() => AirDayTillBind);
+            RaisePropertyChanged(() => BottomAirTag);
             var hasCountdown = !string.IsNullOrEmpty(TimeTillNextAirCache);
             if (hasCountdown)
             {
@@ -361,9 +362,14 @@ namespace MALPlus.XShared.ViewModels
                 DataCache.RegisterVolatileDataAiringTimeFetchFailure(malId);
                 TimeTillNextAirCache = "";
             }
+            RaisePropertyChanged(() => BottomAirTag);
         }
 
-        public void SetNextAirCache(DateTime? nextAirUtc) => ApplyNextAir(nextAirUtc);
+        public void SetNextAirCache(DateTime? nextAirUtc)
+        {
+            ApplyNextAir(nextAirUtc);
+            RaisePropertyChanged(() => BottomAirTag);
+        }
 
         private string _airDayTillBind;
 
@@ -389,6 +395,7 @@ namespace MALPlus.XShared.ViewModels
                 }
                 _airing = value;
                 RaisePropertyChanged(() => Airing);
+                RaisePropertyChanged(() => BottomAirTag);
             }
         }
 
@@ -547,6 +554,70 @@ namespace MALPlus.XShared.ViewModels
                     MangaType.Doujinshi => "Doujin",
                     _ => ""
                 };
+            }
+        }
+
+        /// <summary>
+        ///     Bottom-right broadcast badge (e.g. "EP 8/12 · 1D", "EP 1122/? · Airing", or "1D").
+        ///     Combines aired episode count and/or broadcast countdown based on user settings.
+        /// </summary>
+        public string BottomAirTag
+        {
+            get
+            {
+                if (ParentAbstraction != null && !ParentAbstraction.RepresentsAnime)
+                    return string.Empty;
+
+                if (!Airing && string.IsNullOrEmpty(AirDayTillBind))
+                    return string.Empty;
+
+                var showEps = Settings.ShowAiredEpisodes;
+                var showCountdown = Settings.ShowAiringCountdown;
+                if (!showEps && !showCountdown)
+                    return string.Empty;
+
+                var malId = ParentAbstraction?.MalId ?? Id;
+
+                // 1. Aired episode count
+                string epText = null;
+                if (showEps)
+                {
+                    if (ResourceLocator.AiringInfoProvider.TryGetCurrentEpisode(malId, out var currentEp,
+                        CalendarTimeZone.ToZone(DateTime.UtcNow, CalendarTimeZone.Resolved).Date) && currentEp > 0)
+                    {
+                        var total = AllEpisodes;
+                        epText = total > 0 ? $"EP {currentEp}/{total}" : $"EP {currentEp}/?";
+                    }
+                }
+
+                // 2. Broadcast countdown or Airing state
+                string countdownText = null;
+                if (showCountdown)
+                {
+                    var rawCountdown = AirDayTillBind;
+                    if (!string.IsNullOrWhiteSpace(rawCountdown))
+                    {
+                        var trimmed = rawCountdown.Trim();
+                        if (string.Equals(trimmed, "Airing now", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(trimmed, "Airing", StringComparison.OrdinalIgnoreCase))
+                        {
+                            countdownText = "Airing";
+                        }
+                        else
+                        {
+                            countdownText = trimmed;
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(epText) && !string.IsNullOrEmpty(countdownText))
+                    return $"{epText} · {countdownText}";
+                if (!string.IsNullOrEmpty(epText))
+                    return epText;
+                if (!string.IsNullOrEmpty(countdownText))
+                    return countdownText;
+
+                return string.Empty;
             }
         }
 
@@ -893,6 +964,7 @@ private string _title;
                 RaisePropertyChanged(nameof(Title));
             }
             RaisePropertyChanged(nameof(TypeTag));
+            RaisePropertyChanged(nameof(BottomAirTag));
             RaisePropertyChanged(nameof(Type));
             RaisePropertyChanged(nameof(CardScore));
             RaisePropertyChanged(nameof(GlobalScoreBind));
@@ -1279,8 +1351,6 @@ private string _title;
                     if (_timeTillNextAirCache != expected)
                     {
                         _timeTillNextAirCache = expected;
-                        RaisePropertyChanged(() => TimeTillNextAirCache);
-                        RaisePropertyChanged(() => AirDayTillBind);
                         return _timeTillNextAirCache;
                     }
                     return _timeTillNextAirCache;
@@ -1289,7 +1359,6 @@ private string _title;
                     return _timeTillNextAirCache;
 
                 var now = DateTime.UtcNow;
-                bool calculated = false;
                 var malId = ParentAbstraction?.MalId ?? Id;
                 if (DataCache.TryRetrieveDataForId(malId, out var volatileData) &&
                     volatileData.NextAirUtc.HasValue &&
@@ -1298,36 +1367,32 @@ private string _title;
                     if (!string.IsNullOrEmpty(volatileData.LastKnownStatus) && !AirTimeUtils.IsCurrentlyAiringStatus(volatileData.LastKnownStatus))
                     {
                         _timeTillNextAirCache = "";
-                        calculated = true;
                     }
                     else
                     {
                         _timeTillNextAirCache = AirTimeUtils.FormatAirCountdown(volatileData.NextAirUtc.Value, now);
-                        calculated = true;
                     }
                 }
-
-                // No second opinion from the weekly broadcast slot here. When the repository has decided that a
-                // series has no announced episode this returns the slot's date anyway, which is what
-                // put a countdown back on One Piece after the repository had correctly withheld one:
-                // the slot is a recurring weekly position, not a chapter, and a countdown to a
-                // position nobody announced is the thing being fixed. AiringDatumRepository is the
-                // only place allowed to turn a series into a countdown.
-                if (calculated)
+                else if (ResourceLocator.AiringInfoProvider != null &&
+                         ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(malId, out var declared) &&
+                         (declared > now || AirTimeUtils.IsInAiringWindow(declared, now)))
                 {
-                    RaisePropertyChanged(() => TimeTillNextAirCache);
-                    RaisePropertyChanged(() => AirDayTillBind);
+                    _timeTillNextAirCache = AirTimeUtils.FormatAirCountdown(declared, now);
                 }
 
                 return _timeTillNextAirCache ?? "";
             }
             set
             {
-                _timeTillNextAirCache = value;
-                if (!string.IsNullOrEmpty(value))
-                    DataCache.UpdateVolatileDataWithTimeTillNextAir(ParentAbstraction?.MalId ?? Id, value);
-                RaisePropertyChanged(() => TimeTillNextAirCache);
-                RaisePropertyChanged(() => AirDayTillBind);
+                if (_timeTillNextAirCache != value)
+                {
+                    _timeTillNextAirCache = value;
+                    if (!string.IsNullOrEmpty(value))
+                        DataCache.UpdateVolatileDataWithTimeTillNextAir(ParentAbstraction?.MalId ?? Id, value);
+                    RaisePropertyChanged(() => TimeTillNextAirCache);
+                    RaisePropertyChanged(() => AirDayTillBind);
+                    RaisePropertyChanged(() => BottomAirTag);
+                }
             }
         }
         public async Task<DateTime?> GetTimeTillNextAirAsync(bool force = false)

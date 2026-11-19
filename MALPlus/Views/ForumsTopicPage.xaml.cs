@@ -81,6 +81,8 @@ public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTop
 
         // Same document shape as the topic body: MAL's inline colours are black, which is
         // invisible on the dark sheet, so the palette is forced back on.
+        var isAmoled = MALPlus.Services.ThemeService.IsAmoled;
+        var bqBg = isAmoled ? "#161616" : "#10283d";
         var html =
             "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
@@ -89,7 +91,7 @@ public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTop
             "body{font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.5;word-wrap:break-word;}" +
             ".message-content *{color:#d4e4f7 !important;}.message-content a{color:#4da3ff !important;}" +
             ".message-content img{max-width:100%;height:auto;}" +
-            ".message-content blockquote{border-left:3px solid #0066ff;background:#10283d;margin:8px 0;padding:6px 10px;}" +
+            $".message-content blockquote{{border-left:3px solid #0066ff;background:{bqBg};margin:8px 0;padding:6px 10px;}}" +
             ".message-content blockquote *{color:#b9cde0 !important;}" +
             ".message-content p{margin:0 0 6px;}.message-content p:last-child{margin-bottom:0;}" +
             ".message-content code,.message-content pre{font-family:monospace;white-space:pre-wrap;}" +
@@ -115,6 +117,9 @@ public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTop
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
+        TopicWebView.BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
+        Vm?.RefreshTopicHtml();
         if (Vm == null)
             return;
 #if ANDROID
@@ -604,6 +609,12 @@ public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTop
             return;
         try
         {
+            var isAmoled = MALPlus.Services.ThemeService.IsAmoled;
+            var color = isAmoled
+                ? global::Android.Graphics.Color.Black
+                : global::Android.Graphics.Color.ParseColor("#051522");
+            webView.SetBackgroundColor(color);
+
             webView.NestedScrollingEnabled = true;
             webView.VerticalScrollBarEnabled = false;
             webView.HorizontalScrollBarEnabled = false;

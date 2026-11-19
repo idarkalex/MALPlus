@@ -52,7 +52,7 @@ public partial class OpEdRow : ContentView
 
         var target = new Border
         {
-            BackgroundColor = Color.FromArgb("#101D2A"),
+            BackgroundColor = Colors.Transparent,
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) }
         };
         var tap = new TapGestureRecognizer();

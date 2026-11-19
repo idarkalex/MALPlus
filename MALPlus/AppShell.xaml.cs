@@ -270,6 +270,18 @@ public partial class AppShell : Shell
             PaintPagers(root, color, rootInput);
     }
 
+    public void RefreshTheme()
+    {
+        PaintPagers();
+        if (_sharedBarView != null)
+        {
+            var sheet = MALPlus.Services.ThemeService.CurrentSheet;
+            var barColor = new global::Android.Graphics.Color(
+                (int)(sheet.Red * 255), (int)(sheet.Green * 255), (int)(sheet.Blue * 255), (int)(sheet.Alpha * 255));
+            _sharedBarView.SetBackgroundColor(barColor);
+        }
+    }
+
     // The four roots share one section pager, so each page used to carry its own
     // navigation strip and the strip travelled with the finger. One bar is pulled out
     // of a page and hosted under the pager instead: the pager keeps the remaining

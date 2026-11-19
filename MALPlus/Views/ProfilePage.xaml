@@ -13,37 +13,25 @@
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
         <converters:IntEqualityConverter x:Key="IntEq" />
 
-        <Style x:Key="ProfileTabButtonStyle" TargetType="Button">
-            <Setter Property="FontFamily" Value="InterSemiBold" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="HeightRequest" Value="36" />
-            <Setter Property="CornerRadius" Value="18" />
-            <Setter Property="Padding" Value="14,0" />
-            <Setter Property="BorderWidth" Value="0" />
-        </Style>
-
         <Style x:Key="ProfileSectionHeader" TargetType="Label">
             <Setter Property="FontFamily" Value="InterBold" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="CharacterSpacing" Value="1.2" />
-            <Setter Property="TextColor" Value="{StaticResource BrushTextSecondary}" />
+            <Setter Property="TextTransform" Value="Uppercase" />
+            <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
             <Setter Property="Margin" Value="2,0,0,8" />
         </Style>
 
-        <Style x:Key="CardBorderStyle" TargetType="Border">
-            <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
-            <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
-            <Setter Property="StrokeThickness" Value="1" />
-            <Setter Property="StrokeShape" Value="RoundRectangle 12" />
+        <Style x:Key="CardBorderStyle" TargetType="Border" BasedOn="{StaticResource PanelStyle}">
             <Setter Property="Padding" Value="14" />
         </Style>
 
         <Style x:Key="ActionButtonStyle" TargetType="Button">
             <Setter Property="FontFamily" Value="InterSemiBold" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="BackgroundColor" Value="#141D2B" />
+            <Setter Property="BackgroundColor" Value="{StaticResource TabChipInactiveBg}" />
             <Setter Property="TextColor" Value="{StaticResource BrushText}" />
-            <Setter Property="BorderColor" Value="#1FFFFFFF" />
+            <Setter Property="BorderColor" Value="{StaticResource EmBorder}" />
             <Setter Property="BorderWidth" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="HeightRequest" Value="38" />
@@ -71,8 +59,8 @@
             <Label Text="The user may not exist, or their profile is private." FontFamily="Inter"
                    FontSize="13" TextColor="#B3FFFFFF" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
             <Button Text="Go back" Clicked="OnBackClicked" Margin="0,12,0,0"
-                    BackgroundColor="#141D2B" TextColor="{StaticResource BrushText}"
-                    BorderColor="#1FFFFFFF" BorderWidth="1" CornerRadius="8" Padding="20,10" />
+                    BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                    BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" Padding="20,10" />
         </VerticalStackLayout>
 
         <!-- Main RefreshView with ONE single outer ScrollView -->
@@ -99,13 +87,13 @@
                                        TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
                                 
                                 <HorizontalStackLayout Spacing="8">
-                                    <Border BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                    <Border BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                             StrokeShape="RoundRectangle 6" Padding="8,3"
                                             IsVisible="{Binding CurrentData.AnimeCompleted, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}">
                                         <Label Text="{Binding CurrentData.AnimeCompleted, StringFormat='{0} anime'}"
                                                FontFamily="InterSemiBold" FontSize="11" TextColor="{StaticResource EmAccent}" />
                                     </Border>
-                                    <Border BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                    <Border BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                             StrokeShape="RoundRectangle 6" Padding="8,3"
                                             IsVisible="{Binding CurrentData.MangaCompleted, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}">
                                         <Label Text="{Binding CurrentData.MangaCompleted, StringFormat='{0} manga'}"
@@ -116,7 +104,7 @@
 
                             <!-- External MAL Link (Arrow ↗ inside capsule) -->
                             <Border Grid.Column="2" WidthRequest="36" HeightRequest="36"
-                                    BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                    BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 18"
                                     VerticalOptions="Start" HorizontalOptions="End" Margin="0,2,0,0">
                                 <Border.GestureRecognizers>
@@ -137,7 +125,7 @@
                                 <Label Text="Send a friend request" FontFamily="InterSemiBold" FontSize="14"
                                        TextColor="{StaticResource BrushText}" />
                                 <Label Text="Connect to share comments and updates." FontFamily="Inter" FontSize="11"
-                                       TextColor="#8899A6" />
+                                       TextColor="{StaticResource TabChipInactiveText}" />
                             </VerticalStackLayout>
                             <Button Grid.Column="1" Text="Add friend" Clicked="OnAddFriendClicked"
                                     FontFamily="InterSemiBold" FontSize="13"
@@ -177,7 +165,7 @@
                                             <DataTemplate>
                                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16" Padding="0,4">
                                                     <Label Grid.Column="0" Text="{Binding Item1}" FontFamily="InterSemiBold" FontSize="13"
-                                                           TextColor="#8899A6" VerticalOptions="Center" />
+                                                           TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
                                                     <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="13"
                                                            TextColor="{StaticResource BrushText}" VerticalOptions="Center"
                                                            HorizontalOptions="End" HorizontalTextAlignment="End" LineBreakMode="WordWrap" />
@@ -240,7 +228,7 @@
                                                             <Label Text="{Binding User.Name}" FontFamily="InterBold" FontSize="13"
                                                                    TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                                                             <Label Text="{Binding Date}" FontFamily="Inter" FontSize="11"
-                                                                   TextColor="#8899A6" VerticalOptions="Center" />
+                                                                   TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
                                                         </HorizontalStackLayout>
                                                         <Label Text="{Binding Content}" FontFamily="Inter" FontSize="13"
                                                                TextColor="{StaticResource BrushText}" LineBreakMode="WordWrap" />
@@ -264,7 +252,7 @@
                                 </Border.GestureRecognizers>
                                 <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="12" VerticalOptions="Center">
                                     <Border Grid.Column="0" WidthRequest="36" HeightRequest="36"
-                                            BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                            BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                             StrokeShape="RoundRectangle 18">
                                         <Image Source="icon_history" WidthRequest="18" HeightRequest="18"
                                                HorizontalOptions="Center" VerticalOptions="Center" />
@@ -273,7 +261,7 @@
                                         <Label Text="Full Episode History" FontFamily="InterBold" FontSize="13"
                                                TextColor="{StaticResource BrushText}" />
                                         <Label Text="View complete log of watched episodes &amp; read chapters"
-                                               FontFamily="Inter" FontSize="11" TextColor="#8899A6" />
+                                               FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}" />
                                     </VerticalStackLayout>
                                     <Image Grid.Column="2" Source="icon_go" WidthRequest="14" HeightRequest="14"
                                            Opacity="0.5" VerticalOptions="Center" />
@@ -344,7 +332,7 @@
                             <Border Style="{StaticResource CardBorderStyle}"
                                     IsVisible="{Binding HasNoHistory}">
                                 <Label Text="No recent history or updates" FontFamily="Inter" FontSize="13"
-                                       TextColor="#8899A6" HorizontalOptions="Center" Padding="0,16" />
+                                       TextColor="{StaticResource TabChipInactiveText}" HorizontalOptions="Center" Padding="0,16" />
                             </Border>
                         </VerticalStackLayout>
 
@@ -476,7 +464,7 @@
                             <Border Style="{StaticResource CardBorderStyle}"
                                     IsVisible="{Binding HasNoFavourites}">
                                 <Label Text="No favourites added yet" FontFamily="Inter" FontSize="13"
-                                       TextColor="#8899A6" HorizontalOptions="Center" Padding="0,16" />
+                                       TextColor="{StaticResource TabChipInactiveText}" HorizontalOptions="Center" Padding="0,16" />
                             </Border>
                         </VerticalStackLayout>
                         
@@ -490,7 +478,7 @@
                                     <!-- ANIME STATUS Header with Total Badge -->
                                     <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
                                         <Label Grid.Column="0" Text="ANIME STATUS" Style="{StaticResource ProfileSectionHeader}" Margin="0" />
-                                        <Border Grid.Column="1" BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                        <Border Grid.Column="1" BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                 StrokeShape="RoundRectangle 6" Padding="8,2">
                                             <Label Text="{Binding CurrentData.AnimeTotal, StringFormat='{0} total'}"
                                                    FontFamily="InterSemiBold" FontSize="11" TextColor="{StaticResource EmAccent}" />
@@ -510,7 +498,7 @@
                                                     <Label Grid.Column="1" Text="{Binding Label}" FontFamily="InterSemiBold" FontSize="13"
                                                            TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                                                     <!-- Modern Pill Progress Track -->
-                                                    <Border Grid.Column="2" HeightRequest="8" BackgroundColor="#141D2B"
+                                                    <Border Grid.Column="2" HeightRequest="8" BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                             Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                             StrokeShape="RoundRectangle 4" VerticalOptions="Center" Padding="0">
                                                         <ProgressBar Progress="{Binding Fraction}"
@@ -525,7 +513,7 @@
                                                     <Border Grid.Column="4" BackgroundColor="#0DFFFFFF" StrokeShape="RoundRectangle 4"
                                                             Padding="5,2" HorizontalOptions="End" VerticalOptions="Center">
                                                         <Label Text="{Binding Percent}" FontFamily="InterSemiBold" FontSize="11"
-                                                               TextColor="#8899A6" HorizontalOptions="Center" />
+                                                               TextColor="{StaticResource TabChipInactiveText}" HorizontalOptions="Center" />
                                                     </Border>
                                                 </Grid>
                                             </DataTemplate>
@@ -537,7 +525,7 @@
                                     <!-- MANGA STATUS Header with Total Badge -->
                                     <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
                                         <Label Grid.Column="0" Text="MANGA STATUS" Style="{StaticResource ProfileSectionHeader}" Margin="0" />
-                                        <Border Grid.Column="1" BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                        <Border Grid.Column="1" BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                 StrokeShape="RoundRectangle 6" Padding="8,2">
                                             <Label Text="{Binding CurrentData.MangaTotal, StringFormat='{0} total'}"
                                                    FontFamily="InterSemiBold" FontSize="11" TextColor="#22C55E" />
@@ -557,7 +545,7 @@
                                                     <Label Grid.Column="1" Text="{Binding Label}" FontFamily="InterSemiBold" FontSize="13"
                                                            TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                                                     <!-- Modern Pill Progress Track -->
-                                                    <Border Grid.Column="2" HeightRequest="8" BackgroundColor="#141D2B"
+                                                    <Border Grid.Column="2" HeightRequest="8" BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                             Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                             StrokeShape="RoundRectangle 4" VerticalOptions="Center" Padding="0">
                                                         <ProgressBar Progress="{Binding Fraction}"
@@ -572,7 +560,7 @@
                                                     <Border Grid.Column="4" BackgroundColor="#0DFFFFFF" StrokeShape="RoundRectangle 4"
                                                             Padding="5,2" HorizontalOptions="End" VerticalOptions="Center">
                                                         <Label Text="{Binding Percent}" FontFamily="InterSemiBold" FontSize="11"
-                                                               TextColor="#8899A6" HorizontalOptions="Center" />
+                                                               TextColor="{StaticResource TabChipInactiveText}" HorizontalOptions="Center" />
                                                     </Border>
                                                 </Grid>
                                             </DataTemplate>
@@ -588,72 +576,72 @@
 
                                     <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
                                         <!-- Mean Scores -->
-                                        <Border Grid.Row="0" Grid.Column="0" BackgroundColor="#141D2B"
+                                        <Border Grid.Row="0" Grid.Column="0" BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                 StrokeShape="RoundRectangle 8" Padding="12">
                                             <VerticalStackLayout Spacing="2">
                                                 <Label Text="{Binding CurrentData.AnimeMeanShort, FallbackValue='0.0'}"
                                                        FontFamily="InterBold" FontSize="20" TextColor="{StaticResource EmAccent}" />
-                                                <Label Text="Mean anime score" FontFamily="Inter" FontSize="11" TextColor="#8899A6" />
+                                                <Label Text="Mean anime score" FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}" />
                                             </VerticalStackLayout>
                                         </Border>
-                                        <Border Grid.Row="0" Grid.Column="1" BackgroundColor="#141D2B"
+                                        <Border Grid.Row="0" Grid.Column="1" BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                 StrokeShape="RoundRectangle 8" Padding="12">
                                             <VerticalStackLayout Spacing="2">
                                                 <Label Text="{Binding CurrentData.MangaMeanShort, FallbackValue='0.0'}"
                                                        FontFamily="InterBold" FontSize="20" TextColor="#22C55E" />
-                                                <Label Text="Mean manga score" FontFamily="Inter" FontSize="11" TextColor="#8899A6" />
+                                                <Label Text="Mean manga score" FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}" />
                                             </VerticalStackLayout>
                                         </Border>
 
                                         <!-- Counts & Episodes -->
-                                        <Border Grid.Row="1" Grid.Column="0" BackgroundColor="#141D2B"
+                                        <Border Grid.Row="1" Grid.Column="0" BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                 StrokeShape="RoundRectangle 8" Padding="12">
                                             <VerticalStackLayout Spacing="2">
                                                 <Label Text="{Binding CurrentData.AnimeTotal, StringFormat='{0} anime'}"
                                                        FontFamily="InterSemiBold" FontSize="14" TextColor="{StaticResource BrushText}" />
                                                 <Label Text="{Binding CurrentData.AnimeEpisodes, StringFormat='{0} episodes watched'}"
-                                                       FontFamily="Inter" FontSize="11" TextColor="#8899A6" />
+                                                       FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}" />
                                             </VerticalStackLayout>
                                         </Border>
-                                        <Border Grid.Row="1" Grid.Column="1" BackgroundColor="#141D2B"
+                                        <Border Grid.Row="1" Grid.Column="1" BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                 StrokeShape="RoundRectangle 8" Padding="12">
                                             <VerticalStackLayout Spacing="2">
                                                 <Label Text="{Binding CurrentData.MangaTotal, StringFormat='{0} manga'}"
                                                        FontFamily="InterSemiBold" FontSize="14" TextColor="{StaticResource BrushText}" />
                                                 <Label Text="{Binding CurrentData.MangaChapters, StringFormat='{0} chapters read'}"
-                                                       FontFamily="Inter" FontSize="11" TextColor="#8899A6" />
+                                                       FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}" />
                                             </VerticalStackLayout>
                                         </Border>
 
                                         <!-- Days & Rewatches -->
-                                        <Border Grid.Row="2" Grid.Column="0" BackgroundColor="#141D2B"
+                                        <Border Grid.Row="2" Grid.Column="0" BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                 StrokeShape="RoundRectangle 8" Padding="12">
                                             <VerticalStackLayout Spacing="2">
                                                 <Label Text="{Binding CurrentData.AnimeDaysBind}"
                                                        FontFamily="Inter" FontSize="12" TextColor="{StaticResource BrushText}" />
                                                 <Label Text="{Binding CurrentData.AnimeRewatched, StringFormat='{0} rewatches'}"
-                                                       FontFamily="Inter" FontSize="11" TextColor="#8899A6" />
+                                                       FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}" />
                                             </VerticalStackLayout>
                                         </Border>
-                                        <Border Grid.Row="2" Grid.Column="1" BackgroundColor="#141D2B"
+                                        <Border Grid.Row="2" Grid.Column="1" BackgroundColor="{StaticResource TabChipInactiveBg}"
                                                 Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                                 StrokeShape="RoundRectangle 8" Padding="12">
                                             <VerticalStackLayout Spacing="2">
                                                 <Label Text="{Binding CurrentData.MangaDaysBind}"
                                                        FontFamily="Inter" FontSize="12" TextColor="{StaticResource BrushText}" />
                                                 <Label Text="{Binding CurrentData.MangaReread, StringFormat='{0} rereads'}"
-                                                       FontFamily="Inter" FontSize="11" TextColor="#8899A6" />
+                                                       FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}" />
                                             </VerticalStackLayout>
                                         </Border>
                                     </Grid>
 
                                     <!-- Time spent -->
-                                    <Border BackgroundColor="#141D2B" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                    <Border BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                                             StrokeShape="RoundRectangle 8" Padding="12" Margin="0,4,0,0">
                                         <VerticalStackLayout Spacing="6">
                                             <Label Text="TIME SPENT" Style="{StaticResource ProfileSectionHeader}" />
@@ -661,13 +649,13 @@
                                                 <Label Text="{Binding ApproxTimeSpentOnAnime}" FontFamily="InterSemiBold"
                                                        FontSize="14" TextColor="{StaticResource BrushText}" />
                                                 <Label Grid.Column="1" Text="anime watched (estimated)" FontFamily="Inter" FontSize="11"
-                                                       TextColor="#8899A6" VerticalOptions="Center" />
+                                                       TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
                                             </Grid>
                                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                                 <Label Text="{Binding ApproxTimeSpentOnAnimeAndMovies}" FontFamily="InterSemiBold"
                                                        FontSize="14" TextColor="{StaticResource BrushText}" />
                                                 <Label Grid.Column="1" Text="including movies" FontFamily="Inter" FontSize="11"
-                                                       TextColor="#8899A6" VerticalOptions="Center" />
+                                                       TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
                                             </Grid>
                                         </VerticalStackLayout>
                                     </Border>

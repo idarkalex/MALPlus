@@ -233,6 +233,28 @@ protected ICommand _requestNavigationCommand;
             }
         }
 
+        public bool ShowAiredEpisodes
+        {
+            get => Settings.ShowAiredEpisodes;
+            set
+            {
+                Settings.ShowAiredEpisodes = value;
+                RaisePropertyChanged(() => ShowAiredEpisodes);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
+        public bool ShowAiringCountdown
+        {
+            get => Settings.ShowAiringCountdown;
+            set
+            {
+                Settings.ShowAiringCountdown = value;
+                RaisePropertyChanged(() => ShowAiringCountdown);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
         public int PosterScoreDisplayIndex
         {
             get => Settings.PosterScoreDisplay;
@@ -277,73 +299,81 @@ protected ICommand _requestNavigationCommand;
 
         public static void RefreshAllLoadedCards(bool refreshTitles = true)
         {
-            try
+            void Core()
             {
-                var animeListVm = ViewModelLocator.AnimeList;
-                if (animeListVm != null)
+                try
                 {
-                    if (animeListVm.DisplayedItems != null)
+                    var animeListVm = ViewModelLocator.AnimeList;
+                    if (animeListVm != null)
                     {
-                        foreach (var item in animeListVm.DisplayedItems)
-                            item?.RefreshCardDisplayProperties(refreshTitles);
+                        if (animeListVm.DisplayedItems != null)
+                        {
+                            foreach (var item in animeListVm.DisplayedItems)
+                                item?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        if (animeListVm.AnimeItems != null)
+                        {
+                            foreach (var item in animeListVm.AnimeItems)
+                                item?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        animeListVm.InvalidatePreviews();
                     }
-                    if (animeListVm.AnimeItems != null)
-                    {
-                        foreach (var item in animeListVm.AnimeItems)
-                            item?.RefreshCardDisplayProperties(refreshTitles);
-                    }
-                    animeListVm.InvalidatePreviews();
-                }
 
-                var storage = ResourceLocator.AnimeLibraryDataStorage;
-                if (storage != null)
-                {
-                    if (storage.AllLoadedAnimeItemAbstractions != null)
+                    var storage = ResourceLocator.AnimeLibraryDataStorage;
+                    if (storage != null)
                     {
-                        foreach (var abs in storage.AllLoadedAnimeItemAbstractions)
-                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                        if (storage.AllLoadedAnimeItemAbstractions != null)
+                        {
+                            foreach (var abs in storage.AllLoadedAnimeItemAbstractions)
+                                abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        if (storage.AllLoadedMangaItemAbstractions != null)
+                        {
+                            foreach (var abs in storage.AllLoadedMangaItemAbstractions)
+                                abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        if (storage.AllLoadedAuthAnimeItems != null)
+                        {
+                            foreach (var abs in storage.AllLoadedAuthAnimeItems)
+                                abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        if (storage.AllLoadedAuthMangaItems != null)
+                        {
+                            foreach (var abs in storage.AllLoadedAuthMangaItems)
+                                abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        if (storage.AllLoadedSeasonalAnimeItems != null)
+                        {
+                            foreach (var abs in storage.AllLoadedSeasonalAnimeItems)
+                                abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                        }
                     }
-                    if (storage.AllLoadedMangaItemAbstractions != null)
+
+                    var searchVm = ViewModelLocator.SearchPage;
+                    if (searchVm != null)
                     {
-                        foreach (var abs in storage.AllLoadedMangaItemAbstractions)
-                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
-                    }
-                    if (storage.AllLoadedAuthAnimeItems != null)
-                    {
-                        foreach (var abs in storage.AllLoadedAuthAnimeItems)
-                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
-                    }
-                    if (storage.AllLoadedAuthMangaItems != null)
-                    {
-                        foreach (var abs in storage.AllLoadedAuthMangaItems)
-                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
-                    }
-                    if (storage.AllLoadedSeasonalAnimeItems != null)
-                    {
-                        foreach (var abs in storage.AllLoadedSeasonalAnimeItems)
-                            abs?.ViewModel?.RefreshCardDisplayProperties(refreshTitles);
+                        if (searchVm.AnimeSearchItemViewModels != null)
+                        {
+                            foreach (var item in searchVm.AnimeSearchItemViewModels)
+                                item?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        if (searchVm.MangaSearchItemViewModels != null)
+                        {
+                            foreach (var item in searchVm.MangaSearchItemViewModels)
+                                item?.RefreshCardDisplayProperties(refreshTitles);
+                        }
                     }
                 }
-
-                var searchVm = ViewModelLocator.SearchPage;
-                if (searchVm != null)
+                catch (Exception ex)
                 {
-                    if (searchVm.AnimeSearchItemViewModels != null)
-                    {
-                        foreach (var item in searchVm.AnimeSearchItemViewModels)
-                            item?.RefreshCardDisplayProperties(refreshTitles);
-                    }
-                    if (searchVm.MangaSearchItemViewModels != null)
-                    {
-                        foreach (var item in searchVm.MangaSearchItemViewModels)
-                            item?.RefreshCardDisplayProperties(refreshTitles);
-                    }
+                    Console.WriteLine("MALPLUS RefreshAllLoadedCards failed: " + ex.Message);
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine("MALPLUS RefreshAllLoadedCards failed: " + ex.Message);
-            }
+
+            if (ResourceLocator.DispatcherAdapter != null)
+                ResourceLocator.DispatcherAdapter.Run(Core);
+            else
+                Core();
         }
 
         public bool AutoDescendingSorting
@@ -710,6 +740,59 @@ protected ICommand _requestNavigationCommand;
         {
             get => Settings.ArticlesDisplayScrollBar;
             set => Settings.ArticlesDisplayScrollBar = value;
+        }
+
+        public static Action OnAmoledThemeChanged { get; set; }
+
+        public List<string> AppThemeOptions { get; } = new()
+        {
+            "Midnight Blue",
+            "Dark AMOLED",
+            "Real Dark AMOLED"
+        };
+
+        public int AppThemeIndex
+        {
+            get => Settings.AppTheme;
+            set
+            {
+                if (Settings.AppTheme == value)
+                    return;
+
+                Settings.AppTheme = value;
+                RaisePropertyChanged(() => AppThemeIndex);
+                RaisePropertyChanged(() => DarkThemeAmoled);
+                RaisePropertyChanged(() => DarkThemeAmoledRealDark);
+                OnAmoledThemeChanged?.Invoke();
+            }
+        }
+
+        public bool DarkThemeAmoled
+        {
+            get => Settings.DarkThemeAmoled;
+            set
+            {
+                if (Settings.DarkThemeAmoled == value)
+                    return;
+
+                Settings.DarkThemeAmoled = value;
+                RaisePropertyChanged(() => DarkThemeAmoled);
+                OnAmoledThemeChanged?.Invoke();
+            }
+        }
+
+        public bool DarkThemeAmoledRealDark
+        {
+            get => Settings.DarkThemeAmoledRealDark;
+            set
+            {
+                if (Settings.DarkThemeAmoledRealDark == value)
+                    return;
+
+                Settings.DarkThemeAmoledRealDark = value;
+                RaisePropertyChanged(() => DarkThemeAmoledRealDark);
+                OnAmoledThemeChanged?.Invoke();
+            }
         }
 
         public bool PreferEnglishTitles

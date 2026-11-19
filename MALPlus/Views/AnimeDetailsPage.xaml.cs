@@ -815,6 +815,7 @@ InitializeComponent();
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
         _isAppearing = true;
         // Attached here and released on disappearing, because these are static events: a page that
         // subscribed once and never unsubscribed would answer for every overlay opened afterwards.
@@ -2384,6 +2385,15 @@ private void HideVideoLoading()
         return true;
     }
 
+    private void OnTabButtonClicked(object sender, EventArgs e)
+    {
+        if (sender is Button btn && btn.CommandParameter is string parameter && int.TryParse(parameter, out var tabIndex))
+        {
+            var direction = Vm != null && tabIndex >= Vm.DetailsPivotSelectedIndex ? 1 : -1;
+            _ = SelectTabAsync(tabIndex, direction);
+        }
+    }
+
     private void OnTabTapped(object sender, TappedEventArgs e)
     {
         if (e.Parameter is not string parameter || !int.TryParse(parameter, out var tabIndex))
@@ -2843,17 +2853,17 @@ private void HideVideoLoading()
             if (TabGeneral == null || TabEpisodes == null || TabOpEd == null || TabReviews == null ||
                 TabRecs == null || TabRelated == null || TabCharacters == null || TabStaff == null)
                 return;
-            var labels = new[] { TabGeneral, TabEpisodes, TabOpEd, TabReviews, TabRecs, TabRelated, TabCharacters, TabStaff };
-            for (var index = 0; index < labels.Length; index++)
-                labels[index].TextColor = index == selected ? Color.FromArgb("#0066FF") : Color.FromArgb("#B3FFFFFF");
-            Dispatcher.Dispatch(() => ScrollSelectedTabIntoView(selected, labels));
+            var buttons = new[] { TabGeneral, TabEpisodes, TabOpEd, TabReviews, TabRecs, TabRelated, TabCharacters, TabStaff };
+            for (var index = 0; index < buttons.Length; index++)
+                TabChipHelper.ApplyStyle(buttons[index], index == selected);
+            Dispatcher.Dispatch(() => ScrollSelectedTabIntoView(selected, buttons));
         }
 
-        private void ScrollSelectedTabIntoView(int selectedIndex, Label[] labels)
+        private void ScrollSelectedTabIntoView(int selectedIndex, Button[] buttons)
         {
             try
             {
-                if (TabStripScroll == null || labels == null || selectedIndex < 0 || selectedIndex >= labels.Length)
+                if (TabStripScroll == null || buttons == null || selectedIndex < 0 || selectedIndex >= buttons.Length)
                     return;
 
                 var viewport = TabStripScroll.Width;
@@ -2869,17 +2879,17 @@ private void HideVideoLoading()
                 {
                     targetX = 0;
                 }
-                else if (selectedIndex >= labels.Length - 1 || selectedIndex == 7)
+                else if (selectedIndex >= buttons.Length - 1 || selectedIndex == 7)
                 {
                     targetX = maxScroll;
                 }
                 else
                 {
-                    var label = labels[selectedIndex];
-                    if (label == null || label.Width <= 0)
+                    var btn = buttons[selectedIndex];
+                    if (btn == null || btn.Width <= 0)
                         return;
-                    var labelCenter = label.X + (label.Width / 2.0);
-                    targetX = Math.Clamp(labelCenter - (viewport / 2.0), 0, maxScroll);
+                    var btnCenter = btn.X + (btn.Width / 2.0);
+                    targetX = Math.Clamp(btnCenter - (viewport / 2.0), 0, maxScroll);
                 }
 
                 _ = TabStripScroll.ScrollToAsync(targetX, 0, true);
@@ -3385,11 +3395,11 @@ private void HideVideoLoading()
             }
         }
 
-        public Brush BackgroundBrush => IsSelected ? new SolidColorBrush(Color.FromArgb("#0066FF")) : new SolidColorBrush(Color.FromArgb("#141D2B"));
-        public Brush StrokeBrush => IsSelected ? new SolidColorBrush(Color.FromArgb("#0066FF")) : new SolidColorBrush(Color.FromArgb("#29FFFFFF"));
-        public Color BackgroundColor => IsSelected ? Color.FromArgb("#0066FF") : Color.FromArgb("#141D2B");
-        public Color StrokeColor => IsSelected ? Color.FromArgb("#0066FF") : Color.FromArgb("#29FFFFFF");
-        public Color TextColor => IsSelected ? Colors.White : Color.FromArgb("#B0B0B0");
+        public Brush BackgroundBrush => IsSelected ? new SolidColorBrush(Color.FromArgb("#0066FF")) : new SolidColorBrush(MALPlus.Controls.TabChipHelper.InactiveBackground);
+        public Brush StrokeBrush => IsSelected ? new SolidColorBrush(Color.FromArgb("#0066FF")) : new SolidColorBrush(MALPlus.Controls.TabChipHelper.InactiveBorder);
+        public Color BackgroundColor => IsSelected ? Color.FromArgb("#0066FF") : MALPlus.Controls.TabChipHelper.InactiveBackground;
+        public Color StrokeColor => IsSelected ? Color.FromArgb("#0066FF") : MALPlus.Controls.TabChipHelper.InactiveBorder;
+        public Color TextColor => IsSelected ? Colors.White : MALPlus.Controls.TabChipHelper.InactiveText;
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

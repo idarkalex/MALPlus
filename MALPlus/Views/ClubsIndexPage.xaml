@@ -42,7 +42,7 @@
                         x:DataType="tmalspecific:MalClubEntry">
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12">
+                                    StrokeShape="RoundRectangle 14" Padding="12">
                                 <Grid ColumnDefinitions="40,*" ColumnSpacing="10">
                                     <Image Grid.Column="0" Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
                                            Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
@@ -86,7 +86,7 @@
                                 x:DataType="tmalspecific:MalClubEntry">
                                     <Border Margin="0,4" BackgroundColor="{StaticResource EmSheet}"
                                             Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                            StrokeShape="RoundRectangle 8" Padding="12">
+                                            StrokeShape="RoundRectangle 14" Padding="12">
                                         <Grid ColumnDefinitions="40,*" ColumnSpacing="10">
                                             <Image Grid.Column="0" Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
                                                    Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
@@ -118,7 +118,7 @@
                         x:DataType="vm:ClubActivityEntry">
                             <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12">
+                                    StrokeShape="RoundRectangle 14" Padding="12">
                                 <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
                                     <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                         <Border Grid.Column="0" WidthRequest="28" HeightRequest="28"

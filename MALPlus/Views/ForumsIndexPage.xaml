@@ -32,14 +32,14 @@
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate>
                                     <VerticalStackLayout Spacing="8" Margin="0,0,0,8">
-                                        <Label Text="{Binding Group}" FontFamily="InterBold" FontSize="11"
-                                               TextColor="#A0FFFFFF" Margin="4,8,4,4" />
+                                        <Label Text="{Binding Group}" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
+                                               TextColor="{StaticResource TabChipInactiveText}" TextTransform="Uppercase" Margin="4,8,4,4" />
                                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Items}">
                                             <BindableLayout.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border BackgroundColor="{StaticResource EmSheet}"
                                                             Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                                            StrokeShape="RoundRectangle 8" Padding="14,12" Margin="0,0,0,4">
+                                                            StrokeShape="RoundRectangle 14" Padding="14,12" Margin="0,0,0,4">
                                                         <Border.GestureRecognizers>
                                                             <TapGestureRecognizer Tapped="OnBoardTapped" CommandParameter="{Binding .}" />
                                                         </Border.GestureRecognizers>
@@ -75,13 +75,13 @@
                         <DataTemplate>
                             <Border Margin="12,3" BackgroundColor="{StaticResource EmSheet}"
                                     Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8" Padding="12,10">
+                                    StrokeShape="RoundRectangle 14" Padding="12,10">
                                 <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="5">
                                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <Label Grid.Column="0" Text="{Binding BoardName}" FontFamily="InterBold" FontSize="11"
                                                TextColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                                         <Label Grid.Column="1" Text="{Binding PostTime}" FontFamily="Inter" FontSize="11"
-                                               TextColor="#8FA8C0" VerticalOptions="Center" />
+                                               TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
                                     </Grid>
                                     <Label Grid.Row="1" Text="{Binding Title}" FontFamily="InterBold" FontSize="14"
                                            TextColor="{StaticResource BrushText}" MaxLines="2"
@@ -95,7 +95,7 @@
                                                    Aspect="AspectFill" WidthRequest="20" HeightRequest="20" />
                                         </Border>
                                         <Label Text="{Binding User.Name}" FontFamily="InterSemiBold" FontSize="11"
-                                               TextColor="#8FA8C0" VerticalOptions="Center" />
+                                               TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
                                     </HorizontalStackLayout>
                                 </Grid>
                             </Border>
