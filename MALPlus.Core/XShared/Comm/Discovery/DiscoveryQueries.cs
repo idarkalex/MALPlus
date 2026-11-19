@@ -81,10 +81,9 @@ public class DiscoveryItem
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         This is AniList's own trending metric, and the one thing the app can ask a source for that
-    ///         means "what people are actually on this week". Tenrai has no equivalent: /trending is a 404
-    ///         and order_by=trending is a 400, and its order_by=popularity and order_by=rank both come
-    ///         back in an order that is plainly not the requested one.
+    ///         Uses AniList's trending metric (with status RELEASING) as the primary provider, with an
+    ///         automatic fallback to Tenrai's native weekly trending (anime?status=airing&amp;order_by=members_gained_7d)
+    ///         if AniList fails or is blocked.
     ///     </para>
     ///     <para>
     ///         The part that made this look random was one missing word. Without a status filter,
@@ -255,10 +254,24 @@ public class DiscoveryItem
                         Subtitle = ""
                     });
                 }
+
+                // If AniList returned nothing (e.g. timeout, rate limit, or blocked ISP),
+                // fall back to Tenrai's native weekly trending metric:
+                if (output.Count == 0)
+                {
+                    output = await DiscoveryRandomQuery.GetTrendingWeeklyAsync(limit);
+                }
             }
             catch (Exception ex)
             {
                 LastError = ex.GetType().Name;
+                try
+                {
+                    output = await DiscoveryRandomQuery.GetTrendingWeeklyAsync(limit);
+                }
+                catch
+                {
+                }
             }
 
             return output;
@@ -272,8 +285,37 @@ public class DiscoveryItem
         private static readonly Random Rng = new Random();
 
         /// <summary>
+        /// Native weekly trending on Tenrai: currently airing anime ranked by net members gained over the past 7 days.
+        /// </summary>
+        public static async Task<List<DiscoveryItem>> GetTrendingWeeklyAsync(int limit = 10)
+        {
+            var output = new List<DiscoveryItem>();
+            try
+            {
+                var raw = await TenraiClient.GetRawJsonAsync(
+                    ContentFilter.Query("anime?status=airing&order_by=members_gained_7d&sort=desc&page=1&limit=" + limit));
+                if (string.IsNullOrEmpty(raw))
+                    return output;
+                using var doc = JsonDocument.Parse(raw);
+                if (!doc.RootElement.TryGetProperty("data", out var data) ||
+                    data.ValueKind != JsonValueKind.Array)
+                    return output;
+                foreach (var entry in data.EnumerateArray())
+                {
+                    var item = ParseCatalogEntry(entry, false);
+                    if (item != null)
+                        output.Add(item);
+                }
+            }
+            catch
+            {
+            }
+            return output;
+        }
+
+        /// <summary>
         /// What the community is watching right now, without AniList: currently airing,
-        /// most favourited first. Used as the OP/ED source and as the trending fallback.
+        /// most favourited first. Used as the OP/ED source.
         /// </summary>
         public static async Task<List<DiscoveryItem>> GetTopAiringAsync(int limit = 10)
         {
@@ -353,12 +395,10 @@ public class DiscoveryItem
                         parts.Add("exclude_ids=" + string.Join(",", ids));
                 }
 
-                var hasYearFilter = filter != null && (filter.MinYear > 0 || filter.MaxYear > 0);
-
-                // If asking for a single random pick without popularity bounds and without year bounds
-                // (Tenrai's /random ignores date ranges), Tenrai's upgraded /random/{anime|manga} endpoint
-                // directly returns a matching entry in 1 request.
-                if (limit == 1 && maxPopularityRank <= 0 && !hasYearFilter)
+                // If asking for a single random pick without popularity bounds,
+                // Tenrai's upgraded /random/{anime|manga} endpoint directly returns a matching entry in 1 request
+                // (supports start_date, end_date, genres, min_score, and formats).
+                if (limit == 1 && maxPopularityRank <= 0)
                 {
                     var randomQuery = $"random/{media}?" + string.Join("&", parts);
                     var randomRaw = await TenraiClient.GetRawJsonAsync(randomQuery);

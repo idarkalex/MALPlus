@@ -86,7 +86,10 @@ Added to `/seasons/{year}/{season}`, `/seasons/now`, `/seasons/previous`, and `/
 - Numerical range bounds: `min_score`, `max_score`, `min_scored_by`, `max_scored_by`, `min_reviews`, `max_reviews`, `min_favorites`, `max_favorites`.
 
 **Seasonal Anime Sorting & Nulls:**
-- `order_by`: Extended fields: `title_english`, `title_japanese`, `rank`, `popularity`, `added` (`added` works only with approved anime).
+- `order_by`: Extended fields: `title_english`, `title_japanese`, `rank`, `popularity`, `added` (`added` works only with approved anime), and new **trend metrics**:
+  - `score_change_30d`: Net change in score over the past 30 days.
+  - `members_gained_7d`: Net change in members over the past 7 days (weekly momentum).
+  - `score_spread`: Standard deviation / score disagreement (surfaces divisive or polarizing titles).
 - `nulls`: Controls placement of items missing the sorted property (`first` or `last`). Requires `order_by`.
 
 **Integration in MAL+:**
@@ -140,6 +143,7 @@ Added to `/top/manga`. Ranking order unchanged:
 - `min_score`, `max_score` — Filter by score.
 - `min_scored_by`, `max_scored_by` — Filter by number of scoring users.
 - `solo_author` — Filter by whether one person both wrote and drew it.
+- `has_relations` — Filter by whether the manga has related anime/manga entries.
 - `min_reviews`, `max_reviews` — Filter by review count.
 
 #### 🆕 Top episodes parameter additions (Nov 2026)
@@ -236,7 +240,74 @@ Available on both `/anime` and `/manga`:
 
 ### 7. Community Reviews, News & Articles
 - **`GET /news` & `GET /articles`:** Search with `order_by=published_at|comments`, `published_after`, `published_before`, and `author_username`.
-- **`GET /reviews/anime` & `GET /reviews/manga`:** Filter reviews directly by reviewer `username`.
+- **`GET /reviews/anime` & `GET /reviews/manga`:** Global reviews catalogue across all titles with deep filtering and sorting (Nov 2026):
+  - **Reviewer & Post Filters:**
+    - `score`, `min_score`, `max_score`: Filter by the numerical score given by the reviewer (1-10).
+    - `published_after`, `published_before`: Filter by date posted (ISO 8601).
+    - `sentiment`: Filter by reviewer sentiment (accepts several values).
+    - `anime_ids`, `manga_ids`: Restrict reviews to specific MAL IDs.
+    - `exclude_ids`: Omit reviews belonging to selected MAL IDs.
+    - `min_reactions`, `max_reactions`: Filter by review's total reactions.
+    - `reaction`, `min_reaction_count`: Require specific reaction types and minimum thresholds.
+    - `max_per_entry`: Cap number of reviews returned per anime/manga (e.g. `max_per_entry=1` for diverse feeds).
+  - **Review Target Entry Filters:**
+    - `type`, `type_exclude`: Filter/exclude by entry format (`tv`, `movie`, `manga`, etc.).
+    - `status`, `status_exclude`: Filter/exclude by airing/publishing status.
+    - `genres`, `genres_exclude`: Filter/exclude by genre, theme, or demographic IDs.
+    - `source`, `source_exclude`: Filter/exclude by source material (Anime only).
+    - `producers`, `producers_exclude`: Filter/exclude by producer/studio MAL IDs (Anime only).
+  - **Review Sorting:**
+    - `order_by`: `score` (reviewer's score) and individual reaction buckets (`funny`, `nice`, `love_it`, `confusing`, `informative`, `well_written`), sorting highest first. Ties broken by secondary criteria.
+    - `nulls`: Controls placement of reviews missing the sorted value (`first` or `last`).
+
+### 8. Trend Metrics & Momentum Sorting (Nov 2026)
+Added to `/anime`, `/manga`, `/manga/adapted`, `/schedules`, and all seasonal lists (`/seasons/{year}/{season}`, `/seasons/now`, `/seasons/previous`, `/seasons/upcoming`):
+
+- **`order_by=members_gained_7d`**: Net change in member count over the past 7 days. Reflects real-time community momentum and current viewing trends. (Integrated in MAL+ Discover Hub as a resilient native fallback for trending shows).
+- **`order_by=score_change_30d`**: Net change in community rating over the past 30 days. Surfaces sleeper hits and rapidly improving series.
+- **`order_by=score_spread`**: Standard deviation of user ratings. Highlights controversial, divisive, or conversation-sparking titles.
+
+*Note: Trend metrics are computed daily from Tenrai's historical analytics database.*
+
+### 9. Random Pick Endpoints Overhaul (`/random/*`) (Nov 2026)
+Tenrai provides single-shot randomized discovery endpoints with full filter parity:
+
+#### `GET /random/anime`
+- `q`: Search query string; returns a randomized entry chosen from the matching search results.
+- `letter`: Restricts picks to titles starting with this alphanumeric character.
+- `status`: Accepts multiple status values (e.g. `status=currently_airing,finished_airing`).
+- `type_exclude`, `status_exclude`, `rating_exclude`, `source_exclude`, `producers_exclude`: Server-side exclusions.
+- `streaming_service`: Filter by platform (`crunchyroll`, `netflix`, `hidive`, etc.).
+- `voice_language`: Filter by credited voice cast language (e.g. `english` dubs).
+- `has_relations`: `true` for franchise entries, `false` for standalone/new IPs.
+- Numerical bounds: `min_scored_by`, `max_scored_by`, `min_members`, `max_members`, `min_episodes`, `max_episodes`, `min_reviews`, `max_reviews`, `min_favorites`, `max_favorites`.
+- Dates: `season`, `season_year`, `start_date`, `end_date`, `added_after`, `added_before`.
+
+#### `GET /random/manga`
+- `q` & `letter`: Random search results or starting letter.
+- `status`: Accepts multiple status values.
+- `type_exclude`, `status_exclude`, `magazines_exclude`, `authors_exclude`: Clean exclusions.
+- `magazines`: Serialized in specific magazine/platform IDs.
+- `solo_author`: `true` for single creator (written & drawn by same person), `false` for multi-author collaborations.
+- `has_relations`: Filter by franchise/relation presence.
+- Numerical bounds: `min_scored_by`, `max_scored_by`, `min_members`, `max_members`, `min_chapters`, `max_chapters`, `min_volumes`, `max_volumes`, `min_reviews`, `max_reviews`, `min_favorites`, `max_favorites`.
+- Dates: `start_date`, `end_date`.
+
+#### `GET /random/characters`
+- `letter`: Character name initial.
+- Profile completeness: `has_about`, `has_image`, `has_nicknames`, `has_kanji`, `has_family_name`.
+- Entry & Role: `anime` or `manga` ID filter, `role` (`main` or `supporting`), `appears_in` (`anime`, `manga`, or `both`).
+- Status & Airing: `airing`, `upcoming`, `publishing` (in currently broadcasting anime or publishing manga), `season`, `season_year`.
+- Voice Cast: `voice_language`, `voice_language_exclude`, `has_voice_actor`.
+- Content: `sfw`, `sfw-strict`.
+
+#### `GET /random/people`
+- `letter`: Person name initial.
+- Bio completeness: `has_about`, `has_image`, `has_birthday`, `has_website`, `has_alternate_names`, `has_family_name`.
+- Entries & Roles: `anime` or `manga` ID filter, `credit` / `credit_exclude` (`voice`, `staff`, `author`), `position` / `position_exclude` (e.g. `director`).
+- Career & Timing: `airing`, `upcoming`, `publishing`, `season`, `season_year`, `active_after`, `active_before`, `debut_after`, `last_credit_before`.
+- Voice: `voice_language`, `voice_language_exclude`.
+- Content: `sfw`, `sfw-strict`.
 
 ---
 
