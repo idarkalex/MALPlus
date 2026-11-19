@@ -6,6 +6,8 @@ Thank you for your interest in contributing to **MAL+**! This project is a moder
 
 ## 🛠️ Development Environment
 
+> 📖 **First time setting up?** Read our detailed step-by-step **[Development & Build Guide](docs/DEVELOPMENT_AND_BUILD.md)** covering everything from installing prerequisites to running on a physical device over USB or Wi-Fi.
+
 To build and run MAL+ locally, you will need:
 - **.NET 11 SDK** (preview/RC version pinned in `global.json`)
 - .NET MAUI Android workload (`dotnet workload install maui-android`)
@@ -20,6 +22,10 @@ To build and run MAL+ locally, you will need:
 Always use the incremental build script at the repository root:
 
 ```powershell
+# Automatically detects your device:
+.\build_and_deploy.ps1
+
+# Or specify a target device explicitly:
 .\build_and_deploy.ps1 -Device "192.168.1.XXX:PORT"
 ```
 

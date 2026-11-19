@@ -32,7 +32,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Device = "192.168.1.201:43539",
+    [string]$Device = "",
     [string]$Configuration = "Debug",
     [int]$DeviceTimeoutSeconds = 30,
     [switch]$SkipBuild,
@@ -51,15 +51,67 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
     $Root = (Get-Location).Path
 }
 
-# Portable toolchain: this repo pins the standalone .NET 11 RC SDK, not the VS one.
-$env:DOTNET_ROOT = "D:\Descargas\dotnet11"
-$env:JAVA_HOME = "D:\Descargas\jdk21\jdk-21.0.12.1+1"
-$env:ANDROID_HOME = "D:\Descargas\android-sdk"
-$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-$env:PATH = "$env:DOTNET_ROOT;$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:PATH"
+# --- Toolchain Auto-Discovery ---
+# 1. Resolve .NET SDK (prefers .NET 11 preview)
+if (Test-Path "D:\Descargas\dotnet11\dotnet.exe") {
+    $env:DOTNET_ROOT = "D:\Descargas\dotnet11"
+} elseif (-not $env:DOTNET_ROOT -or -not (Test-Path "$env:DOTNET_ROOT\dotnet.exe")) {
+    if ($env:ProgramFiles -and (Test-Path "$env:ProgramFiles\dotnet\dotnet.exe")) {
+        $env:DOTNET_ROOT = "$env:ProgramFiles\dotnet"
+    } else {
+        $cmdDotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+        if ($cmdDotnet) {
+            $env:DOTNET_ROOT = Split-Path $cmdDotnet.Source
+        }
+    }
+}
+$dotnet = if ($env:DOTNET_ROOT) { Join-Path $env:DOTNET_ROOT "dotnet.exe" } else { "dotnet.exe" }
 
-$dotnet = Join-Path $env:DOTNET_ROOT "dotnet.exe"
-$adb = Join-Path $env:ANDROID_HOME "platform-tools\adb.exe"
+# 2. Resolve JDK 21 (or compatible JDK 17+)
+if (Test-Path "D:\Descargas\jdk21\jdk-21.0.12.1+1\bin\javac.exe") {
+    $env:JAVA_HOME = "D:\Descargas\jdk21\jdk-21.0.12.1+1"
+} elseif (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\javac.exe")) {
+    $jdkCandidates = @(
+        "$env:ProgramFiles\Microsoft\jdk-21*",
+        "$env:ProgramFiles\Eclipse Adoptium\jdk-21*",
+        "$env:ProgramFiles\Java\jdk-21*",
+        "$env:ProgramFiles\Android\Android Studio\jbr",
+        "$env:ProgramFiles\Microsoft\jdk-17*",
+        "C:\Program Files (x86)\Android\openjdk\jdk-17*"
+    )
+    foreach ($pattern in $jdkCandidates) {
+        $matched = Get-Item $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($matched -and (Test-Path "$($matched.FullName)\bin\javac.exe")) {
+            $env:JAVA_HOME = $matched.FullName
+            break
+        }
+    }
+}
+
+# 3. Resolve Android SDK
+if (Test-Path "D:\Descargas\android-sdk\platform-tools\adb.exe") {
+    $env:ANDROID_HOME = "D:\Descargas\android-sdk"
+} elseif (-not $env:ANDROID_HOME -or -not (Test-Path "$env:ANDROID_HOME\platform-tools\adb.exe")) {
+    if ($env:ANDROID_SDK_ROOT -and (Test-Path "$env:ANDROID_SDK_ROOT\platform-tools\adb.exe")) {
+        $env:ANDROID_HOME = $env:ANDROID_SDK_ROOT
+    } elseif ($env:LOCALAPPDATA -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe")) {
+        $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+    } elseif (Test-Path "C:\Program Files (x86)\Android\android-sdk\platform-tools\adb.exe") {
+        $env:ANDROID_HOME = "C:\Program Files (x86)\Android\android-sdk"
+    }
+}
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+
+# Add discovered paths to PATH
+$pathAdditions = @()
+if ($env:DOTNET_ROOT) { $pathAdditions += $env:DOTNET_ROOT }
+if ($env:JAVA_HOME) { $pathAdditions += "$env:JAVA_HOME\bin" }
+if ($env:ANDROID_HOME) { $pathAdditions += "$env:ANDROID_HOME\platform-tools" }
+if ($pathAdditions.Count -gt 0) {
+    $env:PATH = ($pathAdditions -join ";") + ";$env:PATH"
+}
+
+$adb = if ($env:ANDROID_HOME) { Join-Path $env:ANDROID_HOME "platform-tools\adb.exe" } else { "adb.exe" }
 $project = Join-Path $Root "MALPlus\MALPlus.csproj"
 $package = "com.idarkalex.malplus"
 $apkDir = Join-Path $Root "MALPlus\bin\Debug\net11.0-android37.0"
@@ -71,21 +123,44 @@ function Format-Duration([double]$seconds) {
     return "{0:N0}s ({1:N1}m)" -f $seconds, ($seconds / 60)
 }
 
-function Assert-Tool([string]$path, [string]$name) {
-    if (-not (Test-Path -LiteralPath $path)) {
-        throw "$name not found at $path"
+function Assert-Tool([string]$path, [string]$name, [string]$helpHint) {
+    if (-not (Test-Path -LiteralPath $path) -and -not (Get-Command $path -ErrorAction SilentlyContinue)) {
+        throw "$name not found at '$path'. $helpHint (See docs/DEVELOPMENT_AND_BUILD.md for setup instructions)"
     }
 }
 
-Assert-Tool $dotnet "dotnet"
-Assert-Tool $adb "adb"
-Assert-Tool $project "MALPlus.csproj"
+Assert-Tool $dotnet "dotnet" "Please install .NET 11 SDK or set DOTNET_ROOT."
+Assert-Tool $adb "adb" "Please install Android SDK Platform-Tools or set ANDROID_HOME."
+Assert-Tool $project "MALPlus.csproj" "Project file not found."
+
+# Auto-detect connected adb device if none specified
+if ([string]::IsNullOrWhiteSpace($Device) -and (Test-Path -LiteralPath $adb)) {
+    $connectedDevices = @()
+    foreach ($line in (& $adb devices 2>$null)) {
+        if ($line -match "^(\S+)\s+device$") {
+            $connectedDevices += $Matches[1]
+        }
+    }
+    if ($connectedDevices.Count -eq 1) {
+        $Device = $connectedDevices[0]
+        Write-Host "Auto-detected active device: $Device" -ForegroundColor Green
+    } elseif ($connectedDevices.Count -gt 1) {
+        $Device = $connectedDevices[0]
+        Write-Host "Multiple devices detected, using first: $Device" -ForegroundColor Yellow
+    } else {
+        # Fallback to local default if no device is connected
+        $Device = "192.168.1.201:40115"
+    }
+}
 
 $total = [System.Diagnostics.Stopwatch]::StartNew()
 
 Write-Host ""
 Write-Host "MAL+ MAUI dev loop" -ForegroundColor Cyan
 Write-Host "  root       : $Root"
+Write-Host "  dotnet     : $dotnet"
+Write-Host "  androidSdk : $env:ANDROID_HOME"
+Write-Host "  java       : $env:JAVA_HOME"
 Write-Host "  config     : $Configuration"
 Write-Host "  device     : $Device"
 Write-Host "  fastDeploy : $FastDeploy"

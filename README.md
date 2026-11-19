@@ -106,19 +106,24 @@ You can download the latest installable APK directly from the **[Releases](https
 
 ## 🛠️ Building from Source
 
+> 💡 **New to Android or mobile development?** Check out our dedicated, step-by-step **[Development & Build Guide (DEVELOPMENT_AND_BUILD.md)](docs/DEVELOPMENT_AND_BUILD.md)** for a complete walkthrough on toolchain installation, device setup, and beginner-friendly contribution tips!
+
 ### Prerequisites
 - Windows 10/11 or Linux with Android SDK installed
-- [.NET 11 SDK](https://dotnet.microsoft.com/) (pinned in `global.json`)
+- [.NET 11 SDK](https://dotnet.microsoft.com/) (preview version pinned in `global.json`)
 - .NET MAUI Android workload (`dotnet workload install maui-android`)
 - JDK 21 (Microsoft OpenJDK recommended)
-- Android SDK build tools 36.0.0+ and platform 33+
+- Android SDK build tools 35.0.0+ and platform 33+
 
 ### Incremental Build & Deploy (Dev Loop)
 
 For active local iteration over adb (WiFi or USB):
 
 ```powershell
-# Deploy to connected physical device
+# Auto-detects connected device and incremental compile
+.\build_and_deploy.ps1
+
+# Or specify a target device explicitly:
 .\build_and_deploy.ps1 -Device "192.168.1.XXX:PORT"
 ```
 
