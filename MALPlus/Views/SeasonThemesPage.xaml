@@ -109,7 +109,7 @@
                                                   resolve and every row failed to build. -->
                                              <controls:OpEdRow Text="{Binding Text}"
                                                                IsOpening="{Binding IsOpening}"
-                                                               Command="{Binding Source={RelativeSource AncestorType={x:Type local:SeasonThemesPage}}, Path=ThemeRowCommand}"
+                                                               Command="{Binding Source={x:Static local:SeasonThemesPage.Instance}, Path=ThemeRowCommand}"
                                                                CommandParameter="{Binding .}" />
                                          </DataTemplate>
                                      </BindableLayout.ItemTemplate>
@@ -140,20 +140,26 @@
              declared, since an Android WebView spawns a Chromium child process and MAUI builds
              handlers for the whole tree when the page attaches: declaring it cost every open of this
              page a video nobody played. -->
-        <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="110">
+        <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="110" InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer />
+            </Grid.GestureRecognizers>
             <controls:NativeVideoView x:Name="DirectVideoPlayer"
                                       VerticalOptions="Fill" HorizontalOptions="Fill"
                                       IsVisible="False" PlayFailed="OnDirectVideoFailed"
                                       ZIndex="1" />
-            <Border x:Name="CloseButton" HorizontalOptions="End" VerticalOptions="Start" Margin="12"
-                    WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18"
-                    BackgroundColor="#99000000" ZIndex="50">
-                <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
-                       HorizontalOptions="Center" VerticalOptions="Center" />
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnCloseVideoTapped" />
-                </Border.GestureRecognizers>
-            </Border>
+            <HorizontalStackLayout x:Name="OverlayControls" HorizontalOptions="End" VerticalOptions="Start" Margin="12"
+                                   Spacing="8" ZIndex="50">
+                <Border x:Name="CloseButton" WidthRequest="40" HeightRequest="40"
+                        StrokeShape="RoundRectangle 20" BackgroundColor="#B3051522"
+                        Stroke="#4DFFFFFF" StrokeThickness="1">
+                    <Image Source="icon_close" WidthRequest="20" HeightRequest="20"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCloseVideoTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </HorizontalStackLayout>
         </Grid>
     </Grid>
 </ContentPage>

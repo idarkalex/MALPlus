@@ -18,6 +18,8 @@ namespace MALPlus.XShared.NavArgs
         public AnimeListDisplayModes DisplayMode;
         public string ListSource;
         public SortOptions SortOption;
+        public SortOptions? CustomSortOption;
+        public bool? CustomSortDescending;
         public TopAnimeType TopWorkMode = TopAnimeType.General;
         public MangaTopType MangaTopWorkMode = MangaTopType.All;
         public MangaAdaptedType MangaAdaptedWorkMode = MangaAdaptedType.AiringNow;

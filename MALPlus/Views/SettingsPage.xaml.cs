@@ -17,6 +17,17 @@ public partial class SettingsPage : ContentPage
         ("Unfiltered", "Allow all adult content (18+)")
     };
 
+    private static readonly (string ShortLabel, string SheetTitle, string SheetDesc)[] LibrarySortDisplayOptions = new[]
+    {
+        ("Title (A-Z)", "Title (A → Z)", "Alphabetical order by series title"),
+        ("Personal score", "Personal score", "Highest personal score first"),
+        ("Community score", "Community score", "Highest community mean score first"),
+        ("Last updated", "Last updated", "Most recently updated entries first"),
+        ("Episodes", "Episodes / Volumes", "Most progress watched or read first"),
+        ("Start date", "Start date", "Most recently started series first"),
+        ("Completion date", "Completion date", "Most recently completed series first")
+    };
+
     private bool _initialized;
     private SettingsViewModelBase Vm => (SettingsViewModelBase)BindingContext;
 
@@ -28,6 +39,8 @@ public partial class SettingsPage : ContentPage
         BindingContext = ViewModelLocator.Settings;
         UpdateAccountHeader();
         UpdateSelectorLabels();
+        if (CalendarMaxItemsEntry != null)
+            CalendarMaxItemsEntry.HandlerChanged += (s, e) => FixCalendarMaxItemsEntry();
     }
 
     protected override void OnAppearing()
@@ -41,8 +54,32 @@ public partial class SettingsPage : ContentPage
         UpdateCacheCount();
         UpdateDiagnosticsAndVersion();
         UpdateSelectorLabels();
+        FixCalendarMaxItemsEntry();
         if (_initialized) return;
         _initialized = true;
+    }
+
+    private void FixCalendarMaxItemsEntry()
+    {
+#if ANDROID
+        try
+        {
+            if (CalendarMaxItemsEntry?.Handler?.PlatformView is Android.Widget.EditText et)
+            {
+                et.Background = null;
+                et.SetBackgroundColor(Android.Graphics.Color.Transparent);
+                et.SetPadding(0, 0, 0, 0);
+                et.SetMinimumHeight(0);
+                et.Gravity = Android.Views.GravityFlags.Center;
+            }
+        }
+        catch { }
+#endif
+    }
+
+    private void OnCalendarMaxItemsCompleted(object sender, EventArgs e)
+    {
+        CalendarMaxItemsEntry?.Unfocus();
     }
 
     protected override void OnDisappearing()
@@ -113,6 +150,15 @@ public partial class SettingsPage : ContentPage
                     : "Sunday";
             }
 
+            // 6. Default library sort
+            if (LibrarySortValueLabel != null)
+            {
+                var idx = vm.LibrarySortIndex;
+                LibrarySortValueLabel.Text = (idx >= 0 && idx < LibrarySortDisplayOptions.Length)
+                    ? LibrarySortDisplayOptions[idx].ShortLabel
+                    : "Title (A-Z)";
+            }
+
             // 6. Broadcast time zone
             if (TimeZoneValueLabel != null)
             {
@@ -178,6 +224,40 @@ public partial class SettingsPage : ContentPage
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS OnPickScoreChipClicked failed: " + ex.Message);
+        }
+    }
+
+    private async void OnPickLibrarySortClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var current = vm.LibrarySortIndex;
+            var rows = LibrarySortDisplayOptions.Select((opt, idx) =>
+                new OptionsSheetItem(opt.SheetTitle, null, description: opt.SheetDesc, value: idx == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Default library sort",
+                "Choose the default ordering for your anime and manga lists", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            var newIndex = -1;
+            for (int i = 0; i < LibrarySortDisplayOptions.Length; i++)
+            {
+                if (LibrarySortDisplayOptions[i].SheetTitle == picked)
+                {
+                    newIndex = i;
+                    break;
+                }
+            }
+            if (newIndex >= 0 && newIndex != current)
+            {
+                vm.LibrarySortIndex = newIndex;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickLibrarySortClicked failed: " + ex.Message);
         }
     }
 

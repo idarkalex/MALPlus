@@ -51,10 +51,14 @@ namespace MALPlus.Models.Models.AnimeScrapped
         public string DependentType { get; set; }
         public double DependentScore { get; set; }
         public int DependentAllEpisodes { get; set; }
+        public string DependentAirStartDate { get; set; }
+        public string DependentStatus { get; set; }
 
         public string RecommendationType { get; set; }
         public double RecommendationScore { get; set; }
         public int RecommendationAllEpisodes { get; set; }
+        public string RecommendationAirStartDate { get; set; }
+        public string RecommendationStatus { get; set; }
 
         public AnimeGeneralDetailsData AnimeDependentData { get; set; }
 

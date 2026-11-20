@@ -145,6 +145,12 @@ namespace MALPlus.XShared.Utils
             /// </remarks>
             public long Size { get; set; }
 
+            /// <summary>
+            ///     Resolution in vertical pixels (e.g. 720, 1080). 720p is preferred on mobile devices
+            ///     to ensure smooth 24/30 FPS without CPU software-decoding frame drops.
+            /// </summary>
+            public int Resolution { get; set; }
+
             public List<EpisodeRange> Episodes { get; set; } = new List<EpisodeRange>();
         }
 
@@ -432,11 +438,9 @@ namespace MALPlus.XShared.Utils
         /// </remarks>
         private static string ThemeCacheFileForMalId(int malId)
         {
-            // v4 because Size arrived in v3 and a cached entry written before it deserialises with zero,
-            // which is exactly the value that makes Lightest decline to choose. There is no in-place
-            // migration for this cache, so the version lives in the filename and bumping it is how the
-            // new field reaches an existing install.
-            return "animethemes_mal_" + malId + "_v4";
+            // v5 because Resolution arrived in v5 to prefer 720p for smooth mobile playback.
+            // A cached entry written before it deserialises with 0 resolution, which would skip 720p preference.
+            return "animethemes_mal_" + malId + "_v5";
         }
 
         /// <summary>
@@ -612,7 +616,7 @@ namespace MALPlus.XShared.Utils
 
             try
             {
-                var query = "{ findAnimeByExternalSite(site: MAL, id: " + malId + ") { slug animethemes { type sequence song { title { romaji native } } animethemeentries { episodes videos { nodes { basename link size } } } } } }";
+                var query = "{ findAnimeByExternalSite(site: MAL, id: " + malId + ") { slug animethemes { type sequence song { title { romaji native } } animethemeentries { episodes videos { nodes { basename link size resolution } } } } } }";
                 var body = "{\"query\":\"" + query.Replace("\"", "\\\"") + "\"}";
                 using var cts = new CancellationTokenSource(RequestTimeout);
 
@@ -676,6 +680,9 @@ namespace MALPlus.XShared.Utils
                                 long size = node.TryGetProperty("size", out var sizeProp) && sizeProp.ValueKind == JsonValueKind.Number
                                     ? sizeProp.GetInt64() : 0;
 
+                                int resolution = node.TryGetProperty("resolution", out var resProp) && resProp.ValueKind == JsonValueKind.Number
+                                    ? resProp.GetInt32() : 0;
+
                                 result.Add(new ThemeVideo
                                 {
                                     Type = type,
@@ -685,6 +692,7 @@ namespace MALPlus.XShared.Utils
                                     SongTitle = songTitle,
                                     MalId = malId,
                                     Size = size,
+                                    Resolution = resolution,
                                     Episodes = epRanges
                                 });
                             }
@@ -1259,26 +1267,18 @@ private class InlineThemeEntry
             if (videos == null || videos.Count == 0)
                 return null;
 
-            // Only themes of the kind that was asked about. This is the whole fix for picking the last
-            // opening when the last ending was tapped: the kind was already an argument, and it was
-            // never consulted, so when a line carried no episode range the scoring ran over openings
-            // and endings together and the better title won regardless of which one it belonged to.
-            //
-            // An empty set of the right kind returns null rather than falling back to the other kind.
-            // Playing an opening for an ending is worse than not playing.
+            // 1. Try preferred type first (OP for isOp=true, ED for isOp=false)
             var wantedType = isOp ? "OP" : "ED";
-            videos = videos
+            var preferred = videos
                 .Where(v => string.Equals(v.Type, wantedType, StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            if (videos.Count == 0)
-                return null;
 
             var wanted = ExtractEpisodeRanges(opEdText);
-            if (wanted.Count > 0)
+            if (wanted.Count > 0 && preferred.Count > 0)
             {
-                var overlapping = videos.Where(v => RangesOverlap(wanted, v.Episodes)).ToList();
+                var overlapping = preferred.Where(v => RangesOverlap(wanted, v.Episodes)).ToList();
                 if (overlapping.Count == 1)
-                    return overlapping[0];
+                    return Lightest(overlapping[0], preferred);
                 if (overlapping.Count > 1)
                 {
                     // Several versions cover the same episodes. Score the title to choose between
@@ -1298,20 +1298,50 @@ private class InlineThemeEntry
                 }
             }
 
-            ThemeVideo best = null;
-            var bestScore = 0.0;
-            foreach (var v in videos)
+            if (preferred.Count > 0)
             {
-                // Prefer the bare song name (artist tokens the title lacks would unfairly
-                // drag the score down); fall back to the full artist+song otherwise.
-                var score = ScoreSong(v, songQuery, songName);
-                if (score > bestScore)
+                ThemeVideo best = null;
+                var bestScore = 0.0;
+                foreach (var v in preferred)
                 {
-                    bestScore = score;
-                    best = v;
+                    // Prefer the bare song name (artist tokens the title lacks would unfairly
+                    // drag the score down); fall back to the full artist+song otherwise.
+                    var score = ScoreSong(v, songQuery, songName);
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        best = v;
+                    }
                 }
+                if (bestScore >= 0.7)
+                    return Lightest(best, preferred);
             }
-            return bestScore >= 0.7 ? Lightest(best, videos) : null;
+
+            // 2. Fallback to opposite type (e.g. AnimeThemes classifies special episode OPs as EDs or vice-versa,
+            // as in Gintama° where Saigo made II (ep 16) and Acchi Muite (ep 51) are listed as OPs on MAL but EDs in AnimeThemes).
+            // Only accept a match if the title matches with high confidence (score >= 0.7).
+            var other = videos
+                .Where(v => !string.Equals(v.Type, wantedType, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (other.Count > 0)
+            {
+                ThemeVideo bestOther = null;
+                var bestOtherScore = 0.0;
+                foreach (var v in other)
+                {
+                    var score = ScoreSong(v, songQuery, songName);
+                    if (score > bestOtherScore)
+                    {
+                        bestOtherScore = score;
+                        bestOther = v;
+                    }
+                }
+                if (bestOtherScore >= 0.7)
+                    return Lightest(bestOther, other);
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -1331,25 +1361,38 @@ private class InlineThemeEntry
         /// </remarks>
         private static ThemeVideo Lightest(ThemeVideo chosen, List<ThemeVideo> candidates)
         {
-            if (chosen == null || candidates == null || candidates.Count <= 1 || chosen.Size <= 0)
+            if (chosen == null || candidates == null || candidates.Count <= 1)
                 return chosen;
 
-            ThemeVideo best = chosen;
-            foreach (var v in candidates)
+            var matching = candidates.Where(v => v != null &&
+                string.Equals(v.Type, chosen.Type, StringComparison.OrdinalIgnoreCase) &&
+                v.Sequence == chosen.Sequence &&
+                string.Equals(NormalizeSong(v.SongTitle), NormalizeSong(chosen.SongTitle), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (matching.Count <= 1)
+                return chosen;
+
+            // Mobile preference: 720p runs at full 24/30 FPS without dropping frames on software VP8 decoders.
+            // 1080p software VP8 takes ~193ms/frame (~5 fps).
+            var res720 = matching.Where(v => v.Resolution == 720).ToList();
+            if (res720.Count > 0)
             {
-                if (v == null || v.Size <= 0 || v.Size >= best.Size)
-                    continue;
-                if (!string.Equals(v.Type, chosen.Type, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                if (v.Sequence != chosen.Sequence)
-                    continue;
-                if (!string.Equals(NormalizeSong(v.SongTitle), NormalizeSong(chosen.SongTitle),
-                        StringComparison.OrdinalIgnoreCase))
-                    continue;
-                best = v;
+                var minSize720 = res720.Where(v => v.Size > 0).OrderBy(v => v.Size).FirstOrDefault();
+                return minSize720 ?? res720[0];
             }
 
-            return best;
+            // If no 720p, look for other sub-1080 resolutions (e.g. 480p)
+            var sub1080 = matching.Where(v => v.Resolution > 0 && v.Resolution < 1080).OrderByDescending(v => v.Resolution).ToList();
+            if (sub1080.Count > 0)
+            {
+                var minSub = sub1080.Where(v => v.Size > 0).OrderBy(v => v.Size).FirstOrDefault();
+                return minSub ?? sub1080[0];
+            }
+
+            // Otherwise pick the lightest overall
+            var lightest = matching.Where(v => v.Size > 0).OrderBy(v => v.Size).FirstOrDefault();
+            return lightest ?? chosen;
         }
 
         private static double ScoreSong(ThemeVideo v, string songQuery, string songName)
@@ -1363,7 +1406,7 @@ private class InlineThemeEntry
 
         public static async Task<ThemeVideo> GetRandomThemeAsync()
         {
-            var query = "{ animethemeShuffle(first: 1) { type sequence anime { slug title { romaji english } resources { nodes { site externalId } } } song { title { romaji native } } animethemeentries { episodes videos { nodes { basename link size } } } } }";
+            var query = "{ animethemeShuffle(first: 1) { type sequence anime { slug title { romaji english } resources { nodes { site externalId } } } song { title { romaji native } } animethemeentries { episodes videos { nodes { basename link size resolution } } } } }";
 
             for (var attempt = 1; attempt <= 3; attempt++)
             {
@@ -1427,8 +1470,10 @@ private class InlineThemeEntry
 
                     string link = null;
                     long size = 0;
+                    int resolution = 0;
                     if (theme.TryGetProperty("animethemeentries", out var entriesArr) && entriesArr.ValueKind == JsonValueKind.Array)
                     {
+                        var candidateVideos = new List<(string Link, long Size, int Res)>();
                         foreach (var entryObj in entriesArr.EnumerateArray())
                         {
                             if (entryObj.TryGetProperty("videos", out var vidObj) && vidObj.ValueKind == JsonValueKind.Object &&
@@ -1439,15 +1484,26 @@ private class InlineThemeEntry
                                     var l = node.TryGetProperty("link", out var lProp) && lProp.ValueKind == JsonValueKind.String ? lProp.GetString() : null;
                                     if (!string.IsNullOrEmpty(l))
                                     {
-                                        link = l;
-                                        if (node.TryGetProperty("size", out var sz) && sz.ValueKind == JsonValueKind.Number)
-                                            size = sz.GetInt64();
-                                        break;
+                                        long sz = node.TryGetProperty("size", out var szProp) && szProp.ValueKind == JsonValueKind.Number ? szProp.GetInt64() : 0;
+                                        int res = node.TryGetProperty("resolution", out var rProp) && rProp.ValueKind == JsonValueKind.Number ? rProp.GetInt32() : 0;
+                                        candidateVideos.Add((l, sz, res));
                                     }
                                 }
                             }
-                            if (!string.IsNullOrEmpty(link))
-                                break;
+                        }
+
+                        if (candidateVideos.Count > 0)
+                        {
+                            // Prefer 720p for smooth mobile playback without software VP8 frame drops
+                            var res720 = candidateVideos.Where(v => v.Res == 720).ToList();
+                            var picked = res720.Count > 0
+                                ? (res720.Where(v => v.Size > 0).OrderBy(v => v.Size).FirstOrDefault().Link != null
+                                    ? res720.Where(v => v.Size > 0).OrderBy(v => v.Size).First()
+                                    : res720[0])
+                                : candidateVideos[0];
+                            link = picked.Link;
+                            size = picked.Size;
+                            resolution = picked.Res;
                         }
                     }
 
@@ -1466,7 +1522,8 @@ private class InlineThemeEntry
                         AnimeSlug = slug,
                         SongTitle = songTitle,
                         MalId = malId,
-                        Size = size
+                        Size = size,
+                        Resolution = resolution
                     };
                 }
                 catch

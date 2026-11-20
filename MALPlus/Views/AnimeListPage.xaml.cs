@@ -147,6 +147,8 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
     private IReadOnlyList<AnimeItemViewModel> _previewList;
     private int _previewVersion = -1;
     private bool _previewManga;
+    private SortOptions? _customSortOption;
+    private bool? _customSortDescending;
 
     private static bool IsModeForRoot(AnimeListWorkModes mode, string rootRoute)
     {
@@ -209,10 +211,13 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
     /// </summary>
     private void TryBindLive()
     {
-        if (!_liveLibrary || _liveBound || Vm == null)
+        if (!_liveLibrary || Vm == null)
             return;
 
         if (!IsModeForRoot(Vm.DisplayedMode, RootRoute))
+            return;
+
+        if (_liveBound && AnimeGrid.ItemsSource == Vm.DisplayedItems)
             return;
 
         _liveBound = true;
@@ -223,6 +228,7 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
 
     private void ApplyPreview(bool manga)
     {
+        _liveBound = false;
         var preview = Vm?.GetLibraryPreview(manga);
         _previewList = preview;
         _previewManga = manga;
@@ -326,6 +332,9 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
 
         if (_appliedSettingsRevision != SettingsViewModelBase.SettingsRevision)
         {
+            _appliedSettingsRevision = SettingsViewModelBase.SettingsRevision;
+            _previewList = null;
+            _previewVersion = -1;
             _rootResetSuppressedFor = null;
             if (SettingsViewModelBase.ResetDataOnNextAppearance)
             {
@@ -334,6 +343,14 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
                 _appliedStatus = -1;
                 _lastMode = -1;
                 _lastStatus = -1;
+            }
+            else
+            {
+                // Settings changed: update sort mode and re-sort current view
+                Vm?.SetSortOrder(null);
+                Vm?.RefreshList();
+                SetLiveLibrary(true);
+                TryBindLive();
             }
         }
 
@@ -401,6 +418,7 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
         _rootResetSuppressedFor = RootRoute;
         _rootResetSuppressedAt = DateTime.UtcNow;
         CloseStatusDropdown();
+        ResetTemporaryFilters();
         Android.Util.Log.Info("MALPLUS",
             $"AnimeList root reset loc='{location}' -> {route} applied=({_appliedMode},{_appliedStatus},{_appliedType})");
         ApplyRoute(route);
@@ -479,6 +497,7 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
             // Consumed here, AFTER the resolve above rather than before it. Clearing it first meant
             // ResolveMode never saw the flag it is supposed to honour, and the panel was flattened to
             // the plain library anyway while the log cheerfully reported back=True.
+            var returningFromDetails = _returningFromDetails;
             _returningFromDetails = false;
             var status = ResolveStatus(query, modeFromQuery);
             var type = ResolveType(query, modeFromQuery);
@@ -563,9 +582,14 @@ Mode = null;
             // The magnifier scopes itself to whatever the panel is showing, so text left over from
             // the previous one would silently filter the new panel by a term the user never typed
             // here. Closing it also puts the magnifier back where they expect it.
-            _panelFilterOpen = false;
-            Vm.PanelFilter = "";
-            UpdateContextBars();
+            if (!returningFromDetails)
+            {
+                ResetTemporaryFilters();
+            }
+            else
+            {
+                UpdateContextBars();
+            }
 
             _ = InitAndObserveAsync(mode, status, openStatusMenu, routeSeason, routeYear);
         }
@@ -757,12 +781,40 @@ Season? routeSeason = null, int? routeYear = null)
 
             PanelFilterBox.IsVisible = StatusBar.IsVisible && _panelFilterOpen;
             PanelFilterButton.IsVisible = StatusBar.IsVisible && !_panelFilterOpen;
+            if (SortButton != null)
+                SortButton.IsVisible = StatusBar.IsVisible && isList;
             UpdatePanelBackNavigation();
         }
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS context bars failed: " + ex.Message);
         }
+    }
+
+    private void ClosePanelFilter()
+    {
+        if (!_panelFilterOpen)
+            return;
+
+        _panelFilterOpen = false;
+        if (Vm != null)
+            Vm.PanelFilter = "";
+        PanelFilterEntry?.Unfocus();
+        UpdateContextBars();
+    }
+
+    private void ResetTemporaryFilters()
+    {
+        _customSortOption = null;
+        _customSortDescending = null;
+        _panelFilterOpen = false;
+        if (Vm != null)
+        {
+            Vm.PanelFilter = "";
+            Vm.SetSortOrder(null);
+        }
+        PanelFilterEntry?.Unfocus();
+        UpdateContextBars();
     }
 
         /// <summary>
@@ -791,6 +843,17 @@ Season? routeSeason = null, int? routeYear = null)
         {
             try
             {
+                if (_panelFilterOpen)
+                {
+                    DisarmPanelBack();
+                    _panelBackArmed = true;
+                    MainActivity.ArmMenuBackCallback(() =>
+                    {
+                        MainThread.BeginInvokeOnMainThread(ClosePanelFilter);
+                    });
+                    return;
+                }
+
                 if (PanelOriginOf(_lastMode) == PanelOrigin.None)
                 {
                     // Disarmed, not just unflagged. The flag is the page's belief about the dispatcher;
@@ -905,6 +968,54 @@ Season? routeSeason = null, int? routeYear = null)
             }
         }
 
+    private void OnSortButtonTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+
+            var currentOption = _customSortOption ?? vm.SortOption;
+            var currentDesc = _customSortDescending ?? vm.SortDescending;
+
+            var isManga = _lastMode == (int)AnimeListWorkModes.Manga;
+            var unitsLabel = isManga ? "Volumes / Chapters" : "Episodes";
+
+            var choices = new (string Label, SortOptions Option, bool Descending)[]
+            {
+                ("Title (A → Z)", SortOptions.SortTitle, false),
+                ("Title (Z → A)", SortOptions.SortTitle, true),
+                ("Personal score (Highest first)", SortOptions.SortScore, true),
+                ("Personal score (Lowest first)", SortOptions.SortScore, false),
+                ("Community score (Highest first)", SortOptions.SortGlobalScore, true),
+                ("Last updated (Most recent first)", SortOptions.SortLastWatched, true),
+                ($"{unitsLabel} (Most first)", SortOptions.SortWatched, true),
+                ("Start date (Newest first)", SortOptions.SortStartDate, true),
+                ("Completion date (Newest first)", SortOptions.SortEndDate, true)
+            };
+
+            var rows = choices.Select(c =>
+            {
+                var isSelected = (c.Option == currentOption && c.Descending == currentDesc);
+                return new OptionsSheetItem(c.Label, null, action: () =>
+                {
+                    _customSortOption = c.Option;
+                    _customSortDescending = c.Descending;
+                    vm.SortDescending = c.Descending;
+                    vm.SortOption = c.Option;
+                    vm.RefreshList();
+                }, value: isSelected ? "✓" : null);
+            }).ToList();
+
+            PosterSheet.OpenCompactWithSubtitle("Sort list", "Temporarily change the order of this list", rows);
+            MainActivity.ArmMenuBackCallback(() => PosterSheet.Dismiss());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnSortButtonTapped failed: " + ex.Message);
+        }
+    }
+
     /// <summary>
     ///     Opens the magnifier field and hides the button that opened it, so there is one thing to
     ///     act on while typing. The field stays until it is cleared or the panel changes: closing it
@@ -965,15 +1076,25 @@ Season? routeSeason = null, int? routeYear = null)
     {
         try
         {
-            Vm.PanelFilter = "";
-            // Kept open on purpose. Closing it here would put the magnifier back while the keyboard
-            // is still up, and the next tap would land on a control that had just moved.
-            PanelFilterEntry.Focus();
+            if (string.IsNullOrEmpty(Vm?.PanelFilter))
+            {
+                ClosePanelFilter();
+            }
+            else
+            {
+                Vm.PanelFilter = "";
+                PanelFilterEntry.Focus();
+            }
         }
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS panel filter clear failed: " + ex.Message);
         }
+    }
+
+    private void OnPanelFilterCompleted(object sender, EventArgs e)
+    {
+        PanelFilterEntry?.Unfocus();
     }
 
 /// <summary>
@@ -1223,9 +1344,7 @@ Season? routeSeason = null, int? routeYear = null)
             _appliedMode = mode;
             _lastMode = mode;
             _rangeIndex = 0;
-            _panelFilterOpen = false;
-            Vm.PanelFilter = "";
-            UpdateContextBars();
+            ResetTemporaryFilters();
 
             var args = BuildArgs(mode, _lastStatus);
             await Vm.Init(args);
@@ -1689,9 +1808,7 @@ Season? routeSeason = null, int? routeYear = null)
             _appliedMode = mode;
             _lastMode = mode;
             _rangeIndex = 0;
-            _panelFilterOpen = false;
-            Vm.PanelFilter = "";
-            UpdateContextBars();
+            ResetTemporaryFilters();
 
             var args = BuildArgs(mode, _lastStatus);
             await Vm.Init(args);
@@ -1778,13 +1895,19 @@ Season? routeSeason = null, int? routeYear = null)
         switch (workMode)
         {
             case AnimeListWorkModes.Manga:
-                return new AnimeListPageNavigationArgs(statusSelectorIndex, AnimeListWorkModes.Manga);
+                return new AnimeListPageNavigationArgs(statusSelectorIndex, AnimeListWorkModes.Manga)
+                {
+                    CustomSortOption = _customSortOption,
+                    CustomSortDescending = _customSortDescending
+                };
             case AnimeListWorkModes.Anime:
                 // Never silently switch work mode when there is no session: let the
                 // ViewModel surface its "log in or set it manually" notice instead.
                 return new AnimeListPageNavigationArgs(statusSelectorIndex, AnimeListWorkModes.Anime)
                 {
-                    ListSource = Credentials.UserName
+                    ListSource = Credentials.UserName,
+                    CustomSortOption = _customSortOption,
+                    CustomSortDescending = _customSortDescending
                 };
 case AnimeListWorkModes.SeasonalAnime:
                     // Carries the season on show. This is what makes coming back from an anime open
@@ -1917,6 +2040,12 @@ case AnimeListWorkModes.SeasonalAnime:
             BottomNav.SectionActivated -= OnSectionActivated;
             BottomNav.SectionChanging -= OnSectionChanging;
             _navConnected = false;
+        }
+
+        var modalOpen = Shell.Current?.Navigation?.ModalStack?.Count > 0;
+        if (!_returningFromDetails && !modalOpen)
+        {
+            ResetTemporaryFilters();
         }
     }
 

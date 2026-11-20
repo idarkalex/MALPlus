@@ -268,6 +268,8 @@ namespace MALPlus.XShared.ViewModels.Main
             var type = isDependent ? data.DependentType : data.RecommendationType;
             var score = isDependent ? data.DependentScore : data.RecommendationScore;
             var episodes = isDependent ? data.DependentAllEpisodes : data.RecommendationAllEpisodes;
+            var airStartDate = isDependent ? data.DependentAirStartDate : data.RecommendationAirStartDate;
+            var status = isDependent ? data.DependentStatus : data.RecommendationStatus;
 
             var model = MALPlus.XShared.Utils.AnimeItemFactory.Create(
                 id,
@@ -276,10 +278,15 @@ namespace MALPlus.XShared.ViewModels.Main
                 type: type,
                 score: score,
                 allEpisodes: episodes,
-                isManga: !data.IsAnime);
+                isManga: !data.IsAnime,
+                airStartDate: airStartDate,
+                status: status);
 
             if (model != null)
+            {
                 model.UpdateButtonsVisibility = false;
+                model.RefreshTimeTillNextAirInBackground();
+            }
             return model;
         }
 

@@ -391,6 +391,21 @@ namespace MALPlus.XShared.Comm.Discovery
 
                         if (target.AllEpisodes <= 0 && entry.TryGetProperty("episodes", out var epProp) && epProp.ValueKind == JsonValueKind.Number)
                             target.AllEpisodes = epProp.GetInt32();
+
+                        if (string.IsNullOrEmpty(target.Status) && entry.TryGetProperty("status", out var stProp) && stProp.ValueKind == JsonValueKind.String)
+                            target.Status = stProp.GetString();
+
+                        var dateProp = target.IsManga ? "published" : "aired";
+                        if (string.IsNullOrEmpty(target.AirStartDate) && entry.TryGetProperty(dateProp, out var dEl) && dEl.ValueKind == JsonValueKind.Object &&
+                            dEl.TryGetProperty("from", out var fromEl) && fromEl.ValueKind == JsonValueKind.String)
+                        {
+                            target.AirStartDate = fromEl.GetString();
+                        }
+
+                        if (!string.IsNullOrEmpty(target.Status) || !string.IsNullOrEmpty(target.AirStartDate))
+                        {
+                            DataCache.UpdateVolatileData(malId, status: target.Status, airStartDate: target.AirStartDate);
+                        }
                     }
                 }
                 catch (Exception ex)

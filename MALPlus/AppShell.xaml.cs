@@ -299,9 +299,29 @@ public partial class AppShell : Shell
         if (bar?.Handler?.PlatformView is not global::Android.Views.View barView)
             return;
 
+        bar.HeightRequest = -1;
+        bar.MaximumHeightRequest = double.PositiveInfinity;
+
         var height = barView.Height;
         if (height <= 0)
-            return;
+        {
+            try
+            {
+                int widthSpec = root.Width > 0
+                    ? global::Android.Views.View.MeasureSpec.MakeMeasureSpec(root.Width, global::Android.Views.MeasureSpecMode.Exactly)
+                    : global::Android.Views.View.MeasureSpec.MakeMeasureSpec(0, global::Android.Views.MeasureSpecMode.Unspecified);
+                int heightSpec = global::Android.Views.View.MeasureSpec.MakeMeasureSpec(0, global::Android.Views.MeasureSpecMode.Unspecified);
+                barView.Measure(widthSpec, heightSpec);
+                height = barView.MeasuredHeight;
+            }
+            catch { }
+        }
+
+        if (height <= 0)
+        {
+            var density = barView.Context?.Resources?.DisplayMetrics?.Density ?? 2.75f;
+            height = (int)(58 * density);
+        }
 
         _sharedBarInstalled = true;
         Controls.BottomNavBar.MarkSharedHostInstalled();
@@ -309,6 +329,17 @@ public partial class AppShell : Shell
         Controls.BottomNavBar.HideAllForSharedHost(barView);
 
         (barView.Parent as global::Android.Views.ViewGroup)?.RemoveView(barView);
+
+        // Remove any old shared bar child in coordinator before adding
+        for (int i = coordinator.ChildCount - 1; i >= 0; i--)
+        {
+            var child = coordinator.GetChildAt(i);
+            if (child != null && child != pager && (ReferenceEquals(child, _sharedBarView) || child.GetType().FullName.Contains("BottomNavBar")))
+            {
+                coordinator.RemoveViewAt(i);
+            }
+        }
+
         coordinator.AddView(barView,
             new global::Android.Widget.LinearLayout.LayoutParams(
                 global::Android.Views.ViewGroup.LayoutParams.MatchParent, height));
@@ -338,7 +369,8 @@ public partial class AppShell : Shell
         var page = CurrentPage;
         var stack = Navigation.NavigationStack;
         var root = stack.Count <= 1 &&
-            (page is Views.AnimeListPage || page is Views.DiscoverPage || page is Views.MorePage);
+            (page is Views.AnimeListPage || page is Views.DiscoverPage || page is Views.MorePage ||
+             (page is Views.OptionsSheetPage && Navigation.NavigationStack.LastOrDefault() is Views.AnimeListPage or Views.DiscoverPage or Views.MorePage));
 
         var next = root
             ? global::Android.Views.ViewStates.Visible

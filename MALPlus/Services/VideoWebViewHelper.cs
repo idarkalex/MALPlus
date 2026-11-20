@@ -40,6 +40,20 @@ public static class VideoWebViewHelper
         return false;
     }
 
+    public static void ToggleFullscreen()
+    {
+        if (FullscreenVideo.IsActive)
+        {
+            if (TryExitCustomView())
+                return;
+            FullscreenVideo.Exit();
+        }
+        else
+        {
+            FullscreenVideo.Enter();
+        }
+    }
+
     public static void RequestWebViewFullscreen()
     {
         var wv = ActivePlatformWebView;
@@ -51,7 +65,7 @@ public static class VideoWebViewHelper
                 wv.EvaluateJavascript(
                     "(function(){" +
                     "try{" +
-                    "  var el = document.getElementById('player') || document.querySelector('iframe');" +
+                    "  var el = document.getElementById('video') || document.querySelector('video') || document.getElementById('player') || document.querySelector('iframe');" +
                     "  if (el) {" +
                     "    if (el.requestFullscreen) { el.requestFullscreen(); }" +
                     "    else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); }" +
@@ -377,9 +391,10 @@ public static class VideoWebViewHelper
         return BuildPlayerShell(
             "<div id='splash'></div>" +
             "<div id='stage'><video id='video' src='" + url + "'" + autoplayAttr +
-            " controls playsinline webkit-playsinline preload='auto'></video></div>",
+            " controls preload='auto'></video></div>",
             "<script>" +
             "var v=document.getElementById('video'),splash=document.getElementById('splash');" +
+            "v.addEventListener('dblclick',function(e){e.preventDefault();if(document.fullscreenElement||document.webkitFullscreenElement){if(document.exitFullscreen)document.exitFullscreen();else if(document.webkitExitFullscreen)document.webkitExitFullscreen();}else{if(v.requestFullscreen)v.requestFullscreen();else if(v.webkitRequestFullscreen)v.webkitRequestFullscreen();}});" +
             "v.onplaying=function(){splash.style.opacity='0';};" +
             // Watchdog. The element's own error event is not enough: the origin refuses with a 503 and
             // an empty body, which Chromium does not always surface as an error on the element, so the
@@ -543,11 +558,10 @@ public static class VideoWebViewHelper
 
         public void ExitCustomView()
         {
-            // Exit the WebView's custom (fullscreen) view first, then fire the BackHandler so
-            // the video overlay itself is closed. Without the BackHandler call the app only
-            // returned to portrait while the video kept playing behind the page.
+            // Exit the WebView's custom (fullscreen) view back to portrait.
+            // Leaving playback running in portrait allows the user to continue watching
+            // or close the overlay via the portrait close button.
             OnHideCustomView();
-            BackHandler?.Invoke();
         }
 
         // ── Close-button visibility helpers ──────────────────────────────────────

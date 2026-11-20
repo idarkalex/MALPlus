@@ -53,14 +53,15 @@ public partial class OpEdRow : ContentView
         var target = new Border
         {
             BackgroundColor = Colors.Transparent,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) }
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
+            ZIndex = 10
         };
         var tap = new TapGestureRecognizer();
         tap.Tapped += OnTapped;
         target.GestureRecognizers.Add(tap);
 
         var host = (Grid)Content;
-        host.Children.Insert(0, target);
+        host.Children.Add(target);
         Grid.SetColumnSpan(target, 2);
     }
 

@@ -102,8 +102,10 @@
                      measured from the width in code rather than guessed, so it stays right on a narrow
                      screen too. -->
                 <Grid x:Name="VideoFrame" BackgroundColor="Black" IsVisible="False">
+                    <controls:NativeVideoView x:Name="DirectVideoPlayer" HorizontalOptions="Fill" VerticalOptions="Fill"
+                                              IsVisible="False" PlayFailed="OnDirectVideoFailed" />
                     <WebView x:Name="ThemeVideo" HorizontalOptions="Fill" VerticalOptions="Fill"
-                             BackgroundColor="Black" />
+                             BackgroundColor="Black" IsVisible="False" />
                 </Grid>
 
                 <VerticalStackLayout Padding="14" Spacing="10">

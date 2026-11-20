@@ -155,7 +155,20 @@ namespace MALPlus.XShared.Comm.Anime
                 if (allIds.Count == 0) return;
 
                 var idList = allIds.ToList();
-                var metaDict = new Dictionary<int, (string Type, double Score, int Episodes)>();
+                var metaDict = new Dictionary<int, (string Type, double Score, int Episodes, string AirStartDate, string Status)>();
+
+                // Check local volatile cache first
+                foreach (var id in idList)
+                {
+                    if (DataCache.TryRetrieveDataForId(id, out var vd))
+                    {
+                        var sc = vd.GlobalScore > 0 ? (double)vd.GlobalScore : 0;
+                        if (sc > 0 || !string.IsNullOrEmpty(vd.AirStartDate) || !string.IsNullOrEmpty(vd.LastKnownStatus))
+                        {
+                            metaDict[id] = ("", sc, 0, vd.AirStartDate, vd.LastKnownStatus);
+                        }
+                    }
+                }
 
                 // Enrich in chunks of 25 items per batch request
                 for (int i = 0; i < idList.Count; i += 25)
@@ -210,7 +223,24 @@ namespace MALPlus.XShared.Comm.Anime
                         if (entry.TryGetProperty(epPropName, out var epProp) && epProp.ValueKind == JsonValueKind.Number)
                             eps = epProp.GetInt32();
 
-                        metaDict[malId] = (type, score, eps);
+                        string status = entry.TryGetProperty("status", out var stProp) && stProp.ValueKind == JsonValueKind.String
+                            ? stProp.GetString()
+                            : null;
+
+                        string airStartDate = null;
+                        var datePropName = _anime ? "aired" : "published";
+                        if (entry.TryGetProperty(datePropName, out var dateObj) && dateObj.ValueKind == JsonValueKind.Object &&
+                            dateObj.TryGetProperty("from", out var fromStr) && fromStr.ValueKind == JsonValueKind.String)
+                        {
+                            airStartDate = fromStr.GetString();
+                        }
+
+                        if (!string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(airStartDate) || score > 0)
+                        {
+                            DataCache.UpdateVolatileData(malId, status: status, airStartDate: airStartDate, globalScore: score > 0 ? (float?)score : null);
+                        }
+
+                        metaDict[malId] = (type, score, eps, airStartDate, status);
                     }
                 }
 
@@ -221,12 +251,16 @@ namespace MALPlus.XShared.Comm.Anime
                         item.DependentType = depMeta.Type;
                         item.DependentScore = depMeta.Score;
                         item.DependentAllEpisodes = depMeta.Episodes;
+                        item.DependentAirStartDate = depMeta.AirStartDate;
+                        item.DependentStatus = depMeta.Status;
                     }
                     if (metaDict.TryGetValue(item.RecommendationId, out var recMeta))
                     {
                         item.RecommendationType = recMeta.Type;
                         item.RecommendationScore = recMeta.Score;
                         item.RecommendationAllEpisodes = recMeta.Episodes;
+                        item.RecommendationAirStartDate = recMeta.AirStartDate;
+                        item.RecommendationStatus = recMeta.Status;
                     }
                 }
             }

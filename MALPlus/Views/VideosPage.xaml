@@ -61,17 +61,23 @@
         </Grid>
 
         <!-- In-app video overlay -->
-        <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="100">
+        <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="100" InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer />
+            </Grid.GestureRecognizers>
             <WebView x:Name="VideoWebView" BackgroundColor="#000000" ZIndex="1" />
-            <Border x:Name="VideoCloseButton" HorizontalOptions="End" VerticalOptions="Start"
-                    Margin="0,12,12,0" WidthRequest="36" HeightRequest="36"
-                    BackgroundColor="#99000000" StrokeShape="RoundRectangle 18" ZIndex="50">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnCloseVideo" />
-                </Border.GestureRecognizers>
-                <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
-                       HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
+            <HorizontalStackLayout x:Name="OverlayControls" HorizontalOptions="End" VerticalOptions="Start"
+                                   Margin="0,12,12,0" Spacing="8" ZIndex="50">
+                <Border x:Name="VideoCloseButton" WidthRequest="40" HeightRequest="40"
+                        BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 20">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCloseVideo" />
+                    </Border.GestureRecognizers>
+                    <Image Source="icon_close" WidthRequest="20" HeightRequest="20"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+            </HorizontalStackLayout>
         </Grid>
     </Grid>
 </ContentPage>

@@ -147,6 +147,7 @@ Added to `/top/manga`. Ranking order unchanged:
 - `min_reviews`, `max_reviews` — Filter by review count.
 
 #### 🆕 Top episodes parameter additions (Nov 2026)
+- `anime_ids` — Only episodes from the anime whose MAL IDs you choose (comma-separated).
 - `aired_after`, `aired_before` — Filter by episode air date.
 - `year`, `min_year`, `max_year` — Filter by air year.
 - `min_episode`, `max_episode` — Filter by episode number.
@@ -157,7 +158,8 @@ Added to `/top/manga`. Ranking order unchanged:
 - `max_per_anime` — Limit results to N episodes per anime.
 - `exclude_ids` — Exclude anime (and all their episodes) by MAL ID.
 - Anime-level filters: `type`, `type_exclude`, `rating`, `rating_exclude`, `status`, `status_exclude`, `source`, `source_exclude`, `genres`, `genres_exclude`, `season`, `season_year`, `min_anime_score`, `max_anime_score`, `min_anime_members`, `max_anime_members`, `min_anime_episodes`, `max_anime_episodes`.
-- Sorting: `order_by` adds `rank` (default), `aired`, `duration`, `title`, `title_japanese`, `title_romanji`; `sort` and `nulls` apply as usual.
+- Sorting: `order_by` adds `rank` (default), `aired`, `duration`, `title`, `title_japanese`, `title_romanji`; `sort` applies as usual.
+- `nulls` — Control placement of items missing the sorted value (`first` or `last`). Now also works without `order_by`, on the default ranking.
 
 #### 🆕 Top videos parameter additions (Nov 2026)
 - `min_views`, `max_views` — Filter by YouTube view count.
@@ -169,20 +171,33 @@ Added to `/top/manga`. Ranking order unchanged:
 - `max_per_anime` — Limit results to N videos per anime.
 - Sorting: `order_by` adds `duration`; `nulls` applies; `order_by=title` now puts untitled videos last.
 
-#### 🆕 Top people & characters SFW flags (Nov 2026)
-- `sfw`, `sfw-strict` on `/top/people` — Filter out people who only worked on non-SFW entries.
-- `sfw`, `sfw-strict` on `/top/characters` — Filter out characters that only appear in non-SFW entries.
+#### 🆕 Top people parameter additions (Nov 2026)
+- `sfw`, `sfw-strict` — Filter out people who only worked on non-SFW entries.
+- `credit` — Only people with a voice, staff or author credit (`voice`, `staff`, `author`).
+- `position`, `position_exclude` — Only people with, or without, any of these staff jobs, such as `director`, `music`, `producer`.
+- `author_role` — Only authors MAL credits for `story` or `art`.
+- `airing`, `upcoming`, `publishing` — Only people credited in at least one anime airing now, one not yet aired, or one manga publishing now; or in none.
+- `season`, `season_year` — Only people credited in an anime of these debut seasons or years.
+- `voice_language`, `voice_language_exclude` — Only voice actors whose main language (the one most of their roles are in) is, or is not, one of these (e.g. `japanese`, `english`).
+
+#### 🆕 Top character parameter additions (Nov 2026)
+- `sfw`, `sfw-strict` — Filter out characters that only appear in non-SFW entries.
+- `role_only` — Only characters MAL lists as main or supporting and never in the other role.
+- `airing`, `upcoming`, `publishing` — Only characters in at least one anime airing now, one not yet aired, or one manga publishing now; or in none.
+- `season`, `season_year` — Only characters in an anime of these debut seasons or years.
 
 **Integration opportunities in MAL+:**
 - `AnimeTopQuery` currently builds query strings via `GetAnimeApiQuery`/`GetMangaApiQuery`. The new `source`, `season`, `season_year`, `streaming_service`, `year` and score-range params can back richer filter chips in the Top Anime/Manga UI with zero extra plumbing.
 - `max_per_anime` on `/top/videos` and `/top/episodes` is immediately useful for the Videos page to avoid one anime dominating the feed.
 - `uploaded_within=30d` on `/top/videos` can power a "Recent PVs" surface in Discover.
 
-### 2. Manga Adapted to Anime (`/adapted`)
-- **`GET /adapted`**
+### 2. Manga Adapted to Anime (`/manga/adapted`)
+- **`GET /manga/adapted`**
   - Dedicated endpoint listing exclusively manga series that have received an anime adaptation.
   - **Replaces legacy HTML scraping (`AnimeAdaptedToAnimeQuery`).**
   - Supported parameters:
+    - `filter`: `airing` (manga whose adapted anime is currently airing), `upcoming` (manga whose adapted anime is upcoming), or omitted for all adapted manga.
+    - `status`: Filter by publication status. Now accepts several comma-separated values (e.g. `status=publishing,complete`, `status=finished`).
     - `exclude_ids`: Exclude up to 1,000 IDs.
     - `type_exclude`, `status_exclude`, `genres_exclude`
     - `magazines`, `magazines_exclude`: Filter by magazine or serialization platform.
@@ -200,6 +215,9 @@ Added to `/top/manga`. Ranking order unchanged:
 #### 🆕 Schedule endpoint additions (Nov 2026)
 New parameters added to `/schedules`:
 - `filter` — Now also accepts **`today`** and **`tomorrow`**, evaluated relative to midnight **Japan time (JST)**. Useful for a "today's airing" view without client-side day calculation.
+- `source`, `source_exclude` — Filter by, or exclude, selected source materials (e.g. `manga`, `light_novel`, `original`, `game`).
+- `streaming_service` — Only anime with a streaming link from any of these providers (`crunchyroll`, `netflix`, `hidive`, etc.).
+- `voice_language` — Only anime with a voice cast credited in any of these languages (e.g. `japanese`, `english`).
 - `type_exclude` — Exclude selected anime types (opposite of `type`). E.g. `type_exclude=music,cm,pv`.
 - `status`, `status_exclude` — Filter by airing status (`currently_airing`, `finished_airing`, etc.) or exclude selected statuses.
 - `rating_exclude` — Exclude selected rating buckets on the server (e.g. `rating_exclude=rx`). Complements the existing `rating_exclude` on seasonal endpoints.
@@ -262,7 +280,7 @@ Available on both `/anime` and `/manga`:
 - **`GET /anime/{id}/reviews` & `GET /manga/{id}/reviews` (Title Reviews):**
   - **Reviewer & Post Filters:**
     - `score`, `min_score`, `max_score`: Filter by reviewer's given score (1-10).
-    - `published_after`, `published_before`: Filter by date posted.
+    - `published_after`, `published_before`: Filter by date posted. Now also take an ISO 8601 timestamp with a time zone (e.g. `2026-11-20T20:00:00+01:00`).
     - `sentiment`: Filter by reviewer sentiment (accepts several values).
     - `min_reactions`, `max_reactions`: Filter by review's total reaction count.
     - `reaction`, `min_reaction_count`: Require specific reaction kinds and minimum counts.
@@ -272,14 +290,21 @@ Available on both `/anime` and `/manga`:
 
 - **`GET /reviews/anime` & `GET /reviews/manga` (Global Reviews Catalogue):**
   - Full cross-title reviews catalogue supporting all reviewer/post filters above plus:
+    - `published_after`, `published_before`: Date range filtering (supports timestamps with time zones).
     - `anime_ids`, `manga_ids`: Restrict reviews to specific MAL IDs.
     - `exclude_ids`: Omit reviews belonging to selected MAL IDs.
     - `max_per_entry`: Cap number of reviews returned per anime/manga (e.g. `max_per_entry=1` for diverse feeds).
     - `type`, `type_exclude`: Filter/exclude by entry format (`tv`, `movie`, `manga`, etc.).
     - `status`, `status_exclude`: Filter/exclude by airing/publishing status.
     - `genres`, `genres_exclude`: Filter/exclude by genre, theme, or demographic IDs.
-    - `source`, `source_exclude`: Filter/exclude by source material (Anime only).
-    - `producers`, `producers_exclude`: Filter/exclude by producer/studio MAL IDs (Anime only).
+    - **Anime Review Filters (`/reviews/anime`):**
+      - `rating`, `rating_exclude`: Filter by, or exclude, selected age ratings (`g`, `pg`, `pg_13`, `r17`, `r`, `rx`).
+      - `season`, `season_year`: Filter by the anime's debut season and year.
+      - `source`, `source_exclude`: Filter/exclude by source material.
+      - `producers`, `producers_exclude`: Filter/exclude by producer/studio MAL IDs.
+    - **Manga Review Filters (`/reviews/manga`):**
+      - `magazines`, `magazines_exclude`: Filter by, or exclude, magazine or serialization-platform MAL IDs.
+      - `authors`, `author_role`: Filter by author MAL IDs, optionally restricted to `story` or `art` role.
 
 ### 8. Interest Stacks (`/stacks`, `/anime/{id}/stacks`, `/manga/{id}/stacks`)
 Thematic user-curated interest stacks from MyAnimeList:
@@ -357,7 +382,7 @@ With recent Tenrai capabilities, the status of legacy scrapers is as follows:
 | Feature / Legacy Scraper | Legacy Method | Modern Tenrai Replacement | Migration Status |
 |---|---|---|---|
 | **News & Articles Reader** (`MalArticleQuery`) | HTML scraping (`div.news-container`) | `GET /news/{id}?format=html`<br>`GET /articles/{id}?format=html` | **Migrated & Integrated:** Tenrai provides clean, sanitized article HTML directly in `data.content.html` without loading heavy web pages. |
-| **Manga Adapted to Anime** (`AnimeAdaptedToAnimeQuery`) | HTML scraping | `GET /adapted` | **Ready for migration:** Fully supported by Tenrai with rich filtering and sorting. |
+| **Manga Adapted to Anime** (`AnimeAdaptedToAnimeQuery`) | HTML scraping | `GET /manga/adapted` | **Migrated & Integrated:** Tenrai REST API `GET /manga/adapted` completely replaces HTML scraping. Supports `filter=airing`, `filter=upcoming`, and all adapted manga with multi-status support and automatic SFW filtering. |
 | **Popular & Promotional Videos** (`PopularVideosQuery`) | HTML scraping (`/watch/promotion`) | `GET /v1/top/videos` | **Ready for migration:** Tenrai provides structured YT video entries. |
 | **Community Recommendations** (`AnimeRecomendationsQuery`) | HTML scraping (`recommendations.php`) | `GET /top/recommendations` | **Ready for migration:** Provides structured recommended pairs. |
 | **Weekly Airing Schedules** (`AiringInfoProvider`) | Third-party feeds | `GET /schedules` | **Ready for migration:** Provides official broadcast timestamps and timezone data. |

@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Net;
+using System.Text.Json;
 using System.Threading.Tasks;
-using HtmlAgilityPack;
 using MALPlus.Models.Models.AnimeScrapped;
 using MALPlus.XShared.Utils;
 
@@ -17,14 +15,18 @@ namespace MALPlus.XShared.Comm.Anime
         UpcomingAnime
     }
 
+    /// <summary>
+    ///     Manga titles that have received an anime adaptation.
+    ///     Migrated from legacy HTML web scraping to Tenrai REST API (GET /manga/adapted).
+    /// </summary>
     public class AnimeAdaptedToAnimeQuery : Query
     {
-        private static Dictionary<MangaAdaptedType, List<TopAnimeData>> _prevQueriesCache = new Dictionary<MangaAdaptedType, List<TopAnimeData>>();
+        private static Dictionary<MangaAdaptedType, List<TopAnimeData>> _prevQueriesCache =
+            new Dictionary<MangaAdaptedType, List<TopAnimeData>>();
         private readonly MangaAdaptedType _type;
 
         public AnimeAdaptedToAnimeQuery(MangaAdaptedType type)
         {
-            Request = new Uri(Uri.EscapeUriString(GetEndpoint(type)));
             _type = type;
         }
 
@@ -43,19 +45,15 @@ namespace MALPlus.XShared.Comm.Anime
             }
         }
 
-        private string GetEndpoint(MangaAdaptedType type)
+        private static string GetEndpoint(MangaAdaptedType type)
         {
-            switch (type)
+            var filter = type switch
             {
-                case MangaAdaptedType.AiringNow:
-                    return "https://myanimelist.net/manga/adapted";
-                case MangaAdaptedType.All:
-                    return "https://myanimelist.net/manga/adapted?type=all";
-                case MangaAdaptedType.UpcomingAnime:
-                    return "https://myanimelist.net/manga/adapted?type=upcoming";
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(type), type, null);
-            }
+                MangaAdaptedType.AiringNow => "filter=airing&",
+                MangaAdaptedType.UpcomingAnime => "filter=upcoming&",
+                _ => ""
+            };
+            return ContentFilter.Query($"manga/adapted?{filter}limit=50");
         }
 
         public async Task<List<TopAnimeData>> GetAdaptedToAnimeData(bool force = false)
@@ -71,74 +69,33 @@ namespace MALPlus.XShared.Comm.Anime
                 return output;
             }
 
-            var raw = await GetRequestResponse();
-            if (string.IsNullOrEmpty(raw))
-                return new List<TopAnimeData>();
-
-            var doc = new HtmlDocument();
-            doc.LoadHtml(raw);
-            var items = doc.DocumentNode.Descendants("div")
-                .Where(node => node.Attributes.Contains("class") && node.Attributes["class"].Value.Contains("js-seasonal-anime"))
-                .ToList();
-
-            var index = 0;
-            foreach (var item in items)
+            try
             {
-                try
+                var endpoint = GetEndpoint(_type);
+                var (items, _) = await TenraiClient.GetPaginatedAsync(endpoint);
+                if (items != null && items.Count > 0)
                 {
-                    var current = new TopAnimeData();
-                    var titleNode = item.Descendants("a").FirstOrDefault(node =>
-                        node.Attributes.Contains("class") && node.Attributes["class"].Value == "link-title");
-                    if (titleNode == null)
-                        continue;
-                    current.Title = WebUtility.HtmlDecode(titleNode.InnerText).Trim();
-                    var href = titleNode.Attributes["href"].Value;
-                    var mangaIdx = href.IndexOf("/manga/", StringComparison.Ordinal);
-                    if (mangaIdx == -1)
-                        continue;
-                    current.Id = Convert.ToInt32(href.Substring(mangaIdx + "/manga/".Length).Split('/')[0]);
-
-                    var img = item.Descendants("img").FirstOrDefault(node => node.Attributes.Contains("data-src"));
-                    if (img != null)
+                    var index = 0;
+                    foreach (var item in items)
                     {
-                        var src = img.Attributes.Contains("data-src")
-                            ? img.Attributes["data-src"].Value
-                            : img.Attributes.Contains("src") ? img.Attributes["src"].Value : null;
-                        if (!string.IsNullOrEmpty(src))
+                        var malId = GetInt(item, "mal_id");
+                        if (malId <= 0) continue;
+
+                        output.Add(new TopAnimeData
                         {
-                            var pos = src.IndexOf('?');
-                            if (pos != -1)
-                                src = src.Substring(0, pos);
-                            current.ImgUrl = src;
-                        }
+                            Id = malId,
+                            Title = GetString(item, "title"),
+                            ImgUrl = GetNestedImageUrl(item),
+                            Score = (float)GetDouble(item, "score"),
+                            Type = (int)MalTypeParser.ParseMangaType(GetString(item, "type")),
+                            Index = ++index
+                        });
                     }
-
-                    var scoreNode = item.Descendants("div").FirstOrDefault(node =>
-                        node.Attributes.Contains("class") && node.Attributes["class"].Value.Contains("scormem-item score"));
-                    if (scoreNode != null)
-                    {
-                        var scoreText = scoreNode.InnerText.Replace("?", "").Trim();
-                        float.TryParse(scoreText, NumberStyles.Float, CultureInfo.InvariantCulture, out var score);
-                        current.Score = score;
-                    }
-
-                    //<span class="item">Manga, 2001</span> - first token is the format
-                    var typeNode = item.Descendants("span").FirstOrDefault(node =>
-                        node.Attributes.Contains("class") && node.Attributes["class"].Value.Split(' ').Contains("item"));
-                    if (typeNode != null)
-                    {
-                        var format = typeNode.InnerText.Split(',')[0].Trim();
-                        if (!string.IsNullOrEmpty(format))
-                            current.Type = (int) MalTypeParser.ParseMangaType(format);
-                    }
-
-                    current.Index = ++index;
-                    output.Add(current);
                 }
-                catch (Exception)
-                {
-                    //skip malformed entries
-                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS Tenrai manga/adapted fetch failed: " + ex.Message);
             }
 
             if (output.Count > 0)
@@ -147,6 +104,27 @@ namespace MALPlus.XShared.Comm.Anime
                 _prevQueriesCache[_type] = output;
             }
             return output;
+        }
+
+        private static string GetString(JsonElement el, string prop) =>
+            el.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : "";
+
+        private static int GetInt(JsonElement el, string prop) =>
+            el.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 0;
+
+        private static double GetDouble(JsonElement el, string prop) =>
+            el.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : 0;
+
+        private static string GetNestedImageUrl(JsonElement el)
+        {
+            if (el.TryGetProperty("images", out var images) &&
+                images.TryGetProperty("jpg", out var jpg) &&
+                jpg.TryGetProperty("image_url", out var img) &&
+                img.ValueKind == JsonValueKind.String)
+            {
+                return img.GetString() ?? "";
+            }
+            return "";
         }
     }
 }

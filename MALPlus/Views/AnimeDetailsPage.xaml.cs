@@ -29,9 +29,9 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     private const int ProgressiveChunkSize = 10;
     private const int EpisodeChunkSize = 100;
     private const int EpisodeRangeSize = 100;
-    private const int RecommendationChunkSize = 8;
-    private const long ProgressiveAppendCooldownMs = 250;
-    private const double ProgressiveAppendScrollDelta = 60;
+    private const int RecommendationChunkSize = 10;
+    private const long ProgressiveAppendCooldownMs = 400;
+    private const double ProgressiveAppendScrollDelta = 180;
     private long _lastProgressiveAppendTimestamp;
     private double _lastProgressiveAppendScrollY = double.NaN;
     //Characters, staff and related were the three tabs that still froze on first paint. Their
@@ -992,6 +992,7 @@ InitializeComponent();
         if (e.PropertyName == nameof(AnimeDetailsPageViewModel.DetailsPivotSelectedIndex))
         {
             ApplyTabActiveState();
+            ResetTabScrollToTop();
             if (Vm.Id == _initializedId && Vm.AnimeMode == _initializedAnimeMode)
                 LoadTabData(Vm.DetailsPivotSelectedIndex);
             return;
@@ -1203,6 +1204,7 @@ InitializeComponent();
                             _reviewsLoaded = Vm.ReviewsLoaded;
                             ResetReviewExpansionState();
                             RefreshDisplayedReviews(false);
+                            ResetTabScrollToTop();
                         }
                     }
                     break;
@@ -1214,6 +1216,7 @@ InitializeComponent();
                         {
                             _recommendationsLoaded = Vm.RecommendationsLoaded;
                             RefreshDisplayedRecommendations(false);
+                            ResetTabScrollToTop();
                         }
                     }
                     break;
@@ -1225,6 +1228,7 @@ InitializeComponent();
                         {
                             _relatedLoaded = Vm.RelatedLoaded;
                             _ = TopUpTabUntilScrollable(5);
+                            ResetTabScrollToTop();
                         }
                     }
                     break;
@@ -1237,6 +1241,7 @@ InitializeComponent();
                         {
                             _charactersLoaded = Vm.CharactersLoaded;
                             ApplyCharacterStaffBindings();
+                            ResetTabScrollToTop();
                         }
                     }
                     break;
@@ -1956,20 +1961,6 @@ private async void OnJapaneseVoiceClicked(object sender, EventArgs e)
             VideoOverlay.IsVisible = true;
             SetSystemBars(true);
 
-            if (VideoWebViewHelper.IsDirectMedia(url))
-            {
-                if (_videoWebView != null)
-                {
-                    VideoWebViewHelper.StopMediaAndClear(_videoWebView);
-                    _videoWebView.IsVisible = false;
-                }
-                _directMediaUrl = url;
-                DirectVideoPlayer.IsVisible = true;
-                DirectVideoPlayer.Source = url;
-                VideoWebViewHelper.ActivePlatformWebView = null;
-                return;
-            }
-
             StopDirectMedia();
             var webView = EnsureVideoWebView();
             webView.IsVisible = true;
@@ -2308,21 +2299,22 @@ private void HideVideoLoading()
             OrientationPolicy.SetVideoActive(false);
             VideoWebViewHelper.ActivePlatformWebView = null;
             if (VideoOverlay != null && VideoOverlay.IsVisible)
+            {
                 VideoWebViewHelper.BackHandler = null;
-
                 MainActivity.DisarmVideoBackCallback();
                 StopDirectMedia();
                 if (_videoWebView != null)
                 {
                     VideoWebViewHelper.StopMediaAndClear(_videoWebView);
-                    _videoWebView.IsVisible = true;
+                    _videoWebView.IsVisible = false;
                 }
-                if (VideoOverlay != null)
-                    VideoOverlay.IsVisible = false;
+                VideoOverlay.IsVisible = false;
                 SetSystemBars(false);
             }
-            catch { }
         }
+        catch { }
+    }
+
 
     private void CloseVideoOverlay(object sender, EventArgs e)
     {
@@ -2510,6 +2502,7 @@ private void HideVideoLoading()
             Vm.DetailsPivotSelectedIndex = nextIndex;
             _lastTabIndex = nextIndex;
             RememberPreferredTab(nextIndex);
+            ResetTabScrollToTop();
         }
 
         ApplyTabActiveState();
@@ -2629,6 +2622,7 @@ private void HideVideoLoading()
                 Vm.DetailsPivotSelectedIndex = nextIndex;
                 _lastTabIndex = nextIndex;
                 RememberPreferredTab(nextIndex);
+                ResetTabScrollToTop();
             }
         }
         catch (Exception ex)
@@ -2711,6 +2705,37 @@ private void HideVideoLoading()
         };
     }
 
+    private void ResetTabScrollToTop()
+    {
+        _lastProgressiveAppendScrollY = double.NaN;
+        _lastProgressiveAppendTimestamp = 0;
+        if (PageScroll != null)
+        {
+            _ = PageScroll.ScrollToAsync(0, 0, false);
+            ApplyHeroState(0);
+        }
+        try
+        {
+            if (ReviewsCollection?.ItemsSource != null && DisplayedReviews.Count > 0)
+                ReviewsCollection.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
+        }
+        catch { }
+        try
+        {
+            if (RecommendationsCollection?.ItemsSource != null && DisplayedRecommendations.Count > 0)
+                RecommendationsCollection.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
+        }
+        catch { }
+        Dispatcher.Dispatch(() =>
+        {
+            if (PageScroll != null && PageScroll.ScrollY > 0)
+            {
+                _ = PageScroll.ScrollToAsync(0, 0, false);
+                ApplyHeroState(0);
+            }
+        });
+    }
+
     private async Task SelectTabAsync(int tabIndex, int direction)
     {
         if (Vm == null || tabIndex < 0 || tabIndex > 7 || !IsTabVisible(tabIndex))
@@ -2721,6 +2746,7 @@ private void HideVideoLoading()
             Vm.DetailsPivotSelectedIndex = tabIndex;
             _lastTabIndex = tabIndex;
             RememberPreferredTab(tabIndex);
+            ResetTabScrollToTop();
         }
         ApplyTabActiveState();
         if (changed)
@@ -2871,24 +2897,45 @@ private void HideVideoLoading()
                     return;
 
                 var stack = TabStripScroll.Content as Layout;
-                var contentWidth = stack?.Width ?? 0;
+                if (stack == null)
+                    return;
+
+                var paddingLeft = TabStripScroll.Padding.Left;
+                var paddingRight = TabStripScroll.Padding.Right;
+                var contentWidth = stack.Width + paddingLeft + paddingRight;
+                if (contentWidth <= viewport)
+                    return;
+
                 var maxScroll = Math.Max(0, contentWidth - viewport);
 
+                // Identify the first and last visible button
+                var firstVisibleIndex = -1;
+                var lastVisibleIndex = -1;
+                for (var i = 0; i < buttons.Length; i++)
+                {
+                    if (buttons[i] != null && buttons[i].IsVisible)
+                    {
+                        if (firstVisibleIndex == -1) firstVisibleIndex = i;
+                        lastVisibleIndex = i;
+                    }
+                }
+
                 double targetX;
-                if (selectedIndex == 0)
+                if (selectedIndex == firstVisibleIndex || selectedIndex == 0)
                 {
                     targetX = 0;
                 }
-                else if (selectedIndex >= buttons.Length - 1 || selectedIndex == 7)
+                else if (selectedIndex == lastVisibleIndex || selectedIndex >= buttons.Length - 1)
                 {
-                    targetX = maxScroll;
+                    // Scroll all the way to the end so the final chip (Staff) and right padding are 100% visible!
+                    targetX = maxScroll + 50;
                 }
                 else
                 {
                     var btn = buttons[selectedIndex];
                     if (btn == null || btn.Width <= 0)
                         return;
-                    var btnCenter = btn.X + (btn.Width / 2.0);
+                    var btnCenter = paddingLeft + btn.X + (btn.Width / 2.0);
                     targetX = Math.Clamp(btnCenter - (viewport / 2.0), 0, maxScroll);
                 }
 
@@ -2991,9 +3038,13 @@ private void HideVideoLoading()
         if (now - _lastProgressiveAppendTimestamp < ProgressiveAppendCooldownMs)
             return;
 
-        if (!double.IsNaN(_lastProgressiveAppendScrollY) &&
-            e.ScrollY - _lastProgressiveAppendScrollY < ProgressiveAppendScrollDelta)
-            return;
+        if (!double.IsNaN(_lastProgressiveAppendScrollY))
+        {
+            if (e.ScrollY < _lastProgressiveAppendScrollY)
+                _lastProgressiveAppendScrollY = e.ScrollY;
+            else if (e.ScrollY - _lastProgressiveAppendScrollY < ProgressiveAppendScrollDelta)
+                return;
+        }
 
         _lastProgressiveAppendTimestamp = now;
         _lastProgressiveAppendScrollY = e.ScrollY;

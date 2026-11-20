@@ -39,9 +39,12 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
     private WebView _videoWebView;
     private ICommand _themeRowCommand;
 
+    public static SeasonThemesPage Instance { get; private set; }
+
     public SeasonThemesPage()
     {
         InitializeComponent();
+        Instance = this;
         BindingContext = this;
         RowsList.ItemsSource = Rows;
     }
@@ -271,25 +274,10 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
         VideoOverlay.IsVisible = true;
         // Only the close button is placed now. Full screen lives on the player's own control bar,
         // which the shared WebChromeClient answers for every video surface in the app.
-        VideoOverlayInsets.Apply(null, CloseButton);
+        VideoOverlayInsets.Apply(null, OverlayControls);
         VideoWebViewHelper.BackHandler = OnVideoBackPressed;
         MainActivity.ArmVideoBackCallback();
         OrientationPolicy.SetVideoActive(true);
-
-        if (VideoWebViewHelper.IsDirectMedia(url))
-        {
-            if (_videoWebView != null)
-            {
-                VideoWebViewHelper.StopMediaAndClear(_videoWebView);
-                _videoWebView.IsVisible = false;
-            }
-            _currentVideoUrl = url;
-            _directMediaUrl = url;
-            DirectVideoPlayer.IsVisible = true;
-            DirectVideoPlayer.Source = url;
-            VideoWebViewHelper.ActivePlatformWebView = null;
-            return;
-        }
 
         StopDirectMedia();
         var webView = EnsureVideoWebView();
@@ -553,6 +541,7 @@ public partial class SeasonThemesPage : ContentPage, INotifyPropertyChanged
         });
         return true;
     }
+
 
     private void OnCloseVideoTapped(object sender, EventArgs e)
     {

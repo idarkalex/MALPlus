@@ -3020,6 +3020,9 @@ RaisePropertyChanged(() => ProducersVisible);
                         return;
                     }
 
+                    if (recomm.Count > 30)
+                        recomm = recomm.Take(30).ToList();
+
                     if (recomm.Count == 0 && hadData && !force)
                     {
                         _loadedRecomm = true;
@@ -3027,21 +3030,79 @@ RaisePropertyChanged(() => ProducersVisible);
                         return;
                     }
 
+                    // Pre-index library items once for O(1) matching instead of O(N*M) linear scans
+                    var animeLib = _animeLibraryDataStorage?.AllLoadedAuthAnimeItems;
+                    Dictionary<int, AnimeItemAbstraction> animeLookup = null;
+                    if (animeLib != null)
+                    {
+                        animeLookup = new Dictionary<int, AnimeItemAbstraction>(animeLib.Count * 2);
+                        foreach (var a in animeLib)
+                        {
+                            if (!a.RepresentsAnime) continue;
+                            if (a.MalId > 0) animeLookup[a.MalId] = a;
+                            if (a.Id > 0) animeLookup[a.Id] = a;
+                        }
+                    }
+                    var mangaLib = _animeLibraryDataStorage?.AllLoadedAuthMangaItems;
+                    Dictionary<int, AnimeItemAbstraction> mangaLookup = null;
+                    if (mangaLib != null)
+                    {
+                        mangaLookup = new Dictionary<int, AnimeItemAbstraction>(mangaLib.Count * 2);
+                        foreach (var m in mangaLib)
+                        {
+                            if (m.RepresentsAnime) continue;
+                            if (m.MalId > 0) mangaLookup[m.MalId] = m;
+                            if (m.Id > 0) mangaLookup[m.Id] = m;
+                        }
+                    }
+
                     foreach (var item in recomm)
                     {
                         item.AirDayTillBind = ComputeAirCountdown(item.Id);
                         var isAnimeItem = item.Type == RelatedItemType.Anime || (item.Type != RelatedItemType.Manga && AnimeMode);
-                        var libraryMatch = isAnimeItem
-                            ? _animeLibraryDataStorage?.AllLoadedAuthAnimeItems?
-                                .FirstOrDefault(x => x.RepresentsAnime && (x.MalId == item.Id || x.Id == item.Id))
-                            : _animeLibraryDataStorage?.AllLoadedAuthMangaItems?
-                                .FirstOrDefault(x => !x.RepresentsAnime && (x.MalId == item.Id || x.Id == item.Id));
+                        AnimeItemAbstraction libraryMatch = null;
+                        if (isAnimeItem)
+                            animeLookup?.TryGetValue(item.Id, out libraryMatch);
+                        else
+                            mangaLookup?.TryGetValue(item.Id, out libraryMatch);
+
                         var libraryViewModel = libraryMatch?.ViewModel;
                         item.IsOnMyList = libraryMatch != null;
                         item.MyEpisodesForBadge = libraryMatch?.MyEpisodes ?? 0;
                         item.MyStatusForBadge = item.IsOnMyList
                             ? libraryViewModel?.MyStatusBindShort
                             : string.Empty;
+
+                        if (libraryViewModel != null)
+                        {
+                            if (string.IsNullOrEmpty(item.ScoreTag) && !string.IsNullOrEmpty(libraryViewModel.CardScore))
+                                item.ScoreTag = libraryViewModel.CardScore;
+                            if (string.IsNullOrEmpty(item.SeasonTag) && !string.IsNullOrEmpty(libraryViewModel.SeasonTag))
+                                item.SeasonTag = libraryViewModel.SeasonTag;
+                            if (!string.IsNullOrEmpty(libraryViewModel.BottomAirTag))
+                                item.BottomAirTag = libraryViewModel.BottomAirTag;
+                        }
+                        else
+                        {
+                            if (DataCache.TryRetrieveDataForId(item.Id, out var vd))
+                            {
+                                if (string.IsNullOrEmpty(item.ScoreTag) && vd.GlobalScore > 0)
+                                    item.ScoreTag = vd.GlobalScore.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+                                if (string.IsNullOrEmpty(item.SeasonTag) && !string.IsNullOrEmpty(vd.AirStartDate))
+                                {
+                                    var s = Utils.Utilities.SeasonToCapitalLetterWithYear(vd.AirStartDate);
+                                    if (!string.IsNullOrEmpty(s) && s != "N/A")
+                                        item.SeasonTag = s;
+                                }
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(item.BottomAirTag))
+                        {
+                            var air = AnimeItemViewModel.ResolveAirCountdown(item.Id, null);
+                            item.BottomAirTag = !string.IsNullOrEmpty(air) ? air : item.AirDayTillBind;
+                        }
                     }
 
                     Recommendations.ReplaceRange(recomm);
@@ -3086,10 +3147,83 @@ RaisePropertyChanged(() => ProducersVisible);
                     if (related.Count > MaxRelatedEntries)
                         related = related.Take(MaxRelatedEntries).ToList();
 
+                    // Pre-index library items once for O(1) matching
+                    var animeLib = _animeLibraryDataStorage?.AllLoadedAuthAnimeItems;
+                    Dictionary<int, AnimeItemAbstraction> animeLookup = null;
+                    if (animeLib != null)
+                    {
+                        animeLookup = new Dictionary<int, AnimeItemAbstraction>(animeLib.Count * 2);
+                        foreach (var a in animeLib)
+                        {
+                            if (!a.RepresentsAnime) continue;
+                            if (a.MalId > 0) animeLookup[a.MalId] = a;
+                            if (a.Id > 0) animeLookup[a.Id] = a;
+                        }
+                    }
+                    var mangaLib = _animeLibraryDataStorage?.AllLoadedAuthMangaItems;
+                    Dictionary<int, AnimeItemAbstraction> mangaLookup = null;
+                    if (mangaLib != null)
+                    {
+                        mangaLookup = new Dictionary<int, AnimeItemAbstraction>(mangaLib.Count * 2);
+                        foreach (var m in mangaLib)
+                        {
+                            if (m.RepresentsAnime) continue;
+                            if (m.MalId > 0) mangaLookup[m.MalId] = m;
+                            if (m.Id > 0) mangaLookup[m.Id] = m;
+                        }
+                    }
+
                     _loadedRelated = true;
                     foreach (var item in related)
                     {
                         item.AirDayTillBind = ComputeAirCountdown(item.Id);
+                        var isAnimeItem = item.Type == RelatedItemType.Anime || (item.Type != RelatedItemType.Manga && AnimeMode);
+                        AnimeItemAbstraction libraryMatch = null;
+                        if (isAnimeItem)
+                            animeLookup?.TryGetValue(item.Id, out libraryMatch);
+                        else
+                            mangaLookup?.TryGetValue(item.Id, out libraryMatch);
+
+                        var libraryViewModel = libraryMatch?.ViewModel;
+                        item.IsOnMyList = libraryMatch != null;
+                        item.MyEpisodesForBadge = libraryMatch?.MyEpisodes ?? 0;
+                        item.MyStatusForBadge = item.IsOnMyList
+                            ? libraryViewModel?.MyStatusBindShort
+                            : string.Empty;
+
+                        if (libraryViewModel != null)
+                        {
+                            if (string.IsNullOrEmpty(item.MediaType) && !string.IsNullOrEmpty(libraryViewModel.TypeTag))
+                                item.MediaType = libraryViewModel.TypeTag;
+                            if (string.IsNullOrEmpty(item.ScoreTag) && !string.IsNullOrEmpty(libraryViewModel.CardScore))
+                                item.ScoreTag = libraryViewModel.CardScore;
+                            if (string.IsNullOrEmpty(item.SeasonTag) && !string.IsNullOrEmpty(libraryViewModel.SeasonTag))
+                                item.SeasonTag = libraryViewModel.SeasonTag;
+                            if (!string.IsNullOrEmpty(libraryViewModel.BottomAirTag))
+                                item.BottomAirTag = libraryViewModel.BottomAirTag;
+                        }
+                        else
+                        {
+                            if (DataCache.TryRetrieveDataForId(item.Id, out var vd))
+                            {
+                                if (string.IsNullOrEmpty(item.ScoreTag) && vd.GlobalScore > 0)
+                                    item.ScoreTag = vd.GlobalScore.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+                                if (string.IsNullOrEmpty(item.SeasonTag) && !string.IsNullOrEmpty(vd.AirStartDate))
+                                {
+                                    var s = Utils.Utilities.SeasonToCapitalLetterWithYear(vd.AirStartDate);
+                                    if (!string.IsNullOrEmpty(s) && s != "N/A")
+                                        item.SeasonTag = s;
+                                }
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(item.BottomAirTag))
+                        {
+                            var air = AnimeItemViewModel.ResolveAirCountdown(item.Id, null);
+                            item.BottomAirTag = !string.IsNullOrEmpty(air) ? air : item.AirDayTillBind;
+                        }
+
                         RelatedAnime.Add(item);
                     }
 

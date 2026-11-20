@@ -1,8 +1,11 @@
 using Android.Views;
 using Android.Widget;
 using AndroidX.Media3.Common;
+using AndroidX.Media3.DataSource;
 using AndroidX.Media3.ExoPlayer;
+using AndroidX.Media3.ExoPlayer.Source;
 using AndroidX.Media3.UI;
+using MALPlus.Services;
 using Microsoft.Maui.Handlers;
 
 namespace MALPlus.Controls;
@@ -43,6 +46,7 @@ public class NativeVideoViewHandler : ViewHandler<NativeVideoView, FrameLayout>
     private IExoPlayer _player;
     private PlayerView _playerView;
     private string _loadingUrl;
+    private IDataSourceFactory _dataSourceFactory;
 
     public static IPropertyMapper<NativeVideoView, NativeVideoViewHandler> Mapper =
         new PropertyMapper<NativeVideoView, NativeVideoViewHandler>(ViewMapper)
@@ -64,6 +68,8 @@ protected override FrameLayout CreatePlatformView() =>
         new(Context)
         {
             LayoutParameters = MatchParent(),
+            Clickable = true,
+            Focusable = true,
         };
 
     /// <summary>
@@ -114,61 +120,72 @@ protected override FrameLayout CreatePlatformView() =>
         }
         EnsurePlayer();
         _loadingUrl = url;
-        _player.SetMediaItem(MediaItem.FromUri(url));
+        var mediaItem = MediaItem.FromUri(url);
+        if (_dataSourceFactory != null)
+        {
+            var mediaSource = new ProgressiveMediaSource.Factory(_dataSourceFactory).CreateMediaSource(mediaItem);
+            _player.SetMediaSource(mediaSource);
+        }
+        else
+        {
+            _player.SetMediaItem(mediaItem);
+        }
         _player.Prepare();
         // Prepare is asynchronous, so play straight away and let ExoPlayer start the moment it is
         // ready. Waiting for a ready callback first would add a round trip before any sound.
         _player.Play();
         VirtualView.IsPlaying = true;
-        WatchForPlaybackStart(url);
+        StartPlaybackMonitor(url);
     }
 
+    private System.Threading.CancellationTokenSource _watchCts;
+
     /// <summary>
-    ///     Reports whether ExoPlayer ever got the file off the ground, so the page can fall back to
-    ///     the WebView player instead of leaving a black rectangle.
-    ///     <para>
-    ///     This polls <c>Error</c> and <c>PlaybackState</c> rather than registering an
-    ///     <c>IPlayerListener</c>. That interface inherits <c>IJavaPeerable</c>, which drags in
-    ///     Handle, JniIdentityHashCode, PeerReference, JniPeerMembers, JniManagedPeerState,
-    ///     SetPeerReference, SetJniManagedPeerState, SetJniIdentityHashCode, Disposed, Finalized,
-    ///     UnregisterFromRuntime, DisposeUnlessReferenced and Dispose, all of which are meaningless
-    ///     for a listener that never crosses into Java. The binding's own base class for it,
-    ///     IPlayerListenerImplementor, is internal and cannot be derived from here. Both properties
-    ///     this needs are plain reads, and an unreadable WebM fails within a few hundred ms, so
-    ///     polling gives the same answer without the JNI plumbing.
-    ///     </para>
+    ///     Monitors playback continuously so start readiness is reported to the page and any runtime error
+    ///     (such as seek range refusal or CDN 503) is reported to the retry handler instead of freezing or crashing.
     /// </summary>
-    private async void WatchForPlaybackStart(string url)
+    private void StartPlaybackMonitor(string url)
     {
-        try
+        _watchCts?.Cancel();
+        _watchCts = new System.Threading.CancellationTokenSource();
+        var token = _watchCts.Token;
+
+        _ = Task.Run(async () =>
         {
-            for (var attempt = 0; attempt < 16; attempt++)
+            var reportedReady = false;
+            try
             {
-                await Task.Delay(400);
-                var player = _player;
-                // The source changed or the player went away mid-wait: a different file owns the
-                // outcome now, and this one must not report anything.
-                if (player == null || _loadingUrl != url)
-                    return;
-                var error = player.PlayerError;
-                if (error != null)
+                while (!token.IsCancellationRequested)
                 {
-                    var reason = error.ErrorCodeName + " " + error.Message;
-                    global::Android.Util.Log.Warn("MALPlus Video", "ExoPlayer error: " + reason);
-                    VirtualView?.RaisePlayFailed(reason);
-                    return;
-                }
-                if (player.PlaybackState == StateReady)
-                {
-                    VirtualView?.RaiseMediaReady();
-                    return;
+                    await Task.Delay(400, token);
+                    var player = _player;
+                    if (player == null || _loadingUrl != url)
+                        return;
+
+                    var error = player.PlayerError;
+                    if (error != null)
+                    {
+                        var reason = error.ErrorCodeName + " " + error.Message;
+                        global::Android.Util.Log.Warn("MALPlus Video", "ExoPlayer error: " + reason);
+                        MainThread.BeginInvokeOnMainThread(() => VirtualView?.RaisePlayFailed(reason));
+                        return;
+                    }
+
+                    if (!reportedReady && player.PlaybackState == StateReady)
+                    {
+                        reportedReady = true;
+                        MainThread.BeginInvokeOnMainThread(() => VirtualView?.RaiseMediaReady());
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Video", "WatchForPlaybackStart: " + ex.GetType().Name);
-        }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Warn("MALPlus Video", "PlaybackMonitor: " + ex.GetType().Name);
+            }
+        });
     }
 
     public void UpdateIsPlaying(bool playing)
@@ -196,36 +213,39 @@ protected override FrameLayout CreatePlatformView() =>
         // ExoPlayerBuilder. Looking for a type literally called ExoPlayer finds nothing.
         var builder = new ExoPlayerBuilder(Context);
 
-        // A small buffer, deliberately.
-        //
-        // Media3 sizes its default buffer from the bitrate of the track (CalculateTargetBufferBytes), so
-        // a 2.6 Mbit/s OP reserves tens of megabytes and goes on asking for ranges long after the ninety
-        // seconds it contains have played. The origin refuses bursts of requests per IP, so every one of
-        // those requests is spent from a budget that the next theme needs.
-        //
-        // This does not delay the start. The player begins from whatever has already arrived, and 2.5s
-        // ahead is far more than playback needs to stay smooth; it only stops reaching for more than the
-        // moment requires.
+        // Custom HTTP data source with standard browser User-Agent and generous timeouts.
+        // This avoids CDN 503/403 refusals on byte-range requests during playback and seeking.
+        var httpFactory = new DefaultHttpDataSource.Factory()
+            .SetUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+            .SetAllowCrossProtocolRedirects(true)
+            .SetConnectTimeoutMs(15000)
+            .SetReadTimeoutMs(15000);
+
+        _dataSourceFactory = new DefaultDataSource.Factory(Context, httpFactory);
+
         builder.SetLoadControl(new DefaultLoadControl.Builder()
             .SetBufferDurationsMs(
-                15000, // minBufferMs: keep 15s buffered ahead to absorb CDN jitter
-                30000, // maxBufferMs: 30s buffer ahead
-                2500,  // bufferForPlaybackMs: enough to start without delay
-                5000)  // bufferForPlaybackAfterRebufferMs: wait for 5s on rebuffer
+                20000, // minBufferMs: keep 20s buffered ahead
+                60000, // maxBufferMs: 60s buffer ahead
+                1500,  // bufferForPlaybackMs: 1.5s to start swiftly
+                3000)  // bufferForPlaybackAfterRebufferMs: 3s
             .SetPrioritizeTimeOverSizeThresholds(true)
             .Build());
 
         _player = builder.Build();
-_playerView = new PlayerView(Context)
+        _playerView = new PlayerView(Context)
         {
             UseController = true,
             // The page draws its own chrome; the platform controller only has to be there.
             ControllerShowTimeoutMs = 2500,
             ContentDescription = "Video player",
-// ResizeMode is deliberately not set: Fit is already Media3's default for PlayerView.
+            // ResizeMode is deliberately not set: Fit is already Media3's default for PlayerView.
             // What centres the video is WrapCentred below, not the resize mode.
             LayoutParameters = WrapCentred(),
         };
+
+        // Wire fullscreen button: Media3's PlayerView only displays exo_fullscreen if a listener/event is attached.
+        _playerView.FullscreenButtonClick += OnFullscreenClicked;
         _playerView.Player = _player;
         PlatformView.AddView(_playerView);
         // Re-asserted after the attach because FrameLayout converts the params into its own on add,
@@ -235,6 +255,14 @@ _playerView = new PlayerView(Context)
         PlatformView.RequestLayout();
     }
 
+    private void OnFullscreenClicked(object sender, PlayerView.FullscreenButtonClickEventArgs e)
+    {
+        if (FullscreenVideo.IsActive)
+            FullscreenVideo.Exit();
+        else
+            FullscreenVideo.Enter();
+    }
+
     /// <summary>
     ///     Stops and releases ExoPlayer. Order matters: stop first so nothing is left decoding,
     ///     then release, which frees the codecs and the render thread. Skipping this is what left
@@ -242,13 +270,19 @@ _playerView = new PlayerView(Context)
     /// </summary>
     private void Release()
     {
+        _watchCts?.Cancel();
+        _watchCts = null;
+
         if (_player == null)
             return;
         try
         {
             _player.Stop();
             if (_playerView != null)
+            {
+                _playerView.FullscreenButtonClick -= OnFullscreenClicked;
                 _playerView.Player = null;
+            }
             _player.Release();
         }
         catch (Exception ex)

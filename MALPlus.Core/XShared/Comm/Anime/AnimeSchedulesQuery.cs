@@ -24,12 +24,13 @@ namespace MALPlus.XShared.Comm.Anime
         ///     returns now. The next air date comes from AniListAiringQuery.
         ///     </para>
         /// </summary>
-        public async Task<List<AiringInfoProvider.AiringData>> GetScheduleAsync()
+        public async Task<List<AiringInfoProvider.AiringData>> GetScheduleAsync(string extraQuery = null)
         {
             var output = new List<AiringInfoProvider.AiringData>();
             try
             {
-                var items = await TenraiClient.GetAllPagesAsync(p => ContentFilter.Query($"schedules?page={p}"), 12);
+                var suffix = string.IsNullOrWhiteSpace(extraQuery) ? "" : "&" + extraQuery.TrimStart('&', '?');
+                var items = await TenraiClient.GetAllPagesAsync(p => ContentFilter.Query($"schedules?page={p}{suffix}"), 12);
                 var nowUtc = DateTime.UtcNow;
 
                 foreach (var entry in items)

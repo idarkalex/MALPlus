@@ -48,6 +48,8 @@ namespace MALPlus.Models.Enums
         [EnumUtilities.Description("Season")]
         SortSeason,
         [EnumUtilities.Description("Priority")]
-        SortPriority
+        SortPriority,
+        [EnumUtilities.Description("Community score")]
+        SortGlobalScore = 10
     }
 }

@@ -348,6 +348,12 @@ public override void HandleOnBackPressed()
                         return;
                     }
 
+                    if (Services.FullscreenVideo.IsActive)
+                    {
+                        Services.FullscreenVideo.Exit();
+                        return;
+                    }
+
                     if (Services.VideoWebViewHelper.BackHandler?.Invoke() == true)
                     {
                             return;

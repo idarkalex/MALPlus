@@ -155,7 +155,8 @@ MALPlus.Services.VideoWebViewHelper.BackHandler = OnVideoBackPressed;
         }
     }
 
-private void OnCloseVideo(object sender, EventArgs e)
+
+    private void OnCloseVideo(object sender, EventArgs e)
     {
         try
         {

@@ -97,13 +97,15 @@
                                     HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
                                     PosterUrl="{Binding DependentItem.ImgUrl}"
                                     Title="{Binding DependentItem.Title}"
+                                    TitleOverlay="False"
                                     TypeTag="{Binding DependentItem.TypeTag}"
                                     ScoreTag="{Binding DependentItem.CardScore}"
-                                    BadgeAccent="{Binding DependentItem.BadgeAccent}"
+                                    SeasonTag="{Binding DependentItem.SeasonTag}"
+                                    BottomAirTag="{Binding DependentItem.BottomAirTag}"
+                                    BadgeVisible="True"
+                                    BadgeAccent="{Binding DependentItem.LibraryBadgeAccent}"
                                     BadgeAccentColor="{Binding DependentItem.LibraryBadgeAccentColor}"
-                                    BadgeMain="{Binding DependentItem.BadgeMain}"
-                                    BadgeExtra="{Binding DependentItem.AirDayTillBind}"
-                                    TitleOverlay="False" />
+                                    BadgeMain="{Binding DependentItem.LibraryBadgeMain}" />
                             </Border>
                         </Grid>
 
@@ -131,13 +133,15 @@
                                     HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
                                     PosterUrl="{Binding RecommendedItem.ImgUrl}"
                                     Title="{Binding RecommendedItem.Title}"
+                                    TitleOverlay="False"
                                     TypeTag="{Binding RecommendedItem.TypeTag}"
                                     ScoreTag="{Binding RecommendedItem.CardScore}"
-                                    BadgeAccent="{Binding RecommendedItem.BadgeAccent}"
+                                    SeasonTag="{Binding RecommendedItem.SeasonTag}"
+                                    BottomAirTag="{Binding RecommendedItem.BottomAirTag}"
+                                    BadgeVisible="True"
+                                    BadgeAccent="{Binding RecommendedItem.LibraryBadgeAccent}"
                                     BadgeAccentColor="{Binding RecommendedItem.LibraryBadgeAccentColor}"
-                                    BadgeMain="{Binding RecommendedItem.BadgeMain}"
-                                    BadgeExtra="{Binding RecommendedItem.AirDayTillBind}"
-                                    TitleOverlay="False" />
+                                    BadgeMain="{Binding RecommendedItem.LibraryBadgeMain}" />
                             </Border>
                         </Grid>
 

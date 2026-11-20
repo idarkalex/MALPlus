@@ -106,7 +106,12 @@ public partial class DiscoveryResultsPage : ContentPage, INotifyPropertyChanged
             foreach (var item in items)
             {
                 Results.Add(item);
-                Cards.Add(ToCard(item));
+                var card = ToCard(item);
+                if (card != null)
+                {
+                    card.RefreshTimeTillNextAirInBackground();
+                    Cards.Add(card);
+                }
             }
         }
         catch (Exception ex)
@@ -205,7 +210,7 @@ public partial class DiscoveryResultsPage : ContentPage, INotifyPropertyChanged
             OrientationPolicy.SetVideoActive(true);
             VideoWebViewHelper.ActivePlatformWebView = webView.Handler?.PlatformView as global::Android.Webkit.WebView;
             // Opening in portrait too: the bars are visible and reserve space of their own.
-            VideoOverlayInsets.Apply(null, VideoCloseButton);
+            VideoOverlayInsets.Apply(null, OverlayControls);
             VideoWebViewHelper.Resume(webView.Handler?.PlatformView as global::Android.Views.View);
             webView.Source = VideoWebViewHelper.BuildSource(url);
             // MAUI re-applies MediaPlaybackRequiresUserGesture on every source update and puts it
@@ -250,7 +255,8 @@ VideoWebViewHelper.BackHandler = OnVideoBackPressed;
         return _videoWebView;
     }
 
-private void OnCloseVideo(object sender, EventArgs e)
+
+    private void OnCloseVideo(object sender, EventArgs e)
     {
         try
         {

@@ -51,6 +51,8 @@ namespace MALPlus.XShared.ViewModels.Main
         private AnimeListDisplayModes? _manuallySelectedViewMode;
         private string _prevListSource;
         private int _prevStatus = -1;
+        private SortOptions _prevSortOption = (SortOptions)(-1);
+        private bool? _prevSortDescending;
 
         /// <summary>
         ///     What the grid is actually showing, as opposed to what was last fetched. The fetch memo
@@ -629,7 +631,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     case AnimeListWorkModes.Manga:
                     case AnimeListWorkModes.Anime:
                         if (!gotArgs)
-                            SetDefaults(args?.StatusIndex);
+                            SetDefaults(args?.StatusIndex, args?.CustomSortOption, args?.CustomSortDescending);
 
                         AppBtnListSourceVisibility = true;
                         AppbarBtnPinTileVisibility = false;
@@ -963,6 +965,8 @@ namespace MALPlus.XShared.ViewModels.Main
             // repainting this grid is exactly what invalidates the fetch memo.
             _displayedMode = WorkMode;
             _displayedStatus = (int)status;
+            _prevSortOption = SortOption;
+            _prevSortDescending = SortDescending;
             RaisePropertyChanged(nameof(DisplayedMode));
 
             //});
@@ -995,6 +999,7 @@ namespace MALPlus.XShared.ViewModels.Main
                         _sortDescending = false;
                         break;
                     case SortOptions.SortScore:
+                    case SortOptions.SortGlobalScore:
                         _sortDescending = true;
                         break;
                     case SortOptions.SortWatched:
@@ -1028,17 +1033,29 @@ namespace MALPlus.XShared.ViewModels.Main
             SortOption = option.Value;
         }
 
-        private void SetDefaults(int? statusOverride = null)
+        private void SetDefaults(int? statusOverride = null, SortOptions? sortOverride = null, bool? sortDescOverride = null)
         {
-            SetSortOrder(null);
+            if (sortOverride.HasValue)
+            {
+                SortOption = sortOverride.Value;
+                if (sortDescOverride.HasValue)
+                    SortDescending = sortDescOverride.Value;
+                else if (Settings.AutoDescendingSorting)
+                    SortDescending = ResolveDefaultSortDescending(sortOverride.Value, WorkMode == AnimeListWorkModes.Manga);
+            }
+            else
+            {
+                SetSortOrder(null);
+                if (!Settings.AutoDescendingSorting)
+                    SortDescending = WorkMode == AnimeListWorkModes.Manga
+                        ? Settings.IsMangaSortDescending
+                        : Settings.IsSortDescending;
+            }
+
             if (statusOverride == null)
                 SetDesiredStatus(null);
             else
                 StatusSelectorSelectedIndex = statusOverride.Value;
-            if (!Settings.AutoDescendingSorting)
-                SortDescending = WorkMode == AnimeListWorkModes.Manga
-                    ? Settings.IsMangaSortDescending
-                    : Settings.IsSortDescending;
         }
 
         public static SortOptions ResolveDefaultSortOrder(bool manga)
@@ -1055,6 +1072,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     case SortOptions.SortTitle:
                         return false;
                     case SortOptions.SortScore:
+                    case SortOptions.SortGlobalScore:
                     case SortOptions.SortWatched:
                     case SortOptions.SortAirDay:
                     case SortOptions.SortLastWatched:
@@ -1072,6 +1090,9 @@ namespace MALPlus.XShared.ViewModels.Main
             return manga ? Settings.IsMangaSortDescending : Settings.IsSortDescending;
         }
 
+        private static bool IsValidDate(string date)
+            => !string.IsNullOrEmpty(date) && date != AnimeItemViewModel.InvalidStartEndDate && !date.StartsWith("0000");
+
         public static IEnumerable<AnimeItemAbstraction> ApplySorting(
             IEnumerable<AnimeItemAbstraction> items,
             SortOptions sortOption,
@@ -1081,25 +1102,58 @@ namespace MALPlus.XShared.ViewModels.Main
             switch (sortOption)
             {
                 case SortOptions.SortTitle:
-                    items = items.OrderBy(item => item.Title ?? string.Empty);
+                    items = sortDescending
+                        ? items.OrderByDescending(item => item.Title ?? string.Empty)
+                        : items.OrderBy(item => item.Title ?? string.Empty);
                     break;
                 case SortOptions.SortScore:
                     if (workMode != AnimeListWorkModes.SeasonalAnime)
-                        items = items.OrderBy(item => item.MyScore).ThenByDescending(item => item.Title ?? string.Empty);
+                    {
+                        // Personal score: rated items (> 0) first, unrated (0) ALWAYS at the end in both directions.
+                        items = sortDescending
+                            ? items.OrderByDescending(item => item.MyScore > 0 ? 1 : 0)
+                                   .ThenByDescending(item => item.MyScore)
+                                   .ThenBy(item => item.Title ?? string.Empty)
+                            : items.OrderByDescending(item => item.MyScore > 0 ? 1 : 0)
+                                   .ThenBy(item => item.MyScore)
+                                   .ThenBy(item => item.Title ?? string.Empty);
+                    }
                     else
                         items = items.OrderBy(item => item.Index);
+                    break;
+                case SortOptions.SortGlobalScore:
+                    // Community score: rated items (> 0) first, unrated (<= 0) ALWAYS at the end in both directions.
+                    items = sortDescending
+                        ? items.OrderByDescending(item => item.GlobalScore > 0 ? 1 : 0)
+                               .ThenByDescending(item => item.GlobalScore)
+                               .ThenBy(item => item.Title ?? string.Empty)
+                        : items.OrderByDescending(item => item.GlobalScore > 0 ? 1 : 0)
+                               .ThenBy(item => item.GlobalScore)
+                               .ThenBy(item => item.Title ?? string.Empty);
                     break;
                 case SortOptions.SortWatched:
                     if (workMode == AnimeListWorkModes.SeasonalAnime || workMode == AnimeListWorkModes.AnimeByStudio || workMode == AnimeListWorkModes.AnimeByGenre)
                         items = items.OrderBy(item => item.Index);
                     else
-                        items = items.OrderBy(item => item.MyEpisodes);
+                        items = sortDescending
+                            ? items.OrderByDescending(item => item.MyEpisodes)
+                                   .ThenBy(item => item.Title ?? string.Empty)
+                            : items.OrderBy(item => item.MyEpisodes)
+                                   .ThenBy(item => item.Title ?? string.Empty);
                     break;
                 case SortOptions.SortLastWatched:
-                    items = items.OrderBy(abstraction => abstraction.LastWatched);
+                    items = sortDescending
+                        ? items.OrderByDescending(abstraction => abstraction.LastWatched)
+                               .ThenBy(item => item.Title ?? string.Empty)
+                        : items.OrderBy(abstraction => abstraction.LastWatched)
+                               .ThenBy(item => item.Title ?? string.Empty);
                     break;
                 case SortOptions.SortPriority:
-                    items = items.OrderBy(abstraction => abstraction.Priority);
+                    items = sortDescending
+                        ? items.OrderByDescending(abstraction => abstraction.Priority)
+                               .ThenBy(item => item.Title ?? string.Empty)
+                        : items.OrderBy(abstraction => abstraction.Priority)
+                               .ThenBy(item => item.Title ?? string.Empty);
                     break;
                 case SortOptions.SortNothing:
                     break;
@@ -1125,10 +1179,22 @@ namespace MALPlus.XShared.ViewModels.Main
                                         .Concat(nonAiringItems));
                     break;
                 case SortOptions.SortStartDate:
-                    items = items.OrderBy(abstraction => abstraction.MyStartDate);
+                    items = sortDescending
+                        ? items.OrderByDescending(item => IsValidDate(item.MyStartDate) ? 1 : 0)
+                               .ThenByDescending(item => item.MyStartDate)
+                               .ThenBy(item => item.Title ?? string.Empty)
+                        : items.OrderByDescending(item => IsValidDate(item.MyStartDate) ? 1 : 0)
+                               .ThenBy(item => item.MyStartDate)
+                               .ThenBy(item => item.Title ?? string.Empty);
                     break;
                 case SortOptions.SortEndDate:
-                    items = items.OrderBy(abstraction => abstraction.MyEndDate);
+                    items = sortDescending
+                        ? items.OrderByDescending(item => IsValidDate(item.MyEndDate) ? 1 : 0)
+                               .ThenByDescending(item => item.MyEndDate)
+                               .ThenBy(item => item.Title ?? string.Empty)
+                        : items.OrderByDescending(item => IsValidDate(item.MyEndDate) ? 1 : 0)
+                               .ThenBy(item => item.MyEndDate)
+                               .ThenBy(item => item.Title ?? string.Empty);
                     break;
                 case SortOptions.SortSeason:
                     var itemsWithStartDate = new List<AnimeItemAbstraction>();
@@ -1184,6 +1250,10 @@ namespace MALPlus.XShared.ViewModels.Main
             }
 
             if (sortDescending && sortOption != SortOptions.SortAirDay && sortOption != SortOptions.SortSeason
+                && sortOption != SortOptions.SortScore && sortOption != SortOptions.SortGlobalScore
+                && sortOption != SortOptions.SortTitle && sortOption != SortOptions.SortWatched
+                && sortOption != SortOptions.SortLastWatched && sortOption != SortOptions.SortPriority
+                && sortOption != SortOptions.SortStartDate && sortOption != SortOptions.SortEndDate
                 && workMode != AnimeListWorkModes.SeasonalAnime)
                 items = items.Reverse();
 
@@ -1314,7 +1384,7 @@ namespace MALPlus.XShared.ViewModels.Main
             var skip = 0;
             if (AnimeItems == null)
                 AnimeItems = new SmartObservableCollection<AnimeItemViewModel>();
-            else if (AreDrawnRowsTheHeadOf(queued.Select(abstraction => abstraction.ViewModel).ToList()))
+            else if (!_drainWholeList && AreDrawnRowsTheHeadOf(queued.Select(abstraction => abstraction.ViewModel).ToList()))
                 skip = AnimeItems.Count;
             else
                 AnimeItems.Clear();
@@ -2220,10 +2290,18 @@ catch (Exception)
                               _displayedStatus == (int)GetDesiredStatus();
             if (sameRequest)
             {
+                if (_prevSortOption != SortOption || _prevSortDescending != SortDescending)
+                {
+                    _prevSortOption = SortOption;
+                    _prevSortDescending = SortDescending;
+                    RefreshList();
+                }
                 // Nothing to fetch, so nothing will lower the spinner the caller already raised.
                 Loading = false;
                 return;
             }
+            _prevSortOption = SortOption;
+            _prevSortDescending = SortDescending;
             if (WorkMode == requestedMode)
                 _prevWorkMode = WorkMode;
             _prevListSource = ListSource;

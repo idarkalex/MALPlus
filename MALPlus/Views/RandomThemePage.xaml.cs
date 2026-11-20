@@ -103,30 +103,52 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
                     nameof(IsOpening), nameof(SongLine) })
             Raise(name);
 
-        // The player is attached here rather than configured in place. Configuring a WebView that does
-        // not have a handler yet is silently a no-op, which is why this page's full screen button used
-        // to do nothing: the chrome client that answers it was never installed.
-        _player ??= new VideoPlayerSession(ThemeVideo, OnVideoBackPressed);
-        _player.Attach();
-        _player.OnPlaybackError(OnVideoPlaybackError);
-        _player.OnPlaybackStarted(OnVideoPlaybackStarted);
-
         // The slug is the only thing the random theme carries about the entry, and it is not something
         // to show anybody. One request turns it into the name, the year, the synopsis and the format,
         // which is everything the hero puts on screen.
         await LoadAnimeAsync();
 
-        // AnimeThemes only, and the video came with the theme. There is no fallback: a search would put
-        // a different thing on screen under this one's name.
-        if (string.IsNullOrWhiteSpace(Url))
+        PlayMediaUrl(Url);
+    }
+
+    private void PlayMediaUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
         {
             VideoFailed.IsVisible = true;
             return;
         }
 
+        _currentVideoUrl = url;
         VideoFrame.IsVisible = true;
-        _currentVideoUrl = Url;
-        _player.Open(Url);
+        VideoFailed.IsVisible = false;
+
+        VideoWebViewHelper.BackHandler = OnVideoBackPressed;
+        MainActivity.ArmVideoBackCallback();
+
+        StopDirectMedia();
+        ThemeVideo.IsVisible = true;
+        _player ??= new VideoPlayerSession(ThemeVideo, OnVideoBackPressed);
+        _player.Attach();
+        _player.OnPlaybackError(OnVideoPlaybackError);
+        _player.OnPlaybackStarted(OnVideoPlaybackStarted);
+        _player.Open(url);
+    }
+
+    private void StopDirectMedia()
+    {
+        if (DirectVideoPlayer != null)
+        {
+            DirectVideoPlayer.Source = null;
+            DirectVideoPlayer.IsVisible = false;
+        }
+    }
+
+    private void OnDirectVideoFailed(object sender, string reason)
+    {
+        global::Android.Util.Log.Warn("MALPlus RandomTheme", "direct media failed: " + reason);
+        StopDirectMedia();
+        OnVideoPlaybackError(_currentVideoUrl);
     }
 
     private VideoPlayerSession _player;
@@ -241,9 +263,7 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
             if (token.IsCancellationRequested || _currentVideoUrl != url || VideoFrame == null ||
                 !VideoFrame.IsVisible)
                 return;
-            // Opened through the session rather than by hand: the media settings have to be re-applied
-            // after every source change or the element never starts, and that is the session's job now.
-            _player.Open(url);
+            _player?.Open(url);
         }
         catch (Exception ex)
         {
@@ -327,10 +347,7 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
 
             if (!string.IsNullOrEmpty(url))
             {
-                VideoFrame.IsVisible = true;
-                VideoFailed.IsVisible = false;
-                _currentVideoUrl = url;
-                _player.Open(url);
+                PlayMediaUrl(url);
                 return;
             }
 
@@ -351,6 +368,7 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
                 return;
             // The player stops with the page: a WebView left decoding behind a popped page keeps
             // spending on a surface nobody is looking at, and its audio keeps playing.
+            StopDirectMedia();
             _player?.Close();
             _ = Shell.Current.GoToAsync(
                 $"animedetails?id={MalId}&title={Uri.EscapeDataString(AnimeName ?? string.Empty)}");
@@ -366,9 +384,18 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
 
     private void OnCloseTapped(object sender, EventArgs e)
     {
+        if (FullscreenVideo.IsActive)
+        {
+            if (VideoWebViewHelper.TryExitCustomView())
+                return;
+            FullscreenVideo.Exit();
+            return;
+        }
+
         // Leaving the page ends any retry still waiting, or it would wake up afterwards and reopen the
         // theme the reader just closed.
         CancelPendingRetries();
+        StopDirectMedia();
         _player?.Close();
         _ = Shell.Current.GoToAsync("..");
     }
@@ -386,7 +413,12 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        if (FullscreenVideo.IsActive)
+            FullscreenVideo.Exit();
         CancelPendingRetries();
+        VideoWebViewHelper.BackHandler = null;
+        MainActivity.DisarmVideoBackCallback();
+        StopDirectMedia();
         _player?.Close();
         _player?.Dispose();
     }

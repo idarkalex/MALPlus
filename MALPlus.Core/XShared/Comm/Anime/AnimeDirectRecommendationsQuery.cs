@@ -78,6 +78,9 @@ namespace MALPlus.XShared.Comm.Anime
             // on the way out too, and re-saved so the badges only ever have to be earned once.
             if (output.Count != 0)
             {
+                if (output.Count > MaxReturnedItems)
+                    output = output.Take(MaxReturnedItems).ToList();
+
                 using var cachedCancellation = new CancellationTokenSource(EnrichmentTimeout);
                 try
                 {
@@ -191,6 +194,7 @@ namespace MALPlus.XShared.Comm.Anime
                         // skip malformed recommendation
                     }
                 }
+                output = output.Take(MaxReturnedItems).ToList();
                 return output.Count > 0 ? output : null;
             }
             catch (Exception)
@@ -218,7 +222,9 @@ namespace MALPlus.XShared.Comm.Anime
         private void StartBackgroundEnrichment(List<DirectRecommendationData> output)
         {
             if (output.All(item => item.Id > 0 &&
-                                   !string.IsNullOrEmpty(item.MediaType) && item.AllEpisodes > 0))
+                                   !string.IsNullOrEmpty(item.MediaType) &&
+                                   item.AllEpisodes > 0 &&
+                                   !string.IsNullOrEmpty(item.ScoreTag)))
                 return;
 
             var key = $"{_animeId}|{_animeMode}|{BeginBackgroundId()}";
@@ -230,34 +236,15 @@ namespace MALPlus.XShared.Comm.Anime
             try
             {
                 using var cancellation = new CancellationTokenSource(BackgroundEnrichmentTimeout);
-                while (!cancellation.IsCancellationRequested)
-                {
-                    var before = output.Count(item => item.Id > 0 &&
-                                                     (!item.HasSpecificMediaType ||
-                                                      item.AllEpisodes == 0));
-                    await PopulateMetadataAsync(output, cancellation.Token);
-                    await DataCache.SaveDirectRecommendationsData(_animeId, output, _animeMode);
-
-                    var after = output.Count(item => item.Id > 0 &&
-                                                    (!item.HasSpecificMediaType ||
-                                                     item.AllEpisodes == 0));
-                    Console.WriteLine($"MALPLUS RecBg anime={_animeId} pending {before} -> {after}");
-                    if (after == 0)
-                        break;
-                    // A pass that filled nothing is usually the source saying 429, not a row that
-                    // will never resolve. Retrying straight away is what earns the next 429, so this
-                    // waits it out and tries again until the background budget runs out.
-                    if (after >= before)
-                        await Task.Delay(ThrottlePause, cancellation.Token);
-                }
+                await PopulateMetadataAsync(output, cancellation.Token);
+                await DataCache.SaveDirectRecommendationsData(_animeId, output, _animeMode);
             }
             catch (OperationCanceledException)
             {
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Background work that cannot reach the network is not worth surfacing: the rows keep
-                // whatever the scraper gave them and the next open tries again.
+                Console.WriteLine($"MALPLUS RecBg failed: {ex.GetType().Name} - {ex.Message}");
             }
             finally
             {
@@ -323,19 +310,29 @@ namespace MALPlus.XShared.Comm.Anime
         private async Task PopulateMetadataAsync(List<DirectRecommendationData> output,
             CancellationToken cancellationToken)
         {
-            var pending = output
-                .Where(item => item.Id > 0 &&
-                               (!item.HasSpecificMediaType || item.AllEpisodes == 0))
-                .Take(MetadataEnrichmentBudget)
-                .ToList();
-
-            if (pending.Count == 0)
+            if (output == null || output.Count == 0)
                 return;
 
-            // 1. Check local cache first for all pending items
+            // 1. Check local cache first for all items
             var stillMissing = new List<DirectRecommendationData>();
-            foreach (var item in pending)
+            foreach (var item in output)
             {
+                if (item.Id <= 0)
+                    continue;
+
+                // Check volatile memory cache first (instant)
+                if (DataCache.TryRetrieveDataForId(item.Id, out var vd))
+                {
+                    if (string.IsNullOrEmpty(item.ScoreTag) && vd.GlobalScore > 0)
+                        item.ScoreTag = vd.GlobalScore.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    if (string.IsNullOrEmpty(item.SeasonTag) && !string.IsNullOrEmpty(vd.AirStartDate))
+                    {
+                        var s = Utils.Utilities.SeasonToCapitalLetterWithYear(vd.AirStartDate);
+                        if (!string.IsNullOrEmpty(s) && s != "N/A")
+                            item.SeasonTag = s;
+                    }
+                }
+
                 var animeMode = item.Type == RelatedItemType.Manga ? false : _animeMode;
                 var cached = await DataCache.RetrieveAnimeSearchResultsData(item.Id.ToString(), animeMode);
                 if (cached != null)
@@ -344,8 +341,16 @@ namespace MALPlus.XShared.Comm.Anime
                         item.MediaType = NormalizeMediaType(cached.Type);
                     if (item.AllEpisodes == 0 && cached.AllEpisodes > 0)
                         item.AllEpisodes = cached.AllEpisodes;
+                    if (string.IsNullOrEmpty(item.ScoreTag) && cached.GlobalScore > 0)
+                        item.ScoreTag = cached.GlobalScore.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    if (string.IsNullOrEmpty(item.SeasonTag) && !string.IsNullOrEmpty(cached.StartDate))
+                    {
+                        var s = Utils.Utilities.SeasonToCapitalLetterWithYear(cached.StartDate);
+                        if (!string.IsNullOrEmpty(s) && s != "N/A")
+                            item.SeasonTag = s;
+                    }
                 }
-                if (!item.HasSpecificMediaType || item.AllEpisodes == 0)
+                if (!item.HasSpecificMediaType || item.AllEpisodes == 0 || string.IsNullOrEmpty(item.ScoreTag))
                     stillMissing.Add(item);
             }
 
@@ -429,6 +434,41 @@ namespace MALPlus.XShared.Comm.Anime
                                     }
                                     if (eps > 0)
                                         targetItem.AllEpisodes = eps;
+                                }
+
+                                double? entryScore = null;
+                                if (entry.TryGetProperty("score", out var sc) && sc.ValueKind == JsonValueKind.Number)
+                                {
+                                    var score = sc.GetDouble();
+                                    if (score > 0)
+                                    {
+                                        entryScore = score;
+                                        if (string.IsNullOrEmpty(targetItem.ScoreTag))
+                                            targetItem.ScoreTag = score.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                                    }
+                                }
+
+                                var dateProp = isAnime ? "aired" : "published";
+                                string airStartDate = null;
+                                if (entry.TryGetProperty(dateProp, out var dObj) && dObj.ValueKind == JsonValueKind.Object &&
+                                    dObj.TryGetProperty("from", out var fStr) && fStr.ValueKind == JsonValueKind.String)
+                                {
+                                    airStartDate = fStr.GetString();
+                                    if (string.IsNullOrEmpty(targetItem.SeasonTag) && !string.IsNullOrEmpty(airStartDate))
+                                    {
+                                        var s = Utils.Utilities.SeasonToCapitalLetterWithYear(airStartDate);
+                                        if (!string.IsNullOrEmpty(s) && s != "N/A")
+                                            targetItem.SeasonTag = s;
+                                    }
+                                }
+
+                                string status = entry.TryGetProperty("status", out var stEl) && stEl.ValueKind == JsonValueKind.String
+                                    ? stEl.GetString()
+                                    : null;
+
+                                if (!string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(airStartDate) || entryScore > 0)
+                                {
+                                    DataCache.UpdateVolatileData(targetItem.Id, status: status, airStartDate: airStartDate, globalScore: (float?)entryScore);
                                 }
                             }
                         }

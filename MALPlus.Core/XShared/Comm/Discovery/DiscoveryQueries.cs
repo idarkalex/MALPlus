@@ -27,6 +27,8 @@ public class DiscoveryItem
             /// <summary>Year the entry started airing/publishing, 0 when unknown.</summary>
             public int Year { get; set; }
             public int AllEpisodes { get; set; }
+            public string AirStartDate { get; set; }
+            public string Status { get; set; }
         /// <summary>Direct media url, only set for the OP/ED discovery entries.</summary>
         public string ThemeUrl { get; set; }
     }
@@ -114,6 +116,9 @@ public class DiscoveryItem
                     var item = DiscoveryRandomQuery.ParseCatalogEntry(entry, false);
                     if (item == null)
                         continue;
+
+                    if (string.IsNullOrEmpty(item.Status))
+                        item.Status = "Currently Airing";
 
                     // Justify the trend with rank and clean momentum indicator (Option A):
                     item.Subtitle = rank == 1
@@ -374,10 +379,14 @@ public class DiscoveryItem
                 int year = 0;
                 if (entry.TryGetProperty("year", out var yr) && yr.ValueKind == JsonValueKind.Number)
                     year = yr.GetInt32();
-                if (year <= 0)
+                string airStartDate = null;
+                var datePropName = manga ? "published" : "aired";
+                if (entry.TryGetProperty(datePropName, out var dateObj) && dateObj.ValueKind == JsonValueKind.Object)
                 {
-                    var datePropName = manga ? "published" : "aired";
-                    if (entry.TryGetProperty(datePropName, out var dateObj) && dateObj.ValueKind == JsonValueKind.Object)
+                    if (dateObj.TryGetProperty("from", out var fromStr) && fromStr.ValueKind == JsonValueKind.String)
+                        airStartDate = fromStr.GetString();
+
+                    if (year <= 0)
                     {
                         if (dateObj.TryGetProperty("prop", out var propObj) && propObj.ValueKind == JsonValueKind.Object &&
                             propObj.TryGetProperty("from", out var fromObj) && fromObj.ValueKind == JsonValueKind.Object &&
@@ -385,14 +394,13 @@ public class DiscoveryItem
                         {
                             year = fromYear.GetInt32();
                         }
-                        else if (dateObj.TryGetProperty("from", out var fromStr) && fromStr.ValueKind == JsonValueKind.String)
+                        else if (!string.IsNullOrEmpty(airStartDate) && airStartDate.Length >= 4 && int.TryParse(airStartDate.Substring(0, 4), out var y))
                         {
-                            var s = fromStr.GetString();
-                            if (!string.IsNullOrEmpty(s) && s.Length >= 4 && int.TryParse(s.Substring(0, 4), out var y))
-                                year = y;
+                            year = y;
                         }
                     }
                 }
+                string status = entry.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String ? st.GetString() : null;
                 int episodes = 0;
                 if (entry.TryGetProperty("episodes", out var ep) && ep.ValueKind == JsonValueKind.Number)
                     episodes = ep.GetInt32();
@@ -409,6 +417,8 @@ public class DiscoveryItem
                       Members = members,
                       Year = year,
                       AllEpisodes = episodes,
+                      AirStartDate = airStartDate,
+                      Status = status,
                       Subtitle = BuildSubtitle(type, score, popularity)
                   };
             }

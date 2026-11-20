@@ -55,7 +55,7 @@ namespace MALPlus.XShared.Comm.Anime
             throw new InvalidOperationException("Umm you said it's going to be manga...");
         var output = force
             ? new AnimeStaffData()
-            : await DataCache.RetrieveData<AnimeStaffData>($"staff_v7_{_animeId}", "AnimeDetails", 7) ??
+            : await DataCache.RetrieveData<AnimeStaffData>($"staff_v9_{_animeId}", "AnimeDetails", 7) ??
                   new AnimeStaffData();
         if (HasData(output) && !force) return output;
 
@@ -64,7 +64,7 @@ namespace MALPlus.XShared.Comm.Anime
             var structured = await GetCharStaffDataStructuredAsync();
             if (HasData(structured))
             {
-                await DataCache.SaveData(structured, $"staff_v7_{_animeId}", "AnimeDetails");
+                await DataCache.SaveData(structured, $"staff_v9_{_animeId}", "AnimeDetails");
                 return structured;
             }
         }
@@ -74,7 +74,7 @@ namespace MALPlus.XShared.Comm.Anime
 
         var htmlResult = await GetCharStaffDataHtml(output);
         if (HasData(htmlResult))
-            await DataCache.SaveData(htmlResult, $"staff_v7_{_animeId}", "AnimeDetails");
+            await DataCache.SaveData(htmlResult, $"staff_v9_{_animeId}", "AnimeDetails");
         return htmlResult;
     }
 
@@ -85,6 +85,7 @@ namespace MALPlus.XShared.Comm.Anime
             var charsData = await TenraiClient.GetDataArrayAsync($"anime/{_animeId}/characters");
             if (charsData.ValueKind != JsonValueKind.Array)
                 return null;
+            var allPairs = new List<AnimeCharacterStaffModel>();
             foreach (var entry in EnumerateArray(charsData))
             {
                 try
@@ -120,19 +121,23 @@ namespace MALPlus.XShared.Comm.Anime
                         pair.AnimeStaffPerson.IsUnknown = true;
                     }
 
-                    output.AnimeCharacterPairs.Add(pair);
+                    allPairs.Add(pair);
                 }
                 catch (Exception)
                 {
                 }
-
-                if (output.AnimeCharacterPairs.Count >= MaxCharacterPairs)
-                    break;
             }
+
+            output.AnimeCharacterPairs = allPairs
+                .OrderBy(p => p.AnimeCharacter.Role == "Main" ? 0 : (p.AnimeCharacter.Role == "Supporting" ? 1 : 2))
+                .ThenByDescending(p => p.AnimeCharacter.Favorites)
+                .Take(MaxCharacterPairs)
+                .ToList();
 
             var staffData = await TenraiClient.GetDataArrayAsync($"anime/{_animeId}/staff");
             if (staffData.ValueKind != JsonValueKind.Array)
                 return null;
+            var allStaff = new List<AnimeStaffPerson>();
             foreach (var entry in EnumerateArray(staffData))
             {
                 try
@@ -154,7 +159,7 @@ namespace MALPlus.XShared.Comm.Anime
                                 positions.Add(clean);
                         }
                     if (positions.Count > 0)
-                        person.PrimaryPosition = positions[0];
+                        person.PrimaryPosition = positions.OrderBy(GetSinglePositionPriority).First();
                     person.ExtraPositions = Math.Max(0, positions.Count - 1);
                     // Keep the whole list. The row used to collapse this to "first +2", which
                     // hid what the other roles actually were, and the row now has the space to
@@ -165,17 +170,68 @@ namespace MALPlus.XShared.Comm.Anime
                         : person.PrimaryPosition;
 
                     if (!string.IsNullOrEmpty(person.Name))
-                        output.AnimeStaff.Add(person);
+                        allStaff.Add(person);
                 }
                 catch (Exception)
                 {
                 }
-
-                if (output.AnimeStaff.Count >= MaxStaff)
-                    break;
             }
 
+            output.AnimeStaff = allStaff
+                .OrderBy(GetStaffPriority)
+                .Take(MaxStaff)
+                .ToList();
+
             return HasData(output) ? output : null;
+        }
+
+        private static int GetSinglePositionPriority(string pos)
+        {
+            if (string.IsNullOrEmpty(pos)) return 99;
+            var p = pos.ToLowerInvariant();
+            // 1. Original Creator / Author / Story
+            if (p.Contains("original creator") || p.Contains("author") || p.Contains("original story") || p == "creator")
+                return 1;
+            // 2. Main Director / Series Director (exclude ADR, Photography, Episode, Sound, Art, Animation, Assistant)
+            if (p.Contains("director") && !p.Contains("adr") && !p.Contains("photography") && !p.Contains("episode") && !p.Contains("sound") && !p.Contains("art") && !p.Contains("animation") && !p.Contains("assistant") && !p.Contains("casting"))
+                return 2;
+            // 3. Series Composition
+            if (p.Contains("series composition"))
+                return 3;
+            // 4. Character Design
+            if (p.Contains("character design"))
+                return 4;
+            // 5. Music / Composer / Sound Director
+            if (p.Contains("music") || p.Contains("composer") || p.Contains("sound director"))
+                return 5;
+            // 6. Script / Screenplay
+            if (p.Contains("script") || p.Contains("screenplay"))
+                return 6;
+            // 7. Chief Animation Director / Art Director
+            if (p.Contains("chief animation director") || p.Contains("art director"))
+                return 7;
+            // 8. Producer
+            if (p.Contains("producer") && !p.Contains("assistant") && !p.Contains("line") && !p.Contains("sound") && !p.Contains("music"))
+                return 8;
+            // 9. Episode Director / Storyboard
+            if (p.Contains("episode director") || p.Contains("storyboard"))
+                return 9;
+            // 10. Photography / ADR / Animation / Technical
+            if (p.Contains("photography") || p.Contains("adr") || p.Contains("animation"))
+                return 10;
+            return 11;
+        }
+
+        private static int GetStaffPriority(AnimeStaffPerson person)
+        {
+            if (person.Positions == null || person.Positions.Count == 0)
+                return 99;
+            int min = 99;
+            foreach (var pos in person.Positions)
+            {
+                min = Math.Min(min, GetSinglePositionPriority(pos));
+            }
+            return min;
         }
 
         public async Task<AnimeStaffData> GetMangaCharStaffData(bool force = false)
@@ -185,7 +241,7 @@ namespace MALPlus.XShared.Comm.Anime
 
             var cached = force
                 ? null
-                : await DataCache.RetrieveData<AnimeStaffData>($"staff_v4_{_animeId}", "MangaDetails", 7);
+                : await DataCache.RetrieveData<AnimeStaffData>($"staff_v5_{_animeId}", "MangaDetails", 7);
             if (cached != null && (cached.AnimeCharacterPairs?.Count ?? 0) > 0)
                 return cached;
 
@@ -195,6 +251,7 @@ namespace MALPlus.XShared.Comm.Anime
                 var charsData = await TenraiClient.GetDataArrayAsync($"manga/{_animeId}/characters");
                 if (charsData.ValueKind != JsonValueKind.Array)
                     return output;
+                var allMangaPairs = new List<AnimeCharacterStaffModel>();
                 foreach (var entry in EnumerateArray(charsData))
                 {
                     try
@@ -215,17 +272,19 @@ namespace MALPlus.XShared.Comm.Anime
                         pair.AnimeStaffPerson.Name = string.Empty;
                         pair.AnimeStaffPerson.IsUnknown = true;
 
-                        output.AnimeCharacterPairs.Add(pair);
+                        allMangaPairs.Add(pair);
                     }
                     catch (Exception)
                     {
                         //
                     }
-
-                    // Naruto alone reports 372 characters, and this loop had no cap at all.
-                    if (output.AnimeCharacterPairs.Count >= MaxCharacterPairs)
-                        break;
                 }
+
+                output.AnimeCharacterPairs = allMangaPairs
+                    .OrderBy(p => p.AnimeCharacter.Role == "Main" ? 0 : (p.AnimeCharacter.Role == "Supporting" ? 1 : 2))
+                    .ThenByDescending(p => p.AnimeCharacter.Favorites)
+                    .Take(MaxCharacterPairs)
+                    .ToList();
             }
             catch (Exception)
             {
@@ -233,7 +292,7 @@ namespace MALPlus.XShared.Comm.Anime
             }
 
             if (output.AnimeCharacterPairs.Count > 0)
-                await DataCache.SaveData(output, $"staff_v4_{_animeId}", "MangaDetails");
+                await DataCache.SaveData(output, $"staff_v5_{_animeId}", "MangaDetails");
             return output;
         }
 

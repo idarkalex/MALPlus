@@ -25,7 +25,9 @@ namespace MALPlus.XShared.Utils
             double score = 0,
             int allEpisodes = 0,
             bool isManga = false,
-            string subtitle = null)
+            string subtitle = null,
+            string airStartDate = null,
+            string status = null)
         {
             if (id <= 0)
                 return null;
@@ -51,8 +53,17 @@ namespace MALPlus.XShared.Utils
                 vm = existing.ViewModel;
                 if (vm != null)
                 {
+                    if (score > 0 && vm.GlobalScore <= 0)
+                        vm.GlobalScore = (float)score;
+                    if (vm.GlobalScore <= 0 && DataCache.TryRetrieveDataForId(id, out var vdEx) && vdEx.GlobalScore > 0)
+                        vm.GlobalScore = vdEx.GlobalScore;
+
                     if (!string.IsNullOrEmpty(subtitle))
                         vm.Subtitle = subtitle;
+                    if (!string.IsNullOrEmpty(airStartDate) && string.IsNullOrEmpty(existing.AirStartDate))
+                        existing.AirStartDate = airStartDate;
+                    if (!string.IsNullOrEmpty(status) && AirTimeUtils.IsCurrentlyAiringStatus(status))
+                        vm.Airing = true;
                     vm.AllowDetailsNavigation = true;
                     return vm;
                 }
@@ -86,13 +97,21 @@ namespace MALPlus.XShared.Utils
                     ImgUrl = imgUrl,
                     Type = (int)aType,
                     GlobalScore = (float)score,
-                    AllEpisodes = allEpisodes
+                    AllEpisodes = allEpisodes,
+                    AirStartDate = airStartDate
                 };
                 var abstraction = new AnimeItemAbstraction(false, data)
                 {
                     GlobalScore = (float)score
                 };
+                if (!string.IsNullOrEmpty(airStartDate))
+                    abstraction.AirStartDate = airStartDate;
                 vm = abstraction.ViewModel;
+                if (vm != null && !string.IsNullOrEmpty(status))
+                {
+                    if (AirTimeUtils.IsCurrentlyAiringStatus(status))
+                        vm.Airing = true;
+                }
             }
 
             if (vm != null)
@@ -100,6 +119,16 @@ namespace MALPlus.XShared.Utils
                 if (!string.IsNullOrEmpty(subtitle))
                     vm.Subtitle = subtitle;
                 vm.AllowDetailsNavigation = true;
+            }
+
+            if (vm != null && vm.GlobalScore <= 0 && DataCache.TryRetrieveDataForId(id, out var vdNon) && vdNon.GlobalScore > 0)
+            {
+                vm.GlobalScore = vdNon.GlobalScore;
+            }
+
+            if (!string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(airStartDate) || score > 0)
+            {
+                DataCache.UpdateVolatileData(id, status: status, airStartDate: airStartDate, globalScore: score > 0 ? (float?)score : null);
             }
 
             return vm;
@@ -118,7 +147,9 @@ namespace MALPlus.XShared.Utils
                 item.Score,
                 item.AllEpisodes,
                 item.IsManga,
-                item.Subtitle);
+                item.Subtitle,
+                item.AirStartDate,
+                item.Status);
         }
     }
 }

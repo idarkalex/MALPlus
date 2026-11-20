@@ -208,7 +208,7 @@ namespace MALPlus.XShared.Utils
         {
             try
             {
-                await DataCacheService.SaveData(data, $"seasonal_data{tag}_v2.json", "");
+                await DataCacheService.SaveData(data, $"seasonal_data{tag}_v3.json", "");
             }
             catch (Exception)
             {
@@ -223,7 +223,7 @@ namespace MALPlus.XShared.Utils
                 return
                     await
                         DataCacheService.RetrieveData<List<SeasonalAnimeData>>(
-                            $"seasonal_data{tag}_v2.json", "", 7);
+                            $"seasonal_data{tag}_v3.json", "", 7);
             }
             catch (Exception)
             {
@@ -247,7 +247,7 @@ namespace MALPlus.XShared.Utils
             try
             {
                 return await DataCacheService.RetrieveData<List<SeasonalAnimeData>>(
-                    $"seasonal_data{tag}_v2.json", "", 0);
+                    $"seasonal_data{tag}_v3.json", "", 0);
             }
             catch (Exception)
             {
@@ -363,6 +363,33 @@ namespace MALPlus.XShared.Utils
                     NextAirUtc = nextAirUtc,
                     NextAirFetchedAtUtc = DateTime.UtcNow
                 };
+            }
+        }
+
+        public static void UpdateVolatileData(int id, string status = null, string airStartDate = null, float? globalScore = null)
+        {
+            if (!_volatileDataCache.TryGetValue(id, out var entry))
+            {
+                entry = new VolatileDataCache();
+                _volatileDataCache[id] = entry;
+            }
+            if (!string.IsNullOrEmpty(status))
+            {
+                entry.LastKnownStatus = status;
+                if (!AirTimeUtils.IsCurrentlyAiringStatus(status))
+                {
+                    entry.NextAirUtc = null;
+                    entry.NextAirFetchedAtUtc = null;
+                    entry.TimeTillNextAir = "";
+                }
+            }
+            if (!string.IsNullOrEmpty(airStartDate))
+            {
+                entry.AirStartDate = airStartDate;
+            }
+            if (globalScore.HasValue && globalScore.Value > 0)
+            {
+                entry.GlobalScore = globalScore.Value;
             }
         }
 

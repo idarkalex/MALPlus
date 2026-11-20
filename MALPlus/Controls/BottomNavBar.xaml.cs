@@ -77,8 +77,12 @@ public partial class BottomNavBar : ContentView
         List<BottomNavBar> bars = Snapshot();
         foreach (var bar in bars)
         {
+            bar.HeightRequest = -1;
+            bar.MaximumHeightRequest = double.PositiveInfinity;
             bar.Opacity = 1;
             bar.IsVisible = true;
+            if (bar.Handler?.PlatformView is global::Android.Views.View view)
+                view.Visibility = global::Android.Views.ViewStates.Visible;
         }
     }
 
@@ -94,6 +98,8 @@ public partial class BottomNavBar : ContentView
         List<BottomNavBar> bars = Snapshot();
         foreach (var bar in bars)
         {
+            bar.HeightRequest = -1;
+            bar.MaximumHeightRequest = double.PositiveInfinity;
             bar.Opacity = 0;
             bar.IsVisible = true;
         }
@@ -274,6 +280,7 @@ public partial class BottomNavBar : ContentView
     {
         lock (Instances)
         {
+            // First pass: prefer a bar that has already been laid out and measured
             for (var i = Instances.Count - 1; i >= 0; i--)
             {
                 if (!Instances[i].TryGetTarget(out var bar) ||
@@ -285,6 +292,17 @@ public partial class BottomNavBar : ContentView
 
                 if (view.IsShown && view.Height > 0)
                     return bar;
+            }
+
+            // Fallback: if not yet measured or during recreation, pick any valid live bar
+            for (var i = Instances.Count - 1; i >= 0; i--)
+            {
+                if (Instances[i].TryGetTarget(out var bar) &&
+                    bar?.Handler?.PlatformView is global::Android.Views.View view &&
+                    view.Context != null)
+                {
+                    return bar;
+                }
             }
         }
 

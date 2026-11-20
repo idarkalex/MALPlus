@@ -32,19 +32,191 @@ namespace MALPlus.XShared.Comm.Anime
             var output = force
                 ? new List<RelatedAnimeData>()
                 : await DataCache.RetrieveRelatedAnimeData(_animeId, _animeMode) ?? new List<RelatedAnimeData>();
-            if (output.Count != 0) return Deduplicate(output);
+            if (output.Count != 0)
+            {
+                var deduped = Deduplicate(output);
+                await EnrichRelatedMetadataAsync(deduped);
+                return deduped;
+            }
 
             output = await FetchFromTenraiAsync();
             if (output != null && output.Count > 0)
             {
+                await EnrichRelatedMetadataAsync(output);
                 await DataCache.SaveRelatedAnimeData(_animeId, output, _animeMode);
                 return output;
             }
 
             output = await FetchFromHtmlScraperAsync();
             if (output != null && output.Count > 0)
+            {
+                await EnrichRelatedMetadataAsync(output);
                 await DataCache.SaveRelatedAnimeData(_animeId, output, _animeMode);
+            }
             return output ?? new List<RelatedAnimeData>();
+        }
+
+        private async Task EnrichRelatedMetadataAsync(List<RelatedAnimeData> items)
+        {
+            if (items == null || items.Count == 0)
+                return;
+
+            var missing = new List<RelatedAnimeData>();
+            foreach (var item in items)
+            {
+                if (item.Id <= 0) continue;
+
+                // Check volatile memory cache first (instant)
+                if (DataCache.TryRetrieveDataForId(item.Id, out var vd))
+                {
+                    if (string.IsNullOrEmpty(item.ScoreTag) && vd.GlobalScore > 0)
+                        item.ScoreTag = vd.GlobalScore.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    if (string.IsNullOrEmpty(item.SeasonTag) && !string.IsNullOrEmpty(vd.AirStartDate))
+                    {
+                        var s = Utils.Utilities.SeasonToCapitalLetterWithYear(vd.AirStartDate);
+                        if (!string.IsNullOrEmpty(s) && s != "N/A")
+                            item.SeasonTag = s;
+                    }
+                }
+
+                var isAnime = item.Type == RelatedItemType.Anime || (item.Type != RelatedItemType.Manga && _animeMode);
+                var cached = await DataCache.RetrieveAnimeSearchResultsData(item.Id.ToString(), isAnime);
+                if (cached != null)
+                {
+                    if (string.IsNullOrEmpty(item.MediaType) && !string.IsNullOrEmpty(cached.Type))
+                        item.MediaType = NormalizeMediaType(cached.Type);
+                    if (item.AllEpisodes == 0 && cached.AllEpisodes > 0)
+                        item.AllEpisodes = cached.AllEpisodes;
+                    if (string.IsNullOrEmpty(item.ScoreTag) && cached.GlobalScore > 0)
+                        item.ScoreTag = cached.GlobalScore.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    if (string.IsNullOrEmpty(item.SeasonTag) && !string.IsNullOrEmpty(cached.StartDate))
+                    {
+                        var s = Utils.Utilities.SeasonToCapitalLetterWithYear(cached.StartDate);
+                        if (!string.IsNullOrEmpty(s) && s != "N/A")
+                            item.SeasonTag = s;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(item.ScoreTag) || string.IsNullOrEmpty(item.MediaType))
+                    missing.Add(item);
+            }
+
+            if (missing.Count == 0)
+                return;
+
+            // Batch fetch missing items via Tenrai /full?ids=...
+            foreach (var group in missing.GroupBy(item => item.Type == RelatedItemType.Anime || (item.Type != RelatedItemType.Manga && _animeMode)))
+            {
+                var isAnime = group.Key;
+                var mediaPrefix = isAnime ? "anime" : "manga";
+                var groupItems = group.ToList();
+
+                for (var i = 0; i < groupItems.Count; i += 25)
+                {
+                    var chunk = groupItems.Skip(i).Take(25).ToList();
+                    var first = chunk[0];
+                    var others = chunk.Skip(1).Select(x => x.Id).ToList();
+
+                    var endpoint = others.Count > 0
+                        ? $"{mediaPrefix}/{first.Id}/full?ids={string.Join(",", others)}"
+                        : $"{mediaPrefix}/{first.Id}/full";
+
+                    try
+                    {
+                        var raw = await TenraiClient.GetRawJsonAsync(endpoint);
+                        if (string.IsNullOrEmpty(raw))
+                            continue;
+
+                        using var doc = JsonDocument.Parse(raw);
+                        var entries = new List<JsonElement>();
+
+                        if (doc.RootElement.TryGetProperty("data", out var dataEl))
+                        {
+                            if (dataEl.ValueKind == JsonValueKind.Object)
+                                entries.Add(dataEl);
+                            else if (dataEl.ValueKind == JsonValueKind.Array)
+                                entries.AddRange(dataEl.EnumerateArray());
+                        }
+
+                        if (doc.RootElement.TryGetProperty("included", out var includedArr) && includedArr.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var inc in includedArr.EnumerateArray())
+                                if (inc.ValueKind == JsonValueKind.Object)
+                                    entries.Add(inc);
+                        }
+
+                        foreach (var entry in entries)
+                        {
+                            var malId = entry.TryGetProperty("mal_id", out var idProp) && idProp.ValueKind == JsonValueKind.Number
+                                ? idProp.GetInt32()
+                                : 0;
+                            if (malId <= 0 && entry.TryGetProperty("id", out var fallbackIdProp) && fallbackIdProp.ValueKind == JsonValueKind.Number)
+                                malId = fallbackIdProp.GetInt32();
+                            if (malId <= 0)
+                                continue;
+
+                            var targetItem = chunk.FirstOrDefault(x => x.Id == malId);
+                            if (targetItem == null)
+                                continue;
+
+                            var rawType = GetString(entry, "type");
+                            if (string.IsNullOrEmpty(rawType))
+                                rawType = GetString(entry, "media_type");
+
+                            if (!string.IsNullOrEmpty(rawType))
+                                targetItem.MediaType = NormalizeMediaType(rawType);
+
+                            if (targetItem.AllEpisodes == 0)
+                            {
+                                var eps = isAnime
+                                    ? (entry.TryGetProperty("episodes", out var epP) && epP.ValueKind == JsonValueKind.Number ? epP.GetInt32() : 0)
+                                    : (entry.TryGetProperty("chapters", out var chP) && chP.ValueKind == JsonValueKind.Number ? chP.GetInt32() : 0);
+                                if (eps > 0)
+                                    targetItem.AllEpisodes = eps;
+                            }
+
+                            double? entryScore = null;
+                            if (entry.TryGetProperty("score", out var sc) && sc.ValueKind == JsonValueKind.Number)
+                            {
+                                var score = sc.GetDouble();
+                                if (score > 0)
+                                {
+                                    entryScore = score;
+                                    if (string.IsNullOrEmpty(targetItem.ScoreTag))
+                                        targetItem.ScoreTag = score.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                                }
+                            }
+
+                            var dateProp = isAnime ? "aired" : "published";
+                            string airStartDate = null;
+                            if (entry.TryGetProperty(dateProp, out var dObj) && dObj.ValueKind == JsonValueKind.Object &&
+                                dObj.TryGetProperty("from", out var fStr) && fStr.ValueKind == JsonValueKind.String)
+                            {
+                                airStartDate = fStr.GetString();
+                                if (string.IsNullOrEmpty(targetItem.SeasonTag) && !string.IsNullOrEmpty(airStartDate))
+                                {
+                                    var s = Utils.Utilities.SeasonToCapitalLetterWithYear(airStartDate);
+                                    if (!string.IsNullOrEmpty(s) && s != "N/A")
+                                        targetItem.SeasonTag = s;
+                                }
+                            }
+
+                            string status = entry.TryGetProperty("status", out var stEl) && stEl.ValueKind == JsonValueKind.String
+                                ? stEl.GetString()
+                                : null;
+
+                            if (!string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(airStartDate) || entryScore > 0)
+                            {
+                                DataCache.UpdateVolatileData(targetItem.Id, status: status, airStartDate: airStartDate, globalScore: (float?)entryScore);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"MALPLUS RelatedEnrich batch failed: {ex.GetType().Name} - {ex.Message}");
+                    }
+                }
+            }
         }
 
         private async Task<List<RelatedAnimeData>> FetchFromTenraiAsync()

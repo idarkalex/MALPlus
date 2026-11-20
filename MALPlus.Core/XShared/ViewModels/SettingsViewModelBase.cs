@@ -274,6 +274,62 @@ protected ICommand _requestNavigationCommand;
             "Hidden (No score chip)"
         };
 
+        public string[] LibrarySortOptions { get; } = new[]
+        {
+            "Title (A → Z)",
+            "Personal score (Highest first)",
+            "Community score (Highest first)",
+            "Last updated (Most recent first)",
+            "Episodes / Volumes (Most first)",
+            "Start date (Newest first)",
+            "Completion date (Newest first)"
+        };
+
+        public int LibrarySortIndex
+        {
+            get => Settings.AnimeSortOrder switch
+            {
+                SortOptions.SortTitle => 0,
+                SortOptions.SortScore => 1,
+                SortOptions.SortGlobalScore => 2,
+                SortOptions.SortLastWatched => 3,
+                SortOptions.SortWatched => 4,
+                SortOptions.SortStartDate => 5,
+                SortOptions.SortEndDate => 6,
+                _ => 0
+            };
+            set
+            {
+                var option = value switch
+                {
+                    0 => SortOptions.SortTitle,
+                    1 => SortOptions.SortScore,
+                    2 => SortOptions.SortGlobalScore,
+                    3 => SortOptions.SortLastWatched,
+                    4 => SortOptions.SortWatched,
+                    5 => SortOptions.SortStartDate,
+                    6 => SortOptions.SortEndDate,
+                    _ => SortOptions.SortTitle
+                };
+                Settings.AnimeSortOrder = option;
+                Settings.MangaSortOrder = option;
+                RaisePropertyChanged(() => LibrarySortIndex);
+                try
+                {
+                    if (ViewModelLocator.AnimeList != null)
+                    {
+                        ViewModelLocator.AnimeList.SetSortOrder(option);
+                        ViewModelLocator.AnimeList.RefreshList();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("MALPLUS sort setting refresh failed: " + ex.Message);
+                }
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
         public static long SettingsRevision { get; private set; } = 1;
         public static bool ResetDataOnNextAppearance { get; set; }
 
@@ -495,7 +551,12 @@ protected ICommand _requestNavigationCommand;
         public bool SetStartDateOnWatching
         {
             get => Settings.SetStartDateOnWatching;
-            set => Settings.SetStartDateOnWatching = value;
+            set
+            {
+                if (Settings.SetStartDateOnWatching == value) return;
+                Settings.SetStartDateOnWatching = value;
+                RaisePropertyChanged(() => SetStartDateOnWatching);
+            }
         }
 
         public bool SetStartDateOnListAdd
@@ -513,7 +574,12 @@ protected ICommand _requestNavigationCommand;
         public bool SetEndDateOnCompleted
         {
             get => Settings.SetEndDateOnCompleted;
-            set => Settings.SetEndDateOnCompleted = value;
+            set
+            {
+                if (Settings.SetEndDateOnCompleted == value) return;
+                Settings.SetEndDateOnCompleted = value;
+                RaisePropertyChanged(() => SetEndDateOnCompleted);
+            }
         }
 
         public bool OverrideValidStartEndDate
@@ -541,7 +607,12 @@ protected ICommand _requestNavigationCommand;
         public bool DisplayScoreDialogAfterCompletion
         {
             get => Settings.DisplayScoreDialogAfterCompletion;
-            set => Settings.DisplayScoreDialogAfterCompletion = value;
+            set
+            {
+                if (Settings.DisplayScoreDialogAfterCompletion == value) return;
+                Settings.DisplayScoreDialogAfterCompletion = value;
+                RaisePropertyChanged(() => DisplayScoreDialogAfterCompletion);
+            }
         }
 
         public bool CalendarIncludeWatching
@@ -584,6 +655,7 @@ protected ICommand _requestNavigationCommand;
                 if (int.TryParse(value, out var parsed) && parsed > 0)
                 {
                     Settings.CalendarMaxItems = parsed;
+                    RaisePropertyChanged();
                     InvalidateSettings(resetData: false, refreshTitles: false);
                 }
                 else
@@ -958,23 +1030,43 @@ protected ICommand _requestNavigationCommand;
             get => Settings.MangaFocusVolumes;
             set
             {
+                if (Settings.MangaFocusVolumes == value) return;
                 Settings.MangaFocusVolumes = value;
+                RaisePropertyChanged(() => MangaFocusVolumes);
                 InvalidateSettings(resetData: false, refreshTitles: false);
-                foreach (var item in ResourceLocator.AnimeLibraryDataStorage.AllLoadedMangaItemAbstractions.Concat(
-                    ResourceLocator.AnimeLibraryDataStorage.OthersAbstractions.Select(pair => pair.Value)
-                        .SelectMany(tuple => tuple.Item2)))
+                try
                 {
-                    if (item.LoadedModel)
-                        item.ViewModel.MangaFocusChanged(value);
-                }
-                if (!ViewModelLocator.Mobile)
-                    if (ViewModelLocator.GeneralMain.CurrentMainPage == PageIndex.PageProfile)
+                    var storage = ResourceLocator.AnimeLibraryDataStorage;
+                    if (storage != null)
                     {
-                        foreach (var item in ViewModelLocator.ProfilePage.FavManga.Concat(ViewModelLocator.ProfilePage.RecentManga))
+                        if (storage.AllLoadedMangaItemAbstractions != null)
                         {
-                            item.MangaFocusChanged(value);
+                            foreach (var item in storage.AllLoadedMangaItemAbstractions)
+                            {
+                                if (item?.LoadedModel == true)
+                                    item.ViewModel?.MangaFocusChanged(value);
+                            }
+                        }
+                        if (storage.OthersAbstractions != null)
+                        {
+                            foreach (var pair in storage.OthersAbstractions)
+                            {
+                                if (pair.Value?.Item2 != null)
+                                {
+                                    foreach (var item in pair.Value.Item2)
+                                    {
+                                        if (item?.LoadedModel == true)
+                                            item.ViewModel?.MangaFocusChanged(value);
+                                    }
+                                }
+                            }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("MALPLUS MangaFocusVolumes update failed: " + ex.Message);
+                }
             }
         }
 

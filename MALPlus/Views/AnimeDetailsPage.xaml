@@ -115,11 +115,13 @@
                                                PosterUrl="{Binding ImageUrl}"
                                                TitleOverlay="False"
                                                TypeTag="{Binding TypeTag}"
+                                               ScoreTag="{Binding ScoreTag}"
+                                               SeasonTag="{Binding SeasonTag}"
+                                               BottomAirTag="{Binding BottomAirTag}"
                                                BadgeVisible="True"
                                                BadgeAccent="{Binding LibraryBadgeAccent}"
                                                BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
-                                               BadgeMain="{Binding LibraryBadgeMain}"
-                                               BadgeExtra="{Binding AirDayTillBind}" />
+                                               BadgeMain="{Binding LibraryBadgeMain}" />
                     <Label Grid.Row="0" Grid.Column="1" Text="{Binding Title}" FontFamily="InterBold" FontSize="16"
                            TextColor="{StaticResource BrushText}" MaxLines="3" LineBreakMode="TailTruncation"
                            SizeChanged="OnRecommendationTitleSized" />
@@ -648,7 +650,8 @@
                     <Grid x:Name="ReviewsPanel"
                           IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
                           Padding="0,8,0,32">
-                        <CollectionView IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsContentVisible}"
+                        <CollectionView x:Name="ReviewsCollection"
+                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedReviews}"
                                         ItemTemplate="{StaticResource ReviewTemplate}"
                                         RemainingItemsThreshold="4">
@@ -677,7 +680,8 @@
                     <Grid x:Name="RecommendationsPanel"
                           IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
                           Padding="0,8,0,32">
-                        <CollectionView IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsContentVisible}"
+                        <CollectionView x:Name="RecommendationsCollection"
+                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsContentVisible}"
                                         ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedRecommendations}"
                                         ItemTemplate="{StaticResource RecommendationTemplate}"
                                         RemainingItemsThreshold="4">
@@ -740,7 +744,13 @@
                                         Title="{Binding Title}"
                                         TitleOverlay="True"
                                         TypeTag="{Binding MediaType}"
-                                        BadgeExtra="{Binding AirDayTillBind}"
+                                        ScoreTag="{Binding ScoreTag}"
+                                        SeasonTag="{Binding SeasonTag}"
+                                        BottomAirTag="{Binding BottomAirTag}"
+                                        BadgeVisible="True"
+                                        BadgeAccent="{Binding LibraryBadgeAccent}"
+                                        BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
+                                        BadgeMain="{Binding LibraryBadgeMain}"
                                         ChipSource="{Binding Relations}"
                                         ChipTemplate="{StaticResource RelationChipTemplate}" />
                                 </DataTemplate>
@@ -1042,7 +1052,10 @@
             </VerticalStackLayout>
         </Grid>
 
-        <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="110">
+        <Grid x:Name="VideoOverlay" IsVisible="False" BackgroundColor="#000000" ZIndex="110" InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer />
+            </Grid.GestureRecognizers>
 
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -1051,16 +1064,18 @@
             <!-- Only close on the right. Full screen is the player's own control now: Chromium draws
                  the button and the shared WebChromeClient answers the request for every video
                  surface in the app. -->
-            <Border x:Name="VideoCloseButton" Grid.Row="0" HorizontalOptions="End" VerticalOptions="Center"
-                    Margin="0,10,10,0" WidthRequest="40" HeightRequest="40"
-                    BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
-                    StrokeShape="RoundRectangle 20" ZIndex="50">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="CloseVideoOverlay" />
-                </Border.GestureRecognizers>
-                <Label Text="✕" FontFamily="InterBold" FontSize="18" TextColor="White"
-                       HorizontalOptions="Center" VerticalOptions="Center" />
-            </Border>
+            <HorizontalStackLayout x:Name="OverlayControls" Grid.Row="0" HorizontalOptions="End" VerticalOptions="Center"
+                                   Margin="0,10,10,0" Spacing="8" ZIndex="50">
+                <Border x:Name="VideoCloseButton" WidthRequest="40" HeightRequest="40"
+                        BackgroundColor="#B3051522" Stroke="#4DFFFFFF" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 20">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="CloseVideoOverlay" />
+                    </Border.GestureRecognizers>
+                    <Label Text="✕" FontFamily="InterBold" FontSize="18" TextColor="White"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+            </HorizontalStackLayout>
                 <controls:NativeVideoView x:Name="DirectVideoPlayer" Grid.Row="0" Grid.RowSpan="2" IsVisible="False"
                                            VerticalOptions="Fill" HorizontalOptions="Fill" ZIndex="1"
                                            PlayFailed="OnDirectVideoFailed" />

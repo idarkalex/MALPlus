@@ -493,7 +493,12 @@ namespace MALPlus.XShared.Utils
                 }
 
                 var season = DateToSeason(trimmed);
-                var year = trimmed.Length >= 4 ? trimmed.Substring(2, 2) : "";
+                var year = "";
+                if (trimmed.Length >= 4)
+                {
+                    var fullYear = trimmed.Substring(0, 4);
+                    year = fullYear == "2000" ? "2000" : trimmed.Substring(2, 2);
+                }
 
                 if (season == 1)
                     return "Winter " + year;

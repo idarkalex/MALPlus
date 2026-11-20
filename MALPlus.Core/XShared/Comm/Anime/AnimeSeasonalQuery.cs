@@ -58,7 +58,7 @@ namespace MALPlus.XShared.Comm.Anime
 
             // Default order: popularity (so FirstPageReady paints the most relevant entries immediately)
             if (string.IsNullOrEmpty(_extraQuery) || !_extraQuery.Contains("order_by="))
-                parts.Add("order_by=popularity");
+                parts.Add("order_by=popularity&sort=asc");
 
             // Server-side content filtering (including rating_exclude=rx on Mature mode)
             var contentFilter = ContentFilter.SeasonalFilter();

@@ -58,6 +58,14 @@ public static class MauiProgram
                 handler.PlatformView.SetSingleLine(true);
             }
         });
+
+        Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("CleanEntryNoUnderline", (handler, view) =>
+        {
+            handler.PlatformView.Background = null;
+            handler.PlatformView.SetBackgroundColor(Android.Graphics.Color.Transparent);
+            handler.PlatformView.SetPadding(0, 0, 0, 0);
+            handler.PlatformView.SetMinimumHeight(0);
+        });
 #endif
 
         return builder.Build();

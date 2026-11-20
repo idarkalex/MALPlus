@@ -1,25 +1,24 @@
-# MAL+ v0.7.4
+# MAL+ v0.7.5
 
-## Broadcast Countdown & Aired Episodes Badges ([#3](https://github.com/idarkalex/MALPlus/issues/3))
-- **Poster broadcast badges:** Added combined aired episode and broadcast countdown badges to the bottom-right of anime posters (e.g., `EP 8/12 · 22H` or `EP 1122/? · Airing`). Closes [#3](https://github.com/idarkalex/MALPlus/issues/3).
-- **Granular display settings:** Added new toggles in Settings to independently enable or disable the aired episode count and broadcast countdown.
-- **Lowercase 'Airing' tag:** Cleaned up the airing status indicator when an episode is currently broadcasting.
+## Library Sorting & Score Fixes ([#5](https://github.com/idarkalex/MALPlus/issues/5))
+- **Score sorting fix:** Addressed the score ordering problem reported in [#5](https://github.com/idarkalex/MALPlus/issues/5). Rated titles are now properly grouped at the top, while unrated entries appear cleanly at the bottom instead of mixing in randomly.
+- **Quick sort button:** Added a new sort button right on the top bar of your Anime and Manga lists to easily change the order (by score, title, progress, or dates) on the fly without going to Settings.
+- **Personal vs Community score:** You can now choose whether to sort your list by your own personal score or by the overall community rating.
+- **Instant updates:** Changing your sort preferences in Settings now updates your list immediately.
 
-## Themes & Display Options ([#2](https://github.com/idarkalex/MALPlus/issues/2))
-- **AMOLED Display Profiles:** Added dedicated dark themes including Charcoal (pure black with elevated sheets) and Real Dark (100% true black for OLED/AMOLED screens). Closes [#2](https://github.com/idarkalex/MALPlus/issues/2).
-- **Dynamic theme switching:** Theme transitions now dynamically update all active surfaces, chips, shell pagers, and system navigation bars without restarting the app.
+## Video Player & Controls
+- **Cleaner video screen:** Removed extra fullscreen buttons. Fullscreen is now handled directly by the player controls at the bottom.
+- **Simplified controls:** The video overlay now has a single close button at the top, and your phone's back button closes the video smoothly.
 
-## Broadcast Calendar Overhaul & Fixes
-- **Unified Squircle Day Chips:** Integrated Option A squircle chips (`Mon`, `Tue`, `Wed`, etc.) with item count indicators and automatic smooth-centering scroll.
-- **Airing schedule accuracy:** Verified and synchronized broadcast dates and upcoming episode numbers across all days of the week against official schedules.
-- **Freeze & blank screen fix:** Resolved a recursive task loop in countdown resolution that previously caused UI thread starvation and empty calendar days.
-- **Thread-safety in card refresh:** Safely marshaled background airing updates to the main Android UI thread.
-- **Instant mode switching:** Fast, reliable toggling between global Broadcast Calendar and personal "My Schedule" (episodes airing this week from your library).
+## Music & Themes Playback
+- **Better theme matching:** Fixed song detection for special openings and endings (such as Gintama°), so videos play directly instead of falling back to YouTube.
+- **Tap to play:** Tapping any song in the season themes list now plays the video immediately.
 
-## Episode Counter Stepper ([#4](https://github.com/idarkalex/MALPlus/issues/4))
-- **Dynamic stepper update:** Tapping `+` or `−` next to watched episodes on the anime details page now immediately updates the counter on screen without requiring navigation back and forth. Closes [#4](https://github.com/idarkalex/MALPlus/issues/4).
+## Season Lists Ordering
+- **Most popular first:** Fixed season lists so the biggest and most popular shows appear first instead of obscure titles.
+- **Shows with songs first:** The Season OP/ED page now prioritizes shows that have playable songs available.
 
-## Design System & Navigation
-- **Option A Tab Chips:** Applied consistent squircle tab chips across Forums, Articles, Profile, History, Friends, and Clubs.
-- **Global lateral swipe:** Smooth tab switching via swipe gestures across stacked and root pages (`ITabSwipeHost`).
-- **Modern Settings redesign:** Reorganized and restyled Settings into clean, categorized sections with interactive option sheets.
+## Discover & Content
+- **Trending shows:** The Trending section now highlights weekly member growth and rankings based on real community activity.
+- **Cleaner articles:** News and articles now load much faster and look cleaner on mobile.
+- **Adapted manga:** The "Adapted to anime" section now loads faster and more reliably.

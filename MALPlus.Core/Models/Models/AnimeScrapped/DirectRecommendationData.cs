@@ -184,11 +184,51 @@ namespace MALPlus.Models.Models.AnimeScrapped
         /// <summary>
         ///     The badge's episode half, by the same rule the poster cell uses.
         /// </summary>
-public string LibraryBadgeMain
+        public string LibraryBadgeMain
             => IsOnMyList
                 ? MALPlus.XShared.Utils.AnimeCardBadge.Episodes(true,
                     MyEpisodesForBadge, AllEpisodes)
                 : string.Empty;
+
+        private string _scoreTag;
+        public string ScoreTag
+        {
+            get => _scoreTag;
+            set
+            {
+                if (_scoreTag == value)
+                    return;
+                _scoreTag = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private string _seasonTag;
+        public string SeasonTag
+        {
+            get => MALPlus.XShared.Utils.Settings.DisplaySeasonWithType ? _seasonTag : string.Empty;
+            set
+            {
+                if (_seasonTag == value)
+                    return;
+                _seasonTag = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private string _bottomAirTag;
+        public string BottomAirTag
+        {
+            get => _bottomAirTag;
+            set
+            {
+                if (_bottomAirTag == value)
+                    return;
+                _bottomAirTag = value;
+                OnPropertyChanged();
+            }
+        }
+
         /// <summary>Never blank on a recommendation row: the status there is the entry's own.</summary>
         public string BadgeExtra => AirDayTillBind;
 

@@ -139,7 +139,8 @@
                         <Entry x:Name="PanelFilterEntry" Grid.Column="0"
                                FontFamily="Inter" FontSize="14" TextColor="{StaticResource BrushText}"
                                HeightRequest="34" VerticalOptions="Center"
-                               Text="{Binding PanelFilter}" />
+                               Text="{Binding PanelFilter}"
+                               Completed="OnPanelFilterCompleted" />
                         <Border Grid.Column="1" WidthRequest="28" HeightRequest="28"
                                 StrokeShape="RoundRectangle 14" BackgroundColor="#14FFFFFF" Padding="0"
                                 VerticalOptions="Center">
@@ -152,15 +153,26 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="2" x:Name="PanelFilterButton" WidthRequest="32" HeightRequest="32"
-                        StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
-                        VerticalOptions="Center">
-                    <Image Source="icon_search" WidthRequest="22" HeightRequest="22"
-                           HorizontalOptions="Center" VerticalOptions="Center" />
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnPanelFilterTapped" />
-                    </Border.GestureRecognizers>
-                </Border>
+                <HorizontalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
+                    <Border x:Name="PanelFilterButton" WidthRequest="32" HeightRequest="32"
+                            StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                            VerticalOptions="Center">
+                        <Image Source="icon_search" WidthRequest="22" HeightRequest="22"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPanelFilterTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                    <Border x:Name="SortButton" WidthRequest="32" HeightRequest="32"
+                            StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                            VerticalOptions="Center" IsVisible="True">
+                        <Image Source="icon_sort" WidthRequest="20" HeightRequest="20"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSortButtonTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                </HorizontalStackLayout>
             </Grid>
         </Border>
 
