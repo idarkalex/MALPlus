@@ -295,6 +295,9 @@ public partial class AppShell : Shell
         if (pager?.Parent is not global::Android.Widget.LinearLayout coordinator)
             return;
 
+        if (pager.OffscreenPageLimit != 3)
+            pager.OffscreenPageLimit = 3;
+
         var bar = Controls.BottomNavBar.TakeSharedHostBar();
         if (bar?.Handler?.PlatformView is not global::Android.Views.View barView)
             return;
@@ -632,8 +635,6 @@ public partial class AppShell : Shell
 
         PaintPagers();
         Dispatcher.Dispatch(PaintPagers);
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(400), PaintPagers);
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(1200), PaintPagers);
         ScheduleSharedBar();
     }
 
@@ -701,25 +702,15 @@ public partial class AppShell : Shell
             var isSectionSwitch = !string.IsNullOrEmpty(section) &&
                                   !string.Equals(section, _lastNavigatedSection, StringComparison.OrdinalIgnoreCase);
 
-            if (_sectionPagerScrollState != 0 || isSectionSwitch)
+            if (_sectionPagerScrollState != 0)
             {
                 _pendingSettledSection = section;
                 _pendingSettledLocation = location;
-
-                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(200), () =>
-                {
-                    if (!string.IsNullOrEmpty(_pendingSettledSection) && _sectionPagerScrollState == 0)
-                    {
-                        var s = _pendingSettledSection;
-                        var l = _pendingSettledLocation;
-                        _pendingSettledSection = null;
-                        _pendingSettledLocation = null;
-                        ApplySettledSection(s, l);
-                    }
-                });
             }
             else
             {
+                _pendingSettledSection = null;
+                _pendingSettledLocation = null;
                 ApplySettledSection(section, location);
             }
         }
@@ -729,8 +720,7 @@ public partial class AppShell : Shell
         }
     }
 
-    // Only the list root that the current location names may paint the shared view model. The other
-    // one keeps its own mode's library, otherwise a drag towards it shows the tab it is leaving.
+    // Both list roots now have dedicated ViewModels, so neither page needs to be forced to a preview.
     private void UpdateRootListModes(string section)
     {
         if (string.IsNullOrEmpty(section))
@@ -739,7 +729,7 @@ public partial class AppShell : Shell
         foreach (var (route, reference) in _rootListPages)
         {
             if (reference.TryGetTarget(out var page))
-                page.SetLiveLibrary(string.Equals(route, section, StringComparison.OrdinalIgnoreCase));
+                page.SetLiveLibrary(true);
         }
     }
 
@@ -787,7 +777,39 @@ public partial class AppShell : Shell
             var content = Section(route, title, pageType, page =>
             {
                 if (page is Views.AnimeListPage listPage)
+                {
                     _rootListPages[route] = new WeakReference<Views.AnimeListPage>(listPage);
+                    if (string.Equals(route, "manga", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Dispatcher.Dispatch(async () =>
+                        {
+                            try
+                            {
+                                await MALPlus.XShared.BL.InitializationRoutines.AwaitableCompletion.Task;
+                                listPage.PreloadRootData();
+                            }
+                            catch (Exception ex)
+                            {
+                                global::Android.Util.Log.Warn("MALPLUS", "Manga preload failed: " + ex.Message);
+                            }
+                        });
+                    }
+                }
+                else if (page is Views.MorePage morePage)
+                {
+                    Dispatcher.Dispatch(async () =>
+                    {
+                        try
+                        {
+                            await MALPlus.XShared.BL.InitializationRoutines.AwaitableCompletion.Task;
+                            morePage.Preload();
+                        }
+                        catch (Exception ex)
+                        {
+                            global::Android.Util.Log.Warn("MALPLUS", "More preload failed: " + ex.Message);
+                        }
+                    });
+                }
             });
             contents.Add(content);
             section.Items.Add(content);
@@ -830,14 +852,13 @@ public partial class AppShell : Shell
                 if (page is Views.AnimeListPage listPage)
                 {
                     listPage.RootRoute = route;
-                    // Both list roots share one view model, so the page has to start painting its
-                    // own mode's rows. Whoever is the live root later swaps it back in the route.
-                    listPage.SetLiveLibrary(false);
+                    listPage.SetLiveLibrary(true);
                 }
 
                 onCreated?.Invoke(page);
                 return page;
             }));
+            return content;
         }
 
         var contentProperty = typeof(ShellContent).GetProperty("Content",
@@ -850,7 +871,7 @@ public partial class AppShell : Shell
             if (page is Views.AnimeListPage listPage)
             {
                 listPage.RootRoute = route;
-                listPage.SetLiveLibrary(false);
+                listPage.SetLiveLibrary(true);
             }
 
             onCreated?.Invoke(page);

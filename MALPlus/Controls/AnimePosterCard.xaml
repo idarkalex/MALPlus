@@ -5,6 +5,16 @@
              x:Class="MALPlus.Controls.AnimePosterCard"
              x:Name="PosterCard">
 
+    <ContentView.Resources>
+        <ResourceDictionary>
+            <LinearGradientBrush x:Key="PosterScrimBrush" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#00000000" Offset="0.45" />
+                <GradientStop Color="#B3000000" Offset="0.75" />
+                <GradientStop Color="#E6000000" Offset="1" />
+            </LinearGradientBrush>
+        </ResourceDictionary>
+    </ContentView.Resources>
+
     <Grid x:Name="RootGrid" BackgroundColor="{DynamicResource EmSheet}">
         <Image Source="{Binding PosterUrl, Converter={StaticResource ImageConverter}}"
                Aspect="AspectFill" />
@@ -101,15 +111,8 @@
              SKCanvasView, which on Android is a TextureView: the grid kept ~30 of
              them alive and each cell bind created and measured one. -->
         <Border IsVisible="{Binding TitleOverlay}"
-                StrokeThickness="0">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#00000000" Offset="0.45" />
-                    <GradientStop Color="#B3000000" Offset="0.75" />
-                    <GradientStop Color="#E6000000" Offset="1" />
-                </LinearGradientBrush>
-            </Border.Background>
-        </Border>
+                StrokeThickness="0"
+                Background="{StaticResource PosterScrimBrush}" />
 
         <!-- Bottom-right badges above the title overlay: Airing now indicator and/or Rank tag -->
         <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="End"

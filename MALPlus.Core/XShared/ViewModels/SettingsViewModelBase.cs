@@ -319,6 +319,7 @@ protected ICommand _requestNavigationCommand;
                     if (ViewModelLocator.AnimeList != null)
                     {
                         ViewModelLocator.AnimeList.SetSortOrder(option);
+                        ViewModelLocator.AnimeList.InvalidatePreviews();
                         ViewModelLocator.AnimeList.RefreshList();
                     }
                 }
@@ -327,6 +328,50 @@ protected ICommand _requestNavigationCommand;
                     Console.WriteLine("MALPLUS sort setting refresh failed: " + ex.Message);
                 }
                 InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
+        public bool IndividualSortPerList
+        {
+            get => Settings.IndividualSortPerList;
+            set
+            {
+                if (Settings.IndividualSortPerList == value) return;
+                Settings.IndividualSortPerList = value;
+                RaisePropertyChanged(() => IndividualSortPerList);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+                try
+                {
+                    if (ViewModelLocator.AnimeList != null)
+                    {
+                        ViewModelLocator.AnimeList.SetSortOrder(null);
+                        ViewModelLocator.AnimeList.InvalidatePreviews();
+                        ViewModelLocator.AnimeList.RefreshList();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("MALPLUS individual sort toggle failed: " + ex.Message);
+                }
+            }
+        }
+
+        public void ResetPerListSorts()
+        {
+            Settings.ClearPerListSorts();
+            InvalidateSettings(resetData: false, refreshTitles: false);
+            try
+            {
+                if (ViewModelLocator.AnimeList != null)
+                {
+                    ViewModelLocator.AnimeList.SetSortOrder(null);
+                    ViewModelLocator.AnimeList.InvalidatePreviews();
+                    ViewModelLocator.AnimeList.RefreshList();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS reset per-list sorts failed: " + ex.Message);
             }
         }
 
@@ -373,6 +418,22 @@ protected ICommand _requestNavigationCommand;
                                 item?.RefreshCardDisplayProperties(refreshTitles);
                         }
                         animeListVm.InvalidatePreviews();
+                    }
+
+                    var mangaListVm = ViewModelLocator.MangaList;
+                    if (mangaListVm != null)
+                    {
+                        if (mangaListVm.DisplayedItems != null)
+                        {
+                            foreach (var item in mangaListVm.DisplayedItems)
+                                item?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        if (mangaListVm.AnimeItems != null)
+                        {
+                            foreach (var item in mangaListVm.AnimeItems)
+                                item?.RefreshCardDisplayProperties(refreshTitles);
+                        }
+                        mangaListVm.InvalidatePreviews();
                     }
 
                     var storage = ResourceLocator.AnimeLibraryDataStorage;
@@ -992,7 +1053,81 @@ protected ICommand _requestNavigationCommand;
         public bool EnableShareButton
         {
             get => Settings.EnableShareButton;
-            set => Settings.EnableShareButton = value;
+            set
+            {
+                Settings.EnableShareButton = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public int ShareTimerDuration
+        {
+            get => Settings.ShareTimerDuration;
+            set
+            {
+                Settings.ShareTimerDuration = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public string ShareTemplateWatched
+        {
+            get => Settings.ShareTemplateWatched;
+            set
+            {
+                Settings.ShareTemplateWatched = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public string ShareTemplateRead
+        {
+            get => Settings.ShareTemplateRead;
+            set
+            {
+                Settings.ShareTemplateRead = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public string ShareTemplateCompleted
+        {
+            get => Settings.ShareTemplateCompleted;
+            set
+            {
+                Settings.ShareTemplateCompleted = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public string ShareTemplateRecommend
+        {
+            get => Settings.ShareTemplateRecommend;
+            set
+            {
+                Settings.ShareTemplateRecommend = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public string ShareCustomSuffix
+        {
+            get => Settings.ShareCustomSuffix;
+            set
+            {
+                Settings.ShareCustomSuffix = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public void ResetShareTemplatesToDefault()
+        {
+            ShareTimerDuration = Settings.DefaultShareTimerDuration;
+            ShareTemplateWatched = Settings.DefaultShareTemplateWatched;
+            ShareTemplateRead = Settings.DefaultShareTemplateRead;
+            ShareTemplateCompleted = Settings.DefaultShareTemplateCompleted;
+            ShareTemplateRecommend = Settings.DefaultShareTemplateRecommend;
+            ShareCustomSuffix = string.Empty;
         }
 
         public bool DisplayUnsetScores

@@ -72,9 +72,9 @@ namespace MALPlus.XShared.BL
                 try { await tokenTask; } catch { }
             });
 
-            // Start the start tab's library request while the splash is still on screen.
-            // LibraryListQuery shares in-flight requests, so the list page finds the data
-            // already coming instead of opening its own, and this never delays startup.
+            // Preload both Anime and Manga libraries while the splash is still on screen.
+            // LibraryListQuery shares in-flight requests and populates memory cache,
+            // so switching between Anime and Manga is instantaneous with zero stutter.
             _ = Task.Run(async () =>
             {
                 try
@@ -83,18 +83,15 @@ namespace MALPlus.XShared.BL
                         return;
 
                     await tokenTask;
-                    var startTab = Settings.DefaultMenuTab ?? "anime";
-                    var mode = string.Equals(startTab, "manga", StringComparison.OrdinalIgnoreCase)
-                        ? AnimeListWorkModes.Manga
-                        : AnimeListWorkModes.Anime;
-
-                    Console.WriteLine($"Preloading start tab library: {mode}");
-                    await new LibraryListQuery(Credentials.UserName, mode).GetLibrary(false);
-                    Console.WriteLine("Preloaded start tab library");
+                    Console.WriteLine("Preloading anime and manga libraries in background...");
+                    var animeTask = new LibraryListQuery(Credentials.UserName, AnimeListWorkModes.Anime).GetLibrary(false);
+                    var mangaTask = new LibraryListQuery(Credentials.UserName, AnimeListWorkModes.Manga).GetLibrary(false);
+                    await Task.WhenAll(animeTask, mangaTask);
+                    Console.WriteLine("Preloaded anime and manga libraries successfully");
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Start tab preload failed: " + e.Message);
+                    Console.WriteLine("Library preload failed: " + e.Message);
                 }
             });
 

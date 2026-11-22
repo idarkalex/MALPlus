@@ -42,24 +42,11 @@ base.OnStart();
 
         Task.Run(async () =>
         {
-            // Reads the saved dictionary off the UI thread. This used to be an unawaited call sitting
-            // directly in OnStart, so the part of the read that runs before its first await blocked the
-            // thread that paints the first frame: the window came up, nothing was drawn over the
-            // background colour, and on a cold cache it sat there looking frozen until the read gave up.
-            try
-            {
-                await MALPlus.XShared.ViewModels.ResourceLocator.EnglishTitlesProvider.Init();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("MALPlus EnglishTitles init failed: " + ex.GetType().Name);
-            }
-
             StartupTrace.Mark("initapp-begin");
             var initTask = InitializationRoutines.InitApp();
             try
             {
-                await Task.WhenAny(InitializationRoutines.AwaitableCompletion.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+                await Task.WhenAny(InitializationRoutines.AwaitableCompletion.Task, Task.Delay(TimeSpan.FromSeconds(6)));
             }
             catch
             {

@@ -201,6 +201,9 @@ namespace MALPlus.XShared.ViewModels
         /// <summary>True when the entry carries a note. Bound by the poster card.</summary>
         public bool HasNote => !string.IsNullOrWhiteSpace(Comment);
 
+        /// <summary>True when tag/note indicators should be shown (only for authenticated anime library items).</summary>
+        public bool ShowEntryIndicators => ParentAbstraction?.RepresentsAnime == true && Auth;
+
         public bool IsRewatching
         {
             get { return ParentAbstraction.IsRewatching; }
@@ -718,9 +721,23 @@ namespace MALPlus.XShared.ViewModels
         ///     </para>
         /// </remarks>
         public string RankBind
-            => ShowRank && ParentAbstraction != null && ParentAbstraction.Index > 0
-                ? "#" + ParentAbstraction.Index
-                : "";
+        {
+            get
+            {
+                if (!ShowRank || ParentAbstraction == null || ParentAbstraction.Index <= 0)
+                    return "";
+
+                var workMode = ViewModelLocator.AnimeList?.WorkMode;
+                if (workMode == AnimeListWorkModes.TopAnime || workMode == AnimeListWorkModes.TopManga)
+                    return "#" + ParentAbstraction.Index;
+
+                var mangaWorkMode = ViewModelLocator.MangaList?.WorkMode;
+                if (mangaWorkMode == AnimeListWorkModes.TopAnime || mangaWorkMode == AnimeListWorkModes.TopManga)
+                    return "#" + ParentAbstraction.Index;
+
+                return "";
+            }
+        }
 
         /// <summary>
         ///     Whether this card belongs to a ranked panel. Set once, by the code that builds the row.
@@ -735,6 +752,15 @@ namespace MALPlus.XShared.ViewModels
             if (ShowRank)
                 return;
             ShowRank = true;
+            RaisePropertyChanged(() => ShowRank);
+            RaisePropertyChanged(() => RankBind);
+        }
+
+        public void DisableRank()
+        {
+            if (!ShowRank)
+                return;
+            ShowRank = false;
             RaisePropertyChanged(() => ShowRank);
             RaisePropertyChanged(() => RankBind);
         }

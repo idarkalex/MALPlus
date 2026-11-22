@@ -997,7 +997,7 @@
             </Grid>
 
             <Border x:Name="ActionBar" HorizontalOptions="Fill" BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 24,24,0,0" Stroke="Transparent" Padding="14,12,14,8">
-                <Grid ColumnDefinitions="*,*,Auto,Auto,Auto" ColumnSpacing="6">
+                <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="6">
                     <Button Grid.Column="0" Text="Add to List" Command="{Binding AddAnimeCommand}" IsVisible="{Binding AddAnimeVisibility}"
                             IsEnabled="{Binding IsAddAnimeButtonEnabled}" FontFamily="InterSemiBold" FontSize="12"
                             BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
@@ -1024,7 +1024,16 @@
                     <Button Grid.Column="3" Text="↻" Command="{Binding RefreshCommand}" FontFamily="InterBold" FontSize="14"
                             BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
                             BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" WidthRequest="40" Padding="0" />
-                    <Button Grid.Column="4" Text="⋯" Command="{Binding ShowMoreCommand}" FontFamily="InterBold" FontSize="18"
+                    <Border Grid.Column="4" WidthRequest="40" HeightRequest="40"
+                            StrokeShape="RoundRectangle 8" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            BackgroundColor="{StaticResource TabChipInactiveBg}" Padding="0">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnShareButtonTapped" />
+                        </Border.GestureRecognizers>
+                        <Image Source="icon_share" WidthRequest="18" HeightRequest="18"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                    <Button Grid.Column="5" Text="⋯" Command="{Binding ShowMoreCommand}" FontFamily="InterBold" FontSize="18"
                             BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
                             BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" WidthRequest="40" Padding="0" />
                 </Grid>
@@ -1081,6 +1090,13 @@
                                            PlayFailed="OnDirectVideoFailed" />
 
             </Grid>
+
+            <!-- Transient floating share button for episode/score updates -->
+            <controls:FloatingShareButton x:Name="ShareFab"
+                                          ZIndex="250"
+                                          HorizontalOptions="End"
+                                          VerticalOptions="End"
+                                          Margin="0,0,16,24" />
 
             <!-- The overflow menu. Inside this Grid on purpose: a ContentPage holds one child, so
                  declaring this as a second child of the page made it the page's content and the whole

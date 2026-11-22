@@ -1,24 +1,19 @@
-# MAL+ v0.7.5
+# MAL+ v0.7.6
 
-## Library Sorting & Score Fixes ([#5](https://github.com/idarkalex/MALPlus/issues/5))
-- **Score sorting fix:** Addressed the score ordering problem reported in [#5](https://github.com/idarkalex/MALPlus/issues/5). Rated titles are now properly grouped at the top, while unrated entries appear cleanly at the bottom instead of mixing in randomly.
-- **Quick sort button:** Added a new sort button right on the top bar of your Anime and Manga lists to easily change the order (by score, title, progress, or dates) on the fly without going to Settings.
-- **Personal vs Community score:** You can now choose whether to sort your list by your own personal score or by the overall community rating.
-- **Instant updates:** Changing your sort preferences in Settings now updates your list immediately.
+## Social Sharing & Activity Updates (#6)
+- **Floating Share Button:** An unobtrusive button appears at the bottom-right whenever you log an episode, update chapter progress, or change a status, letting you quickly share your milestone (Closes #6).
+- **Customizable Social Settings:** New dedicated section in Settings to adjust the button duration (10s–30s), customize sentence templates for anime and manga milestones, or add an optional hashtag.
+- **Unified Share Menu in Details:** Consolidated all sharing and copy tools into the header Share button (recommend to friends, progress, link only, and clipboard actions).
+- **Poster Menu Integration:** Added a "Share" option to the grid flyout menu when holding down any anime or manga poster in your list.
+- **Smart Score Detection:** Entries without a score automatically omit score text rather than showing placeholders or 0/10.
+- **Cleaner Menus:** Removed duplicate share and copy actions from the three-dots menu to keep it focused on entry details.
 
-## Video Player & Controls
-- **Cleaner video screen:** Removed extra fullscreen buttons. Fullscreen is now handled directly by the player controls at the bottom.
-- **Simplified controls:** The video overlay now has a single close button at the top, and your phone's back button closes the video smoothly.
+## Library Sorting & Per-List Memory (#5)
+- **Per-List Sort Memory:** Addressed community feedback on #5 — sorting preferences are now remembered independently for Anime and Manga lists (Closes #5).
+- **Reset Per-List Sorts:** Added a quick reset option in Settings to return all custom list orderings back to default.
+- **Poster Options Sheet:** Polished back navigation and dismiss transitions across compact sheets.
 
-## Music & Themes Playback
-- **Better theme matching:** Fixed song detection for special openings and endings (such as Gintama°), so videos play directly instead of falling back to YouTube.
-- **Tap to play:** Tapping any song in the season themes list now plays the video immediately.
-
-## Season Lists Ordering
-- **Most popular first:** Fixed season lists so the biggest and most popular shows appear first instead of obscure titles.
-- **Shows with songs first:** The Season OP/ED page now prioritizes shows that have playable songs available.
-
-## Discover & Content
-- **Trending shows:** The Trending section now highlights weekly member growth and rankings based on real community activity.
-- **Cleaner articles:** News and articles now load much faster and look cleaner on mobile.
-- **Adapted manga:** The "Adapted to anime" section now loads faster and more reliably.
+## Visual Branding & App Experience
+- **Refreshed App Icons:** Updated high-resolution launcher icons across all screen densities.
+- **Release Notes Reader:** Revamped the in-app changelog dialog with styled headers, formatted bullet points, and expanded dimensions.
+- **Optimized Assets:** Cleaned up splash screen and vector assets for a lighter and crisper app package.

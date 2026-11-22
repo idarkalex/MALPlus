@@ -327,7 +327,16 @@ public static class AppUpdateService
                 if (info != null && !string.IsNullOrWhiteSpace(info.ReleaseNotes))
                 {
                     changelogText = info.ReleaseNotes;
-                    releaseTitle = $"MAL+ v{info.Version} - {info.ReleaseName}";
+                    if (string.IsNullOrWhiteSpace(info.ReleaseName) ||
+                        info.ReleaseName.Equals($"MAL+ v{info.Version}", StringComparison.OrdinalIgnoreCase) ||
+                        info.ReleaseName.Equals($"v{info.Version}", StringComparison.OrdinalIgnoreCase))
+                    {
+                        releaseTitle = $"MAL+ v{info.Version}";
+                    }
+                    else
+                    {
+                        releaseTitle = $"MAL+ v{info.Version} - {info.ReleaseName}";
+                    }
                 }
             }
             catch (Exception ex)

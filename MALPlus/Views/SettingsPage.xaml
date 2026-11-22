@@ -285,6 +285,31 @@
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
                         <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                            <Label Text="Remember sort per list" Style="{StaticResource SettingTitle}" />
+                            <Label Text="Keep independent sorting orders for Watching, Completed, Planned, etc."
+                                   Style="{StaticResource SettingDesc}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding IndividualSortPerList}"
+                                SemanticProperties.Description="Remember sort per list" />
+                    </Grid>
+                    <BoxView Style="{StaticResource SettingDivider}" IsVisible="{Binding IndividualSortPerList}" />
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12" IsVisible="{Binding IndividualSortPerList}">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnResetPerListSortsClicked" />
+                        </Grid.GestureRecognizers>
+                        <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center" InputTransparent="True">
+                            <Label Text="Reset per-list sorts" Style="{StaticResource SettingTitle}" />
+                            <Label Text="Revert individual list sorting back to default library sort"
+                                   Style="{StaticResource SettingDesc}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1" Text="Reset" TextColor="#FF5555" FontFamily="InterSemiBold"
+                               FontSize="13" VerticalOptions="Center" InputTransparent="True" />
+                    </Grid>
+                    <BoxView Style="{StaticResource SettingDivider}" />
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
                             <Label Text="Manga progress by volumes" Style="{StaticResource SettingTitle}" />
                             <Label Text="Track and display read volumes instead of chapters for manga"
                                    Style="{StaticResource SettingDesc}" />
@@ -334,6 +359,120 @@
                         </VerticalStackLayout>
                         <Switch Grid.Column="1" IsToggled="{Binding SetEndDateOnCompleted}"
                                 SemanticProperties.Description="Auto set finish date" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- ============ SHARING & SOCIAL ============ -->
+            <HorizontalStackLayout Style="{StaticResource SectionHeader}">
+                <BoxView Style="{StaticResource SectionAccent}" />
+                <Label Text="SHARING &amp; SOCIAL" Style="{StaticResource SectionLabel}" />
+            </HorizontalStackLayout>
+
+            <Border Style="{StaticResource SettingsCard}">
+                <VerticalStackLayout Spacing="0">
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                            <Label Text="Enable floating share button" Style="{StaticResource SettingTitle}" />
+                            <Label Text="Shows a quick share button after updating progress or rating"
+                                   Style="{StaticResource SettingDesc}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding EnableShareButton}"
+                                SemanticProperties.Description="Enable floating share button" />
+                    </Grid>
+                    <BoxView Style="{StaticResource SettingDivider}" />
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPickShareDurationClicked" />
+                        </Grid.GestureRecognizers>
+                        <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center" InputTransparent="True">
+                            <Label Text="Share button duration" Style="{StaticResource SettingTitle}" />
+                            <Label Text="How long the floating share button stays on screen before auto-dismissing"
+                                   Style="{StaticResource SettingDesc}" />
+                        </VerticalStackLayout>
+                        <Border Grid.Column="1" Style="{StaticResource SettingSelectChip}" InputTransparent="True">
+                            <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                <Label x:Name="ShareDurationValueLabel" Style="{StaticResource SettingChipText}" />
+                                <Label Text="▾" Style="{StaticResource SettingChipChevron}" />
+                            </HorizontalStackLayout>
+                        </Border>
+                    </Grid>
+                    <BoxView Style="{StaticResource SettingDivider}" />
+
+                    <VerticalStackLayout Spacing="6" Padding="16,12">
+                        <Label Text="Episode progress template" Style="{StaticResource SettingTitle}" />
+                        <Label Text="Available tags: {title}, {ep}, {total}, {score}, {url}" Style="{StaticResource SettingDesc}" />
+                        <Border Style="{StaticResource SettingSelectChip}" Padding="10,4" HorizontalOptions="Fill">
+                            <Entry Text="{Binding ShareTemplateWatched}"
+                                   FontFamily="Inter" FontSize="13"
+                                   TextColor="{StaticResource BrushText}"
+                                   BackgroundColor="Transparent"
+                                   VerticalOptions="Center" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource SettingDivider}" />
+
+                    <VerticalStackLayout Spacing="6" Padding="16,12">
+                        <Label Text="Chapter progress template (Manga)" Style="{StaticResource SettingTitle}" />
+                        <Label Text="Available tags: {title}, {ep}, {total}, {score}, {url}" Style="{StaticResource SettingDesc}" />
+                        <Border Style="{StaticResource SettingSelectChip}" Padding="10,4" HorizontalOptions="Fill">
+                            <Entry Text="{Binding ShareTemplateRead}"
+                                   FontFamily="Inter" FontSize="13"
+                                   TextColor="{StaticResource BrushText}"
+                                   BackgroundColor="Transparent"
+                                   VerticalOptions="Center" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource SettingDivider}" />
+
+                    <VerticalStackLayout Spacing="6" Padding="16,12">
+                        <Label Text="Completion template" Style="{StaticResource SettingTitle}" />
+                        <Label Text="Available tags: {title}, {score}, {status}, {url}" Style="{StaticResource SettingDesc}" />
+                        <Border Style="{StaticResource SettingSelectChip}" Padding="10,4" HorizontalOptions="Fill">
+                            <Entry Text="{Binding ShareTemplateCompleted}"
+                                   FontFamily="Inter" FontSize="13"
+                                   TextColor="{StaticResource BrushText}"
+                                   BackgroundColor="Transparent"
+                                   VerticalOptions="Center" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource SettingDivider}" />
+
+                    <VerticalStackLayout Spacing="6" Padding="16,12">
+                        <Label Text="Recommendation template (Details)" Style="{StaticResource SettingTitle}" />
+                        <Label Text="Available tags: {title}, {score}, {type}, {total}, {url}" Style="{StaticResource SettingDesc}" />
+                        <Border Style="{StaticResource SettingSelectChip}" Padding="10,4" HorizontalOptions="Fill">
+                            <Entry Text="{Binding ShareTemplateRecommend}"
+                                   FontFamily="Inter" FontSize="13"
+                                   TextColor="{StaticResource BrushText}"
+                                   BackgroundColor="Transparent"
+                                   VerticalOptions="Center" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource SettingDivider}" />
+
+                    <VerticalStackLayout Spacing="6" Padding="16,12">
+                        <Label Text="Optional suffix / tag" Style="{StaticResource SettingTitle}" />
+                        <Label Text="Leave empty for clean messages, or add tags (e.g. #anime)" Style="{StaticResource SettingDesc}" />
+                        <Border Style="{StaticResource SettingSelectChip}" Padding="10,4" HorizontalOptions="Fill">
+                            <Entry Text="{Binding ShareCustomSuffix}"
+                                   Placeholder="Empty by default"
+                                   PlaceholderColor="{StaticResource TabChipInactiveText}"
+                                   FontFamily="Inter" FontSize="13"
+                                   TextColor="{StaticResource BrushText}"
+                                   BackgroundColor="Transparent"
+                                   VerticalOptions="Center" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource SettingDivider}" />
+
+                    <Grid Padding="16,12">
+                        <Button Text="Reset templates to default"
+                                Clicked="OnResetShareTemplatesClicked"
+                                Style="{StaticResource SecondaryButton}"
+                                HorizontalOptions="Start" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>

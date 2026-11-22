@@ -28,8 +28,22 @@ public class StringToImageSourceConverter : IValueConverter
         if (LocalSources.TryGetValue(url, out var local))
             return local;
 
+        // If download is already in flight or failed, return the cached remote source
+        // without blocking the UI thread on repeated synchronous disk stat calls.
+        if (DownloadStarted.ContainsKey(url))
+        {
+            return Sources.GetOrAdd(url, static key => new UriImageSource
+            {
+                Uri = new Uri(key),
+                CachingEnabled = false
+            });
+        }
+
         // If the value is already a direct local file path (e.g. seeded studio icon), return it immediately.
-        if (File.Exists(url))
+        // Never call File.Exists on remote HTTP/HTTPS URLs.
+        var isHttp = url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                     url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+        if (!isHttp && File.Exists(url))
         {
             var direct = new FileImageSource { File = url };
             LocalSources[url] = direct;

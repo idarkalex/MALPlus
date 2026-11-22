@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -130,13 +131,17 @@ namespace MALPlus.XShared.Comm
                                             Root anime;
                                             try
                                             {
+                                                if (!animeResponse.IsSuccessStatusCode || rawAnime.TrimStart().StartsWith("<"))
+                                                    throw new HttpRequestException($"MAL returned non-JSON response ({animeResponse.StatusCode})");
+
                                                 anime = JsonConvert.DeserializeObject<Root>(rawAnime);
                                             }
                                             catch (Exception e)
                                             {
                                                 ResourceLocator.TelemetryProvider.LogEvent(rawAnime);
-                                                //ResourceLocator.SnackbarProvider.ShowText(
-                                                //    $"Failed to get list from MAL, error: {rawAnime}");
+                                                var cached = await DataCache.RetrieveDataForUser(_source, _mode);
+                                                if (cached != null && cached.Count > 0)
+                                                    return cached;
                                                 return await GetLibrary(force, true);
                                             }
 
@@ -262,7 +267,22 @@ namespace MALPlus.XShared.Comm
                                             if (string.IsNullOrEmpty(rawManga))
                                                 return await DataCache.RetrieveDataForUser(_source, _mode) ?? output;
 
-                                            var manga = JsonConvert.DeserializeObject<Root>(rawManga);
+                                            Root manga;
+                                            try
+                                            {
+                                                if (!mangaResponse.IsSuccessStatusCode || rawManga.TrimStart().StartsWith("<"))
+                                                    throw new HttpRequestException($"MAL returned non-JSON response ({mangaResponse.StatusCode})");
+
+                                                manga = JsonConvert.DeserializeObject<Root>(rawManga);
+                                            }
+                                            catch (Exception e)
+                                            {
+                                                ResourceLocator.TelemetryProvider.LogEvent(rawManga);
+                                                var cached = await DataCache.RetrieveDataForUser(_source, _mode);
+                                                if (cached != null && cached.Count > 0)
+                                                    return cached;
+                                                return await GetLibrary(force, true);
+                                            }
                                             offset += manga.data?.Count ?? 0;
 
                                             if (manga.paging?.next == null)
@@ -610,6 +630,10 @@ namespace MALPlus.XShared.Comm
                                 //"sign in again" was shown for EVERY failure here, including plain
                                 //timeouts and rate limits, which made a healthy session look dead.
                                 //Only an actual auth rejection earns that message.
+                                var cachedFallback = await DataCache.RetrieveDataForUser(_source, _mode);
+                                if (cachedFallback != null && cachedFallback.Count > 0)
+                                    return cachedFallback;
+
                                 var authFailure = LooksLikeAuthFailure(e);
                                 ResourceLocator.DispatcherAdapter.Run(() =>
                                     ResourceLocator.MessageDialogProvider.ShowMessageDialog(

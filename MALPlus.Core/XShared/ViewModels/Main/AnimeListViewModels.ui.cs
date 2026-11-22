@@ -298,6 +298,25 @@ namespace MALPlus.XShared.ViewModels.Main
                 _canLoadMoreFilterLock = HasStatusFilter && GetDesiredStatus() != AnimeStatus.AllOrAiring;//we cannot laod more when filters are active
                 RaisePropertyChanged(() => CanLoadMore);
                 SetDisplayMode((AnimeStatus)GetDesiredStatus());
+                if (Settings.IndividualSortPerList && HasStatusFilter)
+                {
+                    var isManga = WorkMode == AnimeListWorkModes.Manga;
+                    var st = GetDesiredStatus();
+                    if (Settings.TryGetPerListSort(isManga, st, out var opt, out var desc))
+                    {
+                        _sortOption = opt;
+                        _sortDescending = desc;
+                    }
+                    else
+                    {
+                        _sortOption = isManga ? Settings.MangaSortOrder : Settings.AnimeSortOrder;
+                        _sortDescending = Settings.AutoDescendingSorting
+                            ? ResolveDefaultSortDescending(_sortOption, isManga)
+                            : (isManga ? Settings.IsMangaSortDescending : Settings.IsSortDescending);
+                    }
+                    RaisePropertyChanged(() => SortOption);
+                    RaisePropertyChanged(() => SortDescending);
+                }
                 if (!Initializing)
                 {
                     if (Settings.HideFilterSelectionFlyout)
@@ -595,6 +614,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 if (!Initializing && Settings.HideSortingSelectionFlyout)
                     HideSortingFlyout?.Invoke();
                 _sortOption = value;
+                RaisePropertyChanged(() => SortOption);
             }
         }
 

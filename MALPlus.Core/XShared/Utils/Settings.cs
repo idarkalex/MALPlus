@@ -6,6 +6,7 @@ using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Anime;
 using MALPlus.XShared.Comm;
 using MALPlus.XShared.ViewModels;
+using MALPlus.XShared.ViewModels.Main;
 
 namespace MALPlus.XShared.Utils
 {
@@ -148,6 +149,59 @@ namespace MALPlus.XShared.Utils
         {
             get => (bool)(ApplicationDataService["SortDescendingM"] ?? false);
             set => ApplicationDataService["SortDescendingM"] = value;
+        }
+
+        public static bool IndividualSortPerList
+        {
+            get => (bool)(ApplicationDataService[nameof(IndividualSortPerList)] ?? false);
+            set => ApplicationDataService[nameof(IndividualSortPerList)] = value;
+        }
+
+        public static bool TryGetPerListSort(bool isManga, AnimeStatus status, out SortOptions sortOption, out bool sortDescending)
+        {
+            if (!IndividualSortPerList)
+            {
+                sortOption = isManga ? MangaSortOrder : AnimeSortOrder;
+                sortDescending = isManga ? IsMangaSortDescending : IsSortDescending;
+                return false;
+            }
+
+            var prefix = isManga ? "Manga" : "Anime";
+            var keyOpt = $"{prefix}_SortOpt_{status}";
+            var keyDesc = $"{prefix}_SortDesc_{status}";
+
+            var storedOpt = ApplicationDataService[keyOpt];
+            var storedDesc = ApplicationDataService[keyDesc];
+
+            if (storedOpt != null)
+            {
+                sortOption = (SortOptions)(int)storedOpt;
+                sortDescending = storedDesc != null ? (bool)storedDesc : AnimeListViewModel.ResolveDefaultSortDescending(sortOption, isManga);
+                return true;
+            }
+
+            sortOption = isManga ? MangaSortOrder : AnimeSortOrder;
+            sortDescending = isManga ? IsMangaSortDescending : IsSortDescending;
+            return false;
+        }
+
+        public static void SetPerListSort(bool isManga, AnimeStatus status, SortOptions sortOption, bool sortDescending)
+        {
+            var prefix = isManga ? "Manga" : "Anime";
+            ApplicationDataService[$"{prefix}_SortOpt_{status}"] = (int)sortOption;
+            ApplicationDataService[$"{prefix}_SortDesc_{status}"] = sortDescending;
+        }
+
+        public static void ClearPerListSorts()
+        {
+            var statuses = new[] { AnimeStatus.Watching, AnimeStatus.Completed, AnimeStatus.OnHold, AnimeStatus.Dropped, AnimeStatus.PlanToWatch, AnimeStatus.AllOrAiring };
+            foreach (var st in statuses)
+            {
+                ApplicationDataService[$"Anime_SortOpt_{st}"] = null;
+                ApplicationDataService[$"Anime_SortDesc_{st}"] = null;
+                ApplicationDataService[$"Manga_SortOpt_{st}"] = null;
+                ApplicationDataService[$"Manga_SortDesc_{st}"] = null;
+            }
         }
 
         public static bool MangaFocusVolumes
@@ -813,8 +867,50 @@ namespace MALPlus.XShared.Utils
 
         public static bool EnableShareButton
         {
-            get => (bool)(ApplicationDataService[nameof(StatusPromptProceedOnDisabled)] ?? true);
-            set => ApplicationDataService[nameof(StatusPromptProceedOnDisabled)] = value;
+            get => (bool)(ApplicationDataService[nameof(EnableShareButton)] ?? true);
+            set => ApplicationDataService[nameof(EnableShareButton)] = value;
+        }
+
+        public const int DefaultShareTimerDuration = 15;
+        public const string DefaultShareTemplateWatched = "I've just watched episode {ep} of {title}. {url}";
+        public const string DefaultShareTemplateRead = "I've just read chapter {ep} of {title}. {url}";
+        public const string DefaultShareTemplateCompleted = "I've completed {title} with score of {score}/10. {url}";
+        public const string DefaultShareTemplateRecommend = "Check out {title} on MyAnimeList! {url}";
+
+        public static int ShareTimerDuration
+        {
+            get => (int)(ApplicationDataService[nameof(ShareTimerDuration)] ?? DefaultShareTimerDuration);
+            set => ApplicationDataService[nameof(ShareTimerDuration)] = value;
+        }
+
+        public static string ShareTemplateWatched
+        {
+            get => (string)(ApplicationDataService[nameof(ShareTemplateWatched)] ?? DefaultShareTemplateWatched);
+            set => ApplicationDataService[nameof(ShareTemplateWatched)] = value;
+        }
+
+        public static string ShareTemplateRead
+        {
+            get => (string)(ApplicationDataService[nameof(ShareTemplateRead)] ?? DefaultShareTemplateRead);
+            set => ApplicationDataService[nameof(ShareTemplateRead)] = value;
+        }
+
+        public static string ShareTemplateCompleted
+        {
+            get => (string)(ApplicationDataService[nameof(ShareTemplateCompleted)] ?? DefaultShareTemplateCompleted);
+            set => ApplicationDataService[nameof(ShareTemplateCompleted)] = value;
+        }
+
+        public static string ShareTemplateRecommend
+        {
+            get => (string)(ApplicationDataService[nameof(ShareTemplateRecommend)] ?? DefaultShareTemplateRecommend);
+            set => ApplicationDataService[nameof(ShareTemplateRecommend)] = value;
+        }
+
+        public static string ShareCustomSuffix
+        {
+            get => (string)(ApplicationDataService[nameof(ShareCustomSuffix)] ?? string.Empty);
+            set => ApplicationDataService[nameof(ShareCustomSuffix)] = value;
         }
 
         #endregion PopUpsPrompts

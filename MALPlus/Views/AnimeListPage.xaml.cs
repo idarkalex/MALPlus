@@ -20,9 +20,54 @@ namespace MALPlus.Views;
     [QueryProperty(nameof(RouteSeason), "season")]
     [QueryProperty(nameof(RouteYear), "year")]
     [QueryProperty(nameof(SourceUser), "user")]
-public partial class AnimeListPage : ContentPage, ITabSwipeHost
+public partial class AnimeListPage : ContentPage
 {
-    internal string RootRoute { get; set; }
+    private string _rootRoute;
+    internal string RootRoute
+    {
+        get => _rootRoute;
+        set
+        {
+            if (string.Equals(_rootRoute, value, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (Vm != null)
+                Vm.PreviewLibraryChanged -= OnPreviewLibraryChanged;
+
+            _rootRoute = value;
+            if (string.Equals(value, "manga", StringComparison.OrdinalIgnoreCase))
+            {
+                BindingContext = ViewModelLocator.MangaList;
+                Vm.WorkMode = AnimeListWorkModes.Manga;
+            }
+            else if (string.Equals(value, "anime", StringComparison.OrdinalIgnoreCase))
+            {
+                BindingContext = ViewModelLocator.AnimeList;
+                Vm.WorkMode = AnimeListWorkModes.Anime;
+            }
+
+            if (Vm != null)
+            {
+                Vm.DimensionsProvider = new MauiDimensionsProvider();
+                Vm.PreviewLibraryChanged += OnPreviewLibraryChanged;
+            }
+
+            _watchedFirstItems = false;
+            WatchFirstItems();
+            TryBindLive();
+        }
+    }
+
+    internal void PreloadRootData()
+    {
+        if (string.IsNullOrEmpty(RootRoute))
+            return;
+        var isManga = string.Equals(RootRoute, "manga", StringComparison.OrdinalIgnoreCase);
+        var mode = isManga ? (int)AnimeListWorkModes.Manga : (int)AnimeListWorkModes.Anime;
+        var route = $"///{RootRoute}?mode={mode}&status=0";
+        _lastShellRoute = route;
+        ApplyRoute(route);
+    }
     public string SourceUser { get; set; }
     private string _appliedUser;
 
@@ -180,6 +225,13 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
     /// </summary>
     internal void SetLiveLibrary(bool live)
     {
+        if (!string.IsNullOrEmpty(RootRoute))
+        {
+            _liveLibrary = true;
+            TryBindLive();
+            return;
+        }
+
         if (live)
         {
             if (_liveLibrary && _liveBound)
@@ -211,7 +263,7 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
     /// </summary>
     private void TryBindLive()
     {
-        if (!_liveLibrary || Vm == null)
+        if (Vm == null)
             return;
 
         if (!IsModeForRoot(Vm.DisplayedMode, RootRoute))
@@ -221,6 +273,7 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
             return;
 
         _liveBound = true;
+        _liveLibrary = true;
         AnimeGrid.RemoveBinding(AnimePosterGrid.ItemsSourceProperty);
         AnimeGrid.SetBinding(AnimePosterGrid.ItemsSourceProperty,
             nameof(AnimeListViewModel.DisplayedItems));
@@ -235,6 +288,9 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
         _previewVersion = Vm?.LibraryVersion ?? -1;
         AnimeGrid.RemoveBinding(AnimePosterGrid.ItemsSourceProperty);
         AnimeGrid.ItemsSource = preview;
+        _lastMode = manga ? (int)AnimeListWorkModes.Manga : (int)AnimeListWorkModes.Anime;
+        _lastStatus = DefaultStatusIndex;
+        UpdateContextBars();
         if (preview == null || preview.Count == 0)
             Vm?.EnsurePreviewLibraryLoaded(manga);
     }
@@ -315,14 +371,14 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
         };
     }
 
-    bool ITabSwipeHost.TrySwipe(int direction)
-        => BottomNav?.StepSection(direction) == true;
-
     protected override void OnAppearing()
     {
         base.OnAppearing();
         BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
         StatusBar.BackgroundColor = MALPlus.Services.ThemeService.CurrentSheet;
+#if ANDROID
+        SetupChildScrollCallback();
+#endif
         if (!_navConnected)
         {
             BottomNav.SectionActivated += OnSectionActivated;
@@ -347,7 +403,33 @@ public partial class AnimeListPage : ContentPage, ITabSwipeHost
             else
             {
                 // Settings changed: update sort mode and re-sort current view
-                Vm?.SetSortOrder(null);
+                if (Settings.IndividualSortPerList && (_lastMode == (int)AnimeListWorkModes.Anime || _lastMode == (int)AnimeListWorkModes.Manga))
+                {
+                    var isManga = _lastMode == (int)AnimeListWorkModes.Manga;
+                    var status = AnimeListViewModel.StatusFromIndex(_lastStatus);
+                    if (Settings.TryGetPerListSort(isManga, status, out var opt, out var desc))
+                    {
+                        _customSortOption = opt;
+                        _customSortDescending = desc;
+                        if (Vm != null)
+                        {
+                            Vm.SortOption = opt;
+                            Vm.SortDescending = desc;
+                        }
+                    }
+                    else
+                    {
+                        _customSortOption = null;
+                        _customSortDescending = null;
+                        Vm?.SetSortOrder(null);
+                    }
+                }
+                else
+                {
+                    _customSortOption = null;
+                    _customSortDescending = null;
+                    Vm?.SetSortOrder(null);
+                }
                 Vm?.RefreshList();
                 SetLiveLibrary(true);
                 TryBindLive();
@@ -586,10 +668,7 @@ Mode = null;
             {
                 ResetTemporaryFilters();
             }
-            else
-            {
-                UpdateContextBars();
-            }
+            UpdateContextBars();
 
             _ = InitAndObserveAsync(mode, status, openStatusMenu, routeSeason, routeYear);
         }
@@ -805,14 +884,32 @@ Season? routeSeason = null, int? routeYear = null)
 
     private void ResetTemporaryFilters()
     {
-        _customSortOption = null;
-        _customSortDescending = null;
+        if (Settings.IndividualSortPerList && (_lastMode == (int)AnimeListWorkModes.Anime || _lastMode == (int)AnimeListWorkModes.Manga))
+        {
+            var isManga = _lastMode == (int)AnimeListWorkModes.Manga;
+            var status = AnimeListViewModel.StatusFromIndex(_lastStatus);
+            if (Settings.TryGetPerListSort(isManga, status, out var opt, out var desc))
+            {
+                _customSortOption = opt;
+                _customSortDescending = desc;
+            }
+            else
+            {
+                _customSortOption = isManga ? Settings.MangaSortOrder : Settings.AnimeSortOrder;
+                _customSortDescending = Settings.AutoDescendingSorting
+                    ? AnimeListViewModel.ResolveDefaultSortDescending(_customSortOption.Value, isManga)
+                    : (isManga ? Settings.IsMangaSortDescending : Settings.IsSortDescending);
+            }
+        }
+        else
+        {
+            _customSortOption = null;
+            _customSortDescending = null;
+        }
+
         _panelFilterOpen = false;
         if (Vm != null)
-        {
             Vm.PanelFilter = "";
-            Vm.SetSortOrder(null);
-        }
         PanelFilterEntry?.Unfocus();
         UpdateContextBars();
     }
@@ -1003,11 +1100,22 @@ Season? routeSeason = null, int? routeYear = null)
                     _customSortDescending = c.Descending;
                     vm.SortDescending = c.Descending;
                     vm.SortOption = c.Option;
+                    if (Settings.IndividualSortPerList && (_lastMode == (int)AnimeListWorkModes.Anime || _lastMode == (int)AnimeListWorkModes.Manga))
+                    {
+                        var status = AnimeListViewModel.StatusFromIndex(_lastStatus);
+                        Settings.SetPerListSort(isManga, status, c.Option, c.Descending);
+                    }
+                    vm.InvalidatePreviews();
                     vm.RefreshList();
                 }, value: isSelected ? "✓" : null);
             }).ToList();
 
-            PosterSheet.OpenCompactWithSubtitle("Sort list", "Temporarily change the order of this list", rows);
+            var currentStatusLabel = StatusLabel?.Text;
+            var subtitle = Settings.IndividualSortPerList && !string.IsNullOrWhiteSpace(currentStatusLabel)
+                ? $"Sort order for {currentStatusLabel}"
+                : "Temporarily change the order of this list";
+
+            PosterSheet.OpenCompactWithSubtitle("Sort list", subtitle, rows);
             MainActivity.ArmMenuBackCallback(() => PosterSheet.Dismiss());
         }
         catch (Exception ex)
@@ -1620,11 +1728,16 @@ Season? routeSeason = null, int? routeYear = null)
     }
 
     private string ResolveType()
-        => string.IsNullOrWhiteSpace(Type) ? null : Type.Trim();
+    {
+        if (!string.IsNullOrWhiteSpace(Type))
+            return Type.Trim();
+        if (_appliedType != null)
+            return _appliedType;
+        return null;
+    }
 
     private void ParseRangeQuery(Dictionary<string, string> query)
     {
-        _rangeIndex = DefaultRangeIndex;
         var raw = QueryValue(query, "range", null);
         if (string.IsNullOrWhiteSpace(raw) || !int.TryParse(raw, out var parsed))
             return;
@@ -1636,6 +1749,9 @@ Season? routeSeason = null, int? routeYear = null)
 
     private void ParseTypeQuery(int mode, string type)
     {
+        if (string.IsNullOrWhiteSpace(type) && _appliedType != null)
+            type = _appliedType;
+
         _topType = TopAnimeType.General;
         _mangaTopType = MangaTopType.All;
         _adaptedType = MangaAdaptedType.AiringNow;
@@ -1892,13 +2008,36 @@ Season? routeSeason = null, int? routeYear = null)
     private AnimeListPageNavigationArgs BuildArgs(int mode, int statusSelectorIndex)
     {
         var workMode = (AnimeListWorkModes)mode;
+        SortOptions? sortOpt = _customSortOption;
+        bool? sortDesc = _customSortDescending;
+
+        if (Settings.IndividualSortPerList && (workMode == AnimeListWorkModes.Anime || workMode == AnimeListWorkModes.Manga))
+        {
+            var isManga = workMode == AnimeListWorkModes.Manga;
+            var status = AnimeListViewModel.StatusFromIndex(statusSelectorIndex);
+            if (Settings.TryGetPerListSort(isManga, status, out var opt, out var desc))
+            {
+                sortOpt = opt;
+                sortDesc = desc;
+            }
+            else
+            {
+                sortOpt = isManga ? Settings.MangaSortOrder : Settings.AnimeSortOrder;
+                sortDesc = Settings.AutoDescendingSorting
+                    ? AnimeListViewModel.ResolveDefaultSortDescending(sortOpt.Value, isManga)
+                    : (isManga ? Settings.IsMangaSortDescending : Settings.IsSortDescending);
+            }
+            _customSortOption = sortOpt;
+            _customSortDescending = sortDesc;
+        }
+
         switch (workMode)
         {
             case AnimeListWorkModes.Manga:
                 return new AnimeListPageNavigationArgs(statusSelectorIndex, AnimeListWorkModes.Manga)
                 {
-                    CustomSortOption = _customSortOption,
-                    CustomSortDescending = _customSortDescending
+                    CustomSortOption = sortOpt,
+                    CustomSortDescending = sortDesc
                 };
             case AnimeListWorkModes.Anime:
                 // Never silently switch work mode when there is no session: let the
@@ -1906,8 +2045,8 @@ Season? routeSeason = null, int? routeYear = null)
                 return new AnimeListPageNavigationArgs(statusSelectorIndex, AnimeListWorkModes.Anime)
                 {
                     ListSource = Credentials.UserName,
-                    CustomSortOption = _customSortOption,
-                    CustomSortDescending = _customSortDescending
+                    CustomSortOption = sortOpt,
+                    CustomSortDescending = sortDesc
                 };
 case AnimeListWorkModes.SeasonalAnime:
                     // Carries the season on show. This is what makes coming back from an anime open
@@ -2030,10 +2169,12 @@ case AnimeListWorkModes.SeasonalAnime:
         Type = null;
         Menu = null;
         Reset = null;
-        _applied = false;
         _rootResetSuppressedFor = null;
         if (string.IsNullOrEmpty(RootRoute))
+        {
+            _applied = false;
             SetLiveLibrary(false);
+        }
         RestoreTabAfterFilterPush();
         if (_navConnected)
         {
@@ -2045,7 +2186,7 @@ case AnimeListWorkModes.SeasonalAnime:
         var modalOpen = Shell.Current?.Navigation?.ModalStack?.Count > 0;
         if (!_returningFromDetails && !modalOpen)
         {
-            ResetTemporaryFilters();
+            ClosePanelFilter();
         }
     }
 
@@ -2097,8 +2238,7 @@ case AnimeListWorkModes.SeasonalAnime:
     private void WireInfiniteScroll()
     {
         _grid = AnimeGrid.Inner;
-        _grid.SelectionMode = SelectionMode.Single;
-        _grid.SelectionChanged += OnSelectionChanged;
+        _grid.SelectionMode = SelectionMode.None;
         _grid.RemainingItemsThreshold = 4;
         _grid.RemainingItemsThresholdReachedCommand = Vm?.LoadMoreCommand;
         // The threshold command alone is not enough. On a CollectionView that is live-repopulated
@@ -2109,7 +2249,33 @@ case AnimeListWorkModes.SeasonalAnime:
         _grid.Scrolled += OnGridScrolled;
         AnimeGrid.ItemTapped += OnGridItemTapped;
         AnimeGrid.ItemLongPressed += OnGridItemLongPressed;
+#if ANDROID
+        SetupChildScrollCallback();
+#endif
     }
+
+#if ANDROID
+    private void SetupChildScrollCallback()
+    {
+        try
+        {
+            if (ListRefresh?.Handler?.PlatformView is AndroidX.SwipeRefreshLayout.Widget.SwipeRefreshLayout srl &&
+                AnimeGrid?.Inner?.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+            {
+                srl.SetOnChildScrollUpCallback(new ChildScrollUpCallback(rv));
+            }
+        }
+        catch { }
+    }
+
+    private sealed class ChildScrollUpCallback : Java.Lang.Object, AndroidX.SwipeRefreshLayout.Widget.SwipeRefreshLayout.IOnChildScrollUpCallback
+    {
+        private readonly AndroidX.RecyclerView.Widget.RecyclerView _rv;
+        public ChildScrollUpCallback(AndroidX.RecyclerView.Widget.RecyclerView rv) => _rv = rv;
+        public bool CanChildScrollUp(AndroidX.SwipeRefreshLayout.Widget.SwipeRefreshLayout parent, Android.Views.View child)
+            => _rv != null && _rv.CanScrollVertically(-1);
+    }
+#endif
 
     /// <summary>
     ///     Asks for the next page while there is still something to look at.
@@ -2136,10 +2302,10 @@ case AnimeListWorkModes.SeasonalAnime:
         {
             if (e.LastVisibleItemIndex < 0 || Vm == null)
                 return;
-            var screenHeight = Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()?.Height ?? 0;
-            var rowsPerScreen = Math.Max(6, (int)(screenHeight / 210));
-            var nearEnd = Vm.DisplayedItems.Count - e.LastVisibleItemIndex - 1 <= rowsPerScreen * 3;
-            if (nearEnd && Vm.CanLoadMore)
+            var items = Vm.DisplayedItems;
+            if (items == null)
+                return;
+            if (items.Count - e.LastVisibleItemIndex - 1 <= 18 && Vm.CanLoadMore)
                 Vm.LoadMoreCommand?.Execute(null);
         }
         catch
@@ -2168,8 +2334,8 @@ case AnimeListWorkModes.SeasonalAnime:
             var manga = _lastMode == (int)AnimeListWorkModes.Manga;
             var rows = new List<MALPlus.Controls.OptionsSheetItem>
             {
-                new("Copy title", "icon_copy", viewModel.CopyTitleToClipboardCommand),
-                new("Copy link", "icon_list", viewModel.CopyLinkToClipboardCommand),
+                new("Share", "icon_share",
+                    submenu: sheet => OpenPosterShareSubmenu(sheet, viewModel, manga)),
                 new("Open in browser", "icon_search", viewModel.OpenInMALCommand)
             };
 
@@ -2196,6 +2362,55 @@ case AnimeListWorkModes.SeasonalAnime:
     }
 
     private MALPlus.XShared.ViewModels.AnimeItemViewModel _sheetTarget;
+
+    private bool OpenPosterShareSubmenu(
+        MALPlus.Controls.OptionsSheet sheet,
+        MALPlus.XShared.ViewModels.AnimeItemViewModel vm,
+        bool manga)
+    {
+        try
+        {
+            var isAnime = !manga;
+            var rows = new List<MALPlus.Controls.OptionsSheetItem>
+            {
+                new("Recommend to friends", "icon_share", action: () =>
+                {
+                    var msg = ResourceLocator.ShareManager.GenerateRecommendMessage(
+                        vm.Title, vm.Id, isAnime, vm.GlobalScore, vm.Type, vm.AllEpisodes);
+                    GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(msg);
+                })
+            };
+
+            if (vm.Auth)
+            {
+                rows.Add(new MALPlus.Controls.OptionsSheetItem("Share my progress", "icon_user", action: () =>
+                {
+                    var msg = ResourceLocator.ShareManager.GenerateMyEntryMessage(
+                        vm.Title, vm.Id, isAnime, vm.MyStatus.ToString(), (int)vm.MyScore, vm.MyEpisodes, vm.AllEpisodes);
+                    GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(msg);
+                }));
+            }
+
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Share link only", "icon_list", action: () =>
+            {
+                var url = $"https://myanimelist.net/{(isAnime ? "anime" : "manga")}/{vm.Id}";
+                GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(url);
+            }));
+
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy link to clipboard", "icon_copy",
+                vm.CopyLinkToClipboardCommand));
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy title to clipboard", "icon_copy",
+                vm.CopyTitleToClipboardCommand));
+
+            sheet.OpenSubmenu("Share", rows, () => ReopenPosterSheet(sheet));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OpenPosterShareSubmenu failed: " + ex.Message);
+            return false;
+        }
+    }
 
     /// <summary>
     ///     The status list, with the entry's own status marked.
@@ -2476,6 +2691,7 @@ case AnimeListWorkModes.SeasonalAnime:
     /// </remarks>
     private void ReturnFromDetailsAsync()
     {
+        MainActivity.DisarmMenuBackCallback();
         var mode = _detailsReturnMode >= 0 ? _detailsReturnMode : (int)AnimeListWorkModes.Anime;
         var root = _detailsReturnManga ? "//manga" : "//anime";
         var query = MauiMainViewModel.BuildAnimeListQuery(
@@ -2483,6 +2699,7 @@ case AnimeListWorkModes.SeasonalAnime:
             BuildArgs(mode, _lastStatus));
         Android.Util.Log.Info("MALPLUS", $"AnimeList returning from details to {root}{query}");
         _detailsReturnMode = -1;
+        _detailsReturnManga = false;
         _ = MainThread.InvokeOnMainThreadAsync(async () =>
         {
             try

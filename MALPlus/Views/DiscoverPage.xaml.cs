@@ -14,7 +14,7 @@ using MALPlus.XShared.ViewModels;
 
 namespace MALPlus.Views;
 
-public partial class DiscoverPage : ContentPage, ITabSwipeHost
+public partial class DiscoverPage : ContentPage
 {
     private const string FilterPrefsKey = "MALPlus_DiscoveryRandomFilter_v1";
 
@@ -30,9 +30,6 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
     {
         InitializeComponent();
     }
-
-    bool ITabSwipeHost.TrySwipe(int direction)
-        => BottomNav?.StepSection(direction) == true;
 
     private async Task<bool> GuardAsync()
     {
@@ -981,18 +978,15 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
         }
     }
 
+    private Color _lastAppliedThemeBg;
+
     protected override void OnAppearing()
     {
         base.OnAppearing();
         ApplyTheme();
 #if ANDROID
-        if (Handler?.PlatformView is global::Android.Views.View v)
-        {
-            v.RequestLayout();
-        }
         StripEntryUnderline();
 #endif
-        InvalidateMeasure();
     }
 
     private void ApplyTheme()
@@ -1000,18 +994,10 @@ public partial class DiscoverPage : ContentPage, ITabSwipeHost
         try
         {
             var bg = MALPlus.Services.ThemeService.CurrentBackground;
-            var sheet = MALPlus.Services.ThemeService.CurrentSheet;
-            var border = MALPlus.Services.ThemeService.CurrentBorder;
-
+            if (_lastAppliedThemeBg == bg)
+                return;
+            _lastAppliedThemeBg = bg;
             BackgroundColor = bg;
-            foreach (var element in this.GetVisualTreeDescendants())
-            {
-                if (element is Border b && b.Style == (Style)Resources["DiscoverCardStyle"])
-                {
-                    b.BackgroundColor = sheet;
-                    b.Stroke = new SolidColorBrush(border);
-                }
-            }
         }
         catch { }
     }

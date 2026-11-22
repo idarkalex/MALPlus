@@ -3,6 +3,7 @@ using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
+using System.Linq;
 using Microsoft.Maui;
 
 namespace MALPlus;
@@ -129,6 +130,47 @@ public class MainActivity : MauiAppCompatActivity
         base.OnCreate(savedInstanceState);
         Instance = this;
 
+        // Unlock max display refresh rate (120Hz/144Hz)
+        try
+        {
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+            {
+                var display = Display;
+                if (display != null)
+                {
+                    var modes = display.GetSupportedModes();
+                    if (modes != null && modes.Length > 0)
+                    {
+                        var maxFps = modes.Max(m => m.RefreshRate);
+                        if (Window?.Attributes != null)
+                        {
+                            Window.Attributes.PreferredRefreshRate = maxFps;
+                            var bestMode = modes.OrderByDescending(m => m.RefreshRate).First();
+                            Window.Attributes.PreferredDisplayModeId = bestMode.ModeId;
+                        }
+                    }
+                }
+            }
+            else if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
+            {
+                var modes = Display?.GetSupportedModes();
+                if (modes != null && modes.Length > 0)
+                {
+                    var bestMode = modes.OrderByDescending(m => m.RefreshRate).First();
+                    var lp = Window?.Attributes;
+                    if (lp != null)
+                    {
+                        lp.PreferredDisplayModeId = bestMode.ModeId;
+                        Window.Attributes = lp;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("MALPLUS", "Failed to set preferred refresh rate: " + ex.Message);
+        }
+
         try
         {
             var content = FindViewById(global::Android.Resource.Id.Content);
@@ -139,6 +181,19 @@ public class MainActivity : MauiAppCompatActivity
             }
 
             SetWindowThemeColors(MALPlus.XShared.Utils.Settings.DarkThemeAmoled);
+
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
+            {
+                if (Window?.DecorView != null)
+                    Window.DecorView.ImportantForAutofill = ImportantForAutofill.NoExcludeDescendants;
+
+                try
+                {
+                    var afm = GetSystemService(Java.Lang.Class.FromType(typeof(Android.Views.Autofill.AutofillManager))) as Android.Views.Autofill.AutofillManager;
+                    afm?.DisableAutofillServices();
+                }
+                catch { }
+            }
         }
         catch (Exception ex)
         {
@@ -231,6 +286,7 @@ public class MainActivity : MauiAppCompatActivity
     // The immediate call is cleared by the RecyclerView's own DOWN reset, hence
     // the posted one, which lands before the first MOVE is intercepted.
     private AndroidX.ViewPager2.Widget.ViewPager2 _bottomBarPager;
+    private static int _cachedPagerId;
 
     private void DisallowRootSwipeOnBottomBar(MotionEvent e)
     {
@@ -249,17 +305,26 @@ public class MainActivity : MauiAppCompatActivity
             return;
 
         var decor = Window?.DecorView;
-        if (decor == null)
+        if (decor == null || decor.Height <= 0)
+            return;
+
+        // Fast bounds check: bottom bar is at the very bottom (last ~70dp).
+        // Any touch on cards, lists, headers skips the recursive hit-test instantly.
+        var density = Resources?.DisplayMetrics?.Density ?? 2.75f;
+        if (e.GetY() < decor.Height - (70 * density))
             return;
 
         var bar = Controls.BottomNavBar.FindPlatformAt(e.GetX(), e.GetY());
         if (bar == null)
             return;
 
-        var pagerId = Resources?.GetIdentifier(
-            "shellsection_viewpager", "id", PackageName) ?? 0;
-        var pager = pagerId > 0
-            ? decor.FindViewById(pagerId) as AndroidX.ViewPager2.Widget.ViewPager2
+        if (_cachedPagerId == 0)
+        {
+            _cachedPagerId = Resources?.GetIdentifier(
+                "shellsection_viewpager", "id", PackageName) ?? 0;
+        }
+        var pager = _cachedPagerId > 0
+            ? decor.FindViewById(_cachedPagerId) as AndroidX.ViewPager2.Widget.ViewPager2
             : null;
         if (pager == null)
             return;

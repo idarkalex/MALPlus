@@ -16,9 +16,10 @@ using Microsoft.Maui.Layouts;
 
 namespace MALPlus.Views;
 
-public partial class MorePage : ContentPage, ITabSwipeHost
+public partial class MorePage : ContentPage
 {
     private bool _initialized;
+    private Color _lastAppliedThemeBg;
 
     private bool _animeListPanelExpanded;
     private bool _mangaListPanelExpanded;
@@ -31,13 +32,21 @@ public partial class MorePage : ContentPage, ITabSwipeHost
         InitializeComponent();
     }
 
-    bool ITabSwipeHost.TrySwipe(int direction)
-        => BottomNav?.StepSection(direction) == true;
+    internal void Preload()
+    {
+        if (_initialized)
+            return;
+        _initialized = true;
+        _appliedSettingsRevision = SettingsViewModelBase.SettingsRevision;
+        _appliedContentTag = ContentFilter.CacheTag;
+        LoadProfileDataAsync();
+        RestorePanelState();
+    }
 
     private string _appliedContentTag;
     private long _appliedSettingsRevision;
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
         ApplyTheme();
@@ -46,10 +55,8 @@ public partial class MorePage : ContentPage, ITabSwipeHost
             if (_appliedContentTag != ContentFilter.CacheTag)
             {
                 _appliedContentTag = ContentFilter.CacheTag;
-                PopulateTypePanel(TopMangaPanel,
-                    Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>()
-                        .Where(ContentFilter.AllowsMangaSubcategory)
-                        .Select(t => (PrettyTopManga(t), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
+                if (_topMangaPanelExpanded)
+                    PopulateTopMangaPanel();
             }
             if (_appliedSettingsRevision != SettingsViewModelBase.SettingsRevision)
             {
@@ -66,23 +73,9 @@ public partial class MorePage : ContentPage, ITabSwipeHost
         _appliedSettingsRevision = SettingsViewModelBase.SettingsRevision;
         _appliedContentTag = ContentFilter.CacheTag;
 
-        LoadProfileDataAsync();
+        Dispatcher.Dispatch(() => LoadProfileDataAsync());
 
-        // Populate collapsible panels
-        PopulateStatusPanel(AnimeListPanel, false);
-        PopulateTypePanel(TopAnimePanel, 
-            Enum.GetValues(typeof(TopAnimeType)).Cast<TopAnimeType>().Select(t => (PrettyTopAnime(t), (Action)(() => NavigateTo(PageIndex.PageTopAnime, AnimeListPageNavigationArgs.TopAnime(t))))).ToList());
-        PopulateTypePanel(TopMangaPanel,
-            // Doujinshi is offered only with the content filter off entirely, and it is the same predicate
-            // the dropdown on the top page uses, so the two cannot offer different sets.
-            Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>()
-                .Where(ContentFilter.AllowsMangaSubcategory)
-                .Select(t => (PrettyTopManga(t), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
-        PopulateTypePanel(AdaptedPanel, 
-            Enum.GetValues(typeof(MangaAdaptedType)).Cast<MangaAdaptedType>().Select(t => (AnimeAdaptedToAnimeQuery.ToDisplayName(t), (Action)(() => NavigateTo(PageIndex.PageMangaAdapted, AnimeListPageNavigationArgs.MangaAdapted(t))))).ToList());
-        PopulateStatusPanel(MangaListPanel, true);
-
-        // Restore panel state from saved UI state
+        // Restore panel state from saved UI state (lazy populates any expanded panel)
         RestorePanelState();
     }
 
@@ -176,26 +169,31 @@ public partial class MorePage : ContentPage, ITabSwipeHost
 
     private void OnAnimeListTapped(object sender, TappedEventArgs e)
     {
+        EnsureAnimeListPanel();
         TogglePanel(AnimeListPanel, AnimeListArrow, AnimeListDivider, v => _animeListPanelExpanded = v, _animeListPanelExpanded);
     }
 
     private void OnMangaListTapped(object sender, TappedEventArgs e)
     {
+        EnsureMangaListPanel();
         TogglePanel(MangaListPanel, MangaListArrow, MangaListDivider, v => _mangaListPanelExpanded = v, _mangaListPanelExpanded);
     }
 
     private void OnTopAnimeTapped(object sender, TappedEventArgs e)
     {
+        EnsureTopAnimePanel();
         TogglePanel(TopAnimePanel, TopAnimeArrow, TopAnimeDivider, v => _topAnimePanelExpanded = v, _topAnimePanelExpanded);
     }
 
     private void OnTopMangaTapped(object sender, TappedEventArgs e)
     {
+        EnsureTopMangaPanel();
         TogglePanel(TopMangaPanel, TopMangaArrow, TopMangaDivider, v => _topMangaPanelExpanded = v, _topMangaPanelExpanded);
     }
 
     private void OnAdaptedTapped(object sender, TappedEventArgs e)
     {
+        EnsureAdaptedPanel();
         TogglePanel(AdaptedPanel, AdaptedArrow, null, v => _adaptedPanelExpanded = v, _adaptedPanelExpanded);
     }
 
@@ -424,30 +422,58 @@ public partial class MorePage : ContentPage, ITabSwipeHost
         try
         {
             var bg = MALPlus.Services.ThemeService.CurrentBackground;
-            var sheet = MALPlus.Services.ThemeService.CurrentSheet;
-            var border = MALPlus.Services.ThemeService.CurrentBorder;
-            var sunkenBg = MALPlus.Services.ThemeService.CurrentSunkenBg;
-            var sunkenStroke = MALPlus.Services.ThemeService.CurrentSunkenBorder;
-
+            if (_lastAppliedThemeBg == bg)
+                return;
+            _lastAppliedThemeBg = bg;
             BackgroundColor = bg;
-            foreach (var element in this.GetVisualTreeDescendants())
-            {
-                if (element is Border b)
-                {
-                    if (b.Margin.Left == 14 && b.Margin.Right == 14 && b.Padding.Left == 0)
-                    {
-                        b.BackgroundColor = sunkenBg;
-                        b.Stroke = new SolidColorBrush(sunkenStroke);
-                    }
-                    else
-                    {
-                        b.BackgroundColor = sheet;
-                        b.Stroke = new SolidColorBrush(border);
-                    }
-                }
-            }
         }
         catch { }
+    }
+
+    private void EnsureAnimeListPanel()
+    {
+        if (AnimeListPanel.Children.Count == 0)
+            PopulateStatusPanel(AnimeListPanel, false);
+    }
+
+    private void EnsureMangaListPanel()
+    {
+        if (MangaListPanel.Children.Count == 0)
+            PopulateStatusPanel(MangaListPanel, true);
+    }
+
+    private void EnsureTopAnimePanel()
+    {
+        if (TopAnimePanel.Children.Count == 0)
+        {
+            PopulateTypePanel(TopAnimePanel,
+                Enum.GetValues(typeof(TopAnimeType)).Cast<TopAnimeType>().Select(t => (PrettyTopAnime(t), (Action)(() => NavigateTo(PageIndex.PageTopAnime, AnimeListPageNavigationArgs.TopAnime(t))))).ToList());
+        }
+    }
+
+    private void EnsureTopMangaPanel()
+    {
+        if (TopMangaPanel.Children.Count == 0)
+        {
+            PopulateTopMangaPanel();
+        }
+    }
+
+    private void PopulateTopMangaPanel()
+    {
+        PopulateTypePanel(TopMangaPanel,
+            Enum.GetValues(typeof(MangaTopType)).Cast<MangaTopType>()
+                .Where(ContentFilter.AllowsMangaSubcategory)
+                .Select(t => (PrettyTopManga(t), (Action)(() => NavigateTo(PageIndex.PageTopManga, AnimeListPageNavigationArgs.TopMangaCategory(t))))).ToList());
+    }
+
+    private void EnsureAdaptedPanel()
+    {
+        if (AdaptedPanel.Children.Count == 0)
+        {
+            PopulateTypePanel(AdaptedPanel,
+                Enum.GetValues(typeof(MangaAdaptedType)).Cast<MangaAdaptedType>().Select(t => (AnimeAdaptedToAnimeQuery.ToDisplayName(t), (Action)(() => NavigateTo(PageIndex.PageMangaAdapted, AnimeListPageNavigationArgs.MangaAdapted(t))))).ToList());
+        }
     }
 
     private void PopulateTypePanel(Grid panel, List<(string Label, Action OnClick)> items)
@@ -601,15 +627,30 @@ public partial class MorePage : ContentPage, ITabSwipeHost
                 return;
 
             if (ui.TryGetValue("AnimeList", out var a) && a is bool ab && ab)
+            {
                 _animeListPanelExpanded = true;
+                EnsureAnimeListPanel();
+            }
             if (ui.TryGetValue("MangaList", out var ml) && ml is bool mlb && mlb)
+            {
                 _mangaListPanelExpanded = true;
+                EnsureMangaListPanel();
+            }
             if (ui.TryGetValue("TopAnime", out var ta) && ta is bool tab && tab)
+            {
                 _topAnimePanelExpanded = true;
+                EnsureTopAnimePanel();
+            }
             if (ui.TryGetValue("TopManga", out var tm) && tm is bool tmb && tmb)
+            {
                 _topMangaPanelExpanded = true;
+                EnsureTopMangaPanel();
+            }
             if (ui.TryGetValue("Adapted", out var ad) && ad is bool adb && adb)
+            {
                 _adaptedPanelExpanded = true;
+                EnsureAdaptedPanel();
+            }
 
             ApplyPanelState(AnimeListPanel, AnimeListArrow, AnimeListDivider, _animeListPanelExpanded);
             ApplyPanelState(MangaListPanel, MangaListArrow, MangaListDivider, _mangaListPanelExpanded);

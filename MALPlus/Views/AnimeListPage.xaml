@@ -32,7 +32,7 @@
              Neither bar draws a Stroke, not even a hairline: a rule above and below turned the block
              into two stacked framed boxes and fought the grid underneath it. The fill alone is enough
              to separate them from EmBackground. -->
-        <Border x:Name="StatusBar" Grid.Row="0" IsVisible="False"
+        <Border x:Name="StatusBar" Grid.Row="0"
                 BackgroundColor="{DynamicResource EmSheet}" Padding="14,0" HeightRequest="52">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                 <!-- Left aligned, chevron tucked against the word so the pair reads as one control
@@ -248,6 +248,13 @@
         </Grid>
 
         <controls:BottomNavBar x:Name="BottomNav" Grid.Row="3" />
+
+        <!-- Transient floating share button for episode/score updates -->
+        <controls:FloatingShareButton x:Name="ShareFab" Grid.RowSpan="4"
+                                      ZIndex="150"
+                                      HorizontalOptions="End"
+                                      VerticalOptions="End"
+                                      Margin="0,0,16,76" />
 
         <!-- Poster options. Long press on any card raises the grid's ItemLongPressed, which lands
              here. Last in the tree so it draws over everything, including the navigation bar. -->

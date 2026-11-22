@@ -168,6 +168,12 @@ public partial class SettingsPage : ContentPage
                     ? (options[idx].ShortLabel ?? options[idx].Label)
                     : "System default";
             }
+
+            // 7. Share button duration
+            if (ShareDurationValueLabel != null)
+            {
+                ShareDurationValueLabel.Text = $"{vm.ShareTimerDuration} seconds";
+            }
         }
         catch (Exception ex)
         {
@@ -258,6 +264,21 @@ public partial class SettingsPage : ContentPage
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS OnPickLibrarySortClicked failed: " + ex.Message);
+        }
+    }
+
+    private async void OnResetPerListSortsClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var confirmed = await OptionsSheetHost.ConfirmAsync("Reset per-list sorts",
+                "Reset custom sorting for all individual status lists to the default library sort?", "Reset", destructive: true);
+            if (!confirmed) return;
+            MALPlus.XShared.Utils.Settings.ClearPerListSorts();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnResetPerListSortsClicked failed: " + ex.Message);
         }
     }
 
@@ -378,6 +399,49 @@ public partial class SettingsPage : ContentPage
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS OnPickCalendarTimeZoneClicked failed: " + ex.Message);
+        }
+    }
+
+    private static readonly int[] ShareDurationOptions = { 10, 15, 20, 30 };
+
+    private async void OnPickShareDurationClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var current = vm.ShareTimerDuration;
+            var rows = ShareDurationOptions.Select(d =>
+                new OptionsSheetItem($"{d} seconds", null, value: d == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Share button duration",
+                "How long the floating share button stays on screen", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            var match = ShareDurationOptions.FirstOrDefault(d => $"{d} seconds" == picked);
+            if (match > 0)
+            {
+                vm.ShareTimerDuration = match;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickShareDurationClicked failed: " + ex.Message);
+        }
+    }
+
+    private void OnResetShareTemplatesClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            vm.ResetShareTemplatesToDefault();
+            UpdateSelectorLabels();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnResetShareTemplatesClicked failed: " + ex.Message);
         }
     }
 

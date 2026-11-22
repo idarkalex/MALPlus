@@ -246,12 +246,39 @@ namespace MALPlus.XShared.ViewModels.Main
                     source = authSource;
             }
 
+            var targetMode = manga ? AnimeListWorkModes.Manga : AnimeListWorkModes.Anime;
+            SortOptions sortOption;
+            bool sortDescending;
+
+            if (Settings.IndividualSortPerList)
+            {
+                if (Settings.TryGetPerListSort(manga, AnimeStatus.Watching, out var pOpt, out var pDesc))
+                {
+                    sortOption = pOpt;
+                    sortDescending = pDesc;
+                }
+                else
+                {
+                    sortOption = ResolveDefaultSortOrder(manga);
+                    sortDescending = ResolveDefaultSortDescending(sortOption, manga);
+                }
+            }
+            else
+            {
+                if (SortOption != SortOptions.SortNothing)
+                {
+                    sortOption = SortOption;
+                    sortDescending = SortDescending;
+                }
+                else
+                {
+                    sortOption = ResolveDefaultSortOrder(manga);
+                    sortDescending = ResolveDefaultSortDescending(sortOption, manga);
+                }
+            }
+
             if (source.Count > 0)
             {
-                var targetMode = manga ? AnimeListWorkModes.Manga : AnimeListWorkModes.Anime;
-                var sortOption = (WorkMode == targetMode) ? SortOption : ResolveDefaultSortOrder(manga);
-                var sortDescending = (WorkMode == targetMode) ? SortDescending : ResolveDefaultSortDescending(sortOption, manga);
-
                 var filtered = source
                     .Where(item => item != null &&
                                    (item.MyStatus == AnimeStatus.Watching || item.IsRewatching));
@@ -261,8 +288,16 @@ namespace MALPlus.XShared.ViewModels.Main
                     .ToList();
             }
 
-            return (manga ? _previewMangaSnapshot : _previewAnimeSnapshot)
-                   ?? Array.Empty<AnimeItemViewModel>();
+            var snapshot = manga ? _previewMangaSnapshot : _previewAnimeSnapshot;
+            if (snapshot != null && snapshot.Count > 0)
+            {
+                var items = snapshot.Select(vm => vm.ParentAbstraction).Where(a => a != null);
+                return ApplySorting(items, sortOption, sortDescending, targetMode)
+                    .Select(item => item.ViewModel)
+                    .ToList();
+            }
+
+            return Array.Empty<AnimeItemViewModel>();
         }
 
         private IReadOnlyList<AnimeItemViewModel> _previewAnimeSnapshot;
@@ -277,7 +312,14 @@ namespace MALPlus.XShared.ViewModels.Main
             _previewAnimeSnapshot = null;
             _previewMangaSnapshot = null;
             LibraryVersion++;
-            PreviewLibraryChanged?.Invoke();
+            try
+            {
+                ResourceLocator.DispatcherAdapter?.Run(() => PreviewLibraryChanged?.Invoke());
+            }
+            catch
+            {
+                PreviewLibraryChanged?.Invoke();
+            }
         }
 
         public void ResetData()
@@ -321,13 +363,41 @@ namespace MALPlus.XShared.ViewModels.Main
                 try
                 {
                     var mode = manga ? AnimeListWorkModes.Manga : AnimeListWorkModes.Anime;
-                    var data = await new LibraryListQuery(Credentials.UserName, mode).GetLibrary(false);
+                    var data = await DataCache.RetrieveDataForUser(Credentials.UserName, mode);
+                    if (data == null || data.Count == 0)
+                        data = await new LibraryListQuery(Credentials.UserName, mode).GetLibrary(false);
                     if (data == null || data.Count == 0)
                         return;
 
                     var readOnlyManga = Settings.SelectedApiType == ApiType.Mal;
-                    var sortOption = (WorkMode == mode) ? SortOption : ResolveDefaultSortOrder(manga);
-                    var sortDescending = (WorkMode == mode) ? SortDescending : ResolveDefaultSortDescending(sortOption, manga);
+                    SortOptions sortOption;
+                    bool sortDescending;
+                    if (Settings.IndividualSortPerList)
+                    {
+                        if (Settings.TryGetPerListSort(manga, AnimeStatus.Watching, out var pOpt, out var pDesc))
+                        {
+                            sortOption = pOpt;
+                            sortDescending = pDesc;
+                        }
+                        else
+                        {
+                            sortOption = ResolveDefaultSortOrder(manga);
+                            sortDescending = ResolveDefaultSortDescending(sortOption, manga);
+                        }
+                    }
+                    else
+                    {
+                        if (SortOption != SortOptions.SortNothing)
+                        {
+                            sortOption = SortOption;
+                            sortDescending = SortDescending;
+                        }
+                        else
+                        {
+                            sortOption = ResolveDefaultSortOrder(manga);
+                            sortDescending = ResolveDefaultSortDescending(sortOption, manga);
+                        }
+                    }
 
                     var filtered = data
                         .Select(item => manga
@@ -692,7 +762,7 @@ namespace MALPlus.XShared.ViewModels.Main
 
                         if (!gotArgs)
                         {
-                            SortDescending = false;
+                            SortDescending = WorkMode == AnimeListWorkModes.SeasonalAnime ? true : false;
                             //Seasonal defaults to MAL score (descending), other modes to index order
                             SetSortOrder(WorkMode == AnimeListWorkModes.SeasonalAnime ? SortOptions.SortScore : SortOptions.SortWatched);
                             SetDesiredStatus(null);
@@ -985,8 +1055,21 @@ namespace MALPlus.XShared.ViewModels.Main
         {
             if (option == null)
             {
+                if (Settings.IndividualSortPerList && (WorkMode == AnimeListWorkModes.Anime || WorkMode == AnimeListWorkModes.Manga))
+                {
+                    var isManga = WorkMode == AnimeListWorkModes.Manga;
+                    var st = GetDesiredStatus();
+                    if (Settings.TryGetPerListSort(isManga, st, out var opt, out var desc))
+                    {
+                        _sortDescending = desc;
+                        SortOption = opt;
+                        SortingSettingChanged?.Invoke(opt, desc);
+                        return;
+                    }
+                }
+
                 var saved = WorkMode == AnimeListWorkModes.Manga ? Settings.MangaSortOrder : Settings.AnimeSortOrder;
-                if (WorkMode == AnimeListWorkModes.SeasonalAnime && saved == SortOptions.SortTitle)
+                if (WorkMode == AnimeListWorkModes.SeasonalAnime)
                     option = SortOptions.SortScore;
                 else
                     option = saved;
@@ -1046,7 +1129,7 @@ namespace MALPlus.XShared.ViewModels.Main
             else
             {
                 SetSortOrder(null);
-                if (!Settings.AutoDescendingSorting)
+                if (!Settings.AutoDescendingSorting && !Settings.IndividualSortPerList)
                     SortDescending = WorkMode == AnimeListWorkModes.Manga
                         ? Settings.IsMangaSortDescending
                         : Settings.IsSortDescending;
@@ -1107,7 +1190,18 @@ namespace MALPlus.XShared.ViewModels.Main
                         : items.OrderBy(item => item.Title ?? string.Empty);
                     break;
                 case SortOptions.SortScore:
-                    if (workMode != AnimeListWorkModes.SeasonalAnime)
+                    if (workMode == AnimeListWorkModes.SeasonalAnime)
+                    {
+                        // Seasonal anime: sort by community score (GlobalScore)
+                        items = sortDescending
+                            ? items.OrderByDescending(item => item.GlobalScore > 0 ? 1 : 0)
+                                   .ThenByDescending(item => item.GlobalScore)
+                                   .ThenBy(item => item.Title ?? string.Empty)
+                            : items.OrderByDescending(item => item.GlobalScore > 0 ? 1 : 0)
+                                   .ThenBy(item => item.GlobalScore)
+                                   .ThenBy(item => item.Title ?? string.Empty);
+                    }
+                    else
                     {
                         // Personal score: rated items (> 0) first, unrated (0) ALWAYS at the end in both directions.
                         items = sortDescending
@@ -1118,8 +1212,6 @@ namespace MALPlus.XShared.ViewModels.Main
                                    .ThenBy(item => item.MyScore)
                                    .ThenBy(item => item.Title ?? string.Empty);
                     }
-                    else
-                        items = items.OrderBy(item => item.Index);
                     break;
                 case SortOptions.SortGlobalScore:
                     // Community score: rated items (> 0) first, unrated (<= 0) ALWAYS at the end in both directions.
@@ -1808,9 +1900,9 @@ catch (Exception)
                     // Names the panel that actually failed. It used to say CurrentSeason?.Name, which
                     // on a Top panel is the placeholder the seasonal path leaves behind, so every Top
                     // filter reported "Could not load Airing" no matter which one was tapped.
-                    bool hasItems = WorkMode == AnimeListWorkModes.TopAnime || WorkMode == AnimeListWorkModes.TopManga
+                    bool hasItems = WorkMode == AnimeListWorkModes.TopAnime
                         ? _animeLibraryDataStorage.AllLoadedSeasonalAnimeItems.Count > 0
-                        : WorkMode == AnimeListWorkModes.MangaAdapted || WorkMode == AnimeListWorkModes.Manga
+                        : (WorkMode == AnimeListWorkModes.TopManga || WorkMode == AnimeListWorkModes.MangaAdapted || WorkMode == AnimeListWorkModes.Manga)
                             ? _animeLibraryDataStorage.AllLoadedSeasonalMangaItems.Count > 0
                             : _animeItems.Count > 0;
                     if (hasItems && page > 1)
@@ -1952,9 +2044,16 @@ catch (Exception)
                     // Cost: the card shows that season's numbers and the local progress is not shown on
                     // this panel. The library itself is untouched, and Top Anime is left alone because
                     // its cards never move between panels while Seasonal does.
-                    if (WorkMode == AnimeListWorkModes.SeasonalAnime || source == null)
+                    if (WorkMode == AnimeListWorkModes.SeasonalAnime ||
+                        WorkMode == AnimeListWorkModes.TopAnime ||
+                        WorkMode == AnimeListWorkModes.TopManga ||
+                        source == null)
                     {
-                        target.Add(new AnimeItemAbstraction(animeData as SeasonalAnimeData, true));
+                        var abs = new AnimeItemAbstraction(animeData as SeasonalAnimeData, WorkMode != AnimeListWorkModes.TopManga && WorkMode != AnimeListWorkModes.MangaAdapted);
+                        abs.Index = animeData.Index;
+                        target.Add(abs);
+                        if (WorkMode == AnimeListWorkModes.TopAnime || WorkMode == AnimeListWorkModes.TopManga)
+                            abs.ViewModel.EnableRank();
                         continue;
                     }
 
@@ -2333,6 +2432,12 @@ catch (Exception)
                         _animeLibraryDataStorage.AllLoadedAuthAnimeItems = new List<AnimeItemAbstraction>();
                     else if (_animeLibraryDataStorage.AllLoadedAuthAnimeItems.Count > 0 && string.Equals(ListSource, Credentials.UserName, StringComparison.CurrentCultureIgnoreCase))
                         _animeLibraryDataStorage.AllLoadedAnimeItemAbstractions = _animeLibraryDataStorage.AllLoadedAuthAnimeItems;
+
+                    if (_animeLibraryDataStorage.AllLoadedAnimeItemAbstractions.Count > 0)
+                    {
+                        foreach (var item in _animeLibraryDataStorage.AllLoadedAnimeItemAbstractions)
+                            item?.ViewModel?.DisableRank();
+                    }
                     break;
                 case AnimeListWorkModes.Manga:
                     _attemptedMangaFetch = true;
@@ -2341,6 +2446,12 @@ catch (Exception)
                         _animeLibraryDataStorage.AllLoadedAuthMangaItems = new List<AnimeItemAbstraction>();
                     else if (_animeLibraryDataStorage.AllLoadedAuthMangaItems.Count > 0 && string.Equals(ListSource, Credentials.UserName, StringComparison.CurrentCultureIgnoreCase))
                         _animeLibraryDataStorage.AllLoadedMangaItemAbstractions = _animeLibraryDataStorage.AllLoadedAuthMangaItems;
+
+                    if (_animeLibraryDataStorage.AllLoadedMangaItemAbstractions.Count > 0)
+                    {
+                        foreach (var item in _animeLibraryDataStorage.AllLoadedMangaItemAbstractions)
+                            item?.ViewModel?.DisableRank();
+                    }
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -2571,11 +2682,15 @@ catch (Exception)
                 page.CurrentStatusSub = "";
         }
 
+        public static AnimeStatus StatusFromIndex(int index)
+        {
+            var value = index + 1;
+            return (AnimeStatus)(value == 0 ? 1 : value == 5 || value == 6 ? value + 1 : value);
+        }
+
         public AnimeStatus GetDesiredStatus()
         {
-            var value = StatusSelectorSelectedIndex;
-            value++;
-            return (AnimeStatus)(value == 0 ? 1 : value == 5 || value == 6 ? value + 1 : value);
+            return StatusFromIndex(StatusSelectorSelectedIndex);
         }
 
         private void SetDisplayMode(AnimeStatus val)

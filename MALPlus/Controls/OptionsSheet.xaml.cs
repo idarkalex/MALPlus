@@ -395,7 +395,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         try
         {
             ApplyCompactShape();
-            Panel.WidthRequest = 310;
+            Panel.WidthRequest = 340;
 
             Header.IsVisible = true;
             CloseButton.IsVisible = true;
@@ -408,7 +408,15 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             }
             else
             {
-                SubtitleLabel.Text = subtitle;
+                var cleanSub = subtitle;
+                if (cleanSub.Contains(" - "))
+                {
+                    var subParts = cleanSub.Split(new[] { " - " }, 2, StringSplitOptions.None);
+                    if (subParts.Length == 2 && string.Equals(subParts[0].Trim(), subParts[1].Trim(), StringComparison.OrdinalIgnoreCase))
+                        cleanSub = subParts[0].Trim();
+                }
+
+                SubtitleLabel.Text = cleanSub;
                 SubtitleLabel.IsVisible = true;
                 SubtitleLabel.MaxLines = 4;
                 SubtitleLabel.LineBreakMode = LineBreakMode.WordWrap;
@@ -424,21 +432,14 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     Stroke = _colorUpdateStroke,
                     StrokeThickness = 1,
                     StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
-                    Padding = new Thickness(12, 10),
+                    Padding = new Thickness(14, 10),
                     Margin = new Thickness(0, 4, 0, 8),
-                    MaximumHeightRequest = 240
+                    MaximumHeightRequest = 360
                 };
 
                 var notesScroll = new ScrollView
                 {
-                    Content = new Label
-                    {
-                        Text = notes,
-                        FontFamily = "Inter",
-                        FontSize = 12,
-                        TextColor = _colorUpdateText,
-                        LineBreakMode = LineBreakMode.WordWrap
-                    }
+                    Content = BuildFormattedNotesView(notes)
                 };
                 notesBorder.Content = notesScroll;
                 ItemsHost.Add(notesBorder);
@@ -624,6 +625,122 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         Panel.StrokeThickness = 1;
 
         RowsScroll.MaximumHeightRequest = 520;
+    }
+
+    private static string CleanMarkdownLinks(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+        return System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"\[([^\]]+)\]\([^\)]+\)",
+            "$1");
+    }
+
+    private static View BuildFormattedNotesView(string rawNotes)
+    {
+        var stack = new VerticalStackLayout
+        {
+            Spacing = 4,
+            Padding = new Thickness(0, 2)
+        };
+
+        if (string.IsNullOrWhiteSpace(rawNotes))
+            return stack;
+
+        var lines = rawNotes.Replace("\r\n", "\n").Split('\n');
+        bool isFirstSection = true;
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd();
+            var trimmed = line.Trim();
+
+            if (string.IsNullOrWhiteSpace(trimmed))
+                continue;
+
+            // Skip top-level release title (e.g. # MAL+ v0.7.6) as it's already in the header
+            if (trimmed.StartsWith("# ") && !trimmed.StartsWith("## "))
+                continue;
+
+            // Section header: ## Section or ### Section
+            if (trimmed.StartsWith("## ") || trimmed.StartsWith("### "))
+            {
+                var headerText = CleanMarkdownLinks(trimmed.TrimStart('#').Trim());
+                var headerLabel = new Label
+                {
+                    Text = headerText,
+                    FontFamily = "InterBold",
+                    FontSize = 13,
+                    TextColor = _colorUpdateOk,
+                    Margin = new Thickness(0, isFirstSection ? 2 : 12, 0, 4)
+                };
+                stack.Add(headerLabel);
+                isFirstSection = false;
+                continue;
+            }
+
+            // Bullet points: - item or * item
+            if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") ||
+                trimmed.StartsWith("• ") || trimmed.StartsWith("  - ") || trimmed.StartsWith("    - "))
+            {
+                bool isSubBullet = line.StartsWith("  ") || line.StartsWith("\t");
+                var bulletContent = trimmed;
+                if (bulletContent.StartsWith("- ") || bulletContent.StartsWith("* ") || bulletContent.StartsWith("• "))
+                    bulletContent = bulletContent.Substring(2).Trim();
+
+                var label = new Label
+                {
+                    LineBreakMode = LineBreakMode.WordWrap,
+                    Margin = new Thickness(isSubBullet ? 14 : 0, 2, 0, 3)
+                };
+
+                var fs = new FormattedString();
+                fs.Spans.Add(new Span
+                {
+                    Text = isSubBullet ? "◦ " : "• ",
+                    FontFamily = "InterBold",
+                    FontSize = isSubBullet ? 11 : 12,
+                    TextColor = isSubBullet ? _colorUpdateCancelText : _colorUpdateOk
+                });
+
+                // Parse **bold** portions
+                var parts = bulletContent.Split(new[] { "**" }, StringSplitOptions.None);
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    var isBold = (i % 2 == 1);
+                    var partText = CleanMarkdownLinks(parts[i]);
+                    if (!string.IsNullOrEmpty(partText))
+                    {
+                        fs.Spans.Add(new Span
+                        {
+                            Text = partText,
+                            FontFamily = isBold ? "InterSemiBold" : "Inter",
+                            FontSize = 12,
+                            TextColor = isBold ? Colors.White : _colorUpdateText
+                        });
+                    }
+                }
+
+                label.FormattedText = fs;
+                stack.Add(label);
+                continue;
+            }
+
+            // Plain paragraph
+            var plainLabel = new Label
+            {
+                Text = CleanMarkdownLinks(trimmed.Replace("**", "")),
+                FontFamily = "Inter",
+                FontSize = 12,
+                TextColor = _colorUpdateText,
+                LineBreakMode = LineBreakMode.WordWrap,
+                Margin = new Thickness(0, 2, 0, 3)
+            };
+            stack.Add(plainLabel);
+        }
+
+        return stack;
     }
 
     private void Present(string title, string subtitle, IEnumerable<OptionsSheetItem> items, bool compact,

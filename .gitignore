@@ -63,3 +63,8 @@ Desktop.ini
 !/buttons/.gitignore
 .build-artifacts/
 .opencode/
+
+## Branding archive & source files
+branding-old/
+*.kra
+*.psd

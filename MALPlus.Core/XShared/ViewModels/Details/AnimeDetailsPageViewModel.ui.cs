@@ -91,7 +91,7 @@ namespace MALPlus.XShared.ViewModels.Details
 
         public string StatusDisplayBind => MyStatusBind;
 
-        private AnimeStatus MyStatus
+        public AnimeStatus MyStatus
         {
             get { return _animeItemReference?.MyStatus ?? AnimeStatus.AllOrAiring; }
             set
@@ -110,7 +110,7 @@ namespace MALPlus.XShared.ViewModels.Details
 
         public bool IsMyScoreSet => MyScore != 0;
 
-        private float MyScore
+        public float MyScore
         {
             get { return _animeItemReference?.MyScore ?? 0; }
             set

@@ -699,10 +699,6 @@ InitializeComponent();
                     action: () => EditTags(vm)));
             }
 
-            rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy title", "icon_copy",
-                vm.CopyTitleToClipboardCommand));
-            rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy link", "icon_list",
-                vm.CopyToClipboardCommand));
             rows.Add(new MALPlus.Controls.OptionsSheetItem("Open in browser", "icon_search",
                 vm.OpenInMalCommand));
 
@@ -716,6 +712,62 @@ InitializeComponent();
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS OnShowMoreRequested failed: " + ex.GetType().Name);
+        }
+    }
+
+    private void OnShareButtonTapped(object sender, EventArgs e)
+    {
+        var vm = Vm;
+        if (vm == null || DetailsSheet == null)
+            return;
+
+        OpenShareSubmenu(DetailsSheet, vm);
+    }
+
+    private bool OpenShareSubmenu(MALPlus.Controls.OptionsSheet sheet, AnimeDetailsPageViewModel vm)
+    {
+        try
+        {
+            var onList = !vm.AddAnimeVisibility;
+            var rows = new List<MALPlus.Controls.OptionsSheetItem>
+            {
+                new("Recommend to friends", "icon_share", action: () =>
+                {
+                    var msg = ResourceLocator.ShareManager.GenerateRecommendMessage(
+                        vm.Title, vm.Id, vm.AnimeMode, vm.GlobalScore, vm.Type, vm.AllEpisodes);
+                    GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(msg);
+                })
+            };
+
+            if (onList)
+            {
+                rows.Add(new MALPlus.Controls.OptionsSheetItem("Share my progress", "icon_user", action: () =>
+                {
+                    var msg = ResourceLocator.ShareManager.GenerateMyEntryMessage(
+                        vm.Title, vm.Id, vm.AnimeMode, vm.MyStatus.ToString(), (int)vm.MyScore, vm.MyEpisodes, vm.AllEpisodes);
+                    GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(msg);
+                }));
+            }
+
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Share link only", "icon_list", action: () =>
+            {
+                var url = $"https://myanimelist.net/{(vm.AnimeMode ? "anime" : "manga")}/{vm.Id}";
+                GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(url);
+            }));
+
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy link to clipboard", "icon_copy",
+                vm.CopyToClipboardCommand));
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy title to clipboard", "icon_copy",
+                vm.CopyTitleToClipboardCommand));
+
+            sheet.Open("Share", vm.Title, rows);
+            MainActivity.ArmMenuBackCallback(() => sheet.Dismiss());
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OpenShareSubmenu failed: " + ex.Message);
+            return false;
         }
     }
 

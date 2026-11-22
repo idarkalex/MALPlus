@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/app-logo.png" width="130px" alt="MAL+ Logo" />
+  <img src="images/brand-header.png" width="280px" alt="MAL+ Logo" />
 </p>
 
 <h1 align="center">MAL+ — Enhanced MyAnimeList Client</h1>
@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://malplus.vercel.app"><img src="https://img.shields.io/badge/Website-malplus.vercel.app-0066FF?logo=vercel&logoColor=white" alt="Official Website" /></a>
   <a href="https://github.com/idarkalex/MALPlus/releases/latest"><img src="https://img.shields.io/github/v/release/idarkalex/MALPlus?color=0066FF&label=Release&logo=github" alt="Latest Release" /></a>
   <a href="https://github.com/idarkalex/MALPlus/releases"><img src="https://img.shields.io/github/downloads/idarkalex/MALPlus/total?color=0066FF&logo=android&label=Downloads" alt="Total Downloads" /></a>
   <a href="https://github.com/idarkalex/MALPlus/stargazers"><img src="https://img.shields.io/github/stars/idarkalex/MALPlus?style=flat&color=0066FF&logo=github" alt="GitHub Stars" /></a>
@@ -20,12 +21,17 @@
 </p>
 
 <p align="center">
+  <a href="https://malplus.vercel.app">
+    <img src="https://img.shields.io/badge/Official_Website-malplus.vercel.app-101B2E?style=for-the-badge&logo=vercel&logoColor=white" alt="Official Website" />
+  </a>
+  &nbsp;
   <a href="https://github.com/idarkalex/MALPlus/releases/latest">
     <img src="https://img.shields.io/badge/Download-Latest%20APK-0066FF?style=for-the-badge&logo=android&logoColor=white" alt="Download Latest APK" />
   </a>
 </p>
 
 <p align="center">
+  <a href="https://malplus.vercel.app">🌐 Official Website</a> &bull;
   <a href="#-why-mal">Why MAL+?</a> &bull;
   <a href="#-features">Features</a> &bull;
   <a href="#-preview--screenshots">Screenshots</a> &bull;

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MALPlus.Controls.FloatingShareButton"
+             IsVisible="False"
+             Opacity="0"
+             InputTransparent="False">
+    <Border StrokeShape="RoundRectangle 20"
+            BackgroundColor="#0066FF"
+            Stroke="Transparent"
+            Padding="14,0,10,0"
+            HeightRequest="40"
+            HorizontalOptions="End"
+            VerticalOptions="Center">
+        <Border.Shadow>
+            <Shadow Brush="#80000000" Offset="0,4" Radius="8" Opacity="0.5" />
+        </Border.Shadow>
+        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                <HorizontalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnShareTapped" />
+                </HorizontalStackLayout.GestureRecognizers>
+                <Image Source="icon_share" WidthRequest="18" HeightRequest="18"
+                       VerticalOptions="Center" />
+                <Label Text="Share update" FontFamily="InterSemiBold" FontSize="13"
+                       TextColor="#FFFFFF" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <BoxView WidthRequest="1" HeightRequest="18" BackgroundColor="#40FFFFFF"
+                     VerticalOptions="Center" Margin="2,0" />
+
+            <Border WidthRequest="22" HeightRequest="22" StrokeShape="RoundRectangle 11"
+                    BackgroundColor="#20FFFFFF" Padding="0" VerticalOptions="Center">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnDismissTapped" />
+                </Border.GestureRecognizers>
+                <Label Text="✕" FontFamily="InterBold" FontSize="11" TextColor="#FFFFFF"
+                       HorizontalTextAlignment="Center" VerticalTextAlignment="Center" />
+            </Border>
+        </HorizontalStackLayout>
+    </Border>
+</ContentView>

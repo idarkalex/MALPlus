@@ -56,6 +56,12 @@ namespace MALPlus.XShared.BL
             _lastEvents.Add((action, diff));
         }
 
+        public void Dismiss()
+        {
+            _lastEvents.Clear();
+            StopTimer();
+        }
+
         string IShareManager.GenerateMessage()
         {
             try
@@ -64,13 +70,96 @@ namespace MALPlus.XShared.BL
                 if (string.IsNullOrEmpty(msg))
                     return null;
 
-                return $"{msg}\n\n" +
-                       "#MalPlus";
+                if (!string.IsNullOrWhiteSpace(Settings.ShareCustomSuffix))
+                    return $"{msg}\n\n{Settings.ShareCustomSuffix.Trim()}";
+
+                return msg;
             }
             catch (Exception)
             {
                 return null;
             }
+        }
+
+        public string GenerateRecommendMessage(string title, int id, bool isAnime, float score, string type, int totalEpisodes)
+        {
+            try
+            {
+                var template = Settings.ShareTemplateRecommend;
+                var url = $"https://myanimelist.net/{(isAnime ? "anime" : "manga")}/{id}";
+                var scoreStr = score > 0 ? score.ToString("0.00") : "N/A";
+                var totalStr = totalEpisodes > 0 ? totalEpisodes.ToString() : "?";
+
+                var msg = template
+                    .Replace("{title}", title ?? string.Empty)
+                    .Replace("{url}", url)
+                    .Replace("{score}", scoreStr)
+                    .Replace("{type}", type ?? (isAnime ? "Anime" : "Manga"))
+                    .Replace("{total}", totalStr);
+
+                if (!string.IsNullOrWhiteSpace(Settings.ShareCustomSuffix))
+                    return $"{msg}\n\n{Settings.ShareCustomSuffix.Trim()}";
+
+                return msg;
+            }
+            catch
+            {
+                return $"Check out {title} on MyAnimeList! https://myanimelist.net/{(isAnime ? "anime" : "manga")}/{id}";
+            }
+        }
+
+        public string GenerateMyEntryMessage(string title, int id, bool isAnime, string status, int myScore, int watched, int totalEpisodes)
+        {
+            try
+            {
+                var url = $"https://myanimelist.net/{(isAnime ? "anime" : "manga")}/{id}";
+                string template;
+                if (status != null && status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                {
+                    template = Settings.ShareTemplateCompleted;
+                }
+                else
+                {
+                    template = isAnime ? Settings.ShareTemplateWatched : Settings.ShareTemplateRead;
+                }
+
+                var msg = template
+                    .Replace("{title}", title ?? string.Empty)
+                    .Replace("{url}", url)
+                    .Replace("{ep}", watched.ToString())
+                    .Replace("{total}", totalEpisodes > 0 ? totalEpisodes.ToString() : "?")
+                    .Replace("{status}", status ?? (isAnime ? "Watching" : "Reading"));
+
+                msg = CleanScorePlaceholder(msg, myScore);
+
+                if (!string.IsNullOrWhiteSpace(Settings.ShareCustomSuffix))
+                    return $"{msg}\n\n{Settings.ShareCustomSuffix.Trim()}";
+
+                return msg;
+            }
+            catch
+            {
+                var scorePart = myScore > 0 ? $" ({myScore}/10)" : string.Empty;
+                return $"{title} - {status}{scorePart} https://myanimelist.net/{(isAnime ? "anime" : "manga")}/{id}";
+            }
+        }
+
+        private static string CleanScorePlaceholder(string text, int score)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            if (score > 0)
+                return text.Replace("{score}", score.ToString());
+
+            return text
+                .Replace(" with score of {score}/10.", ".")
+                .Replace(" with score of {score}/10", string.Empty)
+                .Replace(" scored {score}/10.", ".")
+                .Replace(" scored {score}/10", string.Empty)
+                .Replace(" ({score}/10)", string.Empty)
+                .Replace(" {score}/10", string.Empty)
+                .Replace("{score}", string.Empty);
         }
 
         private string GenerateMessage()
@@ -85,39 +174,63 @@ namespace MALPlus.XShared.BL
             _lastEvents.Clear();
             StopTimer();
 
+            // 1. Completion (with or without score)
+            if (statusDiff.diff != null && statusDiff.diff.NewStatus == AnimeStatus.Completed)
+            {
+                var template = Settings.ShareTemplateCompleted;
+                var scoreVal = scoreDiff.diff != null ? scoreDiff.diff.NewScore : statusDiff.diff.NewScore;
+                var msg = template
+                    .Replace("{title}", statusDiff.diff.Title)
+                    .Replace("{url}", statusDiff.diff.Url)
+                    .Replace("{status}", "completed");
+
+                return CleanScorePlaceholder(msg, scoreVal);
+            }
+
+            // 2. Both score and episodes changed
+            if (events.HasFlag(ShareEvent.AnimeScoreChanged) &&
+                events.HasFlag(ShareEvent.AnimeEpisodesChanged) && epDiff.diff != null && scoreDiff.diff != null)
+            {
+                var template = epDiff.diff.IsAnime ? Settings.ShareTemplateWatched : Settings.ShareTemplateRead;
+                if (template.Contains("{ep}"))
+                {
+                    var msg = template
+                        .Replace("{title}", epDiff.diff.Title)
+                        .Replace("{url}", epDiff.diff.Url)
+                        .Replace("{ep}", epDiff.diff.NewEpisodes.ToString())
+                        .Replace("{total}", epDiff.diff.TotalEpisodes > 0 ? epDiff.diff.TotalEpisodes.ToString() : "?");
+
+                    msg = CleanScorePlaceholder(msg, scoreDiff.diff.NewScore);
+
+                    if (!template.Contains("{score}") && scoreDiff.diff.NewScore > 0)
+                        msg = $"{msg} (Scored {scoreDiff.diff.NewScore}/10)";
+
+                    return msg;
+                }
+                return
+                    $"I've {WatchedOrRead()} {epDiff.diff.NewEpisodes}{FormatAllEpisodes(epDiff.diff.TotalEpisodes)} {EpisodesOrChapters()} of {epDiff.diff.Title} and scored it {scoreDiff.diff.NewScore}/10.\n" +
+                    $"{epDiff.diff.Url}";
+            }
+
+            // 3. Episode progress changed
+            if (events.HasFlag(ShareEvent.AnimeEpisodesChanged) && epDiff.diff != null)
+            {
+                var template = epDiff.diff.IsAnime ? Settings.ShareTemplateWatched : Settings.ShareTemplateRead;
+                var msg = template
+                    .Replace("{title}", epDiff.diff.Title)
+                    .Replace("{url}", epDiff.diff.Url)
+                    .Replace("{ep}", epDiff.diff.NewEpisodes.ToString())
+                    .Replace("{total}", epDiff.diff.TotalEpisodes > 0 ? epDiff.diff.TotalEpisodes.ToString() : "?");
+
+                return CleanScorePlaceholder(msg, epDiff.diff.NewScore);
+            }
+
             if (events.HasFlag(ShareEvent.AnimeScoreChanged) &&
                 events.HasFlag(ShareEvent.AnimeStatusChanged))
             {
                 return
                     $"I've {FormatStatus(statusDiff.diff.NewStatus, statusDiff.diff.IsAnime)} {statusDiff.diff.Title} with score of {scoreDiff.diff.NewScore}/10.\n" +
                     $"{statusDiff.diff.Url}";
-            }
-
-            if (events.HasFlag(ShareEvent.AnimeScoreChanged) &&
-                events.HasFlag(ShareEvent.AnimeEpisodesChanged))
-
-            {
-                return
-                    $"I've {WatchedOrRead()} {epDiff.diff.NewEpisodes}{FormatAllEpisodes(epDiff.diff.TotalEpisodes)} {EpisodesOrChapters()} of {epDiff.diff.Title} and scored it {scoreDiff.diff.NewScore}/10.\n" +
-                    $"{epDiff.diff.Url}";
-            }
-
-            if (events.HasFlag(ShareEvent.AnimeEpisodesChanged) &&
-                events.HasFlag(ShareEvent.AnimeStatusChanged))
-
-            {
-                return
-                    $"I've {FormatStatus(statusDiff.diff.NewStatus, statusDiff.diff.IsAnime)} {epDiff.diff.Title} with {epDiff.diff.NewEpisodes}{FormatAllEpisodes(epDiff.diff.TotalEpisodes)} {EpisodesOrChapters()} {WatchedOrRead()}.\n" +
-                    $"{epDiff.diff.Url}";
-            }
-
-            if (events.HasFlag(ShareEvent.AnimeEpisodesChanged))
-            {
-                return
-                    $"I've just {WatchedOrRead()} the {FormatEpisode(epDiff.diff.NewEpisodes)} {EpisodeOrChapter()} of {epDiff.diff.Title}.\n" +
-                    $"{epDiff.diff.Url}";
-
-                //$"I've just {WatchedOrRead()} {epDiff.diff.NewEpisodes}/{FormatAllEpisodes(epDiff.diff.TotalEpisodes)} {EpisodesOrChapters()} of {epDiff.diff.Title}.\n" +
             }
 
             if (events.HasFlag(ShareEvent.AnimeStatusChanged))
@@ -154,7 +267,7 @@ namespace MALPlus.XShared.BL
             string ReWatchingOrRereading() => rewatchDiff.diff.IsAnime ? "re-watching" : "re-reading";
             string ReWatchedOrReread() => rewatchDiff.diff.IsAnime ? "re-watched" : "re-reread";
             string EpisodesOrChapters() => epDiff.diff.IsAnime ? "episodes" :  (epDiff.diff.IsVolumes ? "volumes" : "chapters");
-            string EpisodeOrChapter() => epDiff.diff.IsAnime ? "episode" : (epDiff.diff.IsVolumes ? "volume" : "chapter"); ;
+            string EpisodeOrChapter() => epDiff.diff.IsAnime ? "episode" : (epDiff.diff.IsVolumes ? "volume" : "chapter");
         }
 
         private void CountdownTimerOnElapsed(object sender, ElapsedEventArgs e)
@@ -209,7 +322,8 @@ namespace MALPlus.XShared.BL
                 _countdownTimer = null;
             }
 
-            _countdownTimer = new Timer(10000);
+            var durationSeconds = Math.Max(5, Settings.ShareTimerDuration);
+            _countdownTimer = new Timer(durationSeconds * 1000);
             _countdownTimer.Elapsed += CountdownTimerOnElapsed;
             _countdownTimer.Start();
             if(!ShareTimerRunning)

@@ -486,15 +486,24 @@ public partial class BottomNavBar : ContentView
     private static bool OnSection(string section)
         => string.Equals(CurrentSection(), section, StringComparison.OrdinalIgnoreCase);
 
+    private static readonly ImageSource s_discoverNormal = ImageSource.FromFile("discover_compass");
+    private static readonly ImageSource s_discoverAccent = ImageSource.FromFile("discover_compass_accent");
+    private static readonly ImageSource s_animeNormal = ImageSource.FromFile("anime_list");
+    private static readonly ImageSource s_animeAccent = ImageSource.FromFile("anime_list_accent");
+    private static readonly ImageSource s_mangaNormal = ImageSource.FromFile("manga_books");
+    private static readonly ImageSource s_mangaAccent = ImageSource.FromFile("manga_books_accent");
+    private static readonly ImageSource s_moreNormal = ImageSource.FromFile("more_dots");
+    private static readonly ImageSource s_moreAccent = ImageSource.FromFile("more_dots_accent");
+
     private void SetSelectedSection(string section)
     {
-        SetSelected(DiscoverButton, DiscoverIcon, DiscoverLabel, "discover_compass",
+        SetSelected(DiscoverButton, DiscoverIcon, DiscoverLabel, s_discoverNormal, s_discoverAccent,
             string.Equals(section, "discover", StringComparison.OrdinalIgnoreCase));
-        SetSelected(AnimeButton, AnimeIcon, AnimeLabel, "anime_list",
+        SetSelected(AnimeButton, AnimeIcon, AnimeLabel, s_animeNormal, s_animeAccent,
             string.Equals(section, "anime", StringComparison.OrdinalIgnoreCase));
-        SetSelected(MangaButton, MangaIcon, MangaLabel, "manga_books",
+        SetSelected(MangaButton, MangaIcon, MangaLabel, s_mangaNormal, s_mangaAccent,
             string.Equals(section, "manga", StringComparison.OrdinalIgnoreCase));
-        SetSelected(MoreButton, MoreIcon, MoreLabel, "more_dots",
+        SetSelected(MoreButton, MoreIcon, MoreLabel, s_moreNormal, s_moreAccent,
             string.Equals(section, "more", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -508,16 +517,18 @@ public partial class BottomNavBar : ContentView
     ///     dots are gone now, moved to the status bar on the list page, so a pill could be brought
     ///     back if the tint ever stops being enough.
     /// </summary>
-    private static void SetSelected(Button button, Image icon, Label label, string iconName, bool selected)
+    private static void SetSelected(Button button, Image icon, Label label, ImageSource normalSource, ImageSource accentSource, bool selected)
     {
         try
         {
+            var targetOpacity = selected ? 1.0 : 0.55;
+            if (Math.Abs(icon.Opacity - targetOpacity) < 0.05 && (selected ? icon.Source == accentSource : icon.Source == normalSource))
+                return;
+
             button.BackgroundColor = TransparentButtonColor;
             label.TextColor = selected ? SelectedColor : UnselectedColor;
-            // Image has no tint in MAUI 7, so the selected tab swaps to an accent-coloured
-            // copy of the same glyph instead of being marked with an outline.
-            icon.Source = ImageSource.FromFile(selected ? $"{iconName}_accent" : iconName);
-            icon.Opacity = selected ? 1.0 : 0.55;
+            icon.Source = selected ? accentSource : normalSource;
+            icon.Opacity = targetOpacity;
         }
         catch { }
     }
@@ -641,9 +652,16 @@ public partial class BottomNavBar : ContentView
             // A bar on another root (More, Discover) navigates to a list section that
             // already exists, and Shell drops the route query on the way; the page's
             // own SectionActivated never fires because this is not its bar.
-            if (IsListSection(section) && shell.CurrentPage is not MALPlus.Views.AnimeListPage)
+            if (IsListSection(section))
             {
-                MALPlus.Views.AnimeListPage.ClearPendingRootRoute(route);
+                if (shell.CurrentPage is MALPlus.Views.AnimeListPage listPage)
+                {
+                    listPage.ApplyRouteFromShell(route);
+                }
+                else
+                {
+                    MALPlus.Views.AnimeListPage.ClearPendingRootRoute(route);
+                }
             }
             MainThread.BeginInvokeOnMainThread(() =>
             {

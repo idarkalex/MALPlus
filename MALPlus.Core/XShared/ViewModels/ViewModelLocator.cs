@@ -67,6 +67,8 @@ namespace MALPlus.XShared.ViewModels
 
         public static AnimeListViewModel AnimeList => SimpleIoc.Default.GetInstance<AnimeListViewModel>();
 
+        public static AnimeListViewModel MangaList => SimpleIoc.Default.GetInstance<AnimeListViewModel>("manga");
+
         public static ProfilePageViewModel ProfilePage => SimpleIoc.Default.GetInstance<ProfilePageViewModel>();
 
         public static RecommendationsViewModel Recommendations

@@ -297,8 +297,24 @@ public partial class AnimePosterGrid : ContentView
     {
         InitializeComponent();
         ItemsView.Scrolled += OnItemsScrolled;
+#if ANDROID
+        ItemsView.HandlerChanged += OnItemsViewHandlerChanged;
+#endif
         ApplyLayout(force: true);
     }
+
+#if ANDROID
+    private void OnItemsViewHandlerChanged(object sender, EventArgs e)
+    {
+        if (ItemsView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+        {
+            rv.HasFixedSize = true;
+            rv.SetItemViewCacheSize(12);
+            rv.SetItemAnimator(null);
+            rv.OverScrollMode = Android.Views.OverScrollMode.Never;
+        }
+    }
+#endif
 
     /// <summary>
     ///     The inner collection, for the few hosts that need list-level features the grid does not

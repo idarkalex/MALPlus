@@ -328,6 +328,7 @@ namespace MALPlus.XShared.Utils
                     Settings.SelectedApiType = ApiType.Mal;
                     SetAuthStatus(true);
                     ViewModelLocator.AnimeList.ListSource = UserName;
+                    ViewModelLocator.MangaList.ListSource = UserName;
                     return true;
                 }
             }

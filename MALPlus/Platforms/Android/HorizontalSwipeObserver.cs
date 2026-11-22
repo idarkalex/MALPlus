@@ -89,6 +89,14 @@ internal static class HorizontalSwipeObserver
             return;
         }
 
+        // Lateral observer is ONLY for pushed sub-pages (ITabSwipeHost like Search, Profile, Forums).
+        // Root pages (Discover, Anime, Manga, More) are handled natively by ViewPager2 with zero reflection.
+        if (!IsAboveRoot())
+        {
+            _cancelled = true;
+            return;
+        }
+
         var decor = activity?.Window?.DecorView;
         if (decor == null || decor.Width <= 0 || decor.Height <= 0)
         {
@@ -309,13 +317,29 @@ internal static class HorizontalSwipeObserver
         return null;
     }
 
+    private static System.Reflection.PropertyInfo _mauiOrientationProp;
+    private static bool _mauiOrientationPropResolved;
+
     private static bool IsMauiHorizontalScroll(Android.Views.View view)
     {
+        if (view is Android.Widget.HorizontalScrollView)
+            return true;
+
         var type = view.GetType();
         if (!type.Name.Contains("ScrollView", StringComparison.Ordinal))
             return false;
 
-        var property = type.GetProperty(
+        if (!_mauiOrientationPropResolved)
+        {
+            _mauiOrientationProp = type.GetProperty(
+                "Orientation",
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Instance);
+            _mauiOrientationPropResolved = true;
+        }
+
+        var property = _mauiOrientationProp ?? type.GetProperty(
             "Orientation",
             System.Reflection.BindingFlags.Public |
             System.Reflection.BindingFlags.NonPublic |
