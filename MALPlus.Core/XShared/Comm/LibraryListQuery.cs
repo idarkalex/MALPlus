@@ -78,7 +78,7 @@ namespace MALPlus.XShared.Comm
                 var client = await ResourceLocator.MalHttpContextProvider.GetApiHttpContextAsync();
 
                 if (forceOtherUser)
-                    ResourceLocator.TelemetryProvider.LogEvent("Falling back to forceOtherUser");
+                    ResourceLocator.LocalDiagnostics.LogEvent("Falling back to forceOtherUser");
 
                 var offset = 0;
                 var i = 0;
@@ -138,7 +138,7 @@ namespace MALPlus.XShared.Comm
                                             }
                                             catch (Exception e)
                                             {
-                                                ResourceLocator.TelemetryProvider.LogEvent(rawAnime);
+                                                ResourceLocator.LocalDiagnostics.LogEvent(rawAnime);
                                                 var cached = await DataCache.RetrieveDataForUser(_source, _mode);
                                                 if (cached != null && cached.Count > 0)
                                                     return cached;
@@ -228,7 +228,7 @@ namespace MALPlus.XShared.Comm
                                                 }
                                                 catch (Exception e)
                                                 {
-                                                    ResourceLocator.TelemetryProvider.TrackException(e,
+                                                    ResourceLocator.LocalDiagnostics.TrackException(e,
                                                         "Load anime entry");
                                                 }
 
@@ -277,7 +277,7 @@ namespace MALPlus.XShared.Comm
                                             }
                                             catch (Exception e)
                                             {
-                                                ResourceLocator.TelemetryProvider.LogEvent(rawManga);
+                                                ResourceLocator.LocalDiagnostics.LogEvent(rawManga);
                                                 var cached = await DataCache.RetrieveDataForUser(_source, _mode);
                                                 if (cached != null && cached.Count > 0)
                                                     return cached;
@@ -342,7 +342,7 @@ namespace MALPlus.XShared.Comm
                                                 }
                                                 catch (Exception e)
                                                 {
-                                                    ResourceLocator.TelemetryProvider.TrackException(e,
+                                                    ResourceLocator.LocalDiagnostics.TrackException(e,
                                                         "Load manga entry");
                                                 }
 
@@ -368,7 +368,7 @@ namespace MALPlus.XShared.Comm
                     }
                     catch (Exception e)
                     {
-                        ResourceLocator.TelemetryProvider.TrackExceptionWithAttachment(e, rawAnime + $"\n{e.ToString()}", "GetLibraryApi");
+                        ResourceLocator.LocalDiagnostics.TrackExceptionWithAttachment(e, rawAnime + $"\n{e.ToString()}", "GetLibraryApi");
                         return await GetLibrary(false, true);
                     }
                 }
@@ -620,7 +620,7 @@ namespace MALPlus.XShared.Comm
                         }
                         catch (Exception e)
                         {
-                            ResourceLocator.TelemetryProvider.TrackException(e);
+                            ResourceLocator.LocalDiagnostics.TrackException(e);
                             lastError = e;
                             Console.WriteLine("MALPLUS library read failed: " + e);
                             if (failedOnce)
@@ -653,7 +653,7 @@ namespace MALPlus.XShared.Comm
             }
             catch (Exception e)
             {
-                ResourceLocator.TelemetryProvider.TrackException(e);
+                ResourceLocator.LocalDiagnostics.TrackException(e);
             }
 
             DataCache.SaveDataForUser(_source, output, _mode);

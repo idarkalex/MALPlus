@@ -241,7 +241,7 @@ namespace MALPlus.XShared.ViewModels.Clubs
             {
                 if (await MalClubQueries.PostComment(Details.Id, CommentInput))
                 {
-                    ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.CreatedClubComment);
+                    ResourceLocator.LocalDiagnostics.TelemetryTrackEvent(TelemetryTrackedEvents.CreatedClubComment);
                     Comments.Insert(0,new MalClubComment
                     {
                         Content = CommentInput,

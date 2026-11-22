@@ -328,7 +328,7 @@ if (_currUser == null || _currUser != args.TargetUser || force)
             }
             catch (Exception e)
             {
-                //ResourceLocator.TelemetryProvider.LogEvent($"Profile Crash: {args.TargetUser}, {e} , {e.StackTrace}");
+                //ResourceLocator.LocalDiagnostics.LogEvent($"Profile Crash: {args.TargetUser}, {e} , {e.StackTrace}");
                 //ResourceLocator.MessageDialogProvider.ShowMessageDialog(
                 //    "Hmm, you have encountered bug that'm hunting. I've just sent report to myself. If everything goes well it should be gone in next release :). Sorry for inconvenience!",
                 //    "Ooopsies!");

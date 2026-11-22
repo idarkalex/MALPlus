@@ -43,7 +43,7 @@ namespace MALPlus.XShared.Comm.Manga
             }
             catch (Exception e)
             {
-                ResourceLocator.TelemetryProvider.TrackException(e);
+                ResourceLocator.LocalDiagnostics.TrackException(e);
             }
 
             return "";

@@ -31,6 +31,16 @@ public static class MauiCrashDiagnostics
             };
         }
         catch { }
+#if ANDROID
+        try
+        {
+            Android.Runtime.AndroidEnvironment.UnhandledExceptionRaiser += (_, args) =>
+            {
+                Report("ANDROID_RUNTIME", args.Exception);
+            };
+        }
+        catch { }
+#endif
     }
 
     public static void Report(string kind, Exception ex)

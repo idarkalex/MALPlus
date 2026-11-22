@@ -37,8 +37,6 @@ public partial class SettingsPage : ContentPage
     {
         InitializeComponent();
         BindingContext = ViewModelLocator.Settings;
-        UpdateAccountHeader();
-        UpdateSelectorLabels();
         if (CalendarMaxItemsEntry != null)
             CalendarMaxItemsEntry.HandlerChanged += (s, e) => FixCalendarMaxItemsEntry();
     }
@@ -51,10 +49,10 @@ public partial class SettingsPage : ContentPage
             Vm.PropertyChanged += OnVmPropertyChanged;
         OnThemeChanged();
         UpdateAccountHeader();
-        UpdateCacheCount();
-        UpdateDiagnosticsAndVersion();
         UpdateSelectorLabels();
         FixCalendarMaxItemsEntry();
+        UpdateCacheCount();
+        UpdateDiagnosticsAndVersion();
         if (_initialized) return;
         _initialized = true;
     }
@@ -445,10 +443,17 @@ public partial class SettingsPage : ContentPage
         }
     }
 
+    private int _lastAppliedTheme = -1;
+
     private void OnThemeChanged()
     {
         try
         {
+            var currentTheme = MALPlus.XShared.Utils.Settings.AppTheme;
+            if (_lastAppliedTheme == currentTheme)
+                return;
+            _lastAppliedTheme = currentTheme;
+
             var bg = ThemeService.CurrentBackground;
             var sheet = ThemeService.CurrentSheet;
             var border = ThemeService.CurrentBorder;
@@ -478,29 +483,44 @@ public partial class SettingsPage : ContentPage
 
     private void UpdateDiagnosticsAndVersion()
     {
-        try
+        Task.Run(() =>
         {
-            if (LogSizeLabel != null)
-                LogSizeLabel.Text = AppLog.GetLogSizeSummary();
-            if (VersionLabel != null)
-                VersionLabel.Text = $"MAL+ v{AppInfo.VersionString} (Build {AppInfo.BuildString})";
-        }
-        catch { }
+            try
+            {
+                var summary = AppLog.GetLogSizeSummary();
+                var version = $"MAL+ v{AppInfo.VersionString} (Build {AppInfo.BuildString})";
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (LogSizeLabel != null)
+                        LogSizeLabel.Text = summary;
+                    if (VersionLabel != null)
+                        VersionLabel.Text = version;
+                });
+            }
+            catch { }
+        });
     }
 
     private void UpdateCacheCount()
     {
-        try
+        Task.Run(() =>
         {
-            var cache = MALPlus.XShared.ViewModels.ResourceLocator.DataCacheService as MALPlus.Services.MauiDataCache;
-            var files = cache?.CountCachedFiles() ?? 0;
-            CacheCountLabel.Text = files > 0
-                ? $"{files} files cached"
-                : "No cached files yet";
-        }
-        catch
-        {
-        }
+            try
+            {
+                var cache = MALPlus.XShared.ViewModels.ResourceLocator.DataCacheService as MALPlus.Services.MauiDataCache;
+                var files = cache?.CountCachedFiles() ?? 0;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (CacheCountLabel != null)
+                    {
+                        CacheCountLabel.Text = files > 0
+                            ? $"{files} files cached"
+                            : "No cached files yet";
+                    }
+                });
+            }
+            catch { }
+        });
     }
 
     private void UpdateAccountHeader()

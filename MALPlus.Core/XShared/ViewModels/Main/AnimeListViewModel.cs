@@ -1004,7 +1004,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     }
                     catch (Exception e)
                     {
-                        //ResourceLocator.TelemetryProvider.TrackException(e);
+                        //ResourceLocator.LocalDiagnostics.TrackException(e);
                     }
 
                 }

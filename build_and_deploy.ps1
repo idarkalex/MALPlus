@@ -114,7 +114,7 @@ if ($pathAdditions.Count -gt 0) {
 $adb = if ($env:ANDROID_HOME) { Join-Path $env:ANDROID_HOME "platform-tools\adb.exe" } else { "adb.exe" }
 $project = Join-Path $Root "MALPlus\MALPlus.csproj"
 $package = "com.idarkalex.malplus"
-$apkDir = Join-Path $Root "MALPlus\bin\Debug\net11.0-android37.0"
+$apkDir = Join-Path $Root "MALPlus\bin\$Configuration\net11.0-android37.0"
 
 function Format-Duration([double]$seconds) {
     if ($seconds -lt 60) {

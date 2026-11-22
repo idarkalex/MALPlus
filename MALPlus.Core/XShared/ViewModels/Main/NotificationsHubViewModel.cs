@@ -63,7 +63,7 @@ namespace MALPlus.XShared.ViewModels.Main
                                                     else
                                                     {
                                                         ResourceLocator.MessageDialogProvider.ShowMessageDialog("Unable to mark this notification as read.","Something went wrong...");
-                                                        //ResourceLocator.TelemetryProvider.LogEvent("Notification mark as read error.");
+                                                        //ResourceLocator.LocalDiagnostics.LogEvent("Notification mark as read error.");
                                                     }
                                                 }));
 
@@ -80,7 +80,7 @@ namespace MALPlus.XShared.ViewModels.Main
                                                         else
                                                         {
                                                             ResourceLocator.MessageDialogProvider.ShowMessageDialog("Unable to mark notifications as read.", "Something went wrong...");
-                                                            ResourceLocator.TelemetryProvider.LogEvent("Notification mark as read error.");
+                                                            ResourceLocator.LocalDiagnostics.LogEvent("Notification mark as read error.");
                                                         }
                                                     }));
 

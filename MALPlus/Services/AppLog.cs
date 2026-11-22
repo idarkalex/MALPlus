@@ -28,6 +28,35 @@ public static class AppLog
         @"(Bearer\s+[A-Za-z0-9\-._~+/]+=*)|(token[""':\s]+[A-Za-z0-9\-._~+/]{8,})|(password[""':\s]+[^""'\s,]+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    public static IDisposable Measure(string operation, long slowThresholdMs = 400)
+    {
+        return new PerformanceScope(operation, slowThresholdMs);
+    }
+
+    private sealed class PerformanceScope : IDisposable
+    {
+        private readonly string _name;
+        private readonly long _threshold;
+        private readonly System.Diagnostics.Stopwatch _sw;
+
+        public PerformanceScope(string name, long threshold)
+        {
+            _name = name;
+            _threshold = threshold;
+            _sw = System.Diagnostics.Stopwatch.StartNew();
+        }
+
+        public void Dispose()
+        {
+            _sw.Stop();
+            var ms = _sw.ElapsedMilliseconds;
+            if (ms >= _threshold)
+                Warn("Performance", $"[Lag] {_name} took {ms}ms (threshold: {_threshold}ms)");
+            else
+                Debug("Performance", $"{_name} finished in {ms}ms");
+        }
+    }
+
     public static void Info(string source, string message) => Write("INFO", source, message);
     public static void Warn(string source, string message) => Write("WARN", source, message);
     public static void Debug(string source, string message) => Write("DEBUG", source, message);
@@ -170,6 +199,38 @@ public static class AppLog
             catch { }
             sb.AppendLine();
 
+            sb.AppendLine("--- SYSTEM RESOURCES & PERFORMANCE ---");
+            try
+            {
+                var managedMemMb = GC.GetTotalMemory(false) / (1024.0 * 1024.0);
+                sb.AppendLine($"Managed Memory (GC): {managedMemMb:F2} MB");
+            }
+            catch { }
+
+#if ANDROID
+            try
+            {
+                var runtime = Java.Lang.Runtime.GetRuntime();
+                var usedMb = (runtime.TotalMemory() - runtime.FreeMemory()) / (1024.0 * 1024.0);
+                var maxMb = runtime.MaxMemory() / (1024.0 * 1024.0);
+                sb.AppendLine($"Android Java Heap: {usedMb:F1} MB used / {maxMb:F1} MB max (Free: {(runtime.FreeMemory() / (1024.0 * 1024.0)):F1} MB)");
+            }
+            catch { }
+#endif
+
+            try
+            {
+                var network = Connectivity.Current.NetworkAccess;
+                var profiles = string.Join(", ", Connectivity.Current.ConnectionProfiles);
+                sb.AppendLine($"Network Connectivity: {network} ({profiles})");
+            }
+            catch { }
+            sb.AppendLine();
+
+            sb.AppendLine("--- STARTUP TIMELINE ---");
+            StartupTrace.AppendTimeline(sb);
+            sb.AppendLine();
+
             sb.AppendLine("--- APP STATE ---");
             sb.AppendLine($"Authenticated: {XShared.Utils.Credentials.Authenticated}");
             sb.AppendLine($"User: {(!string.IsNullOrEmpty(XShared.Utils.Credentials.UserName) ? XShared.Utils.Credentials.UserName : "<none>")}");
@@ -192,6 +253,33 @@ public static class AppLog
                     }
                     sb.AppendLine();
                 }
+
+                try
+                {
+                    var highlights = new List<string>();
+                    void CollectHighlights(string filePath)
+                    {
+                        if (!File.Exists(filePath)) return;
+                        var all = File.ReadAllLines(filePath);
+                        foreach (var l in all)
+                        {
+                            if (l.Contains("[Lag]") || l.Contains("[ERROR]") || l.Contains("[Crash"))
+                                highlights.Add(l);
+                        }
+                    }
+                    CollectHighlights(RolledLogPath);
+                    CollectHighlights(CurrentLogPath);
+
+                    if (highlights.Count > 0)
+                    {
+                        sb.AppendLine("--- DETECTED LAG & RECENT INCIDENTS ---");
+                        var takeRecent = Math.Min(highlights.Count, 40);
+                        for (int i = highlights.Count - takeRecent; i < highlights.Count; i++)
+                            sb.AppendLine(highlights[i]);
+                        sb.AppendLine();
+                    }
+                }
+                catch { }
 
                 sb.AppendLine("--- APPLICATION LOGS (TAIL) ---");
                 if (File.Exists(RolledLogPath))

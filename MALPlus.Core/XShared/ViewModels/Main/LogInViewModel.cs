@@ -246,7 +246,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 Query.RefreshClientAuthHeader();
                 Settings.SelectedApiType = ApiType.Mal;
                 Credentials.SetAuthStatus(true);
-                ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInMyAnimeList);
+                ResourceLocator.LocalDiagnostics.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInMyAnimeList);
             }
             catch (Exception)
             {
@@ -357,7 +357,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     ViewModelLocator.AnimeList.ListSource = Credentials.UserName;
                     Settings.SelectedApiType = ApiType.Mal;
                     Credentials.SetAuthStatus(true);
-                    ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInMyAnimeList);
+                    ResourceLocator.LocalDiagnostics.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInMyAnimeList);
 
                     try
                     {

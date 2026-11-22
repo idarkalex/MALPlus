@@ -32,7 +32,10 @@ namespace MALPlus.XShared.ViewModels
 
         public static IImageDownloaderService ImageDownloaderService  => SimpleIoc.Default.GetInstance<IImageDownloaderService>();
 
-        public static ITelemetryProvider TelemetryProvider  => SimpleIoc.Default.GetInstance<ITelemetryProvider>();
+        public static ILocalDiagnosticsProvider LocalDiagnostics => SimpleIoc.Default.GetInstance<ILocalDiagnosticsProvider>();
+
+        [Obsolete("Use LocalDiagnostics")]
+        public static ILocalDiagnosticsProvider TelemetryProvider => LocalDiagnostics;
 
         public static INotificationsTaskManager  NotificationsTaskManager  => SimpleIoc.Default.GetInstance<INotificationsTaskManager>();
 

@@ -1,6 +1,7 @@
 using MALPlus.XShared.Utils;
 using MALPlus.XShared.ViewModels;
 using MALPlus.Views;
+using MALPlus.Services;
 
 namespace MALPlus;
 
@@ -655,15 +656,38 @@ public partial class AppShell : Shell
         });
     }
 
+    private readonly System.Diagnostics.Stopwatch _navStopwatch = new();
+    private string _currentNavTarget;
+
     protected override void OnNavigating(ShellNavigatingEventArgs args)
     {
         base.OnNavigating(args);
         PaintPagers();
+
+        try
+        {
+            _currentNavTarget = args?.Target?.Location?.OriginalString;
+            _navStopwatch.Restart();
+            AppLog.Debug("Navigation", $"Navigating to '{_currentNavTarget}'");
+        }
+        catch { }
     }
 
     protected override void OnNavigated(ShellNavigatedEventArgs args)
     {
         base.OnNavigated(args);
+
+        try
+        {
+            _navStopwatch.Stop();
+            var ms = _navStopwatch.ElapsedMilliseconds;
+            var loc = args?.Current?.Location?.OriginalString ?? _currentNavTarget ?? "unknown";
+            if (ms >= 400)
+                AppLog.Warn("Performance", $"[Lag] Slow navigation to '{loc}' took {ms}ms");
+            else
+                AppLog.Info("Navigation", $"Navigated to '{loc}' in {ms}ms");
+        }
+        catch { }
 
         // Last line of defence: the whole app is behind a sign-in, so any navigation that lands
         // anywhere else without a session is bounced back to the login page. The checks at

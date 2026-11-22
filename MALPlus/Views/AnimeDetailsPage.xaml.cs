@@ -574,9 +574,6 @@ InitializeComponent();
             vm.Recommendations.CollectionChanged += OnRecommendationsSourceChanged;
             vm.RelatedAnime.CollectionChanged += OnRelatedSourceChanged;
             vm.RequestVideoPlayback += ShowVideoOverlay;
-            RefreshDisplayedEpisodes(false);
-            RefreshDisplayedReviews(false);
-            RefreshDisplayedRecommendations(false);
         }
 #if ANDROID
         if (!_videoHandlerSubscribed)
@@ -914,8 +911,10 @@ InitializeComponent();
             ResetPageStateForEntry();
             _loadingTabs.Clear();
             ApplyTabStripVisibilityFromParams(args.AnimeMode);
-            ApplyCharacterStaffBindings();
-            _ = InitAsyncSafe(Vm, args);
+            Dispatcher.Dispatch(async () =>
+            {
+                await InitAsyncSafe(Vm, args);
+            });
         }
         catch (Exception ex)
         {

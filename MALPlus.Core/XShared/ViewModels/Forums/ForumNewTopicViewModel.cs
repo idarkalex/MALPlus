@@ -191,7 +191,7 @@ namespace MALPlus.XShared.ViewModels.Forums
             }
             if (result.Item1)
             {
-                ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.CreatedTopic);
+                ResourceLocator.LocalDiagnostics.TelemetryTrackEvent(TelemetryTrackedEvents.CreatedTopic);
                 if (result.Item2 != null)
                 {
                     ViewModelLocator.GeneralMain.Navigate(PageIndex.PageForumIndex,new ForumsTopicNavigationArgs(result.Item2,null));

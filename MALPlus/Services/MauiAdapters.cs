@@ -578,43 +578,63 @@ public class MauiPasswordVault : IPasswordVault
     }
 }
 
-public class MauiTelemetryProvider : ITelemetryProvider
+public class MauiLocalDiagnosticsProvider : ILocalDiagnosticsProvider, ITelemetryProvider
 {
     public void Init()
     {
+        AppLog.Debug("Diagnostics", "Local diagnostics provider initialized (100% local, zero external telemetry).");
     }
 
-    public void TelemetryTrackEvent(TelemetryTrackedEvents @event)
+    public void TrackEvent(TelemetryTrackedEvents @event)
     {
+        AppLog.Info("Event", $"Event: {@event}");
     }
 
-    public void TelemetryTrackEvent(TelemetryTrackedEvents @event, params (string Key, string Param)[] args)
+    public void TrackEvent(TelemetryTrackedEvents @event, params (string Key, string Param)[] args)
     {
+        var details = args != null && args.Length > 0
+            ? string.Join(", ", args.Select(a => $"{a.Key}={a.Param}"))
+            : string.Empty;
+        AppLog.Info("Event", $"Event: {@event} ({details})");
     }
 
-    public void TelemetryTrackNavigation(PageIndex page)
+    public void TrackNavigation(PageIndex page)
     {
+        AppLog.Info("Navigation", $"PageIndex: {page}");
     }
 
-    public void TelemetryTrackNavigation(ForumsPageIndex page)
+    public void TrackNavigation(ForumsPageIndex page)
     {
+        AppLog.Info("Navigation", $"ForumsPageIndex: {page}");
     }
 
     public void LogEvent(string @event)
     {
+        AppLog.Debug("Event", @event);
     }
 
     public void TrackExceptionWithMessage(Exception e, string message)
     {
+        AppLog.Error("Core", $"{message}: {e?.Message}", e);
     }
 
     public void TrackException(Exception e, [System.Runtime.CompilerServices.CallerMemberName] string caller = null)
     {
+        AppLog.Error("Core", $"Exception in {caller}: {e?.Message}", e);
     }
 
     public void TrackExceptionWithAttachment(Exception e, string attachment = null, [System.Runtime.CompilerServices.CallerMemberName] string caller = null)
     {
+        var msg = !string.IsNullOrEmpty(attachment)
+            ? $"Exception in {caller} [attachment: {attachment}]: {e?.Message}"
+            : $"Exception in {caller}: {e?.Message}";
+        AppLog.Error("Core", msg, e);
     }
+}
+
+[Obsolete("Use MauiLocalDiagnosticsProvider instead")]
+public class MauiTelemetryProvider : MauiLocalDiagnosticsProvider
+{
 }
 
 public class MauiNotificationsTaskManager : INotificationsTaskManager

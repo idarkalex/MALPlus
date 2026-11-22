@@ -525,7 +525,7 @@ namespace MALPlus.XShared.ViewModels.Forums
         return false;
     if(await ForumTopicQueries.CreateMessage(CurrentTopicData.Id,ReplyMessage))
     {
-        ResourceLocator.TelemetryProvider.TelemetryTrackEvent(TelemetryTrackedEvents.CreatedReply);
+        ResourceLocator.LocalDiagnostics.TelemetryTrackEvent(TelemetryTrackedEvents.CreatedReply);
         ReplyMessage = string.Empty;
         if (CurrentTopicData.Messages != null && CurrentTopicData.Messages.Count % 50 == 0)
             CurrentPage++;
