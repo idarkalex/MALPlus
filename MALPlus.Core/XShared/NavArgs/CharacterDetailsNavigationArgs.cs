@@ -11,5 +11,10 @@
             var arg = obj as CharacterDetailsNavigationArgs;
             return arg?.Id == Id;
         }
+
+        public override int GetHashCode()
+        {
+            return Id.GetHashCode();
+        }
     }
 }

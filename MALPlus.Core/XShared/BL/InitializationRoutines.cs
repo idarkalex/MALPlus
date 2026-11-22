@@ -100,33 +100,6 @@ namespace MALPlus.XShared.BL
                     () => { ResourceLocator.NotificationsTaskManager.CallTask(BgTasks.Notifications); });
             ResourceLocator.HandyDataStorage.Init();
             AwaitableCompletion.SetResult(true);
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(3000);
-                    using var client = new HttpClient();
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                    var result = await client.GetAsync("https://myanimelist.net", cts.Token);
-                    result.EnsureSuccessStatusCode();
-                }
-                catch (Exception e)
-                {
-                    // only show MAL down if we actually have no cached data
-                    if (!ResourceLocator.AiringInfoProvider.InitializationSuccess)
-                    {
-                        ResourceLocator.DispatcherAdapter.Run(() =>
-                        {
-                            ResourceLocator.MessageDialogProvider.ShowMessageDialog(
-                                "Failed to connect to MyAnimeList.net. Website is probably down, try checking on the browser. If it's down try again later.",
-                                "MAL is down");
-                        });
-                    }
-                }
-            });
-
-
         }
 
         public static void InitPostUpdate()

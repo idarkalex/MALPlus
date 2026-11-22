@@ -252,7 +252,7 @@ CatalogueResults.Clear();
                             AnimeSearchItemViewModels.Add(vm);
                 });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
             }
             finally

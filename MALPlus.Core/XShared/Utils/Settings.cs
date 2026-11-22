@@ -876,6 +876,7 @@ namespace MALPlus.XShared.Utils
         public const string DefaultShareTemplateRead = "I've just read chapter {ep} of {title}. {url}";
         public const string DefaultShareTemplateCompleted = "I've completed {title} with score of {score}/10. {url}";
         public const string DefaultShareTemplateRecommend = "Check out {title} on MyAnimeList! {url}";
+        public const string DefaultShareCustomSuffix = "#MALPlus";
 
         public static int ShareTimerDuration
         {
@@ -909,7 +910,7 @@ namespace MALPlus.XShared.Utils
 
         public static string ShareCustomSuffix
         {
-            get => (string)(ApplicationDataService[nameof(ShareCustomSuffix)] ?? string.Empty);
+            get => (string)(ApplicationDataService[nameof(ShareCustomSuffix)] ?? DefaultShareCustomSuffix);
             set => ApplicationDataService[nameof(ShareCustomSuffix)] = value;
         }
 

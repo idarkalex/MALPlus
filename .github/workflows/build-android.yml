@@ -55,6 +55,7 @@ jobs:
     env:
       ANDROID_HOME: C:\Program Files (x86)\Android\android-sdk
       ANDROID_SDK_ROOT: C:\Program Files (x86)\Android\android-sdk
+      NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
 
     steps:
       - name: Checkout repository
@@ -270,7 +271,7 @@ jobs:
 
           $aab = Get-ChildItem -Path "MALPlus\bin" -Recurse -Filter "*.aab" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $aab) {
-            Write-Host "##[warning]No AAB produced in MALPlus\bin"
+            Write-Host "No AAB produced in MALPlus\bin (APK format configured)"
           } else {
             Write-Host "Found AAB: $($aab.FullName)"
             "aab_path=$($aab.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append

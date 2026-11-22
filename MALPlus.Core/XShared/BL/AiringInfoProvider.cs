@@ -120,7 +120,7 @@ namespace MALPlus.XShared.BL
                             data = schedulesData;
                             _applicationDataService[UpdateStorakeKey] = DateTime.Now.ToBinary();
                             try { _applicationDataService["AiringMandatoryLastRefresh"] = DateTime.UtcNow.ToString("O"); } catch { }
-                            try { _dataCache.SaveData(data, CacheFileName, null); } catch (Exception) { }
+                            try { await _dataCache.SaveData(data, CacheFileName, null); } catch (Exception) { }
                         }
                     }
                     // timeout or empty/failed refetch -> keep the stale cache we read above
@@ -221,7 +221,7 @@ namespace MALPlus.XShared.BL
         {
             var finished = await Task.WhenAny(inner, Task.Delay(TimeSpan.FromSeconds(12)));
             if (finished != inner)
-                inner.ContinueWith(_ => { }, TaskScheduler.Default);
+                _ = inner.ContinueWith(_ => { }, TaskScheduler.Default);
         }
 
         private readonly HashSet<int> _nextAirPending = new HashSet<int>();
@@ -410,8 +410,8 @@ namespace MALPlus.XShared.BL
                         snapshot = new Dictionary<int, DateTime>(_nextAirByMalId);
                         epSnapshot = new Dictionary<int, int>(_nextAirEpisodeByMalId);
                     }
-                    _dataCache.SaveData(snapshot, NextAirCacheFile, null);
-                    _dataCache.SaveData(epSnapshot, NextAirEpisodesCacheFile, null);
+                    await _dataCache.SaveData(snapshot, NextAirCacheFile, null);
+                    await _dataCache.SaveData(epSnapshot, NextAirEpisodesCacheFile, null);
                 }
                 catch { }
 

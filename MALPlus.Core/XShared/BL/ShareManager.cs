@@ -267,7 +267,6 @@ namespace MALPlus.XShared.BL
             string ReWatchingOrRereading() => rewatchDiff.diff.IsAnime ? "re-watching" : "re-reading";
             string ReWatchedOrReread() => rewatchDiff.diff.IsAnime ? "re-watched" : "re-reread";
             string EpisodesOrChapters() => epDiff.diff.IsAnime ? "episodes" :  (epDiff.diff.IsVolumes ? "volumes" : "chapters");
-            string EpisodeOrChapter() => epDiff.diff.IsAnime ? "episode" : (epDiff.diff.IsVolumes ? "volume" : "chapter");
         }
 
         private void CountdownTimerOnElapsed(object sender, ElapsedEventArgs e)

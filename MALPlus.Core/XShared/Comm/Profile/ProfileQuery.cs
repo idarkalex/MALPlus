@@ -27,7 +27,7 @@ namespace MALPlus.XShared.Comm.Profile
             if (string.IsNullOrEmpty(userName))
                 userName = Credentials.UserName;
             Request =
-                new Uri(Uri.EscapeUriString($"https://myanimelist.net/profile/{userName}"));
+                new Uri($"https://myanimelist.net/profile/{Uri.EscapeDataString(userName ?? string.Empty)}");
             _userName = userName;
         }
 

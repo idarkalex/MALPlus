@@ -46,7 +46,7 @@ namespace MALPlus.BBCode.SyntaxTree
         }
 
         static readonly ImmutableSyntaxTreeNodeCollection empty = new ImmutableSyntaxTreeNodeCollection(new SyntaxTreeNode[0], true);
-        public static ImmutableSyntaxTreeNodeCollection Empty
+        public static new ImmutableSyntaxTreeNodeCollection Empty
         {
             get { return empty; }
         }

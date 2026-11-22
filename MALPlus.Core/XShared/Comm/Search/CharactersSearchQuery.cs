@@ -20,7 +20,7 @@ namespace MALPlus.XShared.Comm.Search
             _query = query;
             Request =
                 new Uri(
-                    Uri.EscapeUriString($"https://myanimelist.net/character.php?q={query}"));
+                    $"https://myanimelist.net/character.php?q={Uri.EscapeDataString(query ?? string.Empty)}");
         }
 
         public async Task<List<AnimeCharacter>> GetSearchResults()

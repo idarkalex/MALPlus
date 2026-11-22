@@ -454,11 +454,11 @@
                     <BoxView Style="{StaticResource SettingDivider}" />
 
                     <VerticalStackLayout Spacing="6" Padding="16,12">
-                        <Label Text="Optional suffix / tag" Style="{StaticResource SettingTitle}" />
-                        <Label Text="Leave empty for clean messages, or add tags (e.g. #anime)" Style="{StaticResource SettingDesc}" />
+                        <Label Text="App hashtag / suffix" Style="{StaticResource SettingTitle}" />
+                        <Label Text="Appended to shared updates (#MALPlus by default, or leave empty)" Style="{StaticResource SettingDesc}" />
                         <Border Style="{StaticResource SettingSelectChip}" Padding="10,4" HorizontalOptions="Fill">
                             <Entry Text="{Binding ShareCustomSuffix}"
-                                   Placeholder="Empty by default"
+                                   Placeholder="#MALPlus"
                                    PlaceholderColor="{StaticResource TabChipInactiveText}"
                                    FontFamily="Inter" FontSize="13"
                                    TextColor="{StaticResource BrushText}"

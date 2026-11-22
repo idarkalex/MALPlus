@@ -338,7 +338,19 @@ public partial class AnimePosterGrid : ContentView
     {
         if (Span > 0)
             return Span;
-        return DefaultSpan;
+
+        if (availableWidth <= 0)
+            return DefaultSpan;
+
+        // Standard phones in portrait are between ~360dp and ~450dp wide: always keep exactly 3 columns (DefaultSpan).
+        // On wider viewports (foldables unfolded, tablets, landscape), scale columns dynamically so that
+        // each card stays at roughly the standard ~130dp width (maintaining the 2:3 vertical aspect ratio with 195dp height).
+        const double targetCardWidth = 130d;
+        if (availableWidth < 500d)
+            return DefaultSpan;
+
+        var calculated = (int)Math.Round(availableWidth / targetCardWidth);
+        return Math.Max(DefaultSpan, calculated);
     }
 
     protected override void OnSizeAllocated(double width, double height)
@@ -365,7 +377,8 @@ public partial class AnimePosterGrid : ContentView
                     ?? 0;
         IsEmpty = count == 0;
 
-        var span = EffectiveSpan(0);
+        var availableWidth = _lastWidth > 0 ? _lastWidth : (Width > 0 ? Width : 0);
+        var span = EffectiveSpan(availableWidth);
 
         if (_appliedCellHeight != DefaultCellHeight)
         {

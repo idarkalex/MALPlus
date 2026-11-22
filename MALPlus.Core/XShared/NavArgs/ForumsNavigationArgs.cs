@@ -110,6 +110,33 @@ namespace MALPlus.XShared.NavArgs
             }
             return false;
         }
+
+        public override int GetHashCode()
+        {
+            var hash = new HashCode();
+            hash.Add(WorkMode);
+            switch (WorkMode)
+            {
+                case ForumBoardPageWorkModes.Standard:
+                    hash.Add(TargetBoard);
+                    break;
+                case ForumBoardPageWorkModes.AnimeBoard:
+                case ForumBoardPageWorkModes.MangaBoard:
+                    hash.Add(AnimeId);
+                    break;
+                case ForumBoardPageWorkModes.Search:
+                    hash.Add(Query);
+                    hash.Add(Scope);
+                    break;
+                case ForumBoardPageWorkModes.UserSearch:
+                    hash.Add(Query);
+                    break;
+                case ForumBoardPageWorkModes.Club:
+                    hash.Add(ClubId);
+                    break;
+            }
+            return hash.ToHashCode();
+        }
     }
 
     public class ForumsTopicNavigationArgs : ForumsNavigationArgs

@@ -24,7 +24,6 @@ namespace MALPlus.BBCode
 
             if (bbCode.Contains("quote"))
             {
-                var pos = 0;
                 bbCode = Regex.Replace(bbCode, @"\[quote=.*? message=\d+(?=\])", "[quote");
                 //while ((pos = bbCode.IndexOf("[quote",pos, StringComparison.Ordinal)) != -1)
                 //{

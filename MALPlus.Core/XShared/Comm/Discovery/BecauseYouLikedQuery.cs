@@ -444,7 +444,7 @@ namespace MALPlus.XShared.Comm.Discovery
         /// <summary>
         ///     What Tenrai recommends alongside one entry.
         /// </summary>
-        private static async Task<Dictionary<int, (DiscoveryItem Item, int Votes)>?> ReadAnchorAsync(int malId)
+        private static async Task<Dictionary<int, (DiscoveryItem Item, int Votes)>> ReadAnchorAsync(int malId)
         {
             try
             {

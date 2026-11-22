@@ -1127,7 +1127,7 @@ protected ICommand _requestNavigationCommand;
             ShareTemplateRead = Settings.DefaultShareTemplateRead;
             ShareTemplateCompleted = Settings.DefaultShareTemplateCompleted;
             ShareTemplateRecommend = Settings.DefaultShareTemplateRecommend;
-            ShareCustomSuffix = string.Empty;
+            ShareCustomSuffix = Settings.DefaultShareCustomSuffix;
         }
 
         public bool DisplayUnsetScores
