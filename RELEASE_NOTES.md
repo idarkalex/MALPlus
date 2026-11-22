@@ -1,7 +1,10 @@
 # MAL+ v0.7.6
 
+## Official Website
+- **MAL+ Web is Live:** Explore features, view documentation, and download the latest updates at [malplus.vercel.app](https://malplus.vercel.app).
+
 ## Social Sharing & Activity Updates (#6)
-- **Floating Share Button:** An unobtrusive button appears at the bottom-right whenever you log an episode, update chapter progress, or change a status, letting you quickly share your milestone (Closes #6).
+- **Floating Share Button:** An unobtrusive button appears at the bottom-right whenever you log an episode, update chapter progress, or change a status, letting you quickly share your milestone.
 - **Customizable Social Settings:** New dedicated section in Settings to adjust the button duration (10s–30s), customize sentence templates for anime and manga milestones, or add an optional hashtag.
 - **Unified Share Menu in Details:** Consolidated all sharing and copy tools into the header Share button (recommend to friends, progress, link only, and clipboard actions).
 - **Poster Menu Integration:** Added a "Share" option to the grid flyout menu when holding down any anime or manga poster in your list.
@@ -9,7 +12,7 @@
 - **Cleaner Menus:** Removed duplicate share and copy actions from the three-dots menu to keep it focused on entry details.
 
 ## Library Sorting & Per-List Memory (#5)
-- **Per-List Sort Memory:** Addressed community feedback on #5 — sorting preferences are now remembered independently for Anime and Manga lists (Closes #5).
+- **Per-List Sort Memory:** Sorting preferences are now remembered independently for Anime and Manga lists based on community feedback.
 - **Reset Per-List Sorts:** Added a quick reset option in Settings to return all custom list orderings back to default.
 - **Poster Options Sheet:** Polished back navigation and dismiss transitions across compact sheets.
 
