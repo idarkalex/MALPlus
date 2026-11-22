@@ -86,7 +86,7 @@ namespace MALPlus.XShared.Comm.Anime
                     .Content.ReadAsStringAsync();
             var data =  JsonConvert.DeserializeObject<List<AnimePersonalizedRecommendationData>>(raw) ?? new List<AnimePersonalizedRecommendationData>();
 
-            DataCache.SaveData(data, "personalized_suggestions", _anime ? "Anime" : "Manga");
+            await DataCache.SaveData(data, "personalized_suggestions", _anime ? "Anime" : "Manga");
 
             return data;
         }

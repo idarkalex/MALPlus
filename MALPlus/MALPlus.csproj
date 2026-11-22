@@ -42,6 +42,7 @@
     <RunAnalyzersDuringLiveAnalysis Condition="'$(Configuration)' == 'Debug'">false</RunAnalyzersDuringLiveAnalysis>
     <!-- No UseMonoRuntime: NETSDK1242 rejects it. .NET 11 dropped the Mono runtime for Android,
          so CoreCLR comes with the framework bump and the two changes cannot be separated. -->
+    <NoWarn>$(NoWarn);NU1703;CS0168;SYSLIB0013;CS0649;CS0169;CS0414;CS0067;CS4014;CS8509;CS0219;CS0162;CA1416;CA1422;MAUIG2024;MAUIG2045;CS0618;CS8632;CS0108;CS0419;CS1587</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

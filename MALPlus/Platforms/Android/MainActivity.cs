@@ -506,9 +506,8 @@ public override void HandleOnBackPressed()
     ///     Kept only as a fallback for platforms and manifest settings where the dispatcher is
     ///     not in charge and the system still calls this. On Android 13+ with predictive back it
     ///     never runs, and <see cref="VideoOverlayBackCallback"/> is what actually gets the
-
-        ///     gesture.
-        /// </summary>
+    ///     gesture.
+    /// </summary>
         public override void OnBackPressed()
         {
             // An open video overlay gets first refusal: the back gesture must drop the player and

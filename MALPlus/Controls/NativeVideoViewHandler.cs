@@ -13,7 +13,8 @@ namespace MALPlus.Controls;
 /// <summary>
 ///     Hosts a PlayerView over an ExoPlayer instance.
 /// </summary>
-/// <remarks///     MAUI 11 RC1 removed the built in <c>MediaElement</c>: it is absent from
+/// <remarks>
+///     MAUI 11 RC1 removed the built in <c>MediaElement</c>: it is absent from
 ///     Microsoft.Maui.Controls on every target framework in the package, and there is no separate
 ///     media package to reference. ExoPlayer is the engine that control used, so hosting a
 ///     PlayerView directly is the only way to get it.

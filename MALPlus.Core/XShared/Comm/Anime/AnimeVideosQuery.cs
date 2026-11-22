@@ -36,13 +36,13 @@ namespace MALPlus.XShared.Comm.Anime
             output = await FetchFromTenraiAsync();
             if (output != null && output.Count > 0)
             {
-                DataCache.SaveData(output, $"videos_{_id}", "AnimeDetails");
+                await DataCache.SaveData(output, $"videos_{_id}", "AnimeDetails");
                 return output;
             }
 
             output = await FetchFromHtmlAsync();
             if (output.Count > 0)
-                DataCache.SaveData(output, $"videos_{_id}", "AnimeDetails");
+                await DataCache.SaveData(output, $"videos_{_id}", "AnimeDetails");
             return output;
         }
 

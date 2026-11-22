@@ -75,7 +75,7 @@ namespace MALPlus.XShared.Comm.Anime
             }
 
             if (output.Count > 0)
-                DataCache.SaveData(output, cacheKey, cacheRegion);
+                await DataCache.SaveData(output, cacheKey, cacheRegion);
             return output;
         }
 

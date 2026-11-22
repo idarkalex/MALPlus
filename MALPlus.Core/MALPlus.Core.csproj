@@ -9,6 +9,8 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <AssemblyName>MALPlus.Core</AssemblyName>
     <RootNamespace>MALPlus.Core</RootNamespace>
+    <!-- Suppress benign compiler noise in legacy codebase (unused catch vars, obsolete Uri escaping, unawaited fire-and-forget, unused fields) -->
+    <NoWarn>$(NoWarn);CS0168;SYSLIB0013;CS0649;CS0169;CS0414;CS0067;CS4014;CS8509;CS0219;CS0162</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

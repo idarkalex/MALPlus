@@ -65,7 +65,7 @@ namespace MALPlus.XShared.Comm.Articles
                     }
                 }
                 await ApplyRememberedThumbs(output);
-                DataCache.SaveData(output, "ann_news_index_v9.json", "Articles");
+                await DataCache.SaveData(output, "ann_news_index_v9.json", "Articles");
                 _ = PrefetchThumbs(output);
             }
             return output;
@@ -338,7 +338,7 @@ namespace MALPlus.XShared.Comm.Articles
             }
             try
             {
-                DataCache.SaveData(entries, "ann_news_index_v9.json", "Articles");
+                await DataCache.SaveData(entries, "ann_news_index_v9.json", "Articles");
             }
             catch (Exception)
             {
