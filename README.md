@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="images/brand-header.png" width="280px" alt="MAL+ Logo" />
+  <img src="images/brand-header.png" width="280px" alt="MAL+ (MALPlus) Logo" />
 </p>
 
-<h1 align="center">MAL+ — Enhanced MyAnimeList Client</h1>
+<h1 align="center">MAL+ (MALPlus) — Enhanced MyAnimeList Client for Android</h1>
 
 <p align="center">
   <strong>The fast, modern, and privacy-focused MyAnimeList client for Android.</strong><br>
