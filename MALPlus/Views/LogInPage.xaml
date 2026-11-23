@@ -2,10 +2,12 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="MALPlus.Views.LogInPage"
+             Shell.NavBarIsVisible="False"
              BackgroundColor="{StaticResource EmBackground}">
     <Grid>
     <ScrollView x:Name="LoginForm">
-        <VerticalStackLayout Padding="24" Spacing="14" VerticalOptions="Center">
+        <VerticalStackLayout Padding="24" Spacing="14" VerticalOptions="Center"
+                             MaximumWidthRequest="420" HorizontalOptions="Center">
             <Image Source="splash_darkmode.png" WidthRequest="240" HeightRequest="120"
                    Aspect="AspectFit" HorizontalOptions="Center" />
             <Label Text="Your anime and manga list, with you"

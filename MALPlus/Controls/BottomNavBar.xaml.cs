@@ -39,16 +39,19 @@ public partial class BottomNavBar : ContentView
         Loaded += OnBarLoaded;
     }
 
+#if ANDROID
     // The bar sits inside the root pager on Android. MainActivity uses this list to
     // hit-test the bar and stop the pager from stealing a horizontal drag that
     // starts on it, so swiping the bar itself never changes the section.
     private static readonly List<WeakReference<global::Android.Views.View>> Platforms = new();
+#endif
     private static readonly List<WeakReference<BottomNavBar>> Instances = new();
 
     // Phase B: once one bar is reparented below the section pager, every page bar has
     // to stay collapsed. New bars are created as pages come online, so they hide
     // themselves on attach instead of growing a second navigation strip.
     internal static bool SharedHostInstalled { get; private set; }
+#if ANDROID
     internal static global::Android.Views.View SharedBarView { get; private set; }
 
     internal static void MarkSharedHostInstalled()
@@ -56,6 +59,9 @@ public partial class BottomNavBar : ContentView
 
     internal static void SetSharedBarView(global::Android.Views.View view)
         => SharedBarView = view;
+#else
+    internal static void MarkSharedHostInstalled() { }
+#endif
 
     internal static void ApplyThemeToAll()
     {
@@ -72,7 +78,9 @@ public partial class BottomNavBar : ContentView
     internal static void ShowAllForFallback()
     {
         SharedHostInstalled = false;
+#if ANDROID
         SharedBarView = null;
+#endif
 
         List<BottomNavBar> bars = Snapshot();
         foreach (var bar in bars)
@@ -81,8 +89,10 @@ public partial class BottomNavBar : ContentView
             bar.MaximumHeightRequest = double.PositiveInfinity;
             bar.Opacity = 1;
             bar.IsVisible = true;
+#if ANDROID
             if (bar.Handler?.PlatformView is global::Android.Views.View view)
                 view.Visibility = global::Android.Views.ViewStates.Visible;
+#endif
         }
     }
 
@@ -93,7 +103,9 @@ public partial class BottomNavBar : ContentView
     internal static void ResetSharedHost()
     {
         SharedHostInstalled = false;
+#if ANDROID
         SharedBarView = null;
+#endif
 
         List<BottomNavBar> bars = Snapshot();
         foreach (var bar in bars)
@@ -109,6 +121,7 @@ public partial class BottomNavBar : ContentView
     {
         base.OnHandlerChanged();
 
+#if ANDROID
         var view = Handler?.PlatformView as global::Android.Views.View;
         lock (Platforms)
         {
@@ -117,6 +130,7 @@ public partial class BottomNavBar : ContentView
             if (view != null)
                 Platforms.Add(new WeakReference<global::Android.Views.View>(view));
         }
+#endif
 
         lock (Instances)
         {
@@ -125,6 +139,7 @@ public partial class BottomNavBar : ContentView
             Instances.Add(new WeakReference<BottomNavBar>(this));
         }
 
+#if ANDROID
         if (SharedHostInstalled)
         {
             HeightRequest = 0;
@@ -135,10 +150,12 @@ public partial class BottomNavBar : ContentView
                 InstallPageBarGuard();
             }
         }
+#endif
     }
 
     private void OnBarLoaded(object sender, EventArgs e)
     {
+#if ANDROID
         if (!SharedHostInstalled)
             return;
 
@@ -150,8 +167,10 @@ public partial class BottomNavBar : ContentView
             view.Visibility = global::Android.Views.ViewStates.Gone;
             InstallPageBarGuard();
         }
+#endif
     }
 
+#if ANDROID
     private global::Android.Views.ViewGroup _guardParent;
 
     private void InstallPageBarGuard()
@@ -199,6 +218,7 @@ public partial class BottomNavBar : ContentView
             return true;
         }
     }
+#endif
 
     protected override void OnPropertyChanged([CallerMemberName] string propertyName = null)
     {
@@ -209,6 +229,7 @@ public partial class BottomNavBar : ContentView
                 $"BARWATCH pagebar visible shared={SharedHostInstalled}");
     }
 
+#if ANDROID
     internal static void AttachBarWatch(global::Android.Views.View root)
     {
         if (root == null || ReferenceEquals(root, _watchRoot))
@@ -255,6 +276,7 @@ public partial class BottomNavBar : ContentView
             return true;
         }
     }
+#endif
 
     private static List<BottomNavBar> Snapshot()
     {
@@ -276,6 +298,7 @@ public partial class BottomNavBar : ContentView
         return bars;
     }
 
+#if ANDROID
     internal static BottomNavBar TakeSharedHostBar()
     {
         lock (Instances)
@@ -308,7 +331,11 @@ public partial class BottomNavBar : ContentView
 
         return null;
     }
+#else
+    internal static BottomNavBar TakeSharedHostBar() => null;
+#endif
 
+#if ANDROID
     internal static void HideAllForSharedHost(global::Android.Views.View sharedView)
     {
         List<BottomNavBar> bars = Snapshot();
@@ -354,6 +381,7 @@ public partial class BottomNavBar : ContentView
 
         return null;
     }
+#endif
 
     protected override void OnParentSet()
     {

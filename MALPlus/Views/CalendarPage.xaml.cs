@@ -265,6 +265,7 @@ public partial class CalendarPage : ContentPage
         {
             ResetGotoToken();
             var target = Vm?.CalendarPivotIndex ?? -1;
+#if ANDROID
             if (target < 0 || CalendarCarousel.Handler?.PlatformView is not AndroidX.RecyclerView.Widget.RecyclerView platform)
                 return;
             if (platform.GetAdapter() == null || target >= platform.GetAdapter().ItemCount)
@@ -280,6 +281,10 @@ public partial class CalendarPage : ContentPage
                 CalendarCarousel.Position = target;
 
             platform.ScrollToPosition(target);
+#else
+            if (target >= 0 && CalendarCarousel.Position != target)
+                CalendarCarousel.Position = target;
+#endif
         }
         catch (Exception ex)
         {
@@ -421,12 +426,14 @@ public partial class CalendarPage : ContentPage
         {
             CalendarCarousel.IsSwipeEnabled = false;
             CalendarCarousel.IsSwipeEnabled = true;
+#if ANDROID
             if (CalendarCarousel.Handler?.PlatformView is Microsoft.Maui.Controls.Handlers.Items.MauiCarouselRecyclerView platform)
             {
                 platform.IsSwipeEnabled = true;
                 platform.SetItemViewCacheSize(8);
             }
             ArmCarouselTouchShield();
+#endif
         }
         catch (Exception ex)
         {
@@ -434,6 +441,7 @@ public partial class CalendarPage : ContentPage
         }
     }
 
+#if ANDROID
     private global::Android.Views.View _touchShieldArmedFor;
     private CarouselTouchListener _touchListener;
     private bool _moveDisallowed;
@@ -617,6 +625,9 @@ public partial class CalendarPage : ContentPage
         {
         }
     }
+#else
+    private void OnDayPageLoaded(object sender, EventArgs e) { }
+#endif
 
     /// <summary>
     ///     Builds Option A Squircle Tab Chips for days of the week in a horizontal scroller.

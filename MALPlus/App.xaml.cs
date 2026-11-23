@@ -17,6 +17,21 @@ public partial class App : Application
         StartupTrace.Mark("shell-built");
     }
 
+    protected override Window CreateWindow(IActivationState activationState)
+    {
+        var window = new Window(MainPage ?? new AppShell())
+        {
+            Title = "MAL+"
+        };
+#if WINDOWS
+        window.Width = 1000;
+        window.Height = 720;
+        window.MinimumWidth = 460;
+        window.MinimumHeight = 550;
+#endif
+        return window;
+    }
+
     private static string TryPeekVaultUser()
     {
         try
@@ -36,7 +51,7 @@ base.OnStart();
         System.Diagnostics.Debug.WriteLine("=== MALPlus App.OnStart ===");
         try
         {
-            AppLog.Info("Lifecycle", $"MAL+ v{AppInfo.VersionString} started on {DeviceInfo.Manufacturer} {DeviceInfo.Model} (Android {DeviceInfo.VersionString})");
+            AppLog.Info("Lifecycle", $"MAL+ v{AppInfo.VersionString} started on {DeviceInfo.Manufacturer} {DeviceInfo.Model} ({DeviceInfo.Platform} {DeviceInfo.VersionString})");
         }
         catch { }
 
@@ -69,7 +84,10 @@ base.OnStart();
                 if (!Credentials.Authenticated || string.IsNullOrWhiteSpace(Credentials.UserName))
                 {
                     await MainThread.InvokeOnMainThreadAsync(() =>
-                        Shell.Current?.GoToAsync("login"));
+                    {
+                        if (Shell.Current?.CurrentState?.Location?.OriginalString?.Contains("login") != true)
+                            Shell.Current?.GoToAsync("login");
+                    });
                 }
                 else
                 {

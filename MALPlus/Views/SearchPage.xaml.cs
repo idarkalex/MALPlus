@@ -524,12 +524,14 @@ protected override void OnDisappearing()
 
     private static void HideKeyboard()
     {
+#if ANDROID
         var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
         var inputManager = activity?.GetSystemService(global::Android.Content.Context.InputMethodService)
             as global::Android.Views.InputMethods.InputMethodManager;
         var token = activity?.Window?.DecorView?.WindowToken;
         if (inputManager != null && token != null)
             inputManager.HideSoftInputFromWindow(token, global::Android.Views.InputMethods.HideSoftInputFlags.None);
+#endif
     }
 
     private async void OnResultTapped(object sender, TappedEventArgs e)

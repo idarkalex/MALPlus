@@ -54,6 +54,11 @@
                 <Setter Property="StrokeThickness" Value="1" />
                 <Setter Property="StrokeShape" Value="RoundRectangle 14" />
             </Style>
+
+            <!-- Hide default Shell navigation bar on all pages (pages provide their own header) -->
+            <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
+                <Setter Property="Shell.NavBarIsVisible" Value="False" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -1,3 +1,4 @@
+#if ANDROID
 using Android.Views;
 using Android.Widget;
 using AndroidX.Media3.Common;
@@ -321,3 +322,31 @@ protected override FrameLayout CreatePlatformView() =>
     ///     burst allowance is comfortable or hopeless.
     /// </remarks>
 }
+#else
+namespace MALPlus.Controls;
+
+public class NativeVideoViewHandler : Microsoft.Maui.Handlers.ViewHandler<NativeVideoView, Microsoft.UI.Xaml.FrameworkElement>
+{
+    public static IPropertyMapper<NativeVideoView, NativeVideoViewHandler> Mapper =
+        new PropertyMapper<NativeVideoView, NativeVideoViewHandler>(ViewMapper)
+        {
+            [nameof(NativeVideoView.Source)] = (h, v) => h.UpdateSource(v.Source),
+            [nameof(NativeVideoView.IsPlaying)] = (h, v) => h.UpdateIsPlaying(v.IsPlaying),
+            [nameof(NativeVideoView.IsMuted)] = (h, v) => h.UpdateIsMuted(v.IsMuted),
+        };
+
+    public NativeVideoViewHandler() : base(Mapper) { }
+
+    public void UpdateSource(string source) { }
+    public void UpdateIsPlaying(bool isPlaying) { }
+    public void UpdateIsMuted(bool isMuted) { }
+
+#if WINDOWS
+    protected override Microsoft.UI.Xaml.FrameworkElement CreatePlatformView() =>
+        new Microsoft.UI.Xaml.Controls.Grid();
+#else
+    protected override Microsoft.UI.Xaml.FrameworkElement CreatePlatformView() =>
+        throw new NotImplementedException();
+#endif
+}
+#endif

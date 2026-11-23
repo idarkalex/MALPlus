@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
+#if ANDROID
 using Android.Webkit;
+#endif
 
 namespace MALPlus.Services;
 
@@ -28,15 +30,19 @@ public static class VideoWebViewHelper
 
     public static global::Android.Webkit.WebView ActivePlatformWebView { get; set; }
 
+#if ANDROID
     private static LoggingWebChromeClient CurrentChromeClient { get; set; }
+#endif
 
     public static bool TryExitCustomView()
     {
+#if ANDROID
         if (CurrentChromeClient != null && CurrentChromeClient.HasFullscreenView)
         {
             CurrentChromeClient.ExitCustomView();
             return true;
         }
+#endif
         return false;
     }
 
@@ -54,6 +60,7 @@ public static class VideoWebViewHelper
         }
     }
 
+#if ANDROID
     public static void RequestWebViewFullscreen()
     {
         var wv = ActivePlatformWebView;
@@ -80,7 +87,11 @@ public static class VideoWebViewHelper
             }
         });
     }
+#else
+    public static void RequestWebViewFullscreen() { }
+#endif
 
+#if ANDROID
     public static void ConfigurePlatformView(global::Android.Views.View platformView)
     {
         if (platformView is not global::Android.Webkit.WebView wv) return;
@@ -106,6 +117,9 @@ public static class VideoWebViewHelper
             global::Android.Util.Log.Warn("MALPlus Video", "ConfigurePlatformView: " + ex.GetType().Name);
         }
     }
+#else
+    public static void ConfigurePlatformView(object platformView) { }
+#endif
 
     /// <summary>
     ///     Must be called AFTER assigning <c>Source</c>. MAUI's WebView handler re-applies the
@@ -116,6 +130,7 @@ public static class VideoWebViewHelper
     /// </summary>
     public static void ApplyMediaSettings(global::Microsoft.Maui.Controls.WebView webView)
     {
+#if ANDROID
         if (webView?.Handler?.PlatformView is not global::Android.Webkit.WebView wv) return;
         try
         {
@@ -127,6 +142,7 @@ public static class VideoWebViewHelper
         {
             global::Android.Util.Log.Warn("MALPlus Video", "ApplyMediaSettings: " + ex.GetType().Name);
         }
+#endif
     }
 
     /// <summary>
@@ -144,6 +160,7 @@ public static class VideoWebViewHelper
     public static void StopMediaAndClear(global::Microsoft.Maui.Controls.WebView webView)
     {
         ActivePlatformWebView = null;
+#if ANDROID
         if (webView?.Handler?.PlatformView is not global::Android.Webkit.WebView wv)
         {
             if (webView != null)
@@ -169,14 +186,20 @@ public static class VideoWebViewHelper
         {
             global::Android.Util.Log.Warn("MALPlus Video", "StopMediaAndClear url: " + ex.GetType().Name);
         }
-        webView.Source = null;
+#endif
+        if (webView != null)
+            webView.Source = null;
     }
 
+#if ANDROID
     public static void Resume(global::Android.Views.View platformView)
     {
         if (platformView is not global::Android.Webkit.WebView wv) return;
         try { wv.OnResume(); } catch { }
     }
+#else
+    public static void Resume(object platformView) { }
+#endif
 
     /// <summary>
     ///     The tag the player page reports a failed or started file under, on its way to the console.
@@ -488,6 +511,7 @@ public static class VideoWebViewHelper
         }
     }
 
+#if ANDROID
     /// <summary>
     /// Keeps http(s) inside the overlay and rewrites the YouTube app hand-off schemes
     /// (vnd.youtube:, intent://) back into the embed player. Without this the WebView
@@ -791,6 +815,7 @@ public static class VideoWebViewHelper
             }
         }
     }
+#endif
 
     /// <summary>
     ///     The object the player page posts to. Exists so a media element's error or its first playback

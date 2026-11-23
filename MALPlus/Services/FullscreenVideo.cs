@@ -1,3 +1,4 @@
+#if ANDROID
 namespace MALPlus.Services;
 
 /// <summary>
@@ -189,3 +190,14 @@ public static class FullscreenVideo
         }
     }
 }
+#else
+namespace MALPlus.Services;
+
+public static class FullscreenVideo
+{
+    public static bool IsActive { get; private set; }
+    public static void Enter() => IsActive = true;
+    public static void Exit() => IsActive = false;
+    public static void Toggle() => IsActive = !IsActive;
+}
+#endif

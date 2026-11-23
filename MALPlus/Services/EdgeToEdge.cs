@@ -1,3 +1,4 @@
+#if ANDROID
 using Android.App;
 using Android.OS;
 using Android.Views;
@@ -135,3 +136,13 @@ public static class WindowInsetsHelper
         return mlp;
     }
 }
+#else
+namespace MALPlus.Services;
+
+public static class WindowInsetsHelper
+{
+    public static void Enable(object activity) { }
+    public static (int Top, int Bottom, int Left, int Right) Insets() => (0, 0, 0, 0);
+    public static void ApplyTop(Microsoft.Maui.Controls.View left, Microsoft.Maui.Controls.View right, int baseMarginPx = 0) { }
+}
+#endif

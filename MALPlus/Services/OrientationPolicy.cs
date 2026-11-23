@@ -48,8 +48,8 @@ public static class OrientationPolicy
     public static void SetVideoActive(bool active)
     {
         IsVideoActive = active;
-        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
 #if ANDROID
+        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
         if (active)
         {
             if (_orientationListener == null && activity != null)
@@ -63,9 +63,9 @@ public static class OrientationPolicy
         {
             _orientationListener?.Disable();
         }
-#endif
         if (activity != null)
             Apply(activity);
+#endif
     }
 
     /// <summary>
@@ -80,6 +80,7 @@ public static class OrientationPolicy
     ///     sideways because that is what a video is for, and the portrait lock is about how the rest
     ///     of the app is read rather than about this one surface.
     /// </param>
+#if ANDROID
     public static global::Android.Content.PM.ScreenOrientation Desired(
         global::Android.Content.Res.Configuration configuration, bool videoFullscreen = false)
     {
@@ -133,6 +134,7 @@ public static class OrientationPolicy
             global::Android.Util.Log.Warn("MALPlus", "orientation policy failed: " + ex.GetType().Name);
         }
     }
+#endif
 
 #if ANDROID
     private static VideoOrientationListener _orientationListener;

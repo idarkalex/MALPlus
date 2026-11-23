@@ -102,6 +102,7 @@ public partial class AppShell : Shell
     // SetCurrentItem from onPageSelected) re-enters MAUI's selection sync and sends
     // every tab to the wrong page, so it is not an option.
     //
+#if ANDROID
     // This callback only watches the scroll state and toggles an opaque shield over
     // the pager. It never touches CurrentItem, the adapter or MAUI's navigation.
     private sealed class PagerShield : global::AndroidX.ViewPager2.Widget.ViewPager2.OnPageChangeCallback
@@ -228,6 +229,7 @@ public partial class AppShell : Shell
             }
         }
     }
+#endif
 
     private void ApplySettledSection(string section, string location)
     {
@@ -252,10 +254,13 @@ public partial class AppShell : Shell
     }
 
     private bool _sharedBarInstalled;
+#if ANDROID
     private global::Android.Views.View _sharedBarView;
+#endif
     private string _lastNavigatedSection;
     private readonly Dictionary<string, WeakReference<Views.AnimeListPage>> _rootListPages = new();
 
+#if ANDROID
     private void PaintPagers()
     {
         var background = ResolveBackground();
@@ -270,10 +275,14 @@ public partial class AppShell : Shell
         if (Handler?.PlatformView is global::Android.Views.View root)
             PaintPagers(root, color, rootInput);
     }
+#else
+    private void PaintPagers() { }
+#endif
 
     public void RefreshTheme()
     {
         PaintPagers();
+#if ANDROID
         if (_sharedBarView != null)
         {
             var sheet = MALPlus.Services.ThemeService.CurrentSheet;
@@ -281,8 +290,10 @@ public partial class AppShell : Shell
                 (int)(sheet.Red * 255), (int)(sheet.Green * 255), (int)(sheet.Blue * 255), (int)(sheet.Alpha * 255));
             _sharedBarView.SetBackgroundColor(barColor);
         }
+#endif
     }
 
+#if ANDROID
     // The four roots share one section pager, so each page used to carry its own
     // navigation strip and the strip travelled with the finger. One bar is pulled out
     // of a page and hosted under the pager instead: the pager keeps the remaining
@@ -360,11 +371,15 @@ public partial class AppShell : Shell
         global::Android.Util.Log.Info("MALPLUS",
             $"shared bar installed h={height} coordinator={coordinator.ChildCount}");
     }
+#else
+    private void InstallSharedBar() { }
+#endif
 
     // Pushed pages own the full height, exactly like when every root page carried its
     // own bar. The strip only belongs to the four root panels.
     internal void UpdateSharedBarVisibility()
     {
+#if ANDROID
         UpdateRootPagerInput();
 
         if (_sharedBarView == null)
@@ -393,8 +408,10 @@ public partial class AppShell : Shell
         // Safety net for pages the pager created after the last OnNavigated: a list page always
         // has to know whether it owns the shared view model.
         UpdateRootListModes(_lastNavigatedSection);
+#endif
     }
 
+#if ANDROID
     // The section pager is the root swipe surface and nothing else. A pushed page sits above
     // the section inside the shellitem pager, but the section pager stays alive underneath
     // and kept its input, so a sideways drag on Forum, Recommendations or Season OP/ED
@@ -620,6 +637,7 @@ public partial class AppShell : Shell
             return true;
         }
     }
+#endif
 
     protected override void OnHandlerChanged()
     {
@@ -628,6 +646,7 @@ public partial class AppShell : Shell
         if (Handler is null || !OperatingSystem.IsAndroid())
             return;
 
+#if ANDROID
         _sharedBarInstalled = false;
         _sharedBarView = null;
         _topTabsGuardParent = null;
@@ -637,10 +656,12 @@ public partial class AppShell : Shell
         PaintPagers();
         Dispatcher.Dispatch(PaintPagers);
         ScheduleSharedBar();
+#endif
     }
 
     private void ScheduleSharedBar()
     {
+#if ANDROID
         Dispatcher.Dispatch(InstallSharedBar);
         Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(400), InstallSharedBar);
         Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(1200), InstallSharedBar);
@@ -654,6 +675,7 @@ public partial class AppShell : Shell
                 CurrentPage is Views.MorePage)
                 Controls.BottomNavBar.ShowAllForFallback();
         });
+#endif
     }
 
     private readonly System.Diagnostics.Stopwatch _navStopwatch = new();
@@ -686,6 +708,7 @@ public partial class AppShell : Shell
                 args.Source == ShellNavigationSource.PopToRoot ||
                 IsRootSectionLocation(_currentNavTarget))
             {
+#if ANDROID
                 if (_sharedBarView != null && Navigation?.NavigationStack?.Count <= 2)
                 {
                     if (_sharedBarView.Visibility != global::Android.Views.ViewStates.Visible)
@@ -694,6 +717,7 @@ public partial class AppShell : Shell
                         global::Android.Util.Log.Info("MALPLUS", "OnNavigating: shared bar restored to Visible ahead of transition");
                     }
                 }
+#endif
             }
         }
         catch { }
@@ -752,6 +776,7 @@ public partial class AppShell : Shell
             var isSectionSwitch = !string.IsNullOrEmpty(section) &&
                                   !string.Equals(section, _lastNavigatedSection, StringComparison.OrdinalIgnoreCase);
 
+#if ANDROID
             if (_sectionPagerScrollState != 0)
             {
                 _pendingSettledSection = section;
@@ -763,6 +788,9 @@ public partial class AppShell : Shell
                 _pendingSettledLocation = null;
                 ApplySettledSection(section, location);
             }
+#else
+            ApplySettledSection(section, location);
+#endif
         }
         catch (Exception ex)
         {

@@ -1164,6 +1164,7 @@ Season? routeSeason = null, int? routeYear = null)
     /// </summary>
     private void StripEntryUnderline()
     {
+#if ANDROID
         try
         {
             if (PanelFilterEntry?.Handler?.PlatformView is not global::Android.Widget.EditText edit)
@@ -1179,6 +1180,7 @@ Season? routeSeason = null, int? routeYear = null)
         {
             Console.WriteLine("MALPLUS entry fixups failed: " + ex.GetType().Name);
         }
+#endif
     }
 
     private void OnClearPanelFilter(object sender, TappedEventArgs e)

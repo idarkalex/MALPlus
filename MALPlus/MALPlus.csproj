@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Phase 2: MAUI single-project shell. Android only; Windows lands in Phase 4. -->
   <PropertyGroup>
-    <TargetFramework>net11.0-android37.0</TargetFramework>
+    <TargetFrameworks>net11.0-android37.0;net11.0-windows10.0.19041.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>MALPlus</RootNamespace>
     <AssemblyName>MALPlus</AssemblyName>
@@ -13,35 +12,27 @@
     <ApplicationId>com.idarkalex.malplus</ApplicationId>
     <ApplicationDisplayVersion>0.7.6</ApplicationDisplayVersion>
     <ApplicationVersion>213</ApplicationVersion>
+
+    <!-- Android platform properties -->
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">android-arm64</RuntimeIdentifier>
-    <AndroidPackageFormats>apk</AndroidPackageFormats>
+    <AndroidPackageFormats Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">apk</AndroidPackageFormats>
+    <AndroidIncludeDebugSymbols Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">false</AndroidIncludeDebugSymbols>
+    <EmbedAssembliesIntoApk Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">true</EmbedAssembliesIntoApk>
+    <AndroidLinkMode Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">SdkOnly</AndroidLinkMode>
+
+    <!-- Windows platform properties -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
-    <AndroidIncludeDebugSymbols>false</AndroidIncludeDebugSymbols>
-    <!-- Debug builds must embed assemblies: fast-deploy APKs crash at startup with native SIGABRT (same lesson as v2). -->
-    <EmbedAssembliesIntoApk Condition="'$(Configuration)' == 'Debug'">true</EmbedAssembliesIntoApk>
-    <!--
-      Debug MAUI defaults to no linker, so every page/control is built by the
-      interpreter at runtime. Scrolling an already-built list then looks fine while every
-      navigation and tap pays full JIT cost, which is what made the whole app feel sluggish.
-      AOT is left to Release: the MonoAOTCompiler SDK is not present in the standalone
-      dotnet SDK used for local builds.
-    -->
-    <AndroidLinkMode Condition="'$(Configuration)' == 'Debug'">SdkOnly</AndroidLinkMode>
-    <!-- Microsoft.Maui.Controls.targets hardcodes ValidateOnly=true for Debug, so a
-         local Debug build validates XamlC but never emits the IL. Without this the
-         compiled-binding work is invisible until CI runs a Release build. -->
     <_MauiForceXamlCForDebug>true</_MauiForceXamlCForDebug>
-    <!-- The SDK here is an RC of .NET 11, so the EOL check fires on every build. -->
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
     <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
-    <!-- Dev-loop only: the MAUI/XAML analyzers cost real time per build and every
-         warning they raise is already surfaced by the Release/CI build. -->
     <RunAnalyzersDuringBuild Condition="'$(Configuration)' == 'Debug'">false</RunAnalyzersDuringBuild>
     <RunAnalyzersDuringLiveAnalysis Condition="'$(Configuration)' == 'Debug'">false</RunAnalyzersDuringLiveAnalysis>
-    <!-- No UseMonoRuntime: NETSDK1242 rejects it. .NET 11 dropped the Mono runtime for Android,
-         so CoreCLR comes with the framework bump and the two changes cannot be separated. -->
     <NoWarn>$(NoWarn);NU1703;CS0168;SYSLIB0013;CS0649;CS0169;CS0414;CS0067;CS4014;CS8509;CS0219;CS0162;CA1416;CA1422;MAUIG2024;MAUIG2045;CS0618;CS8632;CS0108;CS0419;CS1587</NoWarn>
   </PropertyGroup>
 
@@ -51,23 +42,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Splash + launcher icon: original MAL brand (navy #000D1A + white MAL+), ported as LIGHTWEIGHT SVGs. -->
-<!-- No MauiIcon on purpose. It generates a mipmap-anydpi-v26 adaptive icon, and that qualifier
-     wins over every density qualified mipmap on API 26 and up, so the launcher kept drawing the
-     old artwork no matter which PNG sat in Resources/AppIcon. The round artwork is therefore
-     shipped as plain PNGs under Platforms/Android/Resources/mipmap-*/ic_launcher_malplus.png,
-     which carry no anydpi variant, and AndroidManifest.xml points android:icon and android:roundIcon
-     at that name. -->
-<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000D1A" BaseSize="256,256" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000D1A" BaseSize="256,256" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MALPlus.Core\MALPlus.Core.csproj" />
     <PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
-    <!-- Real player for the OP/ED direct video. MAUI 11 RC1 has no MediaElement at all
-         (absent from Microsoft.Maui.Controls on every TFM, no separate media package), so
-         ExoPlayer has to come from AndroidX Media3 and be hosted by our own handler. WebM
-         needs the container package, which is why this is not a plain ExoPlayer reference. -->
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.4.1" />
     <PackageReference Include="Xamarin.AndroidX.Media3.UI" Version="1.4.1" />
   </ItemGroup>
