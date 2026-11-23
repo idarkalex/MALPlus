@@ -113,7 +113,16 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 #endif
     private WebView _videoWebView;
 
-    public string MalId { get; set; }
+    private string _malId;
+    public string MalId
+    {
+        get => _malId;
+        set
+        {
+            _malId = value;
+            EnsureInitialized();
+        }
+    }
     public string AnimeTitle { get; set; }
     public string InitialIsManga { get; set; }
     public int InitialTabIndex { get; set; }
@@ -272,7 +281,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         ScrollRangePillIntoView(range);
         if (scrollToTop && PageScroll != null)
         {
-            _ = PageScroll.ScrollToAsync(0, HeroExpandedHeight, true);
+            _ = SafeScrollToAsync(PageScroll, 0, HeroExpandedHeight, true);
         }
     }
 
@@ -282,7 +291,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         var idx = EpisodeRanges.IndexOf(range);
         if (idx < 0) return;
         var targetX = Math.Max(0, idx * 86 - 40);
-        _ = EpisodeRangesScroll.ScrollToAsync(targetX, 0, true);
+        _ = SafeScrollToAsync(EpisodeRangesScroll, targetX, 0, true);
     }
 
     private void PopulateRangeEpisodes(EpisodeRangeItem range)
@@ -564,6 +573,23 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 #if WINDOWS
         if (DesktopBackButton != null)
             DesktopBackButton.IsVisible = true;
+        if (PageScroll != null)
+            PageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Always;
+        if (HeroPanBox != null)
+            HeroPanBox.InputTransparent = true;
+        if (HeaderFlow != null)
+        {
+            void AttachWheel()
+            {
+                if (HeaderFlow.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement headerElement)
+                {
+                    headerElement.PointerWheelChanged -= OnHeaderPointerWheelChanged;
+                    headerElement.PointerWheelChanged += OnHeaderPointerWheelChanged;
+                }
+            }
+            HeaderFlow.Loaded += (s, e) => AttachWheel();
+            HeaderFlow.HandlerChanged += (s, e) => AttachWheel();
+        }
 #endif
         // Set here rather than as a <BindableLayout.ItemsLayout> property element in the XAML:
             // on this RC the compiler rejects that form with MAUIX2002.
@@ -978,6 +1004,12 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         MainActivity.DisarmMenuBackCallback();
     }
 
+    protected override void OnNavigatedTo(NavigatedToEventArgs args)
+    {
+        base.OnNavigatedTo(args);
+        EnsureInitialized();
+    }
+
     protected override void OnAppearing()
     {
         base.OnAppearing();
@@ -988,6 +1020,20 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         VideoWebViewHelper.PlaybackError += OnVideoPlaybackError;
         VideoWebViewHelper.PlaybackStarted += OnVideoPlaybackStarted;
         AttachSubscriptions();
+        EnsureInitialized();
+    }
+
+    private void EnsureInitialized()
+    {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(EnsureInitialized);
+            return;
+        }
+
+        if (!_isAppearing)
+            return;
+
         try
         {
             if (!int.TryParse(MalId, out var id) || id <= 0)
@@ -1016,7 +1062,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
                 args.SourceTabIndex = Math.Clamp(_lastTabIndex, 0, 7);
 
             var entryChanged = !_initialized || _initializedId != args.Id || _initializedAnimeMode != args.AnimeMode ||
-                               Vm.Id != args.Id || Vm.AnimeMode != args.AnimeMode;
+                               Vm?.Id != args.Id || Vm?.AnimeMode != args.AnimeMode;
             if (!entryChanged)
                 return;
 
@@ -1030,7 +1076,8 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             ApplyTabStripVisibilityFromParams(args.AnimeMode);
             Dispatcher.Dispatch(async () =>
             {
-                await InitAsyncSafe(Vm, args);
+                if (Vm != null)
+                    await InitAsyncSafe(Vm, args);
             });
         }
         catch (Exception ex)
@@ -1051,7 +1098,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             while (vm.LoadingGlobal)
                 await Task.Delay(100);
             if (PageScroll != null)
-                await PageScroll.ScrollToAsync(0, 0, false);
+                await SafeScrollToAsync(PageScroll, 0, 0, false);
             ApplyHeroState(0);
             var initialTab = Math.Clamp(args.SourceTabIndex, 0, 7);
             vm.DetailsPivotSelectedIndex = IsTabVisible(initialTab) ? initialTab : 0;
@@ -1072,6 +1119,53 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             System.Diagnostics.Debug.WriteLine("MALPLUS Details Init failed: " + ex);
         }
     }
+
+    private static async Task SafeScrollToAsync(ScrollView scroll, double x, double y, bool animated)
+    {
+        if (scroll == null)
+            return;
+        try
+        {
+            if (!MainThread.IsMainThread)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    try { await scroll.ScrollToAsync(x, y, animated); } catch { }
+                });
+            }
+            else
+            {
+                await scroll.ScrollToAsync(x, y, animated);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SafeScrollToAsync] Scroll failed: {ex.Message}");
+        }
+    }
+
+#if WINDOWS
+    private void OnHeaderPointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        try
+        {
+            if (PageScroll == null)
+                return;
+            var pointerPoint = e.GetCurrentPoint(sender as Microsoft.UI.Xaml.UIElement);
+            var delta = pointerPoint.Properties.MouseWheelDelta;
+            if (delta != 0)
+            {
+                var scrollDelta = -delta;
+                var currentY = PageScroll.ScrollY;
+                var maxScroll = Math.Max(0, PageScroll.ContentSize.Height - PageScroll.Height);
+                var targetY = Math.Clamp(currentY + scrollDelta, 0, maxScroll);
+                _ = SafeScrollToAsync(PageScroll, 0, targetY, false);
+                e.Handled = true;
+            }
+        }
+        catch { }
+    }
+#endif
 
     /// <summary>
     ///     Manga gets Reviews, Recs and Related too. The three queries behind them all take an
@@ -1150,6 +1244,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
     private void OnVmPropertyChanged(object sender, PropertyChangedEventArgs e)
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(() => OnVmPropertyChanged(sender, e));
+            return;
+        }
         if (e.PropertyName == nameof(AnimeDetailsPageViewModel.LastAired) ||
             e.PropertyName == nameof(AnimeDetailsPageViewModel.Status) ||
             e.PropertyName == nameof(AnimeDetailsPageViewModel.GlobalScoreBind) ||
@@ -1231,6 +1330,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
         private void ApplyCharacterStaffBindings()
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(ApplyCharacterStaffBindings);
+            return;
+        }
         try
         {
             if (Vm == null)
@@ -1313,6 +1417,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
     private void ResetProgressiveCollections()
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(ResetProgressiveCollections);
+            return;
+        }
         EpisodeRanges.Clear();
         _selectedRange = null;
         _episodeSortDescending = null;
@@ -1428,6 +1537,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
     private void OnEpisodesSourceChanged(object sender, NotifyCollectionChangedEventArgs e)
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(() => OnEpisodesSourceChanged(sender, e));
+            return;
+        }
         _episodesLoaded = Vm?.EpisodesLoaded ?? false;
         RefreshDisplayedEpisodes(false);
         NotifyStateProperties();
@@ -1435,6 +1549,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
     private void OnReviewsSourceChanged(object sender, NotifyCollectionChangedEventArgs e)
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(() => OnReviewsSourceChanged(sender, e));
+            return;
+        }
         if (e.Action == NotifyCollectionChangedAction.Reset)
             ResetReviewExpansionState();
         RefreshDisplayedReviews(false);
@@ -1442,16 +1561,33 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     }
 
     private void OnDetailsSourceChanged(object sender, NotifyCollectionChangedEventArgs e)
-        => NotifyStateProperties();
+    {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(() => OnDetailsSourceChanged(sender, e));
+            return;
+        }
+        NotifyStateProperties();
+    }
 
     private void OnRecommendationsSourceChanged(object sender, NotifyCollectionChangedEventArgs e)
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(() => OnRecommendationsSourceChanged(sender, e));
+            return;
+        }
         RefreshDisplayedRecommendations(false);
         NotifyStateProperties();
     }
 
     private void OnRelatedSourceChanged(object sender, NotifyCollectionChangedEventArgs e)
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(() => OnRelatedSourceChanged(sender, e));
+            return;
+        }
         // The grid binds to the paged DisplayedRelated, not straight to the source, so it has to
         // be filled here. The load path clears the VM collection and then adds the entries one by
         // one, so this runs once per item and appends whatever the tab is allowed to show.
@@ -2900,7 +3036,7 @@ private void HideVideoLoading()
 
         if (PageScroll != null && PageScroll.ScrollY > 0)
         {
-            _ = PageScroll.ScrollToAsync(0, 0, animated);
+            _ = SafeScrollToAsync(PageScroll, 0, 0, animated);
         }
     }
 
@@ -3107,7 +3243,7 @@ private void HideVideoLoading()
                     targetX = Math.Clamp(btnCenter - (viewport / 2.0), 0, maxScroll);
                 }
 
-                _ = TabStripScroll.ScrollToAsync(targetX, 0, true);
+                _ = SafeScrollToAsync(TabStripScroll, targetX, 0, true);
             }
             catch (Exception ex)
             {
@@ -3174,7 +3310,7 @@ private void HideVideoLoading()
                     return;
                 var maxScroll = Math.Max(0, PageScroll.ContentSize.Height - PageScroll.Height);
                 var target = Math.Clamp(PageScroll.ScrollY - deltaY, 0, maxScroll);
-                _ = PageScroll.ScrollToAsync(0, target, false);
+                _ = SafeScrollToAsync(PageScroll, 0, target, false);
                 break;
             case GestureStatus.Completed:
             case GestureStatus.Canceled:
@@ -3223,9 +3359,9 @@ private void HideVideoLoading()
     {
         _headerSpacerRetry = 0;
         if (PageScroll != null)
-            _ = PageScroll.ScrollToAsync(0, 0, false);
+            _ = SafeScrollToAsync(PageScroll, 0, 0, false);
         if (TabStripScroll != null)
-            _ = TabStripScroll.ScrollToAsync(0, 0, false);
+            _ = SafeScrollToAsync(TabStripScroll, 0, 0, false);
         if (HeaderFlow != null)
             HeaderFlow.TranslationY = 0;
         if (TabContentHost != null)
@@ -3279,7 +3415,7 @@ private void HideVideoLoading()
 
         if (Math.Abs(PageScroll.ScrollY - targetScroll) > 1)
         {
-            _ = PageScroll.ScrollToAsync(0, targetScroll, false);
+            _ = SafeScrollToAsync(PageScroll, 0, targetScroll, false);
             ApplyHeroState(targetScroll);
         }
     }
@@ -3341,6 +3477,11 @@ private void HideVideoLoading()
 
     private void AppendNextProgressiveChunk()
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(AppendNextProgressiveChunk);
+            return;
+        }
         var tab = Vm?.DetailsPivotSelectedIndex ?? -1;
         // Only the active tab grows, so scrolling a long Episodes list never quietly appends
         // rows to a list nobody is looking at. OnPageScrolled keeps one append per 120px of

@@ -866,7 +866,7 @@
                         <Image Source="{Binding DetailImage, Converter={StaticResource ImageConverter}}"
                                Aspect="AspectFit" />
                     </Border>
-                    <BoxView BackgroundColor="Transparent" InputTransparent="False">
+                    <BoxView x:Name="HeroPanBox" BackgroundColor="Transparent" InputTransparent="False">
                         <BoxView.GestureRecognizers>
                             <PanGestureRecognizer PanUpdated="OnHeaderPanUpdated" />
                         </BoxView.GestureRecognizers>
