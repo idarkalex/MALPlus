@@ -374,6 +374,7 @@ public partial class AnimeListPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        (Shell.Current as AppShell)?.UpdateSharedBarVisibility();
         BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
         StatusBar.BackgroundColor = MALPlus.Services.ThemeService.CurrentSheet;
 #if ANDROID
@@ -2640,23 +2641,11 @@ case AnimeListWorkModes.SeasonalAnime:
             // library's own value rather than the panel's. The log showed mode=1 going out and mode=0
             // coming back with _appliedMode still sitting on 1, so the fallback never got a look in.
             _returningFromDetails = true;
-
-            // The gesture is taken over rather than left to the shell. Details is pushed with a
-            // relative route while the four tabs are ShellContents rather than stackable pages, so the
-            // shell does not treat it as a child of this section and pops two levels on the way back:
-            // from //anime/animedetails straight to //more, which is the section the panel was opened
-            // from. The navigation trace showed exactly that, one gesture, //more. Naming the way back
-            // here is what makes it land on this panel instead of wherever the shell feels like.
             _detailsReturnMode = _lastMode;
             _detailsReturnManga = manga;
 
-            // The panel's own back callback is replaced by this one, so the flag has to come down with
-            // it. Left set, the OnDisappearing this very navigation raises saw a panel it still believed
-            // was armed and disarmed the callback just registered, so nothing was left to answer the
-            // gesture and the shell popped two levels on its own. The trace showed the return handler
-            // never running at all.
             _panelBackArmed = false;
-            MainActivity.ArmMenuBackCallback(ReturnFromDetailsAsync);
+            MainActivity.DisarmMenuBackCallback();
 
             await Shell.Current.GoToAsync(route);
         }
@@ -2677,36 +2666,20 @@ case AnimeListWorkModes.SeasonalAnime:
     ///     The way back from a details page this list opened: straight to this list, in the state it was
     ///     showing.
     /// </summary>
-    /// <remarks>
-    ///     Named rather than popped, because the shell cannot do it here. The four tabs are ShellContents
-    ///     and a details page is pushed with a relative route, so the two are not parent and child as far
-    ///     as the navigation stack is concerned, and a back gesture unwound two levels at once and left
-    ///     the panel entirely.
-    ///     <para>
-    ///     The query is built by the same serialiser the panel used on its way in, from the same args.
-    ///     Building it here by hand is what dropped the type and sent an Upcoming panel back to the
-    ///     General ranking, and there was no reason for it to be a second implementation: anything the
-    ///     args carry round-trips from now on without a second place to remember.
-    ///     </para>
-    /// </remarks>
     private void ReturnFromDetailsAsync()
     {
         MainActivity.DisarmMenuBackCallback();
-        var mode = _detailsReturnMode >= 0 ? _detailsReturnMode : (int)AnimeListWorkModes.Anime;
-        var root = _detailsReturnManga ? "//manga" : "//anime";
-        var query = MauiMainViewModel.BuildAnimeListQuery(
-            _detailsReturnManga ? PageIndex.PageMangaList : PageIndex.PageAnimeList,
-            BuildArgs(mode, _lastStatus));
-        Android.Util.Log.Info("MALPLUS", $"AnimeList returning from details to {root}{query}");
         _detailsReturnMode = -1;
         _detailsReturnManga = false;
         _ = MainThread.InvokeOnMainThreadAsync(async () =>
         {
             try
             {
-                // reset=1 keeps this a real arrival rather than a no-op against the page already on
-                // screen, which is what makes ApplyRoute repaint instead of skipping.
-                await Shell.Current.GoToAsync($"{root}{query}&reset=1");
+                var nav = Shell.Current?.Navigation;
+                if (nav != null && nav.NavigationStack != null && nav.NavigationStack.Count > 1)
+                {
+                    await nav.PopAsync();
+                }
             }
             catch (Exception ex)
             {

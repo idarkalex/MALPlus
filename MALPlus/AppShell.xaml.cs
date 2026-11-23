@@ -363,7 +363,7 @@ public partial class AppShell : Shell
 
     // Pushed pages own the full height, exactly like when every root page carried its
     // own bar. The strip only belongs to the four root panels.
-    private void UpdateSharedBarVisibility()
+    internal void UpdateSharedBarVisibility()
     {
         UpdateRootPagerInput();
 
@@ -659,6 +659,14 @@ public partial class AppShell : Shell
     private readonly System.Diagnostics.Stopwatch _navStopwatch = new();
     private string _currentNavTarget;
 
+    private static bool IsRootSectionLocation(string location)
+    {
+        if (string.IsNullOrEmpty(location))
+            return false;
+        var path = location.Split('?')[0].Trim('/');
+        return path == "anime" || path == "manga" || path == "discover" || path == "more";
+    }
+
     protected override void OnNavigating(ShellNavigatingEventArgs args)
     {
         base.OnNavigating(args);
@@ -669,6 +677,24 @@ public partial class AppShell : Shell
             _currentNavTarget = args?.Target?.Location?.OriginalString;
             _navStopwatch.Restart();
             AppLog.Debug("Navigation", $"Navigating to '{_currentNavTarget}'");
+
+            // If popping back to root (or returning to a root section), restore the shared bar to
+            // Visible IMMEDIATELY when the back transition starts rather than waiting for OnNavigated.
+            // This ensures the main page is revealed with the bottom bar ALREADY present and laid out,
+            // eliminating any late pop-in, redrawing, or layout jumping!
+            if (args.Source == ShellNavigationSource.Pop ||
+                args.Source == ShellNavigationSource.PopToRoot ||
+                IsRootSectionLocation(_currentNavTarget))
+            {
+                if (_sharedBarView != null && Navigation?.NavigationStack?.Count <= 2)
+                {
+                    if (_sharedBarView.Visibility != global::Android.Views.ViewStates.Visible)
+                    {
+                        _sharedBarView.Visibility = global::Android.Views.ViewStates.Visible;
+                        global::Android.Util.Log.Info("MALPLUS", "OnNavigating: shared bar restored to Visible ahead of transition");
+                    }
+                }
+            }
         }
         catch { }
     }

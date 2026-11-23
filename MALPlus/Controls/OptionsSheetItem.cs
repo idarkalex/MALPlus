@@ -15,7 +15,7 @@ public class OptionsSheetItem
         public OptionsSheetItem(string label, string icon, ICommand command = null,
             object commandParameter = null, string value = null, bool destructive = false, bool showChevron = false,
             Func<OptionsSheet, bool> submenu = null, Action action = null, bool hideChevron = false,
-            string description = null)
+            string description = null, string previewUrl = null)
         {
             Label = label;
             Icon = icon;
@@ -28,9 +28,13 @@ public class OptionsSheetItem
             Action = action;
             HideChevron = hideChevron;
             Description = description;
+            PreviewUrl = previewUrl;
         }
 
         public string Label { get; }
+
+        /// <summary>Optional preview image thumbnail URL displayed in the row.</summary>
+        public string PreviewUrl { get; }
 
         /// <summary>Optional subtitle or description displayed below the label.</summary>
         public string Description { get; }

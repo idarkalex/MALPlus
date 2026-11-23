@@ -17,6 +17,17 @@
         <converters:AiringStatusVisibilityConverter x:Key="AiringStatus" />
         <converters:MultiAndConverter x:Key="MultiAnd" />
 
+        <!-- Look compartido de los botones de la barra de acciones. Lo que cambia por boton
+             (ancho, fuente, color del trailer, trigger de favorito) sigue inline. -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="BackgroundColor" Value="{StaticResource TabChipInactiveBg}" />
+            <Setter Property="TextColor" Value="{StaticResource BrushText}" />
+            <Setter Property="BorderColor" Value="{StaticResource EmBorder}" />
+            <Setter Property="BorderWidth" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HeightRequest" Value="40" />
+        </Style>
+
         <Style x:Key="TabLabelStyle" TargetType="Label">
             <Setter Property="FontFamily" Value="InterSemiBold" />
             <Setter Property="FontSize" Value="13" />
@@ -288,24 +299,6 @@
                                    Style="{StaticResource StateTextStyle}" />
                         </Border>
 
-                        <Label Text="ALTERNATIVE TITLES" Style="{StaticResource SectionLabelStyle}"
-                               IsVisible="{Binding AltTitlesVisible}" />
-                        <Border Style="{StaticResource PanelStyle}" Padding="12"
-                                IsVisible="{Binding AltTitlesVisible}">
-                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding AltTitleRows}" Spacing="0">
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
-                                            <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
-                                            <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="{StaticResource BrushText}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </VerticalStackLayout>
-                        </Border>
-
                         <Label Text="SYNOPSIS" Style="{StaticResource SectionLabelStyle}"
                                IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralContentVisible}" />
                         <Border Style="{StaticResource PanelStyle}" Padding="14"
@@ -399,6 +392,24 @@
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </FlexLayout>
+                        </Border>
+
+                        <Label Text="ALTERNATIVE TITLES" Style="{StaticResource SectionLabelStyle}"
+                               IsVisible="{Binding AltTitlesVisible}" />
+                        <Border Style="{StaticResource PanelStyle}" Padding="12"
+                                IsVisible="{Binding AltTitlesVisible}">
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding AltTitleRows}" Spacing="0">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
+                                            <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
+                                            <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
+                                                   TextColor="{StaticResource BrushText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
                         </Border>
 
                         <Label Text="DETAILS" Style="{StaticResource SectionLabelStyle}"
@@ -847,13 +858,13 @@
             <Grid x:Name="HeroContainer" HeightRequest="460" HorizontalOptions="Fill" BackgroundColor="Transparent" IsClippedToBounds="True">
                 <Grid x:Name="HeroVisual" HeightRequest="460" IsClippedToBounds="True" VerticalOptions="Start" HorizontalOptions="Fill">
                     <controls:BlurHeroView ImageUrl="{Binding DetailImage}" />
-                    <Frame x:Name="PosterContainer"
+                    <Border x:Name="PosterContainer"
                            HorizontalOptions="Center" VerticalOptions="Center"
-                           WidthRequest="340" HeightRequest="380" Padding="0" HasShadow="False"
-                           BackgroundColor="Transparent" BorderColor="Transparent">
+                           WidthRequest="340" HeightRequest="380" Padding="0"
+                           BackgroundColor="Transparent" StrokeThickness="0">
                         <Image Source="{Binding DetailImage, Converter={StaticResource ImageConverter}}"
                                Aspect="AspectFit" />
-                    </Frame>
+                    </Border>
                     <BoxView BackgroundColor="Transparent" InputTransparent="False">
                         <BoxView.GestureRecognizers>
                             <PanGestureRecognizer PanUpdated="OnHeaderPanUpdated" />
@@ -863,8 +874,9 @@
                         <BoxView.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                                 <GradientStop Color="#00051522" Offset="0.0" />
-                                <GradientStop Color="#00051522" Offset="0.5" />
-                                <GradientStop Color="#B3051522" Offset="1.0" />
+                                <GradientStop Color="#00051522" Offset="0.35" />
+                                <GradientStop Color="#4D051522" Offset="0.65" />
+                                <GradientStop Color="#CC051522" Offset="1.0" />
                             </LinearGradientBrush>
                         </BoxView.Background>
                     </BoxView>
@@ -872,39 +884,32 @@
                         <BoxView.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                                 <GradientStop Color="#00051522" Offset="0.0" />
-                                <GradientStop Color="#4D051522" Offset="0.5" />
-                                <GradientStop Color="#B3051522" Offset="1.0" />
+                                <GradientStop Color="#4D051522" Offset="0.4" />
+                                <GradientStop Color="#E6051522" Offset="1.0" />
                             </LinearGradientBrush>
                         </BoxView.Background>
                     </BoxView>
-                    <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="Start" Margin="0,12,12,0" Spacing="8">
-                        <!-- The trailer button used to live here AND in the action bar below, so
-                             every entry showed two of them wired to the same handler. The action
-                             bar copy stays; this overlay only keeps the loading spinner. -->
-                        <ActivityIndicator IsRunning="{Binding LoadingGlobal}" IsVisible="{Binding LoadingGlobal}"
-                                           Color="{StaticResource EmAccent}" WidthRequest="28" HeightRequest="28" />
-                    </HorizontalStackLayout>
-                    <Grid x:Name="TitleSection" VerticalOptions="End" RowDefinitions="Auto,Auto,Auto" Padding="20,24,20,16">
+                    <Grid x:Name="TitleSection" VerticalOptions="End" RowDefinitions="Auto,Auto,Auto" Padding="20,10,20,12">
                         <Label Grid.Row="0" x:Name="TitleLabel" Text="{Binding Title}"
                                FontFamily="InterBold" FontSize="26" TextColor="White"
                                MaxLines="2" LineBreakMode="TailTruncation" Margin="0,0,0,4" />
-                        <HorizontalStackLayout Grid.Row="1" Spacing="6" Margin="0,0,0,12">
-                            <Frame Padding="8,2" CornerRadius="6" HasShadow="False" BackgroundColor="#0066FF" BorderColor="Transparent">
+                        <HorizontalStackLayout Grid.Row="1" Spacing="6" Margin="0,0,0,8">
+                            <Border Padding="8,2" StrokeShape="RoundRectangle 6" BackgroundColor="#0066FF" StrokeThickness="0">
                                 <Label Text="{Binding Type}" FontFamily="InterBold" FontSize="11" TextColor="White" />
-                            </Frame>
-                            <Frame Padding="8,2" CornerRadius="6" HasShadow="False" BackgroundColor="#00C853" BorderColor="Transparent"
+                            </Border>
+                            <Border Padding="8,2" StrokeShape="RoundRectangle 6" BackgroundColor="#00C853" StrokeThickness="0"
                                    IsVisible="{Binding Status, Converter={StaticResource AiringStatus}}">
                                 <Label Text="AIRING" FontFamily="InterBold" FontSize="11" TextColor="White" />
-                            </Frame>
-                            <Frame Padding="8,2" CornerRadius="6" HasShadow="False" BackgroundColor="#FF0000" BorderColor="Transparent">
-                                <Frame.IsVisible>
+                            </Border>
+                            <Border Padding="8,2" StrokeShape="RoundRectangle 6" BackgroundColor="#FF0000" StrokeThickness="0">
+                                <Border.IsVisible>
                                     <MultiBinding Converter="{StaticResource MultiAnd}">
                                         <Binding Path="Status" Converter="{StaticResource AiringStatus}" />
                                         <Binding Path="TimeTillNextAir" Converter="{StaticResource BoolVis}" ConverterParameter="nonempty" />
                                     </MultiBinding>
-                                </Frame.IsVisible>
+                                </Border.IsVisible>
                                 <Label Text="{Binding TimeTillNextAir}" FontFamily="InterBold" FontSize="11" TextColor="White" />
-                            </Frame>
+                            </Border>
                             <Label Text="•" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" VerticalOptions="Center" Margin="6,0" />
                             <Label Text="{Binding StartYear}" FontFamily="Inter" FontSize="12" TextColor="#CCFFFFFF" VerticalOptions="Center" />
                             <Label Text="•" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" VerticalOptions="Center" Margin="6,0" />
@@ -920,23 +925,23 @@
                                  group had one line or two. Rows put every header on row 0 and every
                                  value on row 1, which is what makes the values and the stepper
                                  share a baseline. -->
-                            <Grid x:Name="HeroMetaLayout" Grid.Column="0" ColumnSpacing="22"
+                            <Grid x:Name="HeroMetaLayout" Grid.Column="0" ColumnSpacing="16"
                                   ColumnDefinitions="Auto,Auto,Auto"
                                   RowDefinitions="Auto,Auto" HorizontalOptions="Start"
                                   VerticalOptions="Center">
                                 <HorizontalStackLayout x:Name="ScoreHeaderGroup" Grid.Row="0" Grid.Column="0" Spacing="3">
                                     <Label Text="★" FontFamily="InterBold" FontSize="9" TextColor="#FFD700" />
-                                    <Label Text="SCORE" FontFamily="InterBold" FontSize="9" TextColor="#80FFFFFF" />
+                                    <Label Text="MAL" FontFamily="InterBold" FontSize="9" TextColor="#80FFFFFF" />
                                 </HorizontalStackLayout>
                                 <Label x:Name="ScoreMetaGroup" Grid.Row="1" Grid.Column="0"
                                        Text="{Binding GlobalScoreBind}" FontFamily="InterBold" FontSize="14" TextColor="White" />
 
                                 <Label x:Name="StatusHeaderGroup" Grid.Row="0" Grid.Column="1"
                                        Text="STATUS" FontFamily="InterBold" FontSize="9" TextColor="#80FFFFFF" />
-<Button x:Name="StatusMetaGroup" Grid.Row="1" Grid.Column="1"
-                                         Text="{Binding MyStatusBind}" Clicked="OnStatusClicked"
-                                         FontFamily="InterBold" FontSize="14" BackgroundColor="Transparent" TextColor="White"
-                                         BorderWidth="0" Padding="0" HeightRequest="20" HorizontalOptions="Start" />
+                                <Button x:Name="StatusMetaGroup" Grid.Row="1" Grid.Column="1"
+                                        Text="{Binding MyStatusBind, StringFormat='{0} ▾'}" Clicked="OnStatusClicked"
+                                        FontFamily="InterBold" FontSize="14" BackgroundColor="Transparent" TextColor="White"
+                                        BorderWidth="0" Padding="0" HeightRequest="20" HorizontalOptions="Start" />
 
                                 <Grid x:Name="LastAiredMetaGroup" Grid.Row="0" Grid.RowSpan="2" Grid.Column="2">
                                 <VerticalStackLayout Spacing="2">
@@ -961,34 +966,29 @@
                                 </Grid>
                             </Grid>
 
-                            <!-- Bottom aligned, not centred: the value under each meta header is what
-                                 the eye reads, and a centred stepper floated above the numbers next
-                                 to it. AlignItems="End" on the meta row puts all four on one baseline. -->
-                            <Border Grid.Column="1" StrokeShape="RoundRectangle 14"
-                                    BackgroundColor="#1A000000" Stroke="#29FFFFFF" StrokeThickness="1"
-                                    Padding="0" VerticalOptions="End" HeightRequest="32"
+                            <!-- Compact rectangular squircle stepper (Option B: subtle translucent minus, signature blue plus) -->
+                            <Border Grid.Column="1" StrokeShape="RoundRectangle 7"
+                                    BackgroundColor="#59000000" Stroke="#33FFFFFF" StrokeThickness="1"
+                                    Padding="0" VerticalOptions="End" HeightRequest="28"
                                     IsVisible="{Binding IsEpisodeStepperVisible}">
-                                <Grid ColumnDefinitions="32,Auto,32" ColumnSpacing="0">
-                                    <!-- The minus is meaningless at zero, so it is hidden rather than
-                                         shown dead. It is no longer hidden for being off the list:
-                                         the pill is always the pill now, never a "start watching"
-                                         button, and the plus is what takes an entry on the list. -->
+                                <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="0" IsClippedToBounds="True">
                                     <Button Grid.Column="0" Command="{Binding DecrementEpsCommand}"
                                             IsVisible="{Binding IsDecrementButtonEnabled}"
-                                            FontFamily="InterBold" FontSize="16" Text="−"
-                                            BackgroundColor="Transparent" TextColor="#80FFFFFF" BorderWidth="0" CornerRadius="0"
-                                            WidthRequest="32" HeightRequest="32" Padding="0" />
-                                    <Label Grid.Column="1" Text="{Binding MyEpisodesStepperBind}" FontFamily="InterBold" FontSize="13"
-                                           TextColor="White" VerticalOptions="Center" HorizontalOptions="Center" VerticalTextAlignment="Center" Padding="6,0">
+                                            FontFamily="InterBold" FontSize="14" Text="−"
+                                            BackgroundColor="#26FFFFFF" TextColor="#D1D5DB" BorderWidth="0" CornerRadius="0"
+                                            WidthRequest="28" HeightRequest="28" Padding="0" />
+                                    <Label Grid.Column="1" Text="{Binding MyEpisodesStepperBind}" FontFamily="InterBold" FontSize="12"
+                                           TextColor="White" VerticalOptions="Center" HorizontalOptions="Center" VerticalTextAlignment="Center"
+                                           Padding="8,0">
                                         <Label.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnEpisodesCounterTapped" />
                                         </Label.GestureRecognizers>
                                     </Label>
                                     <Button Grid.Column="2" Command="{Binding IncrementEpsCommand}"
                                             IsVisible="{Binding IsIncrementButtonEnabled}"
-                                            FontFamily="InterBold" FontSize="16" Text="+"
-                                            BackgroundColor="#0066FF" TextColor="White" BorderWidth="0" CornerRadius="0"
-                                            WidthRequest="32" HeightRequest="32" Padding="0" />
+                                            FontFamily="InterBold" FontSize="15" Text="+"
+                                            BackgroundColor="{StaticResource EmAccent}" TextColor="White" BorderWidth="0" CornerRadius="0"
+                                            WidthRequest="28" HeightRequest="28" Padding="0" />
                                 </Grid>
                             </Border>
                         </Grid>
@@ -1000,30 +1000,30 @@
                 <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="6">
                     <Button Grid.Column="0" Text="Add to List" Command="{Binding AddAnimeCommand}" IsVisible="{Binding AddAnimeVisibility}"
                             IsEnabled="{Binding IsAddAnimeButtonEnabled}" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
-                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" Padding="10,0" />
+                            Style="{StaticResource ActionButtonStyle}"
+                            Padding="10,0" />
                     <Button Grid.Column="0" Text="{Binding MyScoreBind, StringFormat='★ {0}'}" Clicked="OnScoreClicked" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
-                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" Padding="10,0"
+                            Style="{StaticResource ActionButtonStyle}"
+                            Padding="10,0"
                             IsVisible="{Binding AddAnimeVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
                     <Button Grid.Column="1" x:Name="FavouriteButton" Text="♥ Favorite" Command="{Binding ToggleFavouriteCommand}"
                             IsEnabled="{Binding IsFavouriteButtonEnabled}" FontFamily="InterSemiBold" FontSize="12"
-                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
-                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" Padding="10,0">
+                            Style="{StaticResource ActionButtonStyle}"
+                            Padding="10,0">
                         <Button.Triggers>
                             <DataTrigger TargetType="Button" Binding="{Binding IsFavourite}" Value="True">
-                                <Setter Property="Text" Value="♥ Favourited" />
+                                <Setter Property="Text" Value="♥ Favorited" />
                                 <Setter Property="TextColor" Value="{StaticResource EmAccent}" />
                                 <Setter Property="BorderColor" Value="{StaticResource EmAccent}" />
                             </DataTrigger>
                         </Button.Triggers>
                     </Button>
                     <Button Grid.Column="2" Text="▶" Clicked="OnTrailerClicked" IsVisible="{Binding HasTrailer}" FontFamily="InterBold" FontSize="14"
-                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="#FF6B00"
-                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" WidthRequest="40" Padding="0" />
+                            Style="{StaticResource ActionButtonStyle}" TextColor="#FF6B00"
+                            WidthRequest="40" Padding="0" />
                     <Button Grid.Column="3" Text="↻" Command="{Binding RefreshCommand}" FontFamily="InterBold" FontSize="14"
-                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
-                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" WidthRequest="40" Padding="0" />
+                            Style="{StaticResource ActionButtonStyle}"
+                            WidthRequest="40" Padding="0" />
                     <Border Grid.Column="4" WidthRequest="40" HeightRequest="40"
                             StrokeShape="RoundRectangle 8" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
                             BackgroundColor="{StaticResource TabChipInactiveBg}" Padding="0">
@@ -1034,8 +1034,8 @@
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                     <Button Grid.Column="5" Text="⋯" Command="{Binding ShowMoreCommand}" FontFamily="InterBold" FontSize="18"
-                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
-                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="40" WidthRequest="40" Padding="0" />
+                            Style="{StaticResource ActionButtonStyle}"
+                            WidthRequest="40" Padding="0" />
                 </Grid>
             </Border>
 

@@ -49,6 +49,7 @@ public partial class MorePage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        (Shell.Current as AppShell)?.UpdateSharedBarVisibility();
         ApplyTheme();
         if (_initialized)
         {

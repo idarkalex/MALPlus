@@ -9,7 +9,7 @@ namespace MALPlus.XShared.Utils
 {
     public class SmartObservableCollection<T> : ObservableCollection<T>
     {
-        private volatile bool _isObserving;
+        private volatile bool _isObserving = true;
 
         private bool IsObserving
         {
@@ -43,11 +43,17 @@ namespace MALPlus.XShared.Utils
 
             // add the items, making sure no events are fired
             IsObserving = false;
-            foreach (var item in enumerable)
+            try
             {
-                Add(item);
+                foreach (var item in enumerable)
+                {
+                    Add(item);
+                }
             }
-            IsObserving = true;
+            finally
+            {
+                IsObserving = true;
+            }
 
             // fire the events
             OnPropertyChanged(new PropertyChangedEventArgs("Count"));

@@ -873,15 +873,17 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             }
         }
         var hasDesc = !string.IsNullOrWhiteSpace(description);
+        var hasPreview = !string.IsNullOrWhiteSpace(item.PreviewUrl);
+        var hasLeading = hasPreview || !string.IsNullOrWhiteSpace(item.Icon);
 
         var border = new Border
         {
             BackgroundColor = _colorSheet,
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-            Padding = new Thickness(12, hasDesc ? 8 : 0),
-            MinimumHeightRequest = 48
+            Padding = new Thickness(12, hasPreview ? 6 : (hasDesc ? 8 : 0)),
+            MinimumHeightRequest = hasPreview ? 56 : 48
         };
-        if (!hasDesc)
+        if (!hasDesc && !hasPreview)
         {
             border.HeightRequest = 48;
         }
@@ -891,8 +893,56 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             ColumnSpacing = 12
         };
 
-        var hasIcon = !string.IsNullOrWhiteSpace(item.Icon);
-        if (hasIcon)
+        if (hasPreview)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+            var thumbBorder = new Border
+            {
+                WidthRequest = 76,
+                HeightRequest = 46,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(6) },
+                Stroke = new SolidColorBrush(Color.FromArgb("#33FFFFFF")),
+                StrokeThickness = 1,
+                BackgroundColor = Color.FromArgb("#141D2B"),
+                Padding = new Thickness(0),
+                VerticalOptions = LayoutOptions.Center
+            };
+            var thumbGrid = new Grid { IsClippedToBounds = true };
+            thumbGrid.Add(new Image
+            {
+                Source = item.PreviewUrl,
+                Aspect = Aspect.AspectFill,
+                HorizontalOptions = LayoutOptions.Fill,
+                VerticalOptions = LayoutOptions.Fill,
+                InputTransparent = true
+            });
+            thumbGrid.Add(new Border
+            {
+                BackgroundColor = Color.FromArgb("#99000000"),
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+                WidthRequest = 22,
+                HeightRequest = 22,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+                InputTransparent = true,
+                Content = new Label
+                {
+                    Text = "▶",
+                    TextColor = Colors.White,
+                    FontSize = 9,
+                    FontFamily = "InterBold",
+                    HorizontalTextAlignment = TextAlignment.Center,
+                    VerticalTextAlignment = TextAlignment.Center
+                }
+            });
+            thumbBorder.Content = thumbGrid;
+            Grid.SetColumn(thumbBorder, 0);
+            grid.Add(thumbBorder);
+        }
+        else if (hasLeading)
         {
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -926,7 +976,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         }
 
-        var textCol = hasIcon ? 1 : 0;
+        var textCol = hasLeading ? 1 : 0;
         var textStack = new VerticalStackLayout
         {
             Spacing = 2,
@@ -960,7 +1010,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         Grid.SetColumn(textStack, textCol);
         grid.Add(textStack);
 
-        var endCol = hasIcon ? 2 : 1;
+        var endCol = hasLeading ? 2 : 1;
         if (!string.IsNullOrWhiteSpace(item.Value))
         {
             var isCheck = item.Value == "✓";

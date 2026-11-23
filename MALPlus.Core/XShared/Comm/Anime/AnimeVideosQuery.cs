@@ -74,11 +74,16 @@ namespace MALPlus.XShared.Comm.Anime
 
                         var current = new AnimeVideoData();
 
-                        var title = trailer.TryGetProperty("title", out var titleProp) && titleProp.ValueKind == JsonValueKind.String
-                            ? titleProp.GetString()
-                            : p.TryGetProperty("title", out var promoTitle) && promoTitle.ValueKind == JsonValueKind.String
-                                ? promoTitle.GetString()
-                                : null;
+                        var promoTitle = p.TryGetProperty("title", out var pt) && pt.ValueKind == JsonValueKind.String
+                            ? pt.GetString()
+                            : null;
+                        var trailerTitle = trailer.TryGetProperty("title", out var tt) && tt.ValueKind == JsonValueKind.String
+                            ? tt.GetString()
+                            : null;
+
+                        // Prioritize the MAL/Tenrai promo title ("PV 1", "Teaser", "Main Trailer", etc.)
+                        // over the raw YouTube video title (which Japanese distributors upload in full Japanese).
+                        var title = !string.IsNullOrWhiteSpace(promoTitle) ? promoTitle : trailerTitle;
                         current.Name = title ?? $"Promotional video {output.Count + 1}";
                         current.YtLink = $"https://www.youtube.com/watch?v={ytId}";
 

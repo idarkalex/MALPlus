@@ -57,8 +57,15 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     /// </summary>
     private const int RelatedShowCap = 100;
     private const double HeroExpandedHeight = 460;
-    private const double HeroCollapsedHeight = 210;
-    private const double HeroCollapseRange = HeroExpandedHeight - HeroCollapsedHeight;
+    private double HeroCollapsedHeight => GetHeroCollapsedHeight();
+    private double HeroCollapseRange => HeroExpandedHeight - HeroCollapsedHeight;
+
+    private double GetHeroCollapsedHeight()
+    {
+        if (TitleSection != null && TitleSection.Height > 60 && !double.IsNaN(TitleSection.Height))
+            return Math.Round(TitleSection.Height);
+        return 140;
+    }
     private const uint TabTransitionLength = 110;
     private const uint SwipeSettleLength = 120;
     private bool _swipeTabBusy;
@@ -111,7 +118,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     public string InitialIsManga { get; set; }
     public int InitialTabIndex { get; set; }
 
-    public ObservableCollection<AnimeEpisode> DisplayedEpisodes { get; } = new();
+    public SmartObservableCollection<AnimeEpisode> DisplayedEpisodes { get; } = new();
     public ObservableCollection<AnimeReviewData> DisplayedReviews { get; } = new();
     public ObservableCollection<DirectRecommendationData> DisplayedRecommendations { get; } = new();
     public ObservableCollection<AnimeCharacterCard> DisplayedCharacters { get; } = new();
@@ -156,7 +163,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         HideFiller = !HideFiller;
     }
 
-    public ObservableCollection<EpisodeRangeItem> EpisodeRanges { get; } = new();
+    public SmartObservableCollection<EpisodeRangeItem> EpisodeRanges { get; } = new();
     private EpisodeRangeItem _selectedRange;
     public EpisodeRangeItem SelectedRange
     {
@@ -298,15 +305,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         }
 
         var descending = _episodeSortDescending ?? IsNaturalDescending();
-        items = descending
+        var ordered = descending
             ? items.OrderByDescending(ep => ep.EpisodeId)
             : items.OrderBy(ep => ep.EpisodeId);
 
-        DisplayedEpisodes.Clear();
-        foreach (var ep in items)
-        {
-            DisplayedEpisodes.Add(ep);
-        }
+        DisplayedEpisodes.ReplaceRange(ordered);
     }
 
     private void RebuildEpisodeRanges()
@@ -330,16 +333,36 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             return;
         }
 
-        var minId = (int)source.Min(e => e.EpisodeId);
-        var maxId = (int)source.Max(e => e.EpisodeId);
-        if (minId <= 0) minId = 1;
-        if (maxId <= 0) maxId = source.Count;
+        int minId = int.MaxValue;
+        int maxId = int.MinValue;
+        var episodeIdSet = new HashSet<int>();
+        foreach (var ep in source)
+        {
+            var id = (int)ep.EpisodeId;
+            if (id > 0)
+            {
+                if (id < minId) minId = id;
+                if (id > maxId) maxId = id;
+                episodeIdSet.Add(id);
+            }
+        }
+        if (minId == int.MaxValue) minId = 1;
+        if (maxId == int.MinValue) maxId = source.Count;
 
         var newRanges = new List<EpisodeRangeItem>();
         for (var start = 1; start <= maxId; start += EpisodeRangeSize)
         {
             var end = Math.Min(start + EpisodeRangeSize - 1, maxId);
-            if (source.Any(ep => ep.EpisodeId >= start && ep.EpisodeId <= end))
+            bool hasAny = false;
+            for (var checkId = start; checkId <= end; checkId++)
+            {
+                if (episodeIdSet.Contains(checkId))
+                {
+                    hasAny = true;
+                    break;
+                }
+            }
+            if (hasAny)
             {
                 newRanges.Add(new EpisodeRangeItem { StartEpisode = start, EndEpisode = end });
             }
@@ -361,11 +384,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
         if (rangesChanged)
         {
-            EpisodeRanges.Clear();
-            foreach (var r in newRanges)
-            {
-                EpisodeRanges.Add(r);
-            }
+            EpisodeRanges.ReplaceRange(newRanges);
         }
 
         EpisodeRangeItem targetRange = null;
@@ -673,7 +692,7 @@ InitializeComponent();
 
             if (vm.AnimeMode)
                 rows.Add(new MALPlus.Controls.OptionsSheetItem("Promotional videos", "icon_video",
-                    action: () => ShowVideoOverlay(vm.TrailerUrl)));
+                    submenu: sheet => OpenPromotionalVideosSubmenu(sheet, vm)));
 
             // Only offered while the entry can actually be rewatching, same as the original.
             if (vm.IsRewatchingButtonVisibility)
@@ -766,6 +785,100 @@ InitializeComponent();
             Console.WriteLine("MALPLUS OpenShareSubmenu failed: " + ex.Message);
             return false;
         }
+    }
+
+    private bool OpenPromotionalVideosSubmenu(MALPlus.Controls.OptionsSheet sheet,
+        AnimeDetailsPageViewModel vm)
+    {
+        if (sheet == null || vm == null)
+            return false;
+
+        if (vm.AvailableVideos.Count > 0)
+        {
+            var rows = BuildPromotionalVideoRows(vm);
+            sheet.OpenSubmenu("Promotional videos", rows, () => OnShowMoreRequested());
+            return true;
+        }
+
+        var loadingRows = new List<MALPlus.Controls.OptionsSheetItem>
+        {
+            new("Loading promotional videos...", "icon_video", action: null)
+        };
+        sheet.OpenSubmenu("Promotional videos", loadingRows, () => OnShowMoreRequested());
+
+        _ = Task.Run(async () =>
+        {
+            var videos = await vm.GetPromotionalVideosAsync();
+            Dispatcher.Dispatch(() =>
+            {
+                if (!sheet.IsOpen)
+                    return;
+                var loadedRows = BuildPromotionalVideoRows(vm);
+                sheet.OpenSubmenu("Promotional videos", loadedRows, () => OnShowMoreRequested());
+            });
+        });
+
+        return true;
+    }
+
+    private List<MALPlus.Controls.OptionsSheetItem> BuildPromotionalVideoRows(AnimeDetailsPageViewModel vm)
+    {
+        var rows = new List<MALPlus.Controls.OptionsSheetItem>();
+
+        if (!string.IsNullOrWhiteSpace(vm.TrailerUrl))
+        {
+            var trailerThumb = GetYouTubeThumbnail(vm.TrailerUrl);
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Main Trailer", "icon_video",
+                action: () =>
+                {
+                    DetailsSheet?.Dismiss();
+                    ShowVideoOverlay(vm.TrailerUrl);
+                },
+                previewUrl: trailerThumb));
+        }
+
+        foreach (var v in vm.AvailableVideos)
+        {
+            if (string.IsNullOrWhiteSpace(v.YtLink))
+                continue;
+
+            if (!string.IsNullOrWhiteSpace(vm.TrailerUrl) && string.Equals(v.YtLink, vm.TrailerUrl, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var link = v.YtLink;
+            var name = !string.IsNullOrWhiteSpace(v.Name) ? v.Name : "Promotional Video";
+            var thumb = !string.IsNullOrWhiteSpace(v.Thumb) ? v.Thumb : GetYouTubeThumbnail(link);
+            rows.Add(new MALPlus.Controls.OptionsSheetItem(name, "icon_video",
+                action: () =>
+                {
+                    DetailsSheet?.Dismiss();
+                    ShowVideoOverlay(link);
+                },
+                previewUrl: thumb));
+        }
+
+        if (rows.Count == 0)
+        {
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("No promotional videos found", "icon_video", action: null));
+        }
+
+        return rows;
+    }
+
+    private static string GetYouTubeThumbnail(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        var ytId = ExtractYouTubeId(url);
+        return !string.IsNullOrWhiteSpace(ytId)
+            ? $"https://img.youtube.com/vi/{ytId}/mqdefault.jpg"
+            : null;
+    }
+
+    private static string ExtractYouTubeId(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        var match = System.Text.RegularExpressions.Regex.Match(url, @"(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]{11})");
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     /// <summary>
@@ -1043,7 +1156,7 @@ InitializeComponent();
         if (e.PropertyName == nameof(AnimeDetailsPageViewModel.DetailsPivotSelectedIndex))
         {
             ApplyTabActiveState();
-            ResetTabScrollToTop();
+            MaintainScrollOnTabSwitch();
             if (Vm.Id == _initializedId && Vm.AnimeMode == _initializedAnimeMode)
                 LoadTabData(Vm.DetailsPivotSelectedIndex);
             return;
@@ -1255,7 +1368,6 @@ InitializeComponent();
                             _reviewsLoaded = Vm.ReviewsLoaded;
                             ResetReviewExpansionState();
                             RefreshDisplayedReviews(false);
-                            ResetTabScrollToTop();
                         }
                     }
                     break;
@@ -1267,7 +1379,6 @@ InitializeComponent();
                         {
                             _recommendationsLoaded = Vm.RecommendationsLoaded;
                             RefreshDisplayedRecommendations(false);
-                            ResetTabScrollToTop();
                         }
                     }
                     break;
@@ -1279,7 +1390,6 @@ InitializeComponent();
                         {
                             _relatedLoaded = Vm.RelatedLoaded;
                             _ = TopUpTabUntilScrollable(5);
-                            ResetTabScrollToTop();
                         }
                     }
                     break;
@@ -1292,7 +1402,6 @@ InitializeComponent();
                         {
                             _charactersLoaded = Vm.CharactersLoaded;
                             ApplyCharacterStaffBindings();
-                            ResetTabScrollToTop();
                         }
                     }
                     break;
@@ -2553,7 +2662,7 @@ private void HideVideoLoading()
             Vm.DetailsPivotSelectedIndex = nextIndex;
             _lastTabIndex = nextIndex;
             RememberPreferredTab(nextIndex);
-            ResetTabScrollToTop();
+            MaintainScrollOnTabSwitch();
         }
 
         ApplyTabActiveState();
@@ -2673,7 +2782,7 @@ private void HideVideoLoading()
                 Vm.DetailsPivotSelectedIndex = nextIndex;
                 _lastTabIndex = nextIndex;
                 RememberPreferredTab(nextIndex);
-                ResetTabScrollToTop();
+                MaintainScrollOnTabSwitch();
             }
         }
         catch (Exception ex)
@@ -2756,15 +2865,10 @@ private void HideVideoLoading()
         };
     }
 
-    private void ResetTabScrollToTop()
+    private void ResetTabScrollToTop(bool animated = true)
     {
         _lastProgressiveAppendScrollY = double.NaN;
         _lastProgressiveAppendTimestamp = 0;
-        if (PageScroll != null)
-        {
-            _ = PageScroll.ScrollToAsync(0, 0, false);
-            ApplyHeroState(0);
-        }
         try
         {
             if (ReviewsCollection?.ItemsSource != null && DisplayedReviews.Count > 0)
@@ -2777,14 +2881,11 @@ private void HideVideoLoading()
                 RecommendationsCollection.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
         }
         catch { }
-        Dispatcher.Dispatch(() =>
+
+        if (PageScroll != null && PageScroll.ScrollY > 0)
         {
-            if (PageScroll != null && PageScroll.ScrollY > 0)
-            {
-                _ = PageScroll.ScrollToAsync(0, 0, false);
-                ApplyHeroState(0);
-            }
-        });
+            _ = PageScroll.ScrollToAsync(0, 0, animated);
+        }
     }
 
     private async Task SelectTabAsync(int tabIndex, int direction)
@@ -2797,7 +2898,7 @@ private void HideVideoLoading()
             Vm.DetailsPivotSelectedIndex = tabIndex;
             _lastTabIndex = tabIndex;
             RememberPreferredTab(tabIndex);
-            ResetTabScrollToTop();
+            MaintainScrollOnTabSwitch();
         }
         ApplyTabActiveState();
         if (changed)
@@ -3134,6 +3235,37 @@ private void HideVideoLoading()
         var height = HeroExpandedHeight + bar;
         if (Math.Abs(HeaderSpacer.HeightRequest - height) > 0.5)
             HeaderSpacer.HeightRequest = height;
+
+        if (TabContentHost != null && PageScroll != null && PageScroll.Height > 0)
+        {
+            var minContent = Math.Max(0, PageScroll.Height - HeroCollapsedHeight - bar);
+            if (Math.Abs(TabContentHost.MinimumHeightRequest - minContent) > 0.5)
+                TabContentHost.MinimumHeightRequest = minContent;
+        }
+    }
+
+    private void MaintainScrollOnTabSwitch()
+    {
+        if (PageScroll == null)
+            return;
+
+        var targetScroll = PageScroll.ScrollY;
+        if (targetScroll > HeroCollapseRange)
+        {
+            targetScroll = HeroCollapseRange;
+        }
+
+        var maxScroll = Math.Max(0, PageScroll.ContentSize.Height - PageScroll.Height);
+        if (targetScroll > maxScroll)
+        {
+            targetScroll = maxScroll;
+        }
+
+        if (Math.Abs(PageScroll.ScrollY - targetScroll) > 1)
+        {
+            _ = PageScroll.ScrollToAsync(0, targetScroll, false);
+            ApplyHeroState(targetScroll);
+        }
     }
 
     private static double GetDisplayDensity()
@@ -3163,11 +3295,12 @@ private void HideVideoLoading()
         HeroScrim.Opacity = progress;
     }
 
-    private static double GetCollapseProgress(double scrollY)
+    private double GetCollapseProgress(double scrollY)
     {
-        if (HeroCollapseRange <= 0)
+        var range = HeroCollapseRange;
+        if (range <= 0)
             return 1;
-        return Math.Clamp(Math.Max(0, scrollY) / HeroCollapseRange, 0, 1);
+        return Math.Clamp(Math.Max(0, scrollY) / range, 0, 1);
     }
 
     private double GetPosterTargetScale()

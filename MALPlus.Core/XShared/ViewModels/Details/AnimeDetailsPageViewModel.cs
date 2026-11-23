@@ -2708,16 +2708,21 @@ RaisePropertyChanged(() => ProducersVisible);
         {
             if (source == null || source.Count == 0)
                 return;
-            Episodes.Clear();
+
             // Newest first, exactly like the full list this is replaced by: the point of showing a
             // partial list early is that the episode just aired is already the top row.
-            foreach (var ep in source
-                         .OrderByDescending(ep => ep.AiredDate ?? DateTime.MinValue)
-                         .ThenByDescending(ep => ep.EpisodeId))
+            var ordered = source
+                .OrderByDescending(ep => ep.AiredDate ?? DateTime.MinValue)
+                .ThenByDescending(ep => ep.EpisodeId)
+                .ToList();
+
+            foreach (var ep in ordered)
             {
                 ep.IsWatched = ep.EpisodeId > 0 && ep.EpisodeId <= MyEpisodes;
-                Episodes.Add(ep);
             }
+
+            Episodes.ReplaceRange(ordered);
+
             RaisePropertyChanged(() => Episodes);
             RaisePropertyChanged(() => EpisodesLoaded);
             // The hero's LAST AIRED used to be refreshed only after the FULL episode list
@@ -2850,8 +2855,7 @@ RaisePropertyChanged(() => ProducersVisible);
 
                     foreach (var ep in display)
                         ep.IsWatched = ep.EpisodeId > 0 && ep.EpisodeId <= MyEpisodes;
-                    Episodes.Clear();
-                    Episodes.AddRange(display);
+                    Episodes.ReplaceRange(display);
                     _loadedEpisodes = true;
                     UpdateLastAired();
                     if (isAiring)
@@ -3293,26 +3297,48 @@ RaisePropertyChanged(() => ProducersVisible);
         }
 
 
-        private async void LoadVideos(bool force = false)
+        public async Task<List<AnimeVideoData>> GetPromotionalVideosAsync(bool force = false)
         {
-            if (LoadingVideosVisibility || (_loadedVideos && !force))
-                return;
-            AvailableVideos.Clear();
+            if (AvailableVideos.Count > 0 && !force)
+                return AvailableVideos.ToList();
+
             LoadingVideosVisibility = true;
             try
             {
-                foreach (var animeVideoData in await new AnimeVideosQuery(Id).GetVideos(force))
+                var videos = await new AnimeVideosQuery(Id).GetVideos(force);
+                AvailableVideos.Clear();
+                if (videos != null && videos.Count > 0)
                 {
-                    AvailableVideos.Add(animeVideoData);
+                    foreach (var animeVideoData in videos)
+                    {
+                        AvailableVideos.Add(animeVideoData);
+                    }
+
+                    _loadedVideos = true;
+                    NoVideosNoticeVisibility = false;
+                    return videos;
                 }
 
                 _loadedVideos = true;
-                NoVideosNoticeVisibility = !AvailableVideos.Any();
+                NoVideosNoticeVisibility = true;
+                return new List<AnimeVideoData>();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load promotional videos: {ex.Message}");
+                return new List<AnimeVideoData>();
             }
             finally
             {
                 LoadingVideosVisibility = false;
             }
+        }
+
+        private async void LoadVideos(bool force = false)
+        {
+            if (LoadingVideosVisibility || (_loadedVideos && !force))
+                return;
+            await GetPromotionalVideosAsync(force);
         }
 
         #endregion

@@ -983,6 +983,7 @@ public partial class DiscoverPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        (Shell.Current as AppShell)?.UpdateSharedBarVisibility();
         ApplyTheme();
 #if ANDROID
         StripEntryUnderline();

@@ -54,6 +54,15 @@ public static class BackRouter
     /// </returns>
     public static bool TryGoBack()
     {
+        // If there are pushed pages on the Shell navigation stack (e.g. details, character, staff),
+        // let the platform/Shell dispatcher pop them sequentially. BackRouter must NEVER hijack
+        // a back press to jump across root tabs when the user is deep inside a subpage stack.
+        var nav = Microsoft.Maui.Controls.Shell.Current?.Navigation;
+        if (nav != null && nav.NavigationStack != null && nav.NavigationStack.Count > 1)
+        {
+            return false;
+        }
+
         if (_target == null)
             return false;
 

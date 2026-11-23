@@ -646,6 +646,21 @@ public partial class BottomNavBar : ContentView
             if (shell == null)
                 return;
 
+            // Ensure any pushed subpages/modal details are cleanly popped before switching root tabs.
+            // In MAUI Android, switching ShellContent while pages are pushed on the shared ShellSection
+            // corrupts the FragmentManager state and leads to unrecoverable blank screens.
+            if (shell.Navigation?.NavigationStack?.Count > 1)
+            {
+                try
+                {
+                    await shell.Navigation.PopToRootAsync(false);
+                }
+                catch (Exception popEx)
+                {
+                    Android.Util.Log.Warn("MALPLUS", "BottomNav PopToRoot failed: " + popEx.Message);
+                }
+            }
+
             _navigationInFlight = true;
             ownsNavigation = true;
             await shell.GoToAsync(route);
