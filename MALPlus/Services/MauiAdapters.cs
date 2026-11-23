@@ -14,7 +14,10 @@ public class MauiDispatcherAdapter : IDispatcherAdapter
 {
     public void Run(Action action)
     {
-        MainThread.BeginInvokeOnMainThread(action);
+        if (MainThread.IsMainThread)
+            action();
+        else
+            MainThread.BeginInvokeOnMainThread(action);
     }
 }
 

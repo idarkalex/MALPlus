@@ -40,17 +40,47 @@ public class WindowsFileImageSourceService : ImageSourceService, IImageSourceSer
             if (!string.IsNullOrEmpty(resolvedPath) && File.Exists(resolvedPath))
             {
                 var file = await StorageFile.GetFileFromPathAsync(resolvedPath);
-                using var stream = await file.OpenReadAsync();
-                var bitmap = new BitmapImage();
-                await bitmap.SetSourceAsync(stream);
+                var stream = await file.OpenReadAsync();
 
-                Cache[filename] = bitmap;
-                return new ImageSourceServiceResult(bitmap);
+                return await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    try
+                    {
+                        if (Cache.TryGetValue(filename, out var c))
+                        {
+                            stream.Dispose();
+                            return new ImageSourceServiceResult(c);
+                        }
+
+                        using (stream)
+                        {
+                            var bitmap = new BitmapImage();
+                            await bitmap.SetSourceAsync(stream);
+                            Cache[filename] = bitmap;
+                            return (IImageSourceServiceResult<WImageSource>?)new ImageSourceServiceResult(bitmap);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[WindowsFileImageSourceService] UI thread SetSourceAsync failed: {ex.Message}");
+                        return null;
+                    }
+                });
             }
 
             var resourceName = Path.GetFileName(filename);
-            var fallback = new BitmapImage(new Uri("ms-appx:///" + resourceName));
-            return new ImageSourceServiceResult(fallback);
+            return await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                try
+                {
+                    var fallback = new BitmapImage(new Uri("ms-appx:///" + resourceName));
+                    return (IImageSourceServiceResult<WImageSource>?)new ImageSourceServiceResult(fallback);
+                }
+                catch
+                {
+                    return null;
+                }
+            });
         }
         catch (Exception ex)
         {

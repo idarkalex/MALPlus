@@ -14,6 +14,7 @@ public partial class App : MauiWinUIApplication
 	public App()
 	{
 		this.InitializeComponent();
+		var logFile = @"D:\Descargas\winui_crash.log";
 		UnhandledException += (sender, e) =>
 		{
 			var msg = $"[WINUI UNHANDLED] {e.Message}\nException: {e.Exception}\nStackTrace: {e.Exception?.StackTrace}";
@@ -21,10 +22,31 @@ public partial class App : MauiWinUIApplication
 			Console.WriteLine(msg);
 			try
 			{
-				System.IO.File.AppendAllText("winui_crash.log", $"[{System.DateTime.Now:O}] {msg}\n");
+				System.IO.File.AppendAllText(logFile, $"[{System.DateTime.Now:O}] {msg}\n");
 			}
 			catch { }
-			e.Handled = true;
+		};
+		AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+		{
+			var msg = $"[APPDOMAIN UNHANDLED] {e.ExceptionObject}";
+			System.Diagnostics.Debug.WriteLine(msg);
+			Console.WriteLine(msg);
+			try
+			{
+				System.IO.File.AppendAllText(logFile, $"[{System.DateTime.Now:O}] {msg}\n");
+			}
+			catch { }
+		};
+		TaskScheduler.UnobservedTaskException += (sender, e) =>
+		{
+			var msg = $"[UNOBSERVED TASK] {e.Exception}";
+			System.Diagnostics.Debug.WriteLine(msg);
+			Console.WriteLine(msg);
+			try
+			{
+				System.IO.File.AppendAllText(logFile, $"[{System.DateTime.Now:O}] {msg}\n");
+			}
+			catch { }
 		};
 	}
 

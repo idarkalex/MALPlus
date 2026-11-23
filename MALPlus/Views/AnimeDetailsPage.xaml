@@ -157,6 +157,9 @@
 
         <DataTemplate x:Key="AnimeCharacterTemplate">
             <Border HeightRequest="100" Margin="12,4" Style="{StaticResource PanelStyle}" Padding="10">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnAnimeCharacterTapped" />
+                </Border.GestureRecognizers>
                 <Grid ColumnDefinitions="64,*" ColumnSpacing="10">
                     <Border WidthRequest="64" HeightRequest="88" StrokeShape="RoundRectangle 6"
                             Stroke="{StaticResource EmBorder}" StrokeThickness="1">
@@ -206,6 +209,9 @@
 
         <DataTemplate x:Key="MangaCharacterTemplate">
             <Border HeightRequest="100" Margin="12,4" Style="{StaticResource PanelStyle}" Padding="10">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnMangaCharacterTapped" />
+                </Border.GestureRecognizers>
                 <Grid ColumnDefinitions="64,*" ColumnSpacing="10">
                     <Border WidthRequest="64" HeightRequest="88" StrokeShape="RoundRectangle 6"
                             Stroke="{StaticResource EmBorder}" StrokeThickness="1">
@@ -244,7 +250,12 @@
              name. The photo also used to have no width at all and filled the cell, which poured a
              portrait into a landscape box and AspectFill cut most of the face off. -->
         <DataTemplate x:Key="StaffTemplate">
-            <Border Margin="4" Style="{StaticResource PanelStyle}" Padding="8">
+            <!-- FlexLayout.Basis="33%" places 3 cards per row, matching the old Span=3 grid -->
+            <Border Margin="4" Style="{StaticResource PanelStyle}" Padding="8"
+                    FlexLayout.Basis="33%" FlexLayout.Shrink="1">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnStaffItemTapped" />
+                </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="5">
                     <Border WidthRequest="72" HeightRequest="96" HorizontalOptions="Center"
                             StrokeShape="RoundRectangle 6"
@@ -797,20 +808,18 @@
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No characters available." Style="{StaticResource StateTextStyle}" />
                         </Border>
-                        <CollectionView x:Name="CharactersList"
-                                        IsVisible="{Binding AnimeMode}"
-                                        ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedCharacters}"
-                                        ItemTemplate="{StaticResource AnimeCharacterTemplate}"
-                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=CharactersListHeight}"
-                                        SelectionMode="Single"
-                                        SelectionChanged="OnCharacterItemSelected" />
-                        <CollectionView x:Name="MangaCharactersList"
-                                        IsVisible="{Binding AnimeMode, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
-                                        ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedMangaCharacters}"
-                                        ItemTemplate="{StaticResource MangaCharacterTemplate}"
-                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=MangaCharactersListHeight}"
-                                        SelectionMode="Single"
-                                        SelectionChanged="OnCharacterItemSelected" />
+                        <!-- BindableLayout: avoids WinUI 3 ItemsRepeater crash with
+                             CollectionView + dynamic HeightRequest inside a ScrollView -->
+                        <VerticalStackLayout x:Name="CharactersLayout"
+                                             IsVisible="{Binding AnimeMode}"
+                                             BindableLayout.ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedCharacters}"
+                                             BindableLayout.ItemTemplate="{StaticResource AnimeCharacterTemplate}" />
+                        <!-- BindableLayout instead of CollectionView: avoids WinUI 3 ItemsRepeater
+                             crashes caused by CollectionView + dynamic HeightRequest inside ScrollView -->
+                        <VerticalStackLayout x:Name="MangaCharactersLayout"
+                                             IsVisible="{Binding AnimeMode, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
+                                             BindableLayout.ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedMangaCharacters}"
+                                             BindableLayout.ItemTemplate="{StaticResource MangaCharacterTemplate}" />
                     </VerticalStackLayout>
 
                     <VerticalStackLayout x:Name="StaffPanel"
@@ -832,23 +841,18 @@
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No staff available." Style="{StaticResource StateTextStyle}" />
                         </Border>
-                        <!-- Three across. The staff cap is 200, so one per row was 200 * 108px of scrolling for a
-                         list that is mostly one-line credits ("Sound Director"). Span=3 turns that
-                         into 67 rows. HeightRequest stays pinned to the row count because this list
-                         lives inside the page ScrollView and would otherwise collapse; with the span
-                         the number of realised rows is the same order as before, not 3x. -->
-                        <CollectionView x:Name="StaffList"
-                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=StaffContentVisible}"
-                                        ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedStaff}"
-                                        ItemTemplate="{StaticResource StaffTemplate}"
-                                        HeightRequest="{Binding Source={x:Reference DetailsPage}, Path=StaffListHeight}"
-                                        SelectionMode="Single"
-                                        SelectionChanged="OnStaffItemSelected">
-                            <CollectionView.ItemsLayout>
-                                <GridItemsLayout Span="3" Orientation="Vertical"
-                                                 HorizontalItemSpacing="0" VerticalItemSpacing="0" />
-                            </CollectionView.ItemsLayout>
-                        </CollectionView>
+                        <!-- FlexLayout 3-col replaces CollectionView+GridItemsLayout: avoids
+                             WinUI 3 ItemsRepeater crash with dynamic HeightRequest in ScrollView.
+                             Wrap=Wrap + WidthRequest 33% gives the same three-across layout. -->
+                        <FlexLayout x:Name="StaffFlexLayout"
+                                    IsVisible="{Binding Source={x:Reference DetailsPage}, Path=StaffContentVisible}"
+                                    BindableLayout.ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedStaff}"
+                                    BindableLayout.ItemTemplate="{StaticResource StaffTemplate}"
+                                    Wrap="Wrap"
+                                    Direction="Row"
+                                    JustifyContent="Start"
+                                    AlignItems="Start"
+                                    AlignContent="Start" />
                     </VerticalStackLayout>
                 </Grid>
             </VerticalStackLayout>

@@ -569,39 +569,46 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
     public AnimeDetailsPage()
     {
-        InitializeComponent();
-#if WINDOWS
-        if (DesktopBackButton != null)
-            DesktopBackButton.IsVisible = true;
-        if (PageScroll != null)
-            PageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Always;
-        if (HeroPanBox != null)
-            HeroPanBox.InputTransparent = true;
-        if (HeaderFlow != null)
+        try
         {
-            void AttachWheel()
+            InitializeComponent();
+#if WINDOWS
+            if (DesktopBackButton != null)
+                DesktopBackButton.IsVisible = true;
+            if (PageScroll != null)
+                PageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Always;
+            if (HeroPanBox != null)
+                HeroPanBox.InputTransparent = true;
+            if (HeaderFlow != null)
             {
-                if (HeaderFlow.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement headerElement)
+                void AttachWheel()
                 {
-                    headerElement.PointerWheelChanged -= OnHeaderPointerWheelChanged;
-                    headerElement.PointerWheelChanged += OnHeaderPointerWheelChanged;
+                    if (HeaderFlow.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement headerElement)
+                    {
+                        headerElement.PointerWheelChanged -= OnHeaderPointerWheelChanged;
+                        headerElement.PointerWheelChanged += OnHeaderPointerWheelChanged;
+                    }
                 }
+                HeaderFlow.Loaded += (s, e) => AttachWheel();
+                HeaderFlow.HandlerChanged += (s, e) => AttachWheel();
             }
-            HeaderFlow.Loaded += (s, e) => AttachWheel();
-            HeaderFlow.HandlerChanged += (s, e) => AttachWheel();
-        }
 #endif
-        // Set here rather than as a <BindableLayout.ItemsLayout> property element in the XAML:
+            // Set here rather than as a <BindableLayout.ItemsLayout> property element in the XAML:
             // on this RC the compiler rejects that form with MAUIX2002.
             BindingContext = ViewModelLocator.AnimeDetails;
             DetailsSheet.Closed += OnDetailsSheetClosed;
-        if (RelatedGrid?.Inner != null)
-        {
-            RelatedGrid.Inner.SelectionMode = SelectionMode.Single;
-            RelatedGrid.Inner.SelectionChanged += OnRelatedSelectionChanged;
+            if (RelatedGrid?.Inner != null)
+            {
+                RelatedGrid.Inner.SelectionMode = SelectionMode.Single;
+                RelatedGrid.Inner.SelectionChanged += OnRelatedSelectionChanged;
+            }
+            ApplyTabActiveState();
+            UpdateHeroMetaLayout();
         }
-        ApplyTabActiveState();
-        UpdateHeroMetaLayout();
+        catch (Exception ex)
+        {
+            throw;
+        }
     }
 
     private void AttachSubscriptions()
@@ -1025,17 +1032,17 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
     private void EnsureInitialized()
     {
-        if (!MainThread.IsMainThread)
-        {
-            MainThread.BeginInvokeOnMainThread(EnsureInitialized);
-            return;
-        }
-
-        if (!_isAppearing)
-            return;
-
         try
         {
+            if (!MainThread.IsMainThread)
+            {
+                MainThread.BeginInvokeOnMainThread(EnsureInitialized);
+                return;
+            }
+
+            if (!_isAppearing)
+                return;
+
             if (!int.TryParse(MalId, out var id) || id <= 0)
                 return;
 
@@ -1345,23 +1352,12 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             var staff = animeMode ? Vm.AnimeStaffData?.AnimeStaff : null;
             var cap = MALPlus.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxCharacterPairs;
             var staffCap = MALPlus.XShared.Comm.Anime.AnimeCharactersStaffQuery.MaxStaff;
-            // Characters and staff are sized to their content and live inside the page ScrollView, so they
-            // scroll with the page and the hero reacts to them the way it does everywhere else.
-            // That means the height does track the count, so they are filled a chunk at a time and
-            // the rest arrives as the page reaches its bottom, exactly like Episodes and Reviews.
-            // Filling a two hundred strong cast in one pass is what pinned a gigabyte of views
-            // before this list was ever given a bound of its own.
             var charTarget = Math.Min(cap, Math.Min(pairs?.Count ?? 0, _charactersShown));
             var mangaTarget = Math.Min(cap, Math.Min(mangaCharacters?.Count ?? 0, _mangaCharactersShown));
             var staffTarget = Math.Min(staffCap, Math.Min(staff?.Count ?? 0, _staffShown));
             DisplayedCharacters.Clear();
             DisplayedMangaCharacters.Clear();
             DisplayedStaff.Clear();
-            // Tenrai hands the cast over exactly as MAL orders it: every Main first, then
-            // every Supporting, alphabetical inside each group. That is not nothing, but it is
-            // alphabetical and not importance, which is why Luffy sat fourth on One Piece with
-            // 150k favourites behind three characters nobody has heard of. Sorting here rather than in
-            // the query keeps the cached payload in the order the source gave it.
             foreach (var pair in OrderByImportance(pairs, charTarget))
                 DisplayedCharacters.Add(new AnimeCharacterCard(pair));
             foreach (var character in mangaCharacters?.Take(mangaTarget) ?? Enumerable.Empty<FavouriteViewModel>())
@@ -2118,15 +2114,61 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             NavigateToCharacter(id);
     }
 
-private void OnStaffItemSelected(object sender, SelectionChangedEventArgs e)
-      {
-          if (e.CurrentSelection.Count == 0)
-              return;
-          var id = ResolveStaffId(e.CurrentSelection[0]);
-          ClearSenderSelection(sender);
-          if (id > 0)
-              NavigateToStaff(id);
-      }
+    // All three CollectionViews (CharactersList, MangaCharactersList, StaffList) are now
+    // BindableLayouts to avoid WinUI 3 ItemsRepeater crashes with dynamic HeightRequest.
+    // Taps are handled via TapGestureRecognizer in the templates instead of SelectionChanged.
+    private void OnMangaCharacterTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (sender is not BindableObject bo)
+                return;
+            var card = bo.BindingContext as MangaCharacterCard;
+            var id = ResolveStringId(card?.Id);
+            if (id > 0)
+                NavigateToCharacter(id);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS OnMangaCharacterTapped: " + ex.Message);
+        }
+    }
+
+    // CharactersList (anime) is now a BindableLayout to avoid the same WinUI 3 crash.
+    private void OnAnimeCharacterTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (sender is not BindableObject bo)
+                return;
+            var card = bo.BindingContext as AnimeCharacterCard;
+            var id = ResolveStringId(card?.AnimeCharacter?.Data?.Id);
+            if (id > 0)
+                NavigateToCharacter(id);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS OnAnimeCharacterTapped: " + ex.Message);
+        }
+    }
+
+    // StaffList is now a FlexLayout+BindableLayout to avoid the same WinUI 3 crash.
+    private void OnStaffItemTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (sender is not BindableObject bo)
+                return;
+            var card = bo.BindingContext as StaffCard;
+            var id = ResolveStringId(card?.Id);
+            if (id > 0)
+                NavigateToStaff(id);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS OnStaffItemTapped: " + ex.Message);
+        }
+    }
 
 private async void OnJapaneseVoiceClicked(object sender, EventArgs e)
     {

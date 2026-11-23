@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using MALPlus.XShared.ViewModels;
 
 namespace MALPlus.XShared.Utils
 {
@@ -96,12 +97,30 @@ namespace MALPlus.XShared.Utils
 
         protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
         {
-            if (IsObserving) base.OnCollectionChanged(e);
+            if (!IsObserving) return;
+            var dispatcher = ResourceLocator.DispatcherAdapter;
+            if (dispatcher != null)
+            {
+                dispatcher.Run(() => base.OnCollectionChanged(e));
+            }
+            else
+            {
+                base.OnCollectionChanged(e);
+            }
         }
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
         {
-            if (IsObserving) base.OnPropertyChanged(e);
+            if (!IsObserving) return;
+            var dispatcher = ResourceLocator.DispatcherAdapter;
+            if (dispatcher != null)
+            {
+                dispatcher.Run(() => base.OnPropertyChanged(e));
+            }
+            else
+            {
+                base.OnPropertyChanged(e);
+            }
         }
     }
 }
