@@ -469,6 +469,68 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
     public string RelatedMoreText => $"Show {RelatedRemainingCount} more";
 
+    private double _relatedCardWidth = 130d;
+    public double RelatedCardWidth
+    {
+        get => _relatedCardWidth;
+        private set
+        {
+            if (Math.Abs(_relatedCardWidth - value) < 0.5) return;
+            _relatedCardWidth = value;
+            OnPropertyChanged(nameof(RelatedCardWidth));
+        }
+    }
+
+    private double _relatedCardHeight = 195d;
+    public double RelatedCardHeight
+    {
+        get => _relatedCardHeight;
+        private set
+        {
+            if (Math.Abs(_relatedCardHeight - value) < 0.5) return;
+            _relatedCardHeight = value;
+            OnPropertyChanged(nameof(RelatedCardHeight));
+        }
+    }
+
+    private Microsoft.Maui.Layouts.FlexBasis _relatedCardBasis = new Microsoft.Maui.Layouts.FlexBasis(130f, false);
+    public Microsoft.Maui.Layouts.FlexBasis RelatedCardBasis
+    {
+        get => _relatedCardBasis;
+        private set
+        {
+            _relatedCardBasis = value;
+            OnPropertyChanged(nameof(RelatedCardBasis));
+        }
+    }
+
+    public void UpdateRelatedCardDimensions(double viewportWidth)
+    {
+        if (viewportWidth <= 0) return;
+        var availableWidth = Math.Max(0, viewportWidth - 16);
+        const double targetCardWidth = 135d;
+        const double marginPerCard = 8d;
+
+        int span;
+        if (availableWidth < 500d)
+        {
+            span = 3;
+        }
+        else
+        {
+            var calculated = (int)Math.Round(availableWidth / targetCardWidth);
+            span = Math.Max(3, calculated);
+        }
+
+        var cardSlotWidth = availableWidth / span;
+        var cardWidth = Math.Max(60d, Math.Floor(cardSlotWidth - marginPerCard));
+        var cardHeight = Math.Round(cardWidth * 1.5d);
+
+        RelatedCardWidth = cardWidth;
+        RelatedCardHeight = cardHeight;
+        RelatedCardBasis = new Microsoft.Maui.Layouts.FlexBasis((float)cardSlotWidth, isRelative: false);
+    }
+
     public string CharactersErrorText => EmptyStateText(_charactersError, "Unable to load characters.");
     public bool CharactersErrorVisible => !string.IsNullOrWhiteSpace(_charactersError);
     public bool CharactersEmptyVisible => Vm != null && !Vm.LoadingCharactersVisibility && !CharactersErrorVisible &&
@@ -1102,6 +1164,8 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
                 await Task.Delay(100);
             if (PageScroll != null)
                 await SafeScrollToAsync(PageScroll, 0, 0, false);
+            if (PageScroll != null && PageScroll.Width > 0)
+                UpdateRelatedCardDimensions(PageScroll.Width);
             ApplyHeroState(0);
             var initialTab = Math.Clamp(args.SourceTabIndex, 0, 7);
             vm.DetailsPivotSelectedIndex = IsTabVisible(initialTab) ? initialTab : 0;
@@ -3320,6 +3384,7 @@ private void HideVideoLoading()
             return;
         _lastViewportWidth = width;
         _lastViewportHeight = height;
+        UpdateRelatedCardDimensions(width);
         ApplyHeroState(PageScroll.ScrollY);
         UpdateTabListHeight();
         Dispatcher.Dispatch(UpdateHeaderSpacer);

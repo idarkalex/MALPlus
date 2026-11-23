@@ -2,9 +2,10 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
-               xmlns:controls="clr-namespace:MALPlus.Controls"
-               xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels;assembly=MALPlus.Core"
-               x:Class="MALPlus.Views.AnimeDetailsPage"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
+             xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels;assembly=MALPlus.Core"
+             xmlns:views="clr-namespace:MALPlus.Views"
+             x:Class="MALPlus.Views.AnimeDetailsPage"
 
              x:Name="DetailsPage"
              Shell.PresentationMode="NotAnimated"
@@ -157,8 +158,11 @@
 
         <DataTemplate x:Key="RelatedCardTemplate">
             <Border Margin="4" Padding="0" BackgroundColor="Transparent" StrokeThickness="0"
-                    HeightRequest="195"
-                    FlexLayout.Basis="33.333%" FlexLayout.Shrink="1">
+                    WidthRequest="{Binding Path=RelatedCardWidth, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
+                    HeightRequest="{Binding Path=RelatedCardHeight, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
+                    FlexLayout.Basis="{Binding Path=RelatedCardBasis, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
+                    FlexLayout.Grow="0"
+                    FlexLayout.Shrink="0">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnRelatedCardTapped" />
                 </Border.GestureRecognizers>
@@ -166,6 +170,8 @@
                     PosterUrl="{Binding ImgUrl}"
                     Title="{Binding Title}"
                     TitleOverlay="True"
+                    WidthRequest="{Binding Path=RelatedCardWidth, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
+                    HeightRequest="{Binding Path=RelatedCardHeight, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
                     TypeTag="{Binding MediaType}"
                     ScoreTag="{Binding ScoreTag}"
                     SeasonTag="{Binding SeasonTag}"

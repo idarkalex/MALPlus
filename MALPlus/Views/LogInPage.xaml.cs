@@ -71,7 +71,7 @@ public partial class LogInPage : ContentPage
         // (Core is platform independent), so it raises the request and this page, which is already
         // the login page, just needs to be there to receive it.
         Vm.LogOutRequested += OnLogOutRequested;
-#if ANDROID
+#if ANDROID || WINDOWS
         AuthWebView.HandlerChanged += OnAuthWebViewHandlerChanged;
 #endif
     }
@@ -99,6 +99,8 @@ public partial class LogInPage : ContentPage
         {
 #if ANDROID
             Android.Webkit.CookieManager.Instance.SetAcceptCookie(true);
+#elif WINDOWS
+            EnsureWindowsWebViewConfigured();
 #endif
             // Always, not only when unauthenticated. Tokens and cookies are independent: a sign-out
             // whose cookie deletion had not landed yet leaves Credentials.Authenticated false with
@@ -233,12 +235,164 @@ public partial class LogInPage : ContentPage
                     _ = LoadLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
                 }
             }
+#elif WINDOWS
+            EnsureWindowsWebViewConfigured();
 #endif
         }
         catch (Exception ex)
         {
         }
     }
+
+#if WINDOWS
+    private void EnsureWindowsWebViewConfigured()
+    {
+        try
+        {
+            if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    try
+                    {
+                        if (platform.CoreWebView2 == null)
+                        {
+                            await platform.EnsureCoreWebView2Async();
+                        }
+                        if (platform.CoreWebView2 != null)
+                        {
+                            if (platform.CoreWebView2.Settings.UserAgent != DesktopUserAgent)
+                            {
+                                platform.CoreWebView2.Settings.UserAgent = DesktopUserAgent;
+                                Probe("Windows CoreWebView2.Settings.UserAgent set to DesktopUserAgent");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Probe("Windows EnsureWindowsWebViewConfigured failed: " + ex.Message);
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Probe("Windows EnsureWindowsWebViewConfigured error: " + ex.Message);
+        }
+    }
+
+    private async Task<string> CaptureSessionCookiesWindowsAsync(string caller = "")
+    {
+        try
+        {
+            if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
+            {
+                if (platform.CoreWebView2 == null)
+                {
+                    await platform.EnsureCoreWebView2Async();
+                }
+
+                if (platform.CoreWebView2 != null)
+                {
+                    var cookieManager = platform.CoreWebView2.CookieManager;
+                    var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
+                    if (cookieList != null && cookieList.Count > 0)
+                    {
+                        var jar = string.Join("; ", cookieList.Select(c => $"{c.Name}={c.Value}"));
+                        if (!string.IsNullOrWhiteSpace(jar))
+                        {
+                            var hasSession = jar.Contains("MAL_SESSION") || jar.Contains("is_logged_in") ||
+                                             jar.Contains("m_flag") || jar.Contains("token=");
+                            if (_cookies == null || jar.Length >= _cookies.Length || hasSession)
+                            {
+                                _cookies = jar;
+                                Probe($"Windows captured cookies ({caller}): count={cookieList.Count}, len={jar.Length}, hasSession={hasSession}");
+                            }
+                            return _cookies;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Probe("Windows CaptureSessionCookiesWindowsAsync error: " + ex.Message);
+        }
+        return _cookies;
+    }
+
+    private async Task ClearWindowsMalSessionAsync()
+    {
+        try
+        {
+            if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
+            {
+                if (platform.CoreWebView2 == null)
+                {
+                    await platform.EnsureCoreWebView2Async();
+                }
+                if (platform.CoreWebView2 != null)
+                {
+                    var cookieManager = platform.CoreWebView2.CookieManager;
+                    var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
+                    foreach (var c in cookieList)
+                    {
+                        if (c.Name.Contains("MAL_SESSION", StringComparison.OrdinalIgnoreCase) ||
+                            c.Name.Contains("is_logged_in", StringComparison.OrdinalIgnoreCase) ||
+                            c.Name.Contains("m_flag", StringComparison.OrdinalIgnoreCase))
+                        {
+                            cookieManager.DeleteCookie(c);
+                        }
+                    }
+                    Probe("Windows cleared MAL session blocker cookies");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Probe("Windows ClearWindowsMalSessionAsync error: " + ex.Message);
+        }
+    }
+
+    private async Task PurgeAllWindowsCookiesAsync()
+    {
+        try
+        {
+            if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
+            {
+                if (platform.CoreWebView2 == null)
+                {
+                    await platform.EnsureCoreWebView2Async();
+                }
+                if (platform.CoreWebView2 != null)
+                {
+                    var cookieManager = platform.CoreWebView2.CookieManager;
+                    var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
+                    foreach (var c in cookieList)
+                    {
+                        cookieManager.DeleteCookie(c);
+                    }
+                    Probe("Windows purged all cookies");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Probe("Windows PurgeAllWindowsCookiesAsync error: " + ex.Message);
+        }
+    }
+
+    private static bool IsMalHomeUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url))
+            return false;
+        var trimmed = url.TrimEnd('/');
+        return trimmed == "https://myanimelist.net" ||
+               url.StartsWith("https://myanimelist.net/?") ||
+               url.StartsWith("https://myanimelist.net/#") ||
+               url.StartsWith("https://myanimelist.net/index.php");
+    }
+#endif
 
     private string _lastAppliedUserAgent;
     private bool _webViewReady;
@@ -288,6 +442,9 @@ public partial class LogInPage : ContentPage
         try
         {
             ForgetMalSession();
+#if WINDOWS
+            await ClearWindowsMalSessionAsync();
+#endif
             await Task.Delay(600, token);
             _loginPageReady = false;
             AuthWebView.Source = "https://myanimelist.net/login.php";
@@ -335,6 +492,32 @@ public partial class LogInPage : ContentPage
             Probe("NAVIGATED " + url);
             if (url.Contains("login.php"))
                 _loginPageReady = true;
+#if WINDOWS
+            if (!_autoMode && !_oauthInFlight && !url.Contains("login.php") && !url.Contains("register.php") &&
+                url.StartsWith("https://myanimelist.net") && !url.Contains("/v1/oauth2/"))
+            {
+                _ = Task.Run(async () =>
+                {
+                    var jar = await CaptureSessionCookiesWindowsAsync("navigated manual check");
+                    if (jar != null && (jar.Contains("is_logged_in=1") || jar.Contains("MAL_SESSION")))
+                    {
+                        Probe("Windows: detected logged-in cookies in manual mode on " + url + ". Triggering OAuth flow.");
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            if (_oauthInFlight) return;
+                            _oauthInFlight = true;
+                            OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
+                            OverlayHint.IsVisible = true;
+                            AuthWebView.Source = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
+                                + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
+                                + "state=signin&"
+                                + $"code_challenge={Vm.PkceChallenge}&"
+                                + "code_challenge_method=plain";
+                        });
+                    }
+                });
+            }
+#endif
             if (!_autoMode)
                 return;
             // Hard guarantee: while we drive the sign-in ourselves, MyAnimeList's pages are
@@ -866,6 +1049,9 @@ public partial class LogInPage : ContentPage
             ShowBusy(true, "Resetting session…");
             Credentials.ClearMalWebSession();
             Credentials.PurgeAllWebCookies();
+#if WINDOWS
+            await PurgeAllWindowsCookiesAsync();
+#endif
             ResetToForm(null);
             await LoadCleanLoginFormAsync(CancellationToken.None);
             ShowStatus("Session reset. You can sign in now.");
@@ -886,6 +1072,9 @@ public partial class LogInPage : ContentPage
         {
             Credentials.ClearMalWebSession();
             Credentials.PurgeAllWebCookies();
+#if WINDOWS
+            await PurgeAllWindowsCookiesAsync();
+#endif
             ShowStatus("Session cleared.");
             await LoadCleanLoginFormAsync(CancellationToken.None);
         }
@@ -917,6 +1106,8 @@ public partial class LogInPage : ContentPage
             var platform = AuthWebView?.Handler?.PlatformView as global::Android.Webkit.WebView;
             if (platform?.Settings != null)
                 platform.Settings.UserAgentString = DesktopUserAgent;
+#elif WINDOWS
+            EnsureWindowsWebViewConfigured();
 #endif
             _ = LoadLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
         }
@@ -1138,6 +1329,8 @@ public partial class LogInPage : ContentPage
         catch (Exception ex)
         {
         }
+#elif WINDOWS
+        _ = CaptureSessionCookiesWindowsAsync(url);
 #endif
     }
 
@@ -1147,6 +1340,9 @@ public partial class LogInPage : ContentPage
         {
             var url = e.Url ?? string.Empty;
             Probe("NAVIGATING " + url);
+#if WINDOWS
+            EnsureWindowsWebViewConfigured();
+#endif
 
             // From here until the page commits, the DOM belongs to the page being replaced.
             _navigationInFlight = true;
@@ -1203,11 +1399,23 @@ public partial class LogInPage : ContentPage
                 {
                     e.Cancel = true;
                     Probe("oauth code captured");
+#if WINDOWS
+                    ShowBusy(true, "Signing you in…");
+                    _ = Task.Run(async () =>
+                    {
+                        await CaptureSessionCookiesWindowsAsync("maloauth callback");
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            Vm.SignIn(_cookies ?? string.Empty, code);
+                        });
+                    });
+#else
                     // Last chance to pick the session cookies up: by now the whole login round trip
                     // is done, so the jar is guaranteed to hold the MAL session.
                     CaptureSessionCookies("maloauth callback");
                     ShowBusy(true, "Signing you in…");
                     Vm.SignIn(_cookies ?? string.Empty, code);
+#endif
                 }
                 else
                 {
@@ -1227,8 +1435,12 @@ public partial class LogInPage : ContentPage
             {
                 CaptureSessionCookies(url);
             }
+#if WINDOWS
+            if (IsMalHomeUrl(url))
+#else
             if (url == "https://myanimelist.net/" || url == "https://myanimelist.net/#"
                 || url.StartsWith("https://myanimelist.net/#"))
+#endif
             {
                 if (_autoMode)
                 {
@@ -1245,6 +1457,8 @@ public partial class LogInPage : ContentPage
 #if ANDROID
                         global::Android.Webkit.CookieManager.Instance.RemoveSessionCookies(null);
                         global::Android.Webkit.CookieManager.Instance.Flush();
+#elif WINDOWS
+                        _ = ClearWindowsMalSessionAsync();
 #endif
                         _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
                         return;
@@ -1290,6 +1504,8 @@ public partial class LogInPage : ContentPage
 #if ANDROID
                     global::Android.Webkit.CookieManager.Instance.RemoveSessionCookies(null);
                     global::Android.Webkit.CookieManager.Instance.Flush();
+#elif WINDOWS
+                    _ = ClearWindowsMalSessionAsync();
 #endif
                     _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
                     return;
@@ -1312,6 +1528,8 @@ public partial class LogInPage : ContentPage
 #if ANDROID
                     global::Android.Webkit.CookieManager.Instance.RemoveSessionCookies(null);
                     global::Android.Webkit.CookieManager.Instance.Flush();
+#elif WINDOWS
+                    _ = ClearWindowsMalSessionAsync();
 #endif
                     _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
                     return;
