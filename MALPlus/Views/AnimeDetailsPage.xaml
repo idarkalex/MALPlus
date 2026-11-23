@@ -155,6 +155,30 @@
             </Border>
         </DataTemplate>
 
+        <DataTemplate x:Key="RelatedCardTemplate">
+            <Border Margin="4" Padding="0" BackgroundColor="Transparent" StrokeThickness="0"
+                    HeightRequest="195"
+                    FlexLayout.Basis="33.333%" FlexLayout.Shrink="1">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnRelatedCardTapped" />
+                </Border.GestureRecognizers>
+                <controls:AnimePosterCard
+                    PosterUrl="{Binding ImgUrl}"
+                    Title="{Binding Title}"
+                    TitleOverlay="True"
+                    TypeTag="{Binding MediaType}"
+                    ScoreTag="{Binding ScoreTag}"
+                    SeasonTag="{Binding SeasonTag}"
+                    BottomAirTag="{Binding BottomAirTag}"
+                    BadgeVisible="True"
+                    BadgeAccent="{Binding LibraryBadgeAccent}"
+                    BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
+                    BadgeMain="{Binding LibraryBadgeMain}"
+                    ChipSource="{Binding Relations}"
+                    ChipTemplate="{StaticResource RelationChipTemplate}" />
+            </Border>
+        </DataTemplate>
+
         <DataTemplate x:Key="AnimeCharacterTemplate">
             <Border HeightRequest="100" Margin="12,4" Style="{StaticResource PanelStyle}" Padding="10">
                 <Border.GestureRecognizers>
@@ -613,16 +637,12 @@
                                 </HorizontalStackLayout>
                             </ScrollView>
                         </Grid>
-                        <CollectionView Grid.Row="1"
-                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesContentVisible}"
-                                        ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedEpisodes}"
-                                        ItemTemplate="{StaticResource EpisodeTemplate}"
-                                        ItemSizingStrategy="MeasureFirstItem"
-                                        RemainingItemsThreshold="6">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
-                            </CollectionView.ItemsLayout>
-                        </CollectionView>
+                        <VerticalStackLayout x:Name="EpisodesList"
+                                             Grid.Row="1"
+                                             IsVisible="{Binding Source={x:Reference DetailsPage}, Path=EpisodesContentVisible}"
+                                             BindableLayout.ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedEpisodes}"
+                                             BindableLayout.ItemTemplate="{StaticResource EpisodeTemplate}"
+                                             Spacing="6" />
                         <Border Grid.Row="1" IsVisible="{Binding LoadingEpisodes}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                                 <ActivityIndicator IsRunning="{Binding LoadingEpisodes}" Color="#0066FF"
@@ -669,18 +689,14 @@
                          episode list is: BindableLayout builds a real view per item the moment the
                          tab becomes visible, and doing that synchronously on the tap is what made
                          switching tabs feel like it hung. -->
-                    <Grid x:Name="ReviewsPanel"
-                          IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
-                          Padding="0,8,0,32">
-                        <CollectionView x:Name="ReviewsCollection"
-                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsContentVisible}"
-                                        ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedReviews}"
-                                        ItemTemplate="{StaticResource ReviewTemplate}"
-                                        RemainingItemsThreshold="4">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
-                            </CollectionView.ItemsLayout>
-                        </CollectionView>
+                    <VerticalStackLayout x:Name="ReviewsPanel"
+                                         IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=3}"
+                                         Padding="0,8,0,32" Spacing="6">
+                        <VerticalStackLayout x:Name="ReviewsList"
+                                             IsVisible="{Binding Source={x:Reference DetailsPage}, Path=ReviewsContentVisible}"
+                                             BindableLayout.ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedReviews}"
+                                             BindableLayout.ItemTemplate="{StaticResource ReviewTemplate}"
+                                             Spacing="6" />
                         <Border IsVisible="{Binding LoadingReviews}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                                 <ActivityIndicator IsRunning="{Binding LoadingReviews}" Color="#0066FF"
@@ -697,20 +713,16 @@
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No reviews available." Style="{StaticResource StateTextStyle}" />
                         </Border>
-                    </Grid>
+                    </VerticalStackLayout>
 
-                    <Grid x:Name="RecommendationsPanel"
-                          IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
-                          Padding="0,8,0,32">
-                        <CollectionView x:Name="RecommendationsCollection"
-                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsContentVisible}"
-                                        ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedRecommendations}"
-                                        ItemTemplate="{StaticResource RecommendationTemplate}"
-                                        RemainingItemsThreshold="4">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
-                            </CollectionView.ItemsLayout>
-                        </CollectionView>
+                    <VerticalStackLayout x:Name="RecommendationsPanel"
+                                         IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=4}"
+                                         Padding="0,8,0,32" Spacing="6">
+                        <VerticalStackLayout x:Name="RecommendationsList"
+                                             IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsContentVisible}"
+                                             BindableLayout.ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedRecommendations}"
+                                             BindableLayout.ItemTemplate="{StaticResource RecommendationTemplate}"
+                                             Spacing="6" />
                         <Border IsVisible="{Binding LoadingRecommendations}" Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                                 <ActivityIndicator IsRunning="{Binding LoadingRecommendations}" Color="#0066FF"
@@ -718,16 +730,16 @@
                                 <Label Text="Loading recommendations..." Style="{StaticResource StateTextStyle}" />
                             </HorizontalStackLayout>
                         </Border>
-                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsErrorVisible}"
+                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsErrorVisible}"
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsErrorText}"
                                    Style="{StaticResource StateTextStyle}" />
                         </Border>
-                        <Border IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsEmptyVisible}"
+                        <Border Grid.Row="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RecommendationsEmptyVisible}"
                                 Margin="12,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No recommendations available." Style="{StaticResource StateTextStyle}" />
                         </Border>
-                    </Grid>
+                    </VerticalStackLayout>
 
                     <VerticalStackLayout x:Name="RelatedPanel"
                                          IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=5}"
@@ -748,37 +760,15 @@
                                 Margin="4,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <Label Text="No related titles available." Style="{StaticResource StateTextStyle}" />
                         </Border>
-                        <controls:AnimePosterGrid x:Name="RelatedGrid"
-                            IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RelatedContentVisible}"
-                            ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedRelated}"
-                            FixedHeight="True">
-                            <controls:AnimePosterGrid.CellTemplate>
-                                <!-- Same component as the anime grid; only the cell content differs,
-                                     with the blue relation chips (Adaptation, Prequel, ...). The tap
-                                     is NOT a TapGestureRecognizer on the card: that swallowed the
-                                     vertical drag, so the page stopped scrolling after the first
-                                     few pixels and the rest of the grid was unreachable. Selection
-                                     behaves like the character rows, which scroll fine. -->
-                                <DataTemplate>
-                                    <controls:AnimePosterCard
-                                        WidthRequest="{Binding CellWidth, Source={x:Reference RelatedGrid}}"
-                                        HeightRequest="{Binding CellHeight, Source={x:Reference RelatedGrid}}"
-                                        PosterUrl="{Binding ImgUrl}"
-                                        Title="{Binding Title}"
-                                        TitleOverlay="True"
-                                        TypeTag="{Binding MediaType}"
-                                        ScoreTag="{Binding ScoreTag}"
-                                        SeasonTag="{Binding SeasonTag}"
-                                        BottomAirTag="{Binding BottomAirTag}"
-                                        BadgeVisible="True"
-                                        BadgeAccent="{Binding LibraryBadgeAccent}"
-                                        BadgeAccentColor="{Binding LibraryBadgeAccentColor}"
-                                        BadgeMain="{Binding LibraryBadgeMain}"
-                                        ChipSource="{Binding Relations}"
-                                        ChipTemplate="{StaticResource RelationChipTemplate}" />
-                                </DataTemplate>
-                            </controls:AnimePosterGrid.CellTemplate>
-                        </controls:AnimePosterGrid>
+                        <FlexLayout x:Name="RelatedFlexLayout"
+                                    IsVisible="{Binding Source={x:Reference DetailsPage}, Path=RelatedContentVisible}"
+                                    BindableLayout.ItemsSource="{Binding Source={x:Reference DetailsPage}, Path=DisplayedRelated}"
+                                    BindableLayout.ItemTemplate="{StaticResource RelatedCardTemplate}"
+                                    Wrap="Wrap"
+                                    Direction="Row"
+                                    JustifyContent="Start"
+                                    AlignItems="Start"
+                                    AlignContent="Start" />
                         <!-- Only reachable past the safety cap on Related, which normally shows
                              everything it has. -->
                         <Button Text="{Binding Source={x:Reference DetailsPage}, Path=RelatedMoreText}"

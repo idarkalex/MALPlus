@@ -598,11 +598,6 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             // on this RC the compiler rejects that form with MAUIX2002.
             BindingContext = ViewModelLocator.AnimeDetails;
             DetailsSheet.Closed += OnDetailsSheetClosed;
-            if (RelatedGrid?.Inner != null)
-            {
-                RelatedGrid.Inner.SelectionMode = SelectionMode.Single;
-                RelatedGrid.Inner.SelectionChanged += OnRelatedSelectionChanged;
-            }
             ApplyTabActiveState();
             UpdateHeroMetaLayout();
         }
@@ -1821,23 +1816,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     private async void OnRecommendationTapped(object sender, TappedEventArgs e)
         => await NavigateToRelatedItem(e.Parameter as IDetailsPageArgs);
 
-    private async void OnRelatedSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void OnRelatedCardTapped(object sender, TappedEventArgs e)
     {
-        try
-        {
-            if (RelatedGrid?.Inner == null)
-                return;
-            // Clear it straight away, otherwise the same card stays selected and tapping it again
-            // raises no SelectionChanged.
-            RelatedGrid.Inner.SelectedItem = null;
-            if (e.CurrentSelection.Count == 0)
-                return;
-            await NavigateToRelatedItem(e.CurrentSelection[0] as IDetailsPageArgs);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("MALPLUS OnRelatedSelectionChanged failed: " + ex.GetType().Name);
-        }
+        var item = (sender as VisualElement)?.BindingContext as IDetailsPageArgs;
+        if (item != null)
+            await NavigateToRelatedItem(item);
     }
 
     private async Task NavigateToRelatedItem(IDetailsPageArgs item)
@@ -3083,18 +3066,6 @@ private void HideVideoLoading()
     {
         _lastProgressiveAppendScrollY = double.NaN;
         _lastProgressiveAppendTimestamp = 0;
-        try
-        {
-            if (ReviewsCollection?.ItemsSource != null && DisplayedReviews.Count > 0)
-                ReviewsCollection.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
-        }
-        catch { }
-        try
-        {
-            if (RecommendationsCollection?.ItemsSource != null && DisplayedRecommendations.Count > 0)
-                RecommendationsCollection.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
-        }
-        catch { }
 
         if (PageScroll != null && PageScroll.ScrollY > 0)
         {
@@ -3504,6 +3475,12 @@ private void HideVideoLoading()
 
     private void ApplyHeroState(double scrollY)
     {
+#if WINDOWS
+        if (HeaderFlow != null)
+            HeaderFlow.TranslationY = -Math.Min(scrollY, HeroCollapseRange);
+        if (HeroScrim != null)
+            HeroScrim.Opacity = Math.Clamp(scrollY / Math.Max(1.0, HeroCollapseRange), 0.0, 1.0);
+#else
         if (HeroContainer == null || HeroVisual == null || PosterContainer == null || HeroScrim == null)
             return;
         var progress = GetCollapseProgress(scrollY);
@@ -3518,6 +3495,7 @@ private void HideVideoLoading()
         PosterContainer.ScaleX = scale;
         PosterContainer.ScaleY = scale;
         HeroScrim.Opacity = progress;
+#endif
     }
 
     private double GetCollapseProgress(double scrollY)
