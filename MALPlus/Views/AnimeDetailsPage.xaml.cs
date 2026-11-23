@@ -589,6 +589,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
                         headerElement.PointerWheelChanged += OnHeaderPointerWheelChanged;
                     }
                 }
+                AttachWheel();
                 HeaderFlow.Loaded += (s, e) => AttachWheel();
                 HeaderFlow.HandlerChanged += (s, e) => AttachWheel();
             }
@@ -1152,6 +1153,9 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     }
 
 #if WINDOWS
+    private double _pendingScrollY = -1;
+    private bool _scrollDispatchPending;
+
     private void OnHeaderPointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         try
@@ -1162,12 +1166,28 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             var delta = pointerPoint.Properties.MouseWheelDelta;
             if (delta != 0)
             {
-                var scrollDelta = -delta;
-                var currentY = PageScroll.ScrollY;
-                var maxScroll = Math.Max(0, PageScroll.ContentSize.Height - PageScroll.Height);
-                var targetY = Math.Clamp(currentY + scrollDelta, 0, maxScroll);
-                _ = SafeScrollToAsync(PageScroll, 0, targetY, false);
                 e.Handled = true;
+                var currentY = _pendingScrollY >= 0 ? _pendingScrollY : PageScroll.ScrollY;
+                var maxScroll = Math.Max(0, PageScroll.ContentSize.Height - PageScroll.Height);
+                _pendingScrollY = Math.Clamp(currentY - delta, 0, maxScroll);
+
+                if (!_scrollDispatchPending)
+                {
+                    _scrollDispatchPending = true;
+                    Dispatcher.Dispatch(() =>
+                    {
+                        _scrollDispatchPending = false;
+                        if (PageScroll != null && _pendingScrollY >= 0)
+                        {
+                            var target = _pendingScrollY;
+                            _pendingScrollY = -1;
+                            if (PageScroll.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ScrollViewer sv)
+                            {
+                                sv.ChangeView(null, target, null, true);
+                            }
+                        }
+                    });
+                }
             }
         }
         catch { }
@@ -3372,7 +3392,18 @@ private void HideVideoLoading()
 
     private void OnPageScrolled(object sender, ScrolledEventArgs e)
     {
+#if WINDOWS
+        if (HeaderFlow != null)
+        {
+            HeaderFlow.TranslationY = -Math.Min(e.ScrollY, HeroCollapseRange);
+        }
+        if (HeroScrim != null)
+        {
+            HeroScrim.Opacity = Math.Clamp(e.ScrollY / Math.Max(1.0, HeroCollapseRange), 0.0, 1.0);
+        }
+#else
         ApplyHeroState(e.ScrollY);
+#endif
         var near = IsNearPageBottom(e.ScrollY);
         if (!near)
         {

@@ -11,6 +11,7 @@
     .\run_windows.ps1 -Build
 #>
 param(
+    [switch]$NoBuild,
     [switch]$Build
 )
 
@@ -30,10 +31,10 @@ if (Test-Path "$DotnetRoot\dotnet.exe") {
 
 $ExePath = Join-Path $Root "MALPlus\bin\Debug\net11.0-windows10.0.19041.0\win-x64\MALPlus.exe"
 
-if ($Build -or -not (Test-Path $ExePath)) {
-    Write-Host "Building MAL+ for Windows desktop..." -ForegroundColor Cyan
+if (-not $NoBuild -or -not (Test-Path $ExePath)) {
+    Write-Host "Building MAL+ for Windows desktop (incremental)..." -ForegroundColor Cyan
     $projectPath = Join-Path $Root "MALPlus\MALPlus.csproj"
-    & $dotnet build $projectPath -f net11.0-windows10.0.19041.0 -c Debug
+    & $dotnet build $projectPath -f net11.0-windows10.0.19041.0 -c Debug -v:q
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Build failed with exit code $LASTEXITCODE."
         exit $LASTEXITCODE
