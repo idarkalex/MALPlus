@@ -42,7 +42,7 @@
                         SemanticProperties.Hint="Navigate to the Discover section" />
                 <VerticalStackLayout InputTransparent="True" Spacing="2"
                                      HorizontalOptions="Fill" VerticalOptions="Center">
-                    <Image x:Name="DiscoverIcon" Source="discover_compass.svg"
+                    <Image x:Name="DiscoverIcon" Source="discover_compass.png"
                            WidthRequest="24" HeightRequest="24" Aspect="AspectFit"
                            HorizontalOptions="Center" />
                     <Label x:Name="DiscoverLabel" Text="Discover" FontFamily="InterSemiBold" FontSize="10"
@@ -59,7 +59,7 @@
                         SemanticProperties.Hint="Navigate to the Anime section" />
                 <VerticalStackLayout InputTransparent="True" Spacing="2"
                                      HorizontalOptions="Fill" VerticalOptions="Center">
-                    <Image x:Name="AnimeIcon" Source="anime_list.svg"
+                    <Image x:Name="AnimeIcon" Source="anime_list.png"
                            WidthRequest="24" HeightRequest="24" Aspect="AspectFit"
                            HorizontalOptions="Center" />
                     <Label x:Name="AnimeLabel" Text="Anime" FontFamily="InterSemiBold" FontSize="10"
@@ -76,7 +76,7 @@
                         SemanticProperties.Hint="Navigate to the Manga section" />
                 <VerticalStackLayout InputTransparent="True" Spacing="2"
                                      HorizontalOptions="Fill" VerticalOptions="Center">
-                    <Image x:Name="MangaIcon" Source="manga_books.svg"
+                    <Image x:Name="MangaIcon" Source="manga_books.png"
                            WidthRequest="24" HeightRequest="24" Aspect="AspectFit"
                            HorizontalOptions="Center" />
                     <Label x:Name="MangaLabel" Text="Manga" FontFamily="InterSemiBold" FontSize="10"
@@ -93,7 +93,7 @@
                         SemanticProperties.Hint="Navigate to the More section" />
                 <VerticalStackLayout InputTransparent="True" Spacing="2"
                                      HorizontalOptions="Fill" VerticalOptions="Center">
-                    <Image x:Name="MoreIcon" Source="more_dots.svg"
+                    <Image x:Name="MoreIcon" Source="more_dots.png"
                            WidthRequest="24" HeightRequest="24" Aspect="AspectFit"
                            HorizontalOptions="Center" />
                     <Label x:Name="MoreLabel" Text="More" FontFamily="InterSemiBold" FontSize="10"

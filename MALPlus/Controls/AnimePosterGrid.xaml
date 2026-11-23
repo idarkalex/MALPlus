@@ -13,7 +13,8 @@
                  item spacing instead, so the artwork is flush with its cell. -->
             <DataTemplate x:Key="DefaultCellTemplate">
                 <controls:AnimePosterCard
-                    HeightRequest="195"
+                    WidthRequest="{Binding CellWidth, Source={x:Reference Root}}"
+                    HeightRequest="{Binding CellHeight, Source={x:Reference Root}}"
                     PosterUrl="{Binding ImgUrl}"
                     Title="{Binding Title}"
                     TitleOverlay="True"
@@ -37,7 +38,7 @@
         </ResourceDictionary>
     </ContentView.Resources>
 
-    <CollectionView x:Name="ItemsView" SelectionMode="None" ItemSizingStrategy="MeasureFirstItem">
+    <CollectionView x:Name="ItemsView" SelectionMode="None">
         <CollectionView.ItemsLayout>
             <GridItemsLayout Orientation="Vertical" Span="3"
                              HorizontalItemSpacing="0" VerticalItemSpacing="0" />

@@ -49,7 +49,7 @@
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnClose" />
                     </Border.GestureRecognizers>
-                    <Image Source="icon_close" WidthRequest="16" HeightRequest="16"
+                    <Image Source="icon_close.png" WidthRequest="16" HeightRequest="16"
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
             </Grid>

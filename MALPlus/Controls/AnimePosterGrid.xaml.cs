@@ -296,11 +296,33 @@ public partial class AnimePosterGrid : ContentView
     public AnimePosterGrid()
     {
         InitializeComponent();
+        CellWidth = 130d;
+        CellHeight = DefaultCellHeight;
+        RowHeight = DefaultCellHeight + Spacing;
         ItemsView.Scrolled += OnItemsScrolled;
+        SizeChanged += OnGridSizeChanged;
 #if ANDROID
         ItemsView.HandlerChanged += OnItemsViewHandlerChanged;
 #endif
         ApplyLayout(force: true);
+    }
+
+    private void OnGridSizeChanged(object sender, EventArgs e)
+    {
+        if (Width > 0)
+        {
+            var span = EffectiveSpan(Width);
+            CellWidth = Math.Floor((Width - (span - 1) * Spacing) / span);
+            var wantedCellHeight = Math.Round(CellWidth * 1.5d);
+            CellHeight = wantedCellHeight;
+            RowHeight = wantedCellHeight + Spacing;
+
+            if (Math.Abs(Width - _lastWidth) >= 0.5)
+            {
+                _lastWidth = Width;
+                ApplyLayout(force: true);
+            }
+        }
     }
 
 #if ANDROID
@@ -343,9 +365,9 @@ public partial class AnimePosterGrid : ContentView
             return DefaultSpan;
 
         // Standard phones in portrait are between ~360dp and ~450dp wide: always keep exactly 3 columns (DefaultSpan).
-        // On wider viewports (foldables unfolded, tablets, landscape), scale columns dynamically so that
-        // each card stays at roughly the standard ~130dp width (maintaining the 2:3 vertical aspect ratio with 195dp height).
-        const double targetCardWidth = 130d;
+        // On wider viewports (foldables unfolded, tablets, desktop windows), scale columns dynamically so that
+        // each card stays at roughly the standard ~135dp width (maintaining the 2:3 vertical aspect ratio).
+        const double targetCardWidth = 135d;
         if (availableWidth < 500d)
             return DefaultSpan;
 
@@ -358,9 +380,8 @@ public partial class AnimePosterGrid : ContentView
         base.OnSizeAllocated(width, height);
         if (width <= 0)
             return;
-        // CellWidth is informational (no cell template sets a width: the layout divides the slot
-        // and the card fills it), but keep it truthful for anything that asks.
-        CellWidth = (width - (EffectiveSpan(width) - 1) * Spacing) / EffectiveSpan(width) - Spacing;
+        var span = EffectiveSpan(width);
+        CellWidth = Math.Floor((width - (span - 1) * Spacing) / span);
         if (Math.Abs(width - _lastWidth) < 0.5)
             return;
         _lastWidth = width;
@@ -380,10 +401,17 @@ public partial class AnimePosterGrid : ContentView
         var availableWidth = _lastWidth > 0 ? _lastWidth : (Width > 0 ? Width : 0);
         var span = EffectiveSpan(availableWidth);
 
-        if (_appliedCellHeight != DefaultCellHeight)
+        if (availableWidth > 0 && span > 0)
+            CellWidth = Math.Floor((availableWidth - (span - 1) * Spacing) / span);
+
+        var wantedCellHeight = CellWidth > 0
+            ? Math.Round(CellWidth * 1.5d)
+            : DefaultCellHeight;
+
+        if (Math.Abs(_appliedCellHeight - wantedCellHeight) > 0.5)
         {
-            _appliedCellHeight = DefaultCellHeight;
-            CellHeight = DefaultCellHeight;
+            _appliedCellHeight = wantedCellHeight;
+            CellHeight = wantedCellHeight;
             RowHeight = CellHeight + Spacing;
         }
 
@@ -401,13 +429,16 @@ public partial class AnimePosterGrid : ContentView
         if (!force && _spanApplied)
             return;
 
-        // Span and cell template do NOT depend on the width. A grid hosted inside a CarouselView
-        // can be measured at zero width on its first pass and never get a second one, and bailing
-        // out there left the calendar day pages rendering nothing at all.
-        if (!_spanApplied || (ItemsView.ItemsLayout is GridItemsLayout grid && grid.Span != span))
+        // On Windows and Android, modify the existing GridItemsLayout's Span directly to ensure
+        // the platform view dynamically updates its columns without re-instantiation bugs.
+        if (ItemsView.ItemsLayout is GridItemsLayout existingGrid)
         {
-            // The gutter lives in the layout, not in a card margin: a margin insets the artwork on
-            // all four sides and shows up as a dark frame around every poster.
+            if (existingGrid.Span != span)
+                existingGrid.Span = span;
+            _spanApplied = true;
+        }
+        else
+        {
             ItemsView.ItemsLayout = new GridItemsLayout(span, ItemsLayoutOrientation.Vertical)
             {
                 HorizontalItemSpacing = Spacing,

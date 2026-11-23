@@ -29,6 +29,45 @@ public static class MauiProgram
 
         MauiViewModelLocator.RegisterDependencies();
 
+#if WINDOWS
+        builder.ConfigureImageSources(services =>
+        {
+            services.AddService<IFileImageSource, Platforms.Windows.WindowsFileImageSourceService>();
+        });
+
+        Microsoft.Maui.Handlers.ImageHandler.Mapper.PrependToMapping("WindowsBareImageFix", (handler, view) =>
+        {
+            if (view.Source is FileImageSource fis && !string.IsNullOrEmpty(fis.File))
+            {
+                var f = fis.File;
+                if (!f.Contains('.'))
+                {
+                    fis.File = f + ".png";
+                }
+                else if (f.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+                {
+                    fis.File = f[..^4] + ".png";
+                }
+            }
+        });
+
+        Microsoft.Maui.Handlers.ImageButtonHandler.Mapper.PrependToMapping("WindowsBareImageButtonFix", (handler, view) =>
+        {
+            if (view.Source is FileImageSource fis && !string.IsNullOrEmpty(fis.File))
+            {
+                var f = fis.File;
+                if (!f.Contains('.'))
+                {
+                    fis.File = f + ".png";
+                }
+                else if (f.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+                {
+                    fis.File = f[..^4] + ".png";
+                }
+            }
+        });
+#endif
+
 #if ANDROID
         MALPlus.XShared.Comm.AppUpdateQuery.TargetArchitectureProvider = () =>
         {

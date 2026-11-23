@@ -54,4 +54,12 @@
     <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.4.1" />
     <PackageReference Include="Xamarin.AndroidX.Media3.UI" Version="1.4.1" />
   </ItemGroup>
+
+  <Target Name="CopyAssetsForWindowsUnpackaged" AfterTargets="Build" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <ItemGroup>
+      <_AllImageFiles Include="Resources\Images\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AllImageFiles)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_AllImageFiles)" DestinationFolder="$(TargetDir)Assets\" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

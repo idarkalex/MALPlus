@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MALPlus.Controls.DesktopNavBar"
+             BackgroundColor="{DynamicResource EmSheet}">
+
+    <ContentView.Resources>
+        <ResourceDictionary>
+            <Style x:Key="DesktopTabBorder" TargetType="Border">
+                <Setter Property="BackgroundColor" Value="Transparent" />
+                <Setter Property="Stroke" Value="Transparent" />
+                <Setter Property="StrokeThickness" Value="0" />
+                <Setter Property="StrokeShape" Value="RoundRectangle 8" />
+                <Setter Property="Padding" Value="14,8" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+
+            <Style x:Key="DesktopTabLabel" TargetType="Label">
+                <Setter Property="FontFamily" Value="InterSemiBold" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="TextColor" Value="#A0FFFFFF" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+        </ResourceDictionary>
+    </ContentView.Resources>
+
+    <Border Stroke="{DynamicResource EmBorder}" StrokeThickness="0,0,0,1" Padding="16,0" HeightRequest="54">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalOptions="Center">
+            <!-- Brand Logo & Optional Back Button -->
+            <HorizontalStackLayout Grid.Column="0" Spacing="8" VerticalOptions="Center" Margin="0,0,24,0">
+                <Border x:Name="NavBackButton" WidthRequest="32" HeightRequest="32"
+                        StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
+                        VerticalOptions="Center" IsVisible="False">
+                    <Grid>
+                        <Image Source="icon_chevron_left.png" WidthRequest="16" HeightRequest="16"
+                               HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
+                        <Button Clicked="OnBackClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0"
+                                HorizontalOptions="Fill" VerticalOptions="Fill" />
+                    </Grid>
+                </Border>
+                <Grid VerticalOptions="Center">
+                    <Image Source="splash_darkmode.png" HeightRequest="28" WidthRequest="84" Aspect="AspectFit" VerticalOptions="Center" InputTransparent="True" />
+                    <Button Clicked="OnLogoClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0"
+                            HorizontalOptions="Fill" VerticalOptions="Fill" />
+                </Grid>
+            </HorizontalStackLayout>
+
+            <!-- 4 Navigation Tabs: Discover, Anime, Manga, More -->
+            <HorizontalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Center" HorizontalOptions="Start">
+                <!-- Discover -->
+                <Grid VerticalOptions="Center">
+                    <Border x:Name="TabDiscoverBorder" Style="{StaticResource DesktopTabBorder}">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center" InputTransparent="True">
+                            <Image x:Name="TabDiscoverIcon" Source="discover_compass.png" WidthRequest="18" HeightRequest="18" VerticalOptions="Center" />
+                            <Label x:Name="TabDiscoverLabel" Text="Discover" Style="{StaticResource DesktopTabLabel}" />
+                        </HorizontalStackLayout>
+                    </Border>
+                    <Button Clicked="OnDiscoverClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0"
+                            HorizontalOptions="Fill" VerticalOptions="Fill" />
+                </Grid>
+
+                <!-- Anime -->
+                <Grid VerticalOptions="Center">
+                    <Border x:Name="TabAnimeBorder" Style="{StaticResource DesktopTabBorder}">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center" InputTransparent="True">
+                            <Image x:Name="TabAnimeIcon" Source="anime_list.png" WidthRequest="18" HeightRequest="18" VerticalOptions="Center" />
+                            <Label x:Name="TabAnimeLabel" Text="Anime" Style="{StaticResource DesktopTabLabel}" />
+                        </HorizontalStackLayout>
+                    </Border>
+                    <Button Clicked="OnAnimeClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0"
+                            HorizontalOptions="Fill" VerticalOptions="Fill" />
+                </Grid>
+
+                <!-- Manga -->
+                <Grid VerticalOptions="Center">
+                    <Border x:Name="TabMangaBorder" Style="{StaticResource DesktopTabBorder}">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center" InputTransparent="True">
+                            <Image x:Name="TabMangaIcon" Source="manga_books.png" WidthRequest="18" HeightRequest="18" VerticalOptions="Center" />
+                            <Label x:Name="TabMangaLabel" Text="Manga" Style="{StaticResource DesktopTabLabel}" />
+                        </HorizontalStackLayout>
+                    </Border>
+                    <Button Clicked="OnMangaClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0"
+                            HorizontalOptions="Fill" VerticalOptions="Fill" />
+                </Grid>
+
+                <!-- More -->
+                <Grid VerticalOptions="Center">
+                    <Border x:Name="TabMoreBorder" Style="{StaticResource DesktopTabBorder}">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center" InputTransparent="True">
+                            <Image x:Name="TabMoreIcon" Source="more_dots.png" WidthRequest="18" HeightRequest="18" VerticalOptions="Center" />
+                            <Label x:Name="TabMoreLabel" Text="More" Style="{StaticResource DesktopTabLabel}" />
+                        </HorizontalStackLayout>
+                    </Border>
+                    <Button Clicked="OnMoreClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0"
+                            HorizontalOptions="Fill" VerticalOptions="Fill" />
+                </Grid>
+            </HorizontalStackLayout>
+
+            <!-- Quick Search Button -->
+            <Grid Grid.Column="3" VerticalOptions="Center" HorizontalOptions="End">
+                <Border Style="{StaticResource DesktopTabBorder}" Padding="10,8">
+                    <HorizontalStackLayout Spacing="6" VerticalOptions="Center" InputTransparent="True">
+                        <Image Source="icon_search.png" WidthRequest="16" HeightRequest="16" VerticalOptions="Center" />
+                        <Label Text="Search" FontFamily="InterMedium" FontSize="12" TextColor="#80FFFFFF" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+                <Button Clicked="OnSearchClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0"
+                        HorizontalOptions="Fill" VerticalOptions="Fill" />
+            </Grid>
+        </Grid>
+    </Border>
+</ContentView>

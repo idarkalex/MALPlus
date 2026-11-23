@@ -35,7 +35,7 @@
                          and stops the row from seeing the touch. A drawable again rather than a
                          character: as text the cross came out as mojibake, and a vector cannot
                          depend on the font carrying the glyph. -->
-<Image Grid.Column="1" Source="icon_close.svg" WidthRequest="20" HeightRequest="20"
+<Image Grid.Column="1" Source="icon_close.png" WidthRequest="20" HeightRequest="20"
                             VerticalOptions="Center">
                         <Image.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRecentSearchRemoveTapped"
@@ -144,6 +144,15 @@
         <ScrollView x:Name="TabStripScroll" Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
                     Padding="12,12,12,0" BackgroundColor="{StaticResource EmBackground}">
             <HorizontalStackLayout Spacing="8">
+                <Border x:Name="SearchBackButton" WidthRequest="34" HeightRequest="34"
+                        StrokeShape="RoundRectangle 17" BackgroundColor="#14FFFFFF" Padding="0"
+                        VerticalOptions="Center" IsVisible="False">
+                    <Grid>
+                        <Image Source="icon_chevron_left.png" WidthRequest="16" HeightRequest="16"
+                               HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
+                        <Button Clicked="OnSearchBackClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0" />
+                    </Grid>
+                </Border>
                 <Button x:Name="TabAll" Text="All" Clicked="OnSearchButtonClicked" CommandParameter="0"
                         Style="{StaticResource TabChipActiveButtonStyle}" />
                 <Button x:Name="TabAnime" Text="Anime" Clicked="OnSearchButtonClicked" CommandParameter="1"
@@ -174,11 +183,11 @@
                            PlaceholderColor="#80FFFFFF"
                            ReturnType="Search"
                            Completed="OnAllSearchCompleted" />
-                    <ImageButton Grid.Column="1" Source="icon_close.svg" Clicked="OnClearAllQueryClicked"
+                    <ImageButton Grid.Column="1" Source="icon_close.png" Clicked="OnClearAllQueryClicked"
                                  BackgroundColor="{StaticResource EmSheet}"
                                  WidthRequest="48" HeightRequest="48" Padding="14"
                                  IsVisible="{Binding AllQuery, Source={x:Reference Page}, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
-                    <ImageButton Grid.Column="2" Source="search.svg"
+                    <ImageButton Grid.Column="2" Source="search.png"
                                  Clicked="OnAllSearchClicked"
                                  BackgroundColor="#0066FF"
                                  CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="12" />
@@ -233,11 +242,11 @@
                          which would consume the touch and stop the keyboard opening. The mark is a
                          drawable rather than a character: as text it came out as mojibake twice,
                          and a vector cannot depend on the font having the glyph. -->
-                    <ImageButton Grid.Column="1" Source="icon_close.svg" Clicked="OnClearQueryClicked"
+                    <ImageButton Grid.Column="1" Source="icon_close.png" Clicked="OnClearQueryClicked"
                                  BackgroundColor="{StaticResource EmSheet}"
                                  WidthRequest="48" HeightRequest="48" Padding="14"
                                  IsVisible="{Binding InternalQuery, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
-                    <ImageButton Grid.Column="2" Source="search.svg"
+                    <ImageButton Grid.Column="2" Source="search.png"
                                  Command="{Binding SearchCommand}"
                                  BackgroundColor="#0066FF"
                                  CornerRadius="8" WidthRequest="48" HeightRequest="48" Padding="12" />
@@ -313,7 +322,8 @@
                                      results only differ in which values the card shows. -->
                                 <DataTemplate>
                                     <controls:AnimePosterCard
-                                        HeightRequest="195"
+                                        WidthRequest="{Binding CellWidth, Source={x:Reference ResultsGrid}}"
+                                        HeightRequest="{Binding CellHeight, Source={x:Reference ResultsGrid}}"
                                         PosterUrl="{Binding ImgUrl}"
                                         Title="{Binding Title}"
                                         TitleOverlay="True"

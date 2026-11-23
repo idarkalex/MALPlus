@@ -91,17 +91,19 @@ base.OnStart();
                 }
                 else
                 {
-                    // Apply DefaultMenuTab setting (anime/manga/discover)
+                    // Apply DefaultMenuTab setting (anime/manga/discover) or test route
                     try
                     {
+                        var envRoute = Environment.GetEnvironmentVariable("MALPLUS_START_ROUTE");
                         var startTab = Settings.DefaultMenuTab ?? "anime";
-                        var route = startTab switch
+                        var route = !string.IsNullOrWhiteSpace(envRoute) ? envRoute : startTab switch
                         {
                             "discover" => "//discover",
                             "manga" => "//manga",
+                            "more" => "//more",
                             _ => "//anime"
                         };
-                        StartupTrace.Mark("start-tab-" + startTab);
+                        StartupTrace.Mark("start-tab-" + (envRoute ?? startTab));
                         await MainThread.InvokeOnMainThreadAsync(() =>
                             Shell.Current?.GoToAsync(route));
                     }

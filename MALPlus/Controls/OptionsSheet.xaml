@@ -40,7 +40,7 @@
                     <Border Grid.Column="0" x:Name="BackButton" WidthRequest="32" HeightRequest="32"
                             StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
                             VerticalOptions="Center" Margin="0,0,10,0" IsVisible="False">
-                        <Image Source="icon_chevron_left" WidthRequest="18" HeightRequest="18"
+                        <Image Source="icon_chevron_left.png" WidthRequest="18" HeightRequest="18"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnBackTapped" />
@@ -56,7 +56,7 @@
                     <Border Grid.Column="2" x:Name="CloseButton" WidthRequest="32" HeightRequest="32"
                             StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
                             VerticalOptions="Center">
-                        <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
+                        <Image Source="icon_close.png" WidthRequest="18" HeightRequest="18"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnScrimTapped" />

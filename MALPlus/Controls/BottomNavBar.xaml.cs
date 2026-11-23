@@ -31,12 +31,19 @@ public partial class BottomNavBar : ContentView
     public BottomNavBar()
     {
         InitializeComponent();
+#if WINDOWS
+        IsVisible = false;
+        HeightRequest = 0;
+        MaximumHeightRequest = 0;
+        Opacity = 0;
+#else
         if (SharedHostInstalled)
         {
             HeightRequest = 0;
             IsVisible = false;
         }
         Loaded += OnBarLoaded;
+#endif
     }
 
 #if ANDROID

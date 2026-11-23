@@ -89,11 +89,12 @@
                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnDependentTapped" />
                             </Grid.GestureRecognizers>
-                            <Border StrokeThickness="0" Padding="0">
+                            <Border StrokeThickness="0" Padding="0" HorizontalOptions="Center">
                                 <Border.StrokeShape>
                                     <RoundRectangle CornerRadius="10" />
                                 </Border.StrokeShape>
                                 <controls:AnimePosterCard
+                                    WidthRequest="130"
                                     HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
                                     PosterUrl="{Binding DependentItem.ImgUrl}"
                                     Title="{Binding DependentItem.Title}"
@@ -117,7 +118,7 @@
                             <Border.StrokeShape>
                                 <RoundRectangle CornerRadius="20" />
                             </Border.StrokeShape>
-                            <Image Source="icon_arrow_right" WidthRequest="22" HeightRequest="22"
+                            <Image Source="icon_arrow_right.png" WidthRequest="22" HeightRequest="22"
                                    HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
 
@@ -125,11 +126,12 @@
                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnRecommendedTapped" />
                             </Grid.GestureRecognizers>
-                            <Border StrokeThickness="0" Padding="0">
+                            <Border StrokeThickness="0" Padding="0" HorizontalOptions="Center">
                                 <Border.StrokeShape>
                                     <RoundRectangle CornerRadius="10" />
                                 </Border.StrokeShape>
                                 <controls:AnimePosterCard
+                                    WidthRequest="130"
                                     HeightRequest="{x:Static controls:AnimePosterGrid.DefaultCellHeight}"
                                     PosterUrl="{Binding RecommendedItem.ImgUrl}"
                                     Title="{Binding RecommendedItem.Title}"

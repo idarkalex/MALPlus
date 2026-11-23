@@ -62,8 +62,12 @@ public partial class SearchPage : ContentPage, ITabSwipeHost
     public System.Collections.IEnumerable CharacterResults => CharVm.FoundCharacters;
 
     public SearchPage()
-        {
-InitializeComponent();
+    {
+        InitializeComponent();
+#if WINDOWS
+        if (SearchBackButton != null)
+            SearchBackButton.IsVisible = true;
+#endif
         BindingContext = ViewModelLocator.SearchPage;
         // Subscribed here rather than through XAML: the Focused attribute on an Entry does
         // not reach the handler on Android, so the dropdown never opened.
@@ -633,6 +637,18 @@ private async void OnGenreStudioSelected(object sender, SelectionChangedEventArg
             return;
         CloseRecentSearches();
         MainVm.ToggleTypeFilter(chip);
+    }
+
+    private async void OnSearchBackClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            if (Navigation?.NavigationStack?.Count > 1)
+                await Navigation.PopAsync();
+            else
+                await Shell.Current.GoToAsync("///discover");
+        }
+        catch { }
     }
 
     /// <summary>

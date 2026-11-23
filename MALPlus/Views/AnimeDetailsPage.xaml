@@ -750,7 +750,8 @@
                                      behaves like the character rows, which scroll fine. -->
                                 <DataTemplate>
                                     <controls:AnimePosterCard
-                                        HeightRequest="195"
+                                        WidthRequest="{Binding CellWidth, Source={x:Reference RelatedGrid}}"
+                                        HeightRequest="{Binding CellHeight, Source={x:Reference RelatedGrid}}"
                                         PosterUrl="{Binding ImgUrl}"
                                         Title="{Binding Title}"
                                         TitleOverlay="True"
@@ -1030,7 +1031,7 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnShareButtonTapped" />
                         </Border.GestureRecognizers>
-                        <Image Source="icon_share" WidthRequest="18" HeightRequest="18"
+                        <Image Source="icon_share.png" WidthRequest="18" HeightRequest="18"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                     <Button Grid.Column="5" Text="⋯" Command="{Binding ShowMoreCommand}" FontFamily="InterBold" FontSize="18"
@@ -1081,7 +1082,7 @@
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="CloseVideoOverlay" />
                     </Border.GestureRecognizers>
-                    <Label Text="✕" FontFamily="InterBold" FontSize="18" TextColor="White"
+                    <Image Source="icon_close.png" WidthRequest="18" HeightRequest="18"
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
             </HorizontalStackLayout>
@@ -1101,6 +1102,17 @@
             <!-- The overflow menu. Inside this Grid on purpose: a ContentPage holds one child, so
                  declaring this as a second child of the page made it the page's content and the whole
                  entry rendered as nothing at all. -->
+            <Border x:Name="DesktopBackButton" ZIndex="500" HorizontalOptions="Start" VerticalOptions="Start"
+                    Margin="16,16,0,0" WidthRequest="40" HeightRequest="40"
+                    StrokeShape="RoundRectangle 20" BackgroundColor="#B3051522" Stroke="#33FFFFFF" StrokeThickness="1"
+                    IsVisible="False">
+                <Grid>
+                    <Image Source="icon_chevron_left.png" WidthRequest="20" HeightRequest="20"
+                           HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
+                    <Button Clicked="OnDesktopBackClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0" />
+                </Grid>
+            </Border>
+
             <controls:OptionsSheet x:Name="DetailsSheet" ZIndex="300" />
         </Grid>
   </ContentPage>

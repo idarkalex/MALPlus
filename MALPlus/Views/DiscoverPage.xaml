@@ -60,8 +60,9 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid>
-        <ScrollView>
+    <Grid RowDefinitions="Auto,*,Auto">
+        <controls:DesktopNavBar Grid.Row="0" />
+        <ScrollView Grid.Row="1">
             <!-- Top padding 18 clears status bar cleanly; bottom padding 20 keeps content snug above shared BottomNavBar -->
             <VerticalStackLayout Padding="14,18,14,20" Spacing="14">
 
@@ -359,6 +360,6 @@
                            HorizontalOptions="End" VerticalOptions="Start"
                            Margin="0,8,16,0" ZIndex="10" InputTransparent="True" />
 
-        <controls:BottomNavBar x:Name="BottomNav" VerticalOptions="End" />
+        <controls:BottomNavBar x:Name="BottomNav" Grid.Row="2" VerticalOptions="End" />
     </Grid>
 </ContentPage>

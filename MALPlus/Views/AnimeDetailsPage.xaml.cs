@@ -560,8 +560,12 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
     public AnimeDetailsPage()
     {
-InitializeComponent();
-            // Set here rather than as a <BindableLayout.ItemsLayout> property element in the XAML:
+        InitializeComponent();
+#if WINDOWS
+        if (DesktopBackButton != null)
+            DesktopBackButton.IsVisible = true;
+#endif
+        // Set here rather than as a <BindableLayout.ItemsLayout> property element in the XAML:
             // on this RC the compiler rejects that form with MAUIX2002.
             BindingContext = ViewModelLocator.AnimeDetails;
             DetailsSheet.Closed += OnDetailsSheetClosed;
@@ -2475,6 +2479,18 @@ private void HideVideoLoading()
         catch { }
     }
 
+
+    private async void OnDesktopBackClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            if (Navigation?.NavigationStack?.Count > 1)
+                await Navigation.PopAsync();
+            else
+                await Shell.Current.GoToAsync("..");
+        }
+        catch { }
+    }
 
     private void CloseVideoOverlay(object sender, EventArgs e)
     {

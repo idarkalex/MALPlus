@@ -23,7 +23,7 @@
                 <Border Grid.Column="1" WidthRequest="32" HeightRequest="32"
                         StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
                         VerticalOptions="Center">
-                    <Image Source="icon_close" WidthRequest="18" HeightRequest="18"
+                    <Image Source="icon_close.png" WidthRequest="18" HeightRequest="18"
                            HorizontalOptions="Center" VerticalOptions="Center" />
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnCloseTapped" />

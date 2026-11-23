@@ -74,7 +74,7 @@
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnCloseVideo" />
                     </Border.GestureRecognizers>
-                    <Image Source="icon_close" WidthRequest="20" HeightRequest="20"
+                    <Image Source="icon_close.png" WidthRequest="20" HeightRequest="20"
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
             </HorizontalStackLayout>
