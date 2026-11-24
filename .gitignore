@@ -68,3 +68,10 @@ Desktop.ini
 branding-old/
 *.kra
 *.psd
+
+## Windows packaging build outputs
+packaging/windows/publish*
+packaging/windows/singlefile*
+packaging/windows/output/
+packaging/windows/*.exe
+packaging/windows/*.log

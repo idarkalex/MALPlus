@@ -39,9 +39,9 @@ public static class AppUpdateService
                 return;
             }
 
-            var currentVersionStr = AppInfo.VersionString;
-            if (Version.TryParse(info.Version, out var remoteVer) &&
-                Version.TryParse(currentVersionStr, out var currentVer))
+            var currentVersionStr = GetCurrentAppVersion();
+            if (TryParseVersion(info.Version, out var remoteVer) &&
+                TryParseVersion(currentVersionStr, out var currentVer))
             {
                 if (remoteVer > currentVer)
                 {
@@ -71,10 +71,10 @@ public static class AppUpdateService
             var query = new AppUpdateQuery();
             var info = await query.GetUpdateInfo();
 
-            var currentVersionStr = AppInfo.VersionString;
+            var currentVersionStr = GetCurrentAppVersion();
             if (info != null &&
-                Version.TryParse(info.Version, out var remoteVer) &&
-                Version.TryParse(currentVersionStr, out var currentVer) &&
+                TryParseVersion(info.Version, out var remoteVer) &&
+                TryParseVersion(currentVersionStr, out var currentVer) &&
                 remoteVer > currentVer)
             {
                 await PromptUpdateAsync(info);
@@ -98,6 +98,13 @@ public static class AppUpdateService
         if (info == null || string.IsNullOrWhiteSpace(info.DownloadUrl))
             return;
 
+#if WINDOWS
+        AppLog.Info("Update", $"Showing Windows update prompt for v{info.Version}. URL: {info.DownloadUrl}");
+        await OptionsSheetHost.ShowUpdateAsync(info, async (reportProgress) =>
+        {
+            return await DownloadAndInstallWindowsAsync(info.DownloadUrl, info.Version, reportProgress);
+        });
+#else
         if (!info.DownloadUrl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
         {
             var shouldUpdate = await OptionsSheetHost.ShowUpdateAsync(info);
@@ -120,6 +127,7 @@ public static class AppUpdateService
         {
             return await DownloadAndInstallApkAsync(info.DownloadUrl, info.Version, reportProgress);
         });
+#endif
     }
 
     private static async Task<bool> DownloadAndInstallApkAsync(
@@ -218,6 +226,95 @@ public static class AppUpdateService
             _downloadLock.Release();
         }
     }
+
+#if WINDOWS
+    private static async Task<bool> DownloadAndInstallWindowsAsync(
+        string downloadUrl,
+        string version,
+        Action<double, string> onProgress = null)
+    {
+        if (!await _downloadLock.WaitAsync(0))
+        {
+            AppLog.Warn("Update", "A download is already in progress, ignoring duplicate request.");
+            return false;
+        }
+
+        try
+        {
+            var cacheDir = FileSystem.CacheDirectory;
+            var installerExt = downloadUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? ".zip" : ".exe";
+            var installerPath = Path.Combine(cacheDir, $"malplus_setup_{version}{installerExt}");
+
+            onProgress?.Invoke(0.0, "Connecting to download server...");
+            AppLog.Info("Update", $"Starting Windows download: {downloadUrl} -> {installerPath}");
+
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MALPlus-Windows");
+            using var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            var totalBytes = response.Content.Headers.ContentLength;
+            await using (var stream = await response.Content.ReadAsStreamAsync())
+            await using (var fileStream = new FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                var buffer = new byte[81920];
+                long totalRead = 0;
+                int read;
+                var lastReport = DateTime.UtcNow;
+
+                while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer, 0, read);
+                    totalRead += read;
+
+                    if ((DateTime.UtcNow - lastReport).TotalMilliseconds >= 200)
+                    {
+                        lastReport = DateTime.UtcNow;
+                        if (totalBytes.HasValue && totalBytes.Value > 0)
+                        {
+                            var fraction = (double)totalRead / totalBytes.Value;
+                            var mbRead = totalRead / (1024.0 * 1024.0);
+                            var mbTotal = totalBytes.Value / (1024.0 * 1024.0);
+                            onProgress?.Invoke(fraction, $"{mbRead:F1} / {mbTotal:F1} MB ({(int)(fraction * 100)}%)");
+                        }
+                        else
+                        {
+                            var mbRead = totalRead / (1024.0 * 1024.0);
+                            onProgress?.Invoke(-1, $"{mbRead:F1} MB downloaded");
+                        }
+                    }
+                }
+            }
+
+            AppLog.Info("Update", $"Windows download completed successfully ({new FileInfo(installerPath).Length:N0} bytes).");
+            onProgress?.Invoke(1.0, "Download finished. Starting installer...");
+            await Task.Delay(500);
+
+            // Execute the installer and close the app so files can be updated
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = installerPath,
+                UseShellExecute = true
+            });
+
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                Application.Current?.Quit();
+            });
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Update", "DownloadAndInstallWindowsAsync failed", ex);
+            throw;
+        }
+        finally
+        {
+            _downloadLock.Release();
+        }
+    }
+#endif
 
 #if ANDROID
     private static void InstallApk(string apkPath)
@@ -364,5 +461,65 @@ public static class AppUpdateService
         {
             AppLog.Error("Update", "ShowCurrentChangelogAsync failed", ex);
         }
+    }
+
+    public static string GetCurrentAppVersion()
+    {
+#if WINDOWS
+        try
+        {
+            var asmVer = typeof(AppUpdateService).Assembly.GetName().Version;
+            if (asmVer != null && (asmVer.Major > 0 || asmVer.Minor > 0 || asmVer.Build > 0))
+            {
+                return $"{asmVer.Major}.{asmVer.Minor}.{asmVer.Build}";
+            }
+        }
+        catch { }
+#endif
+        var v = AppInfo.VersionString;
+        if (TryParseVersion(v, out var parsed))
+        {
+            return $"{parsed.Major}.{parsed.Minor}.{parsed.Build}";
+        }
+        return v;
+    }
+
+    private static bool TryParseVersion(string versionStr, out Version version)
+    {
+        version = null;
+        if (string.IsNullOrWhiteSpace(versionStr))
+            return false;
+
+        var clean = versionStr.Trim();
+        if (clean.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+            clean = clean.Substring(1);
+
+        var plusIdx = clean.IndexOf('+');
+        if (plusIdx >= 0)
+            clean = clean.Substring(0, plusIdx);
+
+        var dashIdx = clean.IndexOf('-');
+        if (dashIdx >= 0)
+            clean = clean.Substring(0, dashIdx);
+
+        var parts = clean.Split('.');
+        if (parts.Length >= 3 &&
+            int.TryParse(parts[0], out var maj) &&
+            int.TryParse(parts[1], out var min) &&
+            int.TryParse(parts[2], out var build))
+        {
+            version = new Version(maj, min, build);
+            return true;
+        }
+
+        if (parts.Length == 2 &&
+            int.TryParse(parts[0], out var m) &&
+            int.TryParse(parts[1], out var n))
+        {
+            version = new Version(m, n, 0);
+            return true;
+        }
+
+        return Version.TryParse(clean, out version);
     }
 }

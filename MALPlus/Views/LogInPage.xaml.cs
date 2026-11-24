@@ -174,6 +174,19 @@ public partial class LogInPage : ContentPage
         }
     }
 
+    private void OnUserEntryCompleted(object sender, EventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(PassEntry.Text))
+            PassEntry.Focus();
+        else
+            OnAutoSignInClicked(sender, e);
+    }
+
+    private void OnPassEntryCompleted(object sender, EventArgs e)
+    {
+        OnAutoSignInClicked(sender, e);
+    }
+
     /// <summary>
     ///     Reloads the form without touching the jar. Only for the case where the form is already
     ///     loaded and just needs a refresh; anything that starts a sign-in goes through
@@ -259,14 +272,6 @@ public partial class LogInPage : ContentPage
                         {
                             await platform.EnsureCoreWebView2Async();
                         }
-                        if (platform.CoreWebView2 != null)
-                        {
-                            if (platform.CoreWebView2.Settings.UserAgent != DesktopUserAgent)
-                            {
-                                platform.CoreWebView2.Settings.UserAgent = DesktopUserAgent;
-                                Probe("Windows CoreWebView2.Settings.UserAgent set to DesktopUserAgent");
-                            }
-                        }
                     }
                     catch (Exception ex)
                     {
@@ -283,103 +288,114 @@ public partial class LogInPage : ContentPage
 
     private async Task<string> CaptureSessionCookiesWindowsAsync(string caller = "")
     {
-        try
+        return await MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
+            try
             {
-                if (platform.CoreWebView2 == null)
+                if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
                 {
-                    await platform.EnsureCoreWebView2Async();
-                }
-
-                if (platform.CoreWebView2 != null)
-                {
-                    var cookieManager = platform.CoreWebView2.CookieManager;
-                    var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
-                    if (cookieList != null && cookieList.Count > 0)
+                    if (platform.CoreWebView2 == null)
                     {
-                        var jar = string.Join("; ", cookieList.Select(c => $"{c.Name}={c.Value}"));
-                        if (!string.IsNullOrWhiteSpace(jar))
+                        await platform.EnsureCoreWebView2Async();
+                    }
+
+                    if (platform.CoreWebView2 != null)
+                    {
+                        var cookieManager = platform.CoreWebView2.CookieManager;
+                        var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
+                        if (cookieList != null && cookieList.Count > 0)
                         {
-                            var hasSession = jar.Contains("MAL_SESSION") || jar.Contains("is_logged_in") ||
-                                             jar.Contains("m_flag") || jar.Contains("token=");
-                            if (_cookies == null || jar.Length >= _cookies.Length || hasSession)
+                            var jar = string.Join("; ", cookieList.Select(c => $"{c.Name}={c.Value}"));
+                            if (!string.IsNullOrWhiteSpace(jar))
                             {
-                                _cookies = jar;
-                                Probe($"Windows captured cookies ({caller}): count={cookieList.Count}, len={jar.Length}, hasSession={hasSession}");
+                                var hasSession = jar.Contains("MAL_SESSION") || jar.Contains("is_logged_in") ||
+                                                 jar.Contains("m_flag") || jar.Contains("token=");
+                                if (_cookies == null || jar.Length >= _cookies.Length || hasSession)
+                                {
+                                    _cookies = jar;
+                                    Probe($"Windows captured cookies ({caller}): count={cookieList.Count}, len={jar.Length}, hasSession={hasSession}");
+                                }
+                                return _cookies;
                             }
-                            return _cookies;
                         }
                     }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Probe("Windows CaptureSessionCookiesWindowsAsync error: " + ex.Message);
-        }
-        return _cookies;
+            catch (Exception ex)
+            {
+                Probe("Windows CaptureSessionCookiesWindowsAsync error: " + ex.Message);
+            }
+            return _cookies;
+        });
     }
 
     private async Task ClearWindowsMalSessionAsync()
     {
-        try
+        await MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
+            try
             {
-                if (platform.CoreWebView2 == null)
+                if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
                 {
-                    await platform.EnsureCoreWebView2Async();
-                }
-                if (platform.CoreWebView2 != null)
-                {
-                    var cookieManager = platform.CoreWebView2.CookieManager;
-                    var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
-                    foreach (var c in cookieList)
+                    if (platform.CoreWebView2 == null)
                     {
-                        if (c.Name.Contains("MAL_SESSION", StringComparison.OrdinalIgnoreCase) ||
-                            c.Name.Contains("is_logged_in", StringComparison.OrdinalIgnoreCase) ||
-                            c.Name.Contains("m_flag", StringComparison.OrdinalIgnoreCase))
-                        {
-                            cookieManager.DeleteCookie(c);
-                        }
+                        await platform.EnsureCoreWebView2Async();
                     }
-                    Probe("Windows cleared MAL session blocker cookies");
+                    if (platform.CoreWebView2 != null)
+                    {
+                        var cookieManager = platform.CoreWebView2.CookieManager;
+                        var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
+                        foreach (var c in cookieList)
+                        {
+                            if (c.Name.Contains("MAL_SESSION", StringComparison.OrdinalIgnoreCase) ||
+                                c.Name.Contains("is_logged_in", StringComparison.OrdinalIgnoreCase) ||
+                                c.Name.Contains("m_flag", StringComparison.OrdinalIgnoreCase) ||
+                                c.Name.Contains("MALSESSIONID", StringComparison.OrdinalIgnoreCase) ||
+                                c.Name.Contains("token", StringComparison.OrdinalIgnoreCase))
+                            {
+                                cookieManager.DeleteCookie(c);
+                            }
+                        }
+                        Probe("Windows cleared MAL session blocker cookies");
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Probe("Windows ClearWindowsMalSessionAsync error: " + ex.Message);
-        }
+            catch (Exception ex)
+            {
+                Probe("Windows ClearWindowsMalSessionAsync error: " + ex.Message);
+            }
+        });
     }
 
     private async Task PurgeAllWindowsCookiesAsync()
     {
-        try
+        await MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
+            try
             {
-                if (platform.CoreWebView2 == null)
+                if (AuthWebView?.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 platform)
                 {
-                    await platform.EnsureCoreWebView2Async();
-                }
-                if (platform.CoreWebView2 != null)
-                {
-                    var cookieManager = platform.CoreWebView2.CookieManager;
-                    var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
-                    foreach (var c in cookieList)
+                    if (platform.CoreWebView2 == null)
                     {
-                        cookieManager.DeleteCookie(c);
+                        await platform.EnsureCoreWebView2Async();
                     }
-                    Probe("Windows purged all cookies");
+                    if (platform.CoreWebView2 != null)
+                    {
+                        var cookieManager = platform.CoreWebView2.CookieManager;
+                        var cookieList = await cookieManager.GetCookiesAsync("https://myanimelist.net");
+                        foreach (var c in cookieList)
+                        {
+                            cookieManager.DeleteCookie(c);
+                        }
+                        Probe("Windows purged all cookies");
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Probe("Windows PurgeAllWindowsCookiesAsync error: " + ex.Message);
-        }
+            catch (Exception ex)
+            {
+                Probe("Windows PurgeAllWindowsCookiesAsync error: " + ex.Message);
+            }
+        });
     }
 
     private static bool IsMalHomeUrl(string url)
@@ -493,6 +509,36 @@ public partial class LogInPage : ContentPage
             if (url.Contains("login.php"))
                 _loginPageReady = true;
 #if WINDOWS
+            if (IsMalHomeUrl(url) && !_oauthInFlight)
+            {
+                if (_autoMode && !_autoSubmitted)
+                {
+                    Probe("Windows OnAuthNavigated home: stale session before submit. Purging and reloading form.");
+                    _ = Task.Run(async () =>
+                    {
+                        await ClearWindowsMalSessionAsync();
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
+                        });
+                    });
+                    return;
+                }
+
+                Probe($"Windows OnAuthNavigated for home URL: {url} (_autoMode={_autoMode}, _autoSubmitted={_autoSubmitted}). Triggering OAuth flow.");
+                _oauthInFlight = true;
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(500);
+                    var jar = await CaptureSessionCookiesWindowsAsync("home-navigated");
+                    Probe($"Windows OnAuthNavigated home: cookies captured, len={jar?.Length ?? 0}");
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        NavigateToOAuthAuthorize();
+                    });
+                });
+                return;
+            }
             if (!_autoMode && !_oauthInFlight && !url.Contains("login.php") && !url.Contains("register.php") &&
                 url.StartsWith("https://myanimelist.net") && !url.Contains("/v1/oauth2/"))
             {
@@ -505,14 +551,7 @@ public partial class LogInPage : ContentPage
                         MainThread.BeginInvokeOnMainThread(() =>
                         {
                             if (_oauthInFlight) return;
-                            _oauthInFlight = true;
-                            OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
-                            OverlayHint.IsVisible = true;
-                            AuthWebView.Source = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
-                                + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
-                                + "state=signin&"
-                                + $"code_challenge={Vm.PkceChallenge}&"
-                                + "code_challenge_method=plain";
+                            NavigateToOAuthAuthorize();
                         });
                     }
                 });
@@ -538,10 +577,24 @@ public partial class LogInPage : ContentPage
                 {
                     _ = InspectAndFailIfErrorAsync();
                 }
-                if (url.Contains("dialog/authorization") && _autoMode && !_consentClicked && !_consentInFlight)
+                if ((url.Contains("dialog/authorization") || url.Contains("/v1/oauth2/authorize")) && _autoMode)
                 {
-                    _consentInFlight = true;
-                    _ = AcceptConsentOrFallBackAsync();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var dom = await MainThread.InvokeOnMainThreadAsync(() => AuthWebView.EvaluateJavaScriptAsync(
+                                "(function(){ return (document.title||'') + ' >> ' + (document.body ? document.body.innerText.slice(0, 300) : ''); })()"));
+                            Probe("OAUTH DOM: " + dom);
+                        }
+                        catch { }
+                    });
+
+                    if (!_consentClicked && !_consentInFlight)
+                    {
+                        _consentInFlight = true;
+                        _ = AcceptConsentOrFallBackAsync();
+                    }
                 }
                 if (url.Contains("submission/authorization"))
                 {
@@ -945,7 +998,8 @@ public partial class LogInPage : ContentPage
     {
         try
         {
-            for (var attempt = 0; attempt < 10; attempt++)
+            Probe("AcceptConsentOrFallBackAsync started");
+            for (var attempt = 0; attempt < 8; attempt++)
             {
                 if (!_autoMode || _consentClicked)
                     return;
@@ -956,11 +1010,13 @@ public partial class LogInPage : ContentPage
                 if (await TryApproveConsentAsync())
                 {
                     _consentClicked = true;
+                    Probe("Consent approved automatically!");
                     return;
                 }
             }
             if (!_autoMode || _consentClicked)
                 return;
+            Probe("Automatic consent click not found after attempts. Revealing WebOverlay for user review.");
             _autoCts?.Cancel();
             OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
             OverlayHint.IsVisible = true;
@@ -984,8 +1040,18 @@ public partial class LogInPage : ContentPage
                 return false;
 
             const string js = @"(function(){
-                var btn = document.querySelector('input[value=""Allow""], button.button--primary, input.button--primary')
-                       || Array.from(document.querySelectorAll('input[type=submit],button,a.btn')).find(b => ((b.value||b.innerText||'').trim().toLowerCase() === 'allow'));
+                var t = (document.title || '') + ' ' + (document.body ? document.body.innerText : '');
+                if (/confirme que es humano|security check|challenge|robot|captcha|no es un bot|turnstile|recaptcha/i.test(t)) {
+                    return 'challenge';
+                }
+                if (/400\s*bad request|bad request/i.test(t)) {
+                    return 'error:400';
+                }
+                var btn = document.querySelector('input[value=""Allow""], button.button--primary, input.button--primary, input[value=""Authorize""], button[value=""Authorize""]')
+                       || Array.from(document.querySelectorAll('input[type=submit],button,a.btn,input[type=button]')).find(b => {
+                           var val = ((b.value || b.innerText || b.textContent || '')).trim().toLowerCase();
+                           return val === 'allow' || val === 'authorize' || val === 'permitir' || val === 'continuar' || val.indexOf('allow') >= 0;
+                       });
                 if (!btn || btn.disabled || btn.getAttribute('data-malplus-clicked'))
                     return 'notfound';
                 var action = document.querySelector('input[name=""action_type""]');
@@ -997,6 +1063,40 @@ public partial class LogInPage : ContentPage
 
             var result = await MainThread.InvokeOnMainThreadAsync(() => AuthWebView.EvaluateJavaScriptAsync(js));
             Probe("consent click=" + result);
+            if (result != null && result.Contains("challenge"))
+            {
+                Probe("Challenge detected on consent screen. Revealing WebOverlay immediately for user completion.");
+                _consentInFlight = false;
+                _autoCts?.Cancel();
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    OverlayHint.Text = "Please complete the security check to connect your account";
+                    OverlayHint.IsVisible = true;
+                    WebOverlay.IsVisible = true;
+                });
+                return false;
+            }
+            if (result != null && result.Contains("error:400"))
+            {
+                Probe("Consent page is 400 Bad Request. Purging cookies and resetting to clean login form.");
+                _consentClicked = false;
+                _consentInFlight = false;
+                _autoCts?.Cancel();
+                _ = Task.Run(async () =>
+                {
+                    Credentials.ClearMalWebSession();
+                    Credentials.PurgeAllWebCookies();
+#if WINDOWS
+                    await PurgeAllWindowsCookiesAsync();
+#endif
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        ResetToForm("MyAnimeList session expired. Please sign in again.");
+                        _ = LoadCleanLoginFormAsync(CancellationToken.None);
+                    });
+                });
+                return false;
+            }
             return result != null && result.StartsWith("clicked", StringComparison.Ordinal);
         }
         catch (Exception ex)
@@ -1334,6 +1434,34 @@ public partial class LogInPage : ContentPage
 #endif
     }
 
+    private void NavigateToOAuthAuthorize()
+    {
+        try
+        {
+            _oauthInFlight = true;
+            if (!_autoMode)
+            {
+                OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
+                OverlayHint.IsVisible = true;
+            }
+            else
+            {
+                ShowBusy(true, "Connecting your account…");
+            }
+            var oauthUrl = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
+                + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
+                + "state=signin&"
+                + $"code_challenge={Vm.PkceChallenge}&"
+                + "code_challenge_method=plain";
+            Probe("NavigateToOAuthAuthorize: " + oauthUrl);
+            AuthWebView.Source = oauthUrl;
+        }
+        catch (Exception ex)
+        {
+            Probe("NavigateToOAuthAuthorize error: " + ex.Message);
+        }
+    }
+
     private void OnAuthNavigating(object sender, WebNavigatingEventArgs e)
     {
         try
@@ -1437,10 +1565,43 @@ public partial class LogInPage : ContentPage
             }
 #if WINDOWS
             if (IsMalHomeUrl(url))
+            {
+                if (_autoMode)
+                {
+                    if (_oauthInFlight)
+                        return;
+
+                    // If auto-mode reached the site root without submitting credentials,
+                    // an old session in the cookie jar hijacked the login form redirect.
+                    // Purge the stale session and reload the clean login form.
+                    if (!_autoSubmitted)
+                    {
+                        Probe("Auto-mode reached home without submit (stale session). Purging jar and reloading form.");
+                        e.Cancel = true;
+                        ForgetMalSession();
+                        _ = ClearWindowsMalSessionAsync();
+                        _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
+                        return;
+                    }
+
+                    // On Windows: DO NOT cancel the 302 navigation abruptly with e.Cancel = true!
+                    // Canceling the redirect in WebView2 before Set-Cookie headers are committed
+                    // causes the subsequent OAuth authorize request to be sent without session cookies,
+                    // which causes MAL to bounce to login.php?from=%2Fdialog%2Fauthorization& and result in 400 Bad Request.
+                    // Instead, allow navigation to complete to home; OnAuthNavigated will trigger NavigateToOAuthAuthorize().
+                    Probe("Windows reached home URL after submit: " + url + " (_autoMode=" + _autoMode + "). Awaiting commit before OAuth.");
+                    return;
+                }
+                else
+                {
+                    // Manual mode: user logged in on MAL site. Allow navigation to home to commit cookies.
+                    Probe("Windows manual mode reached home page: " + url);
+                    return;
+                }
+            }
 #else
             if (url == "https://myanimelist.net/" || url == "https://myanimelist.net/#"
                 || url.StartsWith("https://myanimelist.net/#"))
-#endif
             {
                 if (_autoMode)
                 {
@@ -1454,23 +1615,15 @@ public partial class LogInPage : ContentPage
                     {
                         Probe("Auto-mode reached home without submit (stale session). Purging jar and reloading form.");
                         ForgetMalSession();
-#if ANDROID
                         global::Android.Webkit.CookieManager.Instance.RemoveSessionCookies(null);
                         global::Android.Webkit.CookieManager.Instance.Flush();
-#elif WINDOWS
-                        _ = ClearWindowsMalSessionAsync();
-#endif
                         _ = LoadCleanLoginFormAsync(_autoCts?.Token ?? CancellationToken.None);
                         return;
                     }
 
                     e.Cancel = true;
                     CaptureSessionCookies();
-                    AuthWebView.Source = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
-                        + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
-                        + "state=signin&"
-                        + $"code_challenge={Vm.PkceChallenge}&"
-                        + "code_challenge_method=plain";
+                    NavigateToOAuthAuthorize();
                     return;
                 }
                 else
@@ -1481,17 +1634,11 @@ public partial class LogInPage : ContentPage
                     Probe("Manual mode reached home page. Starting OAuth flow.");
                     e.Cancel = true;
                     CaptureSessionCookies();
-                    _oauthInFlight = true;
-                    OverlayHint.Text = "Review and tap Allow to connect MAL+ to your account";
-                    OverlayHint.IsVisible = true;
-                    AuthWebView.Source = "https://myanimelist.net/v1/oauth2/authorize?response_type=code&"
-                        + "client_id=" + Uri.EscapeDataString(MalOAuthSettings.ClientId) + "&"
-                        + "state=signin&"
-                        + $"code_challenge={Vm.PkceChallenge}&"
-                        + "code_challenge_method=plain";
+                    NavigateToOAuthAuthorize();
                     return;
                 }
             }
+#endif
             if (url.StartsWith("https://myanimelist.net/v1/oauth2/authorize"))
             {
                 // In auto-mode, if credentials were not submitted, a leftover session hijacked the redirect.

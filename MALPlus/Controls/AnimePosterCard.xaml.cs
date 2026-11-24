@@ -289,6 +289,10 @@ public partial class AnimePosterCard : ContentView
     {
         InitializeComponent();
         RootGrid.BindingContext = this;
+#if WINDOWS
+        WidthRequest = 130;
+        HeightRequest = 195;
+#endif
     }
 
     /// <summary>

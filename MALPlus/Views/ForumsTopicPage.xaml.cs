@@ -60,6 +60,16 @@ public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTop
         BindingContext = ViewModelLocator.ForumsTopic;
         if (Vm != null)
             Vm.ScrollInfoProvider = this;
+#if WINDOWS
+        TopicRefreshView.IsEnabled = false;
+        TopicRefreshView.HandlerChanged += (s, e) =>
+        {
+            if (TopicRefreshView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.RefreshContainer container)
+            {
+                container.Visualizer = null;
+            }
+        };
+#endif
     }
 
     private async void OnReplyPreviewClicked(object sender, EventArgs e)
@@ -134,6 +144,13 @@ public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTop
         }
         ConfigureTopicWebView(TopicWebView?.Handler?.PlatformView as global::Android.Views.View);
 #endif
+#if WINDOWS
+        TopicRefreshView.IsEnabled = false;
+        if (TopicRefreshView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.RefreshContainer winContainer)
+        {
+            winContainer.Visualizer = null;
+        }
+#endif
         _ = LoadTopicIfReadyAsync();
     }
 
@@ -189,7 +206,10 @@ public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTop
     private async void OnRefreshing(object sender, EventArgs e)
     {
         if (Vm == null)
+        {
+            TopicRefreshView.IsRefreshing = false;
             return;
+        }
         try
         {
             await Vm.ReloadAsync();
@@ -197,6 +217,10 @@ public partial class ForumsTopicPage : ContentPage, IQueryAttributable, ForumTop
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS ForumsTopicPage refresh failed: " + ex.Message);
+        }
+        finally
+        {
+            TopicRefreshView.IsRefreshing = false;
         }
     }
 

@@ -14,9 +14,9 @@
                    FontFamily="Inter" FontSize="14"
                    TextColor="{StaticResource BrushText}" HorizontalOptions="Center" />
             <Entry x:Name="UserEntry" Placeholder="MyAnimeList username" Text="{Binding UserNameInput}"
-                   FontFamily="Inter" FontSize="14" />
+                   FontFamily="Inter" FontSize="14" ReturnType="Next" Completed="OnUserEntryCompleted" />
             <Entry x:Name="PassEntry" Placeholder="Password" Text="{Binding PasswordInput}" IsPassword="True"
-                   FontFamily="Inter" FontSize="14" />
+                   FontFamily="Inter" FontSize="14" ReturnType="Go" Completed="OnPassEntryCompleted" />
 <!-- One way in. The username and password are typed here, our form fills MyAnimeList's own
                          login page behind the scenes, and the privacy notice, the OAuth consent and
                          the token exchange are all accepted without the user ever seeing MAL's

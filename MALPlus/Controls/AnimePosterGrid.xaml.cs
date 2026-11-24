@@ -317,7 +317,7 @@ public partial class AnimePosterGrid : ContentView
             CellHeight = wantedCellHeight;
             RowHeight = wantedCellHeight + Spacing;
 
-            if (Math.Abs(Width - _lastWidth) >= 0.5)
+            if (Math.Abs(Width - _lastWidth) >= 1.0)
             {
                 _lastWidth = Width;
                 ApplyLayout(force: true);
@@ -382,7 +382,7 @@ public partial class AnimePosterGrid : ContentView
             return;
         var span = EffectiveSpan(width);
         CellWidth = Math.Floor((width - (span - 1) * Spacing) / span);
-        if (Math.Abs(width - _lastWidth) < 0.5)
+        if (Math.Abs(width - _lastWidth) < 1.0)
             return;
         _lastWidth = width;
         ApplyLayout(force: true);

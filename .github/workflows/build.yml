@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build & Release
 run-name: ${{ startsWith(github.ref, 'refs/tags/v') && format('Release {0}', github.ref_name) || github.event.head_commit.message || github.workflow }}
 
 on:
@@ -293,9 +293,47 @@ jobs:
           path: ${{ steps.apk.outputs.aab_path }}
           if-no-files-found: error
 
+  build-windows:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup .NET 11
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 11.0.x
+
+      - name: Install MAUI Windows workload
+        shell: pwsh
+        run: dotnet workload install maui-windows
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build Windows Installer
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          if (-not $ver -or $ver -notmatch '^\d+\.\d+') {
+            $ver = (Select-String -Path "MALPlus/MALPlus.csproj" -Pattern "<ApplicationDisplayVersion>(.*?)</ApplicationDisplayVersion>").Matches.Groups[1].Value
+          }
+          Write-Host "Building Windows installer for version: $ver"
+          .\packaging\windows\build_installer.ps1 -Version $ver
+
+      - name: Upload Windows Installer artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: MALPlus-Windows-Installer
+          path: packaging/windows/output/MALPlus-Setup-*.exe
+          if-no-files-found: error
+
   release:
     if: startsWith(github.ref, 'refs/tags/v') || inputs.create_release == true
-    needs: build
+    needs: [build, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -325,6 +363,11 @@ jobs:
           pattern: MALPlus-Android-APK-*
           merge-multiple: true
 
+      - name: Download Windows Installer artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: MALPlus-Windows-Installer
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -333,3 +376,4 @@ jobs:
           files: |
             *arm64.apk
             *x86_64.apk
+            *.exe

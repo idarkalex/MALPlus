@@ -13,8 +13,8 @@
                  item spacing instead, so the artwork is flush with its cell. -->
             <DataTemplate x:Key="DefaultCellTemplate">
                 <controls:AnimePosterCard
-                    WidthRequest="{Binding CellWidth, Source={x:Reference Root}}"
-                    HeightRequest="{Binding CellHeight, Source={x:Reference Root}}"
+                    WidthRequest="{Binding CellWidth, Source={x:Reference Root}, FallbackValue=130}"
+                    HeightRequest="{Binding CellHeight, Source={x:Reference Root}, FallbackValue=195}"
                     PosterUrl="{Binding ImgUrl}"
                     Title="{Binding Title}"
                     TitleOverlay="True"

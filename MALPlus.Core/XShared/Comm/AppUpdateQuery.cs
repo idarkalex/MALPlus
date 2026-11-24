@@ -20,13 +20,15 @@ namespace MALPlus.XShared.Comm
     public class AppUpdateQuery
     {
         private const string ReleasesUrl = "https://api.github.com/repos/idarkalex/MALPlus/releases";
+        public static string CustomReleasesUrl { get; set; } =
+            Environment.GetEnvironmentVariable("MALPLUS_UPDATE_URL");
         private readonly HttpClient _httpClient = new HttpClient(ResourceLocator.MalHttpContextProvider.GetHandler());
 
         public static Func<string> TargetArchitectureProvider { get; set; }
 
         public AppUpdateQuery()
         {
-            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MALPlus-Android/0.7.0");
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MALPlus/0.7.0");
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/vnd.github+json");
         }
 
@@ -34,7 +36,8 @@ namespace MALPlus.XShared.Comm
         {
             try
             {
-                var json = await _httpClient.GetStringAsync(ReleasesUrl);
+                var fetchUrl = CustomReleasesUrl ?? ReleasesUrl;
+                var json = await _httpClient.GetStringAsync(fetchUrl);
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.ValueKind != JsonValueKind.Array)
                     return null;
@@ -88,34 +91,58 @@ namespace MALPlus.XShared.Comm
                             if (assetName.Contains("malclient", StringComparison.OrdinalIgnoreCase))
                                 continue;
 
-                            if (!assetName.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
-                                continue;
-
-                            var assetUrl = asset.TryGetProperty("browser_download_url", out var url) && url.ValueKind == JsonValueKind.String
-                                ? url.GetString()
-                                : null;
-                            if (assetUrl == null)
-                                continue;
-
-                            bool assetIsX64 = assetName.Contains("x86_64", StringComparison.OrdinalIgnoreCase) ||
-                                              assetName.Contains("x64", StringComparison.OrdinalIgnoreCase);
-                            bool assetIsArm64 = assetName.Contains("arm64", StringComparison.OrdinalIgnoreCase);
-
-                            if (wantsX64 && assetIsX64)
+                            bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+                            if (isWindows)
                             {
-                                bestCandidateUrl = assetUrl;
-                                break;
+                                if (!assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                                    !assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                                    continue;
+
+                                var assetUrl = asset.TryGetProperty("browser_download_url", out var url) && url.ValueKind == JsonValueKind.String
+                                    ? url.GetString()
+                                    : null;
+                                if (assetUrl == null)
+                                    continue;
+
+                                if (assetName.Contains("setup", StringComparison.OrdinalIgnoreCase) ||
+                                    assetName.Contains("installer", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    bestCandidateUrl = assetUrl;
+                                    break;
+                                }
+                                fallbackUrl ??= assetUrl;
                             }
-                            if (!wantsX64 && assetIsArm64)
+                            else
                             {
-                                bestCandidateUrl = assetUrl;
-                                break;
-                            }
+                                if (!assetName.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                                    continue;
 
-                            if (fallbackUrl == null)
-                            {
-                                if (wantsX64 && !assetIsArm64) fallbackUrl = assetUrl;
-                                else if (!wantsX64 && !assetIsX64) fallbackUrl = assetUrl;
+                                var assetUrl = asset.TryGetProperty("browser_download_url", out var url) && url.ValueKind == JsonValueKind.String
+                                    ? url.GetString()
+                                    : null;
+                                if (assetUrl == null)
+                                    continue;
+
+                                bool assetIsX64 = assetName.Contains("x86_64", StringComparison.OrdinalIgnoreCase) ||
+                                                  assetName.Contains("x64", StringComparison.OrdinalIgnoreCase);
+                                bool assetIsArm64 = assetName.Contains("arm64", StringComparison.OrdinalIgnoreCase);
+
+                                if (wantsX64 && assetIsX64)
+                                {
+                                    bestCandidateUrl = assetUrl;
+                                    break;
+                                }
+                                if (!wantsX64 && assetIsArm64)
+                                {
+                                    bestCandidateUrl = assetUrl;
+                                    break;
+                                }
+
+                                if (fallbackUrl == null)
+                                {
+                                    if (wantsX64 && !assetIsArm64) fallbackUrl = assetUrl;
+                                    else if (!wantsX64 && !assetIsX64) fallbackUrl = assetUrl;
+                                }
                             }
                         }
                     }

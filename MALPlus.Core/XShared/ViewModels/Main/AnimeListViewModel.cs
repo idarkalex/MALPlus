@@ -214,8 +214,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     return;
                 }
 
-                DisplayedItems.Clear();
-                DisplayedItems.AddRange(matches);
+                DisplayedItems.ReplaceRange(matches);
                 RaisePropertyChanged(() => PanelFilterEmpty);
             }
             catch (Exception ex)

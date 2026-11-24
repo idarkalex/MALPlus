@@ -19,7 +19,9 @@
         <Grid RowDefinitions="*,Auto" IsVisible="{Binding LoadingTopic, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
             <!-- Main topic content: WebView fills available height and scrolls natively -->
             <Grid Grid.Row="0">
-                <RefreshView IsRefreshing="{Binding LoadingTopic, Mode=OneWay}" Refreshing="OnRefreshing">
+                <RefreshView x:Name="TopicRefreshView"
+                             IsEnabled="{OnPlatform Android=True, Default=False}"
+                             Refreshing="OnRefreshing">
                     <WebView x:Name="TopicWebView"
                              Source="{Binding PageHtml, Converter={StaticResource HtmlSource}}"
                              BackgroundColor="{DynamicResource EmBackground}"
