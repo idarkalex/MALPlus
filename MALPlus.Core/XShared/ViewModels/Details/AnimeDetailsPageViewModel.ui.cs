@@ -65,13 +65,17 @@ namespace MALPlus.XShared.ViewModels.Details
             get { return _animeItemReference?.MyEpisodes ?? 0; }
             set
             {
-                _animeItemReference.MyEpisodes = value;
+                if (_animeItemReference != null)
+                    _animeItemReference.MyEpisodes = value;
+                RaisePropertyChanged(() => MyEpisodes);
                 RaisePropertyChanged(() => MyEpisodesBind);
                 // The hero stepper is bound to MyEpisodesStepperBind and not to MyEpisodesBind, so
                 // notifying only the latter left the pill frozen on whatever it was showing when the
                 // entry opened, which is the previous anime's count. It is computed from the same two
                 // things, so it has to be told about both of them changing.
                 RaisePropertyChanged(() => MyEpisodesStepperBind);
+                RaisePropertyChanged(() => IsIncrementButtonEnabled);
+                RaisePropertyChanged(() => IsDecrementButtonEnabled);
             }
         }
 
@@ -96,9 +100,13 @@ namespace MALPlus.XShared.ViewModels.Details
             get { return _animeItemReference?.MyStatus ?? AnimeStatus.AllOrAiring; }
             set
             {
-                _animeItemReference.MyStatus = value;
+                if (_animeItemReference != null)
+                    _animeItemReference.MyStatus = value;
+                RaisePropertyChanged(() => MyStatus);
                 RaisePropertyChanged(() => MyStatusBind);
                 RaisePropertyChanged(() => IsRewatchingButtonVisibility);
+                RaisePropertyChanged(() => IsIncrementButtonEnabled);
+                RaisePropertyChanged(() => IsDecrementButtonEnabled);
             }
         }
 
@@ -229,18 +237,41 @@ namespace MALPlus.XShared.ViewModels.Details
         private const int SynopsisCollapsedLines = 4;
 
         /// <summary>
-        ///     Roughly what four lines hold at 13px on a phone. It is a guess because a view model
-        ///     cannot measure rendered text, and the only cost of guessing low is a Show more on a
-        ///     synopsis that happened to fit, which costs one tap.
+        ///     Roughly what four lines hold at 13px on a phone (~40 chars per line).
+        ///     Also accounts for newlines and multi-line wrapping so shorter synopses
+        ///     with line breaks or 4+ visual lines still reveal the Show more toggle.
         /// </summary>
-        private const int SynopsisCollapseThreshold = 300;
+        private const int SynopsisCollapseThreshold = 160;
+
+        private static bool ShouldShowSynopsisToggle(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            if (text.Length > SynopsisCollapseThreshold)
+                return true;
+
+            var lines = text.Split('\n');
+            if (lines.Length > SynopsisCollapsedLines)
+                return true;
+
+            int estimatedLines = 0;
+            foreach (var line in lines)
+            {
+                estimatedLines += Math.Max(1, (int)Math.Ceiling(line.Length / 40.0));
+                if (estimatedLines > SynopsisCollapsedLines)
+                    return true;
+            }
+
+            return false;
+        }
 
         private bool _synopsisExpanded;
 
         public bool SynopsisExpanded => _synopsisExpanded;
         public int SynopsisMaxLines => _synopsisExpanded ? int.MaxValue : SynopsisCollapsedLines;
         public string SynopsisToggleText => _synopsisExpanded ? "Show less" : "Show more";
-        public bool SynopsisToggleVisible => (_synopsis?.Length ?? 0) > SynopsisCollapseThreshold;
+        public bool SynopsisToggleVisible => ShouldShowSynopsisToggle(_synopsis);
 
         public void SetSynopsisExpanded()
         {
@@ -478,6 +509,7 @@ namespace MALPlus.XShared.ViewModels.Details
                 LaunchUpdate();
                 RaisePropertyChanged(() => StartDateTimeOffset);
                 RaisePropertyChanged(() => MyStartDate);
+                UpdateUserDatesInDetailsRows();
             }
         }
 
@@ -495,6 +527,7 @@ namespace MALPlus.XShared.ViewModels.Details
                 LaunchUpdate();
                 RaisePropertyChanged(() => EndDateTimeOffset);
                 RaisePropertyChanged(() => MyEndDate);
+                UpdateUserDatesInDetailsRows();
             }
         }
 
@@ -751,6 +784,7 @@ set
                     _animeItemReference.StartDate = AnimeItemViewModel.InvalidStartEndDate;
                     RaisePropertyChanged(() => MyStartDate);
                     LaunchUpdate();
+                    UpdateUserDatesInDetailsRows();
                 }));
             }
         }
@@ -767,6 +801,7 @@ set
                     _animeItemReference.EndDate = AnimeItemViewModel.InvalidStartEndDate;
                     RaisePropertyChanged(() => MyEndDate);
                     LaunchUpdate();
+                    UpdateUserDatesInDetailsRows();
                 }));
             }
         }

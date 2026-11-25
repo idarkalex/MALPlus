@@ -10,8 +10,21 @@ $outDir = Join-Path $scriptDir "singlefile_v$versionSuffix"
 $iss = Join-Path $scriptDir "MALPlus.iss"
 
 # Find dotnet
-$dotnet = "D:\Descargas\dotnet11\dotnet.exe"
-if (-not (Test-Path $dotnet)) {
+$dotnetCandidates = @(
+    "D:\Desarrollo\sdks\dotnet11\dotnet.exe",
+    "D:\Desarrollo\dotnet11\dotnet.exe",
+    (Join-Path $repoDir "..\sdks\dotnet11\dotnet.exe"),
+    (Join-Path $repoDir "..\dotnet11\dotnet.exe"),
+    "D:\Descargas\dotnet11\dotnet.exe"
+)
+$dotnet = $null
+foreach ($cand in $dotnetCandidates) {
+    if (Test-Path $cand) {
+        $dotnet = $cand
+        break
+    }
+}
+if (-not $dotnet -or -not (Test-Path $dotnet)) {
     $dotnet = "dotnet"
 }
 

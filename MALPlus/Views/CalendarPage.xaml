@@ -71,7 +71,7 @@
             <CarouselView x:Name="CalendarCarousel"
                           ItemsSource="{Binding CalendarData}"
                           Position="0"
-                          IsSwipeEnabled="True"
+                          IsSwipeEnabled="False"
                           Loop="False">
                 <CarouselView.ItemTemplate>
                     <DataTemplate>

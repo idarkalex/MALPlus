@@ -53,9 +53,20 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
 
 # --- Toolchain Auto-Discovery ---
 # 1. Resolve .NET SDK (prefers .NET 11 preview)
-if (Test-Path "D:\Descargas\dotnet11\dotnet.exe") {
-    $env:DOTNET_ROOT = "D:\Descargas\dotnet11"
-} elseif (-not $env:DOTNET_ROOT -or -not (Test-Path "$env:DOTNET_ROOT\dotnet.exe")) {
+$dotnetCandidates = @(
+    "D:\Desarrollo\sdks\dotnet11\dotnet.exe",
+    "D:\Desarrollo\dotnet11\dotnet.exe",
+    (Join-Path $Root "..\sdks\dotnet11\dotnet.exe"),
+    (Join-Path $Root "..\dotnet11\dotnet.exe"),
+    "D:\Descargas\dotnet11\dotnet.exe"
+)
+foreach ($p in $dotnetCandidates) {
+    if (Test-Path $p) {
+        $env:DOTNET_ROOT = Split-Path $p
+        break
+    }
+}
+if (-not $env:DOTNET_ROOT -or -not (Test-Path "$env:DOTNET_ROOT\dotnet.exe")) {
     if ($env:ProgramFiles -and (Test-Path "$env:ProgramFiles\dotnet\dotnet.exe")) {
         $env:DOTNET_ROOT = "$env:ProgramFiles\dotnet"
     } else {
@@ -68,9 +79,20 @@ if (Test-Path "D:\Descargas\dotnet11\dotnet.exe") {
 $dotnet = if ($env:DOTNET_ROOT) { Join-Path $env:DOTNET_ROOT "dotnet.exe" } else { "dotnet.exe" }
 
 # 2. Resolve JDK 21 (or compatible JDK 17+)
-if (Test-Path "D:\Descargas\jdk21\jdk-21.0.12.1+1\bin\javac.exe") {
-    $env:JAVA_HOME = "D:\Descargas\jdk21\jdk-21.0.12.1+1"
-} elseif (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\javac.exe")) {
+$jdkLocalCandidates = @(
+    "D:\Desarrollo\sdks\jdk21\jdk-21.0.12.1+1\bin\javac.exe",
+    "D:\Desarrollo\jdk21\jdk-21.0.12.1+1\bin\javac.exe",
+    (Join-Path $Root "..\sdks\jdk21\jdk-21.0.12.1+1\bin\javac.exe"),
+    (Join-Path $Root "..\jdk21\jdk-21.0.12.1+1\bin\javac.exe"),
+    "D:\Descargas\jdk21\jdk-21.0.12.1+1\bin\javac.exe"
+)
+foreach ($p in $jdkLocalCandidates) {
+    if (Test-Path $p) {
+        $env:JAVA_HOME = Split-Path (Split-Path $p)
+        break
+    }
+}
+if (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\javac.exe")) {
     $jdkCandidates = @(
         "$env:ProgramFiles\Microsoft\jdk-21*",
         "$env:ProgramFiles\Eclipse Adoptium\jdk-21*",
@@ -89,9 +111,20 @@ if (Test-Path "D:\Descargas\jdk21\jdk-21.0.12.1+1\bin\javac.exe") {
 }
 
 # 3. Resolve Android SDK
-if (Test-Path "D:\Descargas\android-sdk\platform-tools\adb.exe") {
-    $env:ANDROID_HOME = "D:\Descargas\android-sdk"
-} elseif (-not $env:ANDROID_HOME -or -not (Test-Path "$env:ANDROID_HOME\platform-tools\adb.exe")) {
+$androidSdkCandidates = @(
+    "D:\Desarrollo\sdks\android-sdk\platform-tools\adb.exe",
+    "D:\Desarrollo\android-sdk\platform-tools\adb.exe",
+    (Join-Path $Root "..\sdks\android-sdk\platform-tools\adb.exe"),
+    (Join-Path $Root "..\android-sdk\platform-tools\adb.exe"),
+    "D:\Descargas\android-sdk\platform-tools\adb.exe"
+)
+foreach ($p in $androidSdkCandidates) {
+    if (Test-Path $p) {
+        $env:ANDROID_HOME = Split-Path (Split-Path $p)
+        break
+    }
+}
+if (-not $env:ANDROID_HOME -or -not (Test-Path "$env:ANDROID_HOME\platform-tools\adb.exe")) {
     if ($env:ANDROID_SDK_ROOT -and (Test-Path "$env:ANDROID_SDK_ROOT\platform-tools\adb.exe")) {
         $env:ANDROID_HOME = $env:ANDROID_SDK_ROOT
     } elseif ($env:LOCALAPPDATA -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe")) {
@@ -205,8 +238,20 @@ $buildArguments = @(
     "-clp:ErrorsOnly"
 )
 
-$releaseKeystore = "D:\Descargas\malplus-release.keystore"
-if (Test-Path $releaseKeystore) {
+$releaseKeystore = $null
+$keystoreCandidates = @(
+    (Join-Path $Root "..\malplus-release.keystore"),
+    (Join-Path $Root "malplus-release.keystore"),
+    "D:\Desarrollo\malplus-release.keystore",
+    "D:\Descargas\malplus-release.keystore"
+)
+foreach ($ks in $keystoreCandidates) {
+    if (Test-Path $ks) {
+        $releaseKeystore = $ks
+        break
+    }
+}
+if ($releaseKeystore -and (Test-Path $releaseKeystore)) {
     $buildArguments += "-p:AndroidKeyStore=true"
     $buildArguments += "-p:AndroidSigningKeyStore=$releaseKeystore"
     $buildArguments += "-p:AndroidSigningStorePass=MalPlus2026ReleaseKey!"
@@ -269,8 +314,8 @@ if ($SkipInstall) {
 
     $sizeMb = [math]::Round($apk.Length / 1MB, 1)
     Write-Host "      $($apk.Name) ($sizeMb MB)"
-    $releaseKs = "D:\Descargas\malplus-release.keystore"
-    if (Test-Path $releaseKs) {
+    $releaseKs = $releaseKeystore
+    if ($releaseKs -and (Test-Path $releaseKs)) {
         $apksignerBat = "C:\Program Files (x86)\Android\android-sdk\build-tools\35.0.0\apksigner.bat"
         if (-not (Test-Path $apksignerBat)) {
             $found = Get-ChildItem -Path $env:ANDROID_HOME -Recurse -Filter "apksigner.bat" -ErrorAction SilentlyContinue | Select-Object -First 1

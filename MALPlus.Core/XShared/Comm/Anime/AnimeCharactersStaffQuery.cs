@@ -55,27 +55,79 @@ namespace MALPlus.XShared.Comm.Anime
             throw new InvalidOperationException("Umm you said it's going to be manga...");
         var output = force
             ? new AnimeStaffData()
-            : await DataCache.RetrieveData<AnimeStaffData>($"staff_v9_{_animeId}", "AnimeDetails", 7) ??
+            : await DataCache.RetrieveData<AnimeStaffData>($"staff_v12_{_animeId}", "AnimeDetails", 7) ??
                   new AnimeStaffData();
         if (HasData(output) && !force) return output;
 
+        AnimeStaffData structured = null;
         try
         {
-            var structured = await GetCharStaffDataStructuredAsync();
-            if (HasData(structured))
-            {
-                await DataCache.SaveData(structured, $"staff_v9_{_animeId}", "AnimeDetails");
-                return structured;
-            }
+            structured = await GetCharStaffDataStructuredAsync();
         }
         catch (Exception ex)
         {
         }
 
-        var htmlResult = await GetCharStaffDataHtml(output);
-        if (HasData(htmlResult))
-            await DataCache.SaveData(htmlResult, $"staff_v9_{_animeId}", "AnimeDetails");
-        return htmlResult;
+        // If structured data is missing or if any character in structured has no voice actor,
+        // fetch HTML to complete/fill the voice actors (MAL HTML is canonical and has all of them).
+        var needsHtml = structured == null || !HasData(structured) ||
+                        structured.AnimeCharacterPairs.Any(p => p.AnimeStaffPerson.IsUnknown || string.IsNullOrEmpty(p.AnimeStaffPerson.Name));
+
+        if (needsHtml)
+        {
+            try
+            {
+                var htmlResult = await GetCharStaffDataHtml(new AnimeStaffData());
+                if (structured != null && HasData(structured))
+                {
+                    if (htmlResult?.AnimeCharacterPairs?.Count > 0)
+                    {
+                        var htmlPairsMap = new Dictionary<string, AnimeCharacterStaffModel>();
+                        foreach (var hp in htmlResult.AnimeCharacterPairs)
+                        {
+                            if (!string.IsNullOrEmpty(hp.AnimeCharacter?.Id))
+                                htmlPairsMap[hp.AnimeCharacter.Id] = hp;
+                        }
+
+                        foreach (var pair in structured.AnimeCharacterPairs)
+                        {
+                            if ((pair.AnimeStaffPerson.IsUnknown || string.IsNullOrEmpty(pair.AnimeStaffPerson.Name)) &&
+                                !string.IsNullOrEmpty(pair.AnimeCharacter?.Id) &&
+                                htmlPairsMap.TryGetValue(pair.AnimeCharacter.Id, out var htmlPair) &&
+                                !htmlPair.AnimeStaffPerson.IsUnknown &&
+                                !string.IsNullOrEmpty(htmlPair.AnimeStaffPerson.Name))
+                            {
+                                pair.AnimeStaffPerson = htmlPair.AnimeStaffPerson;
+                                if (htmlPair.VoiceActors?.Count > 0)
+                                {
+                                    pair.VoiceActors.Clear();
+                                    pair.VoiceActors.AddRange(htmlPair.VoiceActors);
+                                }
+                            }
+                        }
+                    }
+
+                    await DataCache.SaveData(structured, $"staff_v12_{_animeId}", "AnimeDetails");
+                    return structured;
+                }
+                else if (HasData(htmlResult))
+                {
+                    await DataCache.SaveData(htmlResult, $"staff_v12_{_animeId}", "AnimeDetails");
+                    return htmlResult;
+                }
+            }
+            catch (Exception ex)
+            {
+            }
+        }
+
+        if (HasData(structured))
+        {
+            await DataCache.SaveData(structured, $"staff_v12_{_animeId}", "AnimeDetails");
+            return structured;
+        }
+
+        return output;
     }
 
         private async Task<AnimeStaffData> GetCharStaffDataStructuredAsync()
@@ -551,29 +603,90 @@ namespace MALPlus.XShared.Comm.Anime
                         //voiceactor
                         try
                         {
-                            img = imgs[1].Attributes["data-src"].Value;
-                            if (!img.Contains("questionmark"))
+                            var vaTable = table.Descendants("table")
+                                .FirstOrDefault(t => t.GetAttributeValue("class", "").Contains("js-anime-character-va"));
+
+                            if (vaTable != null)
                             {
-                                img = Regex.Replace(img, @"\/r\/\d+x\d+", "");
-                                current.AnimeStaffPerson.ImgUrl = CleanImage(img);
+                                foreach (var tr in vaTable.Descendants("tr"))
+                                {
+                                    try
+                                    {
+                                        var a = tr.Descendants("a")
+                                            .FirstOrDefault(link => link.GetAttributeValue("href", "").Contains("/people/"));
+                                        if (a == null) continue;
+
+                                        var vaId = a.GetAttributeValue("href", "").Split('/')[4];
+                                        var vaName = WebUtility.HtmlDecode(a.InnerText.Trim().Replace(",", ""));
+                                        var vaImgNode = tr.Descendants("img").FirstOrDefault();
+                                        var vaImg = vaImgNode?.GetAttributeValue("data-src", null)
+                                                    ?? vaImgNode?.GetAttributeValue("src", null) ?? "";
+                                        if (!string.IsNullOrEmpty(vaImg) && !vaImg.Contains("questionmark"))
+                                        {
+                                            vaImg = Regex.Replace(vaImg, @"\/r\/\d+x\d+", "");
+                                            vaImg = CleanImage(vaImg);
+                                        }
+
+                                        var langEl = tr.Descendants("div")
+                                            .FirstOrDefault(d => d.GetAttributeValue("class", "").Contains("js-anime-character-language"))
+                                            ?? tr.Descendants("small").FirstOrDefault();
+                                        var vaLang = langEl != null ? WebUtility.HtmlDecode(langEl.InnerText.Trim()) : "";
+                                        if (string.IsNullOrEmpty(vaLang) && current.VoiceActors.Count == 0)
+                                            vaLang = "Japanese";
+
+                                        var actor = new AnimeStaffPerson
+                                        {
+                                            Id = vaId,
+                                            Name = vaName,
+                                            ImgUrl = vaImg,
+                                            Language = vaLang,
+                                            Notes = vaLang
+                                        };
+
+                                        current.VoiceActors.Add(actor);
+
+                                        if (string.Equals(vaLang, "Japanese", StringComparison.OrdinalIgnoreCase) ||
+                                            current.AnimeStaffPerson.IsUnknown || string.IsNullOrEmpty(current.AnimeStaffPerson.Name))
+                                        {
+                                            current.AnimeStaffPerson = actor;
+                                            current.AnimeStaffPerson.IsUnknown = false;
+                                        }
+                                    }
+                                    catch
+                                    {
+                                    }
+                                }
                             }
-                            current.AnimeStaffPerson.Name = WebUtility.HtmlDecode(imgs[1].Attributes["alt"].Value.Replace(",", ""));
+                            else if (imgs.Count > 1 && infos.Count > 3)
+                            {
+                                img = imgs[1].Attributes["data-src"].Value;
+                                if (!img.Contains("questionmark"))
+                                {
+                                    img = Regex.Replace(img, @"\/r\/\d+x\d+", "");
+                                    current.AnimeStaffPerson.ImgUrl = CleanImage(img);
+                                }
+                                current.AnimeStaffPerson.Name = WebUtility.HtmlDecode(imgs[1].Attributes["alt"].Value.Replace(",", ""));
 
-                            var padss = infos[3].WhereOfDescendantsWithClass("div", "spaceit_pad").ToList();
-
-                            current.AnimeStaffPerson.Id = padss[0].ChildNodes[1].Attributes["href"].Value.Split('/')[4];
-                            if(padss.Count > 1)
-                                current.AnimeStaffPerson.Notes = WebUtility.HtmlDecode(padss[1].InnerText.Replace("\n", "").Trim());
-
+                                var padss = infos[3].WhereOfDescendantsWithClass("div", "spaceit_pad").ToList();
+                                if (padss.Count > 0 && padss[0].ChildNodes.Count > 1)
+                                {
+                                    current.AnimeStaffPerson.Id = padss[0].ChildNodes[1].Attributes["href"].Value.Split('/')[4];
+                                    if (padss.Count > 1)
+                                        current.AnimeStaffPerson.Notes = WebUtility.HtmlDecode(padss[1].InnerText.Replace("\n", "").Trim());
+                                    current.VoiceActors.Add(current.AnimeStaffPerson);
+                                }
+                            }
                         }
                         catch (Exception e)
                         {
-                            //no voice actor
-                            current.AnimeStaffPerson.Name = "Unknown";
+                        }
+
+                        if (string.IsNullOrEmpty(current.AnimeStaffPerson.Name))
+                        {
+                            current.AnimeStaffPerson.Name = string.Empty;
                             current.AnimeStaffPerson.IsUnknown = true;
                         }
-                        if (!current.AnimeStaffPerson.IsUnknown && !string.IsNullOrEmpty(current.AnimeStaffPerson.Name))
-                            current.VoiceActors.Add(current.AnimeStaffPerson);
+
                         output.AnimeCharacterPairs.Add(current);
                         if (output.AnimeCharacterPairs.Count >= MaxCharacterPairs)
                             break;

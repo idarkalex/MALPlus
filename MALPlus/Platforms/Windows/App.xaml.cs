@@ -14,7 +14,7 @@ public partial class App : MauiWinUIApplication
 	public App()
 	{
 		this.InitializeComponent();
-		var logFile = @"D:\Descargas\winui_crash.log";
+		var logFile = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "winui_crash.log");
 		UnhandledException += (sender, e) =>
 		{
 			var msg = $"[WINUI UNHANDLED] {e.Message}\nException: {e.Exception}\nStackTrace: {e.Exception?.StackTrace}";

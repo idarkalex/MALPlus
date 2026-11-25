@@ -40,10 +40,12 @@
   <ItemGroup>
     <MauiFont Include="Resources\Fonts\*" />
     <MauiImage Include="Resources\Images\*" />
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Resources\Raw\brand_wordmark_primary.png" />
   </ItemGroup>
 
   <ItemGroup>
-    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000D1A" BaseSize="256,256" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000000" BaseSize="256,256" />
   </ItemGroup>
 
   <ItemGroup>

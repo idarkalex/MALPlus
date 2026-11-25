@@ -213,7 +213,11 @@ public partial class AppShell : Shell
     private void OnSectionPagerScrollStateChanged(int state)
     {
         _sectionPagerScrollState = state;
-        if (state == 0) // ViewPager2.ScrollStateIdle
+        if (state != 0)
+        {
+            Views.AnimeListPage.DismissAllDropdowns();
+        }
+        else if (state == 0) // ViewPager2.ScrollStateIdle
         {
             if (!string.IsNullOrEmpty(_pendingSettledSection))
             {
@@ -235,6 +239,7 @@ public partial class AppShell : Shell
     {
         try
         {
+            Views.AnimeListPage.DismissAllDropdowns();
             if (!string.IsNullOrEmpty(location) && CurrentPage is Views.AnimeListPage listPage)
             {
                 if (location.Contains('?'))

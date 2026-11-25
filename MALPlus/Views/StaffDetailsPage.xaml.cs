@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using MALPlus.Controls;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Anime;
 using MALPlus.Models.Models.ScrappedDetails;
@@ -11,7 +12,7 @@ using Microsoft.Maui.Graphics;
 namespace MALPlus.Views;
 
 [QueryProperty(nameof(StaffId), "id")]
-public partial class StaffDetailsPage : ContentPage
+public partial class StaffDetailsPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     private int _loadedId = -1;
@@ -20,13 +21,46 @@ public partial class StaffDetailsPage : ContentPage
 
     public string StaffId { get; set; }
 
+    public ObservableCollection<ShowCharacterPair> TopVoiceRoles { get; } = new();
+    public ObservableCollection<AnimeLightEntry> TopProductionRoles { get; } = new();
+
     private StaffDetailsViewModel Vm => BindingContext as StaffDetailsViewModel;
 
     public StaffDetailsPage()
     {
         InitializeComponent();
         BindingContext = ViewModelLocator.StaffDetails;
+        if (Vm != null)
+            Vm.PropertyChanged += OnVmPropertyChanged;
         UpdateTabVisuals();
+    }
+
+    private void OnVmPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(StaffDetailsViewModel.Data))
+        {
+            MainThread.BeginInvokeOnMainThread(PopulateOverviewShelves);
+        }
+    }
+
+    private void PopulateOverviewShelves()
+    {
+        var vm = Vm;
+        if (vm == null) return;
+
+        TopVoiceRoles.Clear();
+        if (vm.Data?.ShowCharacterPairs != null)
+        {
+            foreach (var pair in vm.Data.ShowCharacterPairs.Take(10))
+                TopVoiceRoles.Add(pair);
+        }
+
+        TopProductionRoles.Clear();
+        if (vm.Data?.StaffPositions != null)
+        {
+            foreach (var pos in vm.Data.StaffPositions.Take(10))
+                TopProductionRoles.Add(pos);
+        }
     }
 
     protected override async void OnAppearing()
@@ -41,15 +75,20 @@ public partial class StaffDetailsPage : ContentPage
         {
             try
             {
-                await vm.Init(new StaffDetailsNaviagtionArgs {Id = id});
+                await vm.Init(new StaffDetailsNaviagtionArgs { Id = id });
                 _loadedId = id;
                 _initialized = true;
+                PopulateOverviewShelves();
             }
             catch (Exception ex)
             {
                 Console.WriteLine("MALPLUS StaffDetails Init failed: " + ex);
             }
             ResetRenderedItems();
+        }
+        else
+        {
+            PopulateOverviewShelves();
         }
     }
 
@@ -91,24 +130,36 @@ public partial class StaffDetailsPage : ContentPage
             _ = SelectTabAsync(1, false);
     }
 
-    private async void OnInfoTabTapped(object sender, TappedEventArgs e)
+    private async void OnBackButtonClicked(object sender, EventArgs e)
     {
-        await SelectTabAsync(0, true);
+        try
+        {
+            if (Shell.Current != null)
+                await Shell.Current.GoToAsync("..");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS StaffDetails Back failed: " + ex.Message);
+        }
     }
 
-    private async void OnVoiceRolesTabTapped(object sender, TappedEventArgs e)
-    {
-        await SelectTabAsync(1, true);
-    }
+    private async void OnTabInfoClicked(object sender, EventArgs e) => await SelectTabAsync(0, true);
+    private async void OnTabVoiceRolesClicked(object sender, EventArgs e) => await SelectTabAsync(1, true);
+    private async void OnTabProductionRolesClicked(object sender, EventArgs e) => await SelectTabAsync(2, true);
 
-    private async void OnProductionRolesTabTapped(object sender, TappedEventArgs e)
+    bool ITabSwipeHost.TrySwipe(int direction)
     {
-        await SelectTabAsync(2, true);
+        var next = _selectedTab + (direction > 0 ? 1 : -1);
+        if (next < 0 || next > 2)
+            return false;
+
+        _ = SelectTabAsync(next, true);
+        return true;
     }
 
     private async Task SelectTabAsync(int index, bool animate)
     {
-        index = System.Math.Clamp(index, 0, 2);
+        index = Math.Clamp(index, 0, 2);
         if (index == _selectedTab)
         {
             await ResetTabTranslationAsync();
@@ -121,6 +172,7 @@ public partial class StaffDetailsPage : ContentPage
         ProductionRolesTab.IsVisible = index == 2;
         _selectedTab = index;
         UpdateTabVisuals();
+        ScrollTabStripIntoView(index);
 
         if (animate && TabContentHost.Width > 0)
         {
@@ -133,9 +185,21 @@ public partial class StaffDetailsPage : ContentPage
         }
     }
 
+    private void ScrollTabStripIntoView(int index)
+    {
+        if (TabStripScroll == null) return;
+        var buttons = new[] { TabInfo, TabVoiceRoles, TabProductionRoles };
+        if (index >= 0 && index < buttons.Length && buttons[index] != null)
+        {
+            var btn = buttons[index];
+            var targetX = Math.Max(0, btn.X - 16);
+            _ = TabStripScroll.ScrollToAsync(targetX, 0, true);
+        }
+    }
+
     private async Task ResetTabTranslationAsync()
     {
-        if (System.Math.Abs(TabContentHost.TranslationX) <= 0.5)
+        if (Math.Abs(TabContentHost.TranslationX) <= 0.5)
         {
             TabContentHost.TranslationX = 0;
             return;
@@ -146,18 +210,19 @@ public partial class StaffDetailsPage : ContentPage
 
     private void UpdateTabVisuals()
     {
-        var labels = new[] { InfoTabLabel, VoiceRolesTabLabel, ProductionRolesTabLabel };
-        for (var i = 0; i < labels.Length; i++)
+        var buttons = new[] { TabInfo, TabVoiceRoles, TabProductionRoles };
+        for (var i = 0; i < buttons.Length; i++)
         {
-            if (labels[i] == null)
-                continue;
-            labels[i].TextColor = i == _selectedTab ? Color.FromArgb("#0066FF") : Color.FromArgb("#B3FFFFFF");
+            if (buttons[i] != null)
+                TabChipHelper.ApplyStyle(buttons[i], i == _selectedTab);
         }
     }
 
     private async void OnVoiceRoleShowTapped(object sender, TappedEventArgs e)
     {
-        if (e.Parameter is ShowCharacterPair pair)
+        var pair = (e?.Parameter as ShowCharacterPair)
+                   ?? (sender as BindableObject)?.BindingContext as ShowCharacterPair;
+        if (pair != null)
             await NavigateToMediaAsync(pair.AnimeLightEntry);
     }
 
@@ -165,8 +230,9 @@ public partial class StaffDetailsPage : ContentPage
     {
         try
         {
-            if (e.Parameter is ShowCharacterPair pair &&
-                int.TryParse(pair.AnimeCharacter?.Id, out int characterId) && characterId > 0 &&
+            var pair = (e?.Parameter as ShowCharacterPair)
+                       ?? (sender as BindableObject)?.BindingContext as ShowCharacterPair;
+            if (pair != null && int.TryParse(pair.AnimeCharacter?.Id, out int characterId) && characterId > 0 &&
                 Shell.Current != null)
                 await Shell.Current.GoToAsync($"character?id={characterId}");
         }
@@ -178,7 +244,9 @@ public partial class StaffDetailsPage : ContentPage
 
     private async void OnStaffPositionTapped(object sender, TappedEventArgs e)
     {
-        if (e.Parameter is AnimeLightEntry entry)
+        var entry = (e?.Parameter as AnimeLightEntry)
+                    ?? (sender as BindableObject)?.BindingContext as AnimeLightEntry;
+        if (entry != null)
             await NavigateToMediaAsync(entry);
     }
 

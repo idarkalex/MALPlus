@@ -535,7 +535,8 @@ namespace MALPlus.XShared.ViewModels.Details
         public string ProducersText { get; private set; } = "";
         public string StreamingText { get; private set; } = "";
 
-        private const int MoreInfoCollapseThreshold = 90;
+        private const int MoreInfoCollapsedLines = 2;
+        private const int MoreInfoCollapseThreshold = 80;
         private string _moreInfoText = "";
         private bool _moreInfoExpandedFlag;
 
@@ -548,11 +549,35 @@ namespace MALPlus.XShared.ViewModels.Details
         public string MoreInfoFullText => MoreInfoText;
 
         public bool MoreInfoVisible => !string.IsNullOrWhiteSpace(MoreInfoText);
-        public bool MoreInfoHasMore => MoreInfoText.Length > MoreInfoCollapseThreshold;
+
+        private static bool ShouldShowMoreInfoToggle(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            if (text.Length > MoreInfoCollapseThreshold)
+                return true;
+
+            var lines = text.Split('\n');
+            if (lines.Length > MoreInfoCollapsedLines)
+                return true;
+
+            int estimatedLines = 0;
+            foreach (var line in lines)
+            {
+                estimatedLines += Math.Max(1, (int)Math.Ceiling(line.Length / 40.0));
+                if (estimatedLines > MoreInfoCollapsedLines)
+                    return true;
+            }
+
+            return false;
+        }
+
+        public bool MoreInfoHasMore => ShouldShowMoreInfoToggle(MoreInfoText);
         public bool MoreInfoExpanded => _moreInfoExpandedFlag;
 
         /// <summary>Two lines of note until the reader asks for the rest of it.</summary>
-        public int MoreInfoMaxLines => MoreInfoExpanded ? int.MaxValue : 2;
+        public int MoreInfoMaxLines => MoreInfoExpanded ? int.MaxValue : MoreInfoCollapsedLines;
         public string MoreInfoToggleText => MoreInfoExpanded ? "Show less" : "Show more";
         public bool MoreInfoToggleVisible => MoreInfoHasMore;
 
@@ -704,6 +729,22 @@ private static string FormatCompact(int value)
             foreach (var row in merged)
                 Add(row.Item1, row.Item2);
 
+            bool hasAired = rows.Any(r => r.Item1.Equals("Aired", StringComparison.OrdinalIgnoreCase) ||
+                                          r.Item1.Equals("Published", StringComparison.OrdinalIgnoreCase));
+            if (!hasAired && !string.IsNullOrWhiteSpace(StartDate) && StartDate != "N/A" && StartDate != AnimeItemViewModel.InvalidStartEndDate)
+            {
+                var airedText = !string.IsNullOrWhiteSpace(EndDate) && EndDate != "N/A" && EndDate != AnimeItemViewModel.InvalidStartEndDate
+                    ? $"{StartDate} to {EndDate}"
+                    : $"{StartDate} to ?";
+                rows.Add(new Tuple<string, string>(AnimeMode ? "Aired" : "Published", airedText));
+            }
+
+            if (!AddAnimeVisibility)
+            {
+                rows.Add(new Tuple<string, string>(AnimeMode ? "Watched from" : "Read from", MyStartDate));
+                rows.Add(new Tuple<string, string>(AnimeMode ? "Watched until" : "Read until", MyEndDate));
+            }
+
             DetailsRows.Clear();
             foreach (var row in rows)
                 DetailsRows.Add(row);
@@ -718,6 +759,23 @@ private static string FormatCompact(int value)
             if (scoredBy != null && !string.IsNullOrWhiteSpace(scoredBy.Item2))
                 MalStatRows.Add(new Tuple<string, string>("Scored by", scoredBy.Item2.Trim()));
             RaisePropertyChanged(() => MalStatsVisible);
+        }
+
+        public void UpdateUserDatesInDetailsRows()
+        {
+            var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Watched from", "Watched until", "Read from", "Read until"
+            };
+            var toRemove = DetailsRows.Where(r => labels.Contains(r.Item1)).ToList();
+            foreach (var r in toRemove)
+                DetailsRows.Remove(r);
+
+            if (!AddAnimeVisibility)
+            {
+                DetailsRows.Add(new Tuple<string, string>(AnimeMode ? "Watched from" : "Read from", MyStartDate));
+                DetailsRows.Add(new Tuple<string, string>(AnimeMode ? "Watched until" : "Read until", MyEndDate));
+            }
         }
 
         private static string CleanMoreInfo(string moreInfo)
@@ -996,11 +1054,17 @@ RaisePropertyChanged(() => GeneralSeason);
             {
                 MyDetailsVisibility = true;
                 AddAnimeVisibility = false;
+                PopulateStartEndDates();
                 RaisePropertyChanged(() => MyScoreBind);
                 RaisePropertyChanged(() => IsMyScoreSet);
                 RaisePropertyChanged(() => MyStatusBind);
                 RaisePropertyChanged(() => MyEpisodesBind);
                 RaisePropertyChanged(() => MyEpisodesStepperBind);
+                RaisePropertyChanged(() => MyStartDate);
+                RaisePropertyChanged(() => MyEndDate);
+                RaisePropertyChanged(() => RewatchCount);
+                RaisePropertyChanged(() => IsRewatching);
+                UpdateUserDatesInDetailsRows();
             }
             // Pre-populate hero from grid item for instant visual feedback (like v2)
             if (param.AnimeItem is AnimeItemViewModel heroVm && !string.IsNullOrEmpty(heroVm.ImgUrl))
@@ -1248,8 +1312,11 @@ RaisePropertyChanged(() => GeneralSeason);
             if (callerId != Id)
                 return;
 
+            (_animeItemReference as AnimeItemViewModel)?.AdjustIncrementButtonsVisibility();
+
             RaisePropertyChanged(() => StartDateTimeOffset);
             RaisePropertyChanged(() => EndDateTimeOffset);
+            RaisePropertyChanged(() => MyEpisodes);
             RaisePropertyChanged(() => MyEpisodesBind);
             RaisePropertyChanged(() => MyEpisodesStepperBind);
             RaisePropertyChanged(() => MyVolumesBind);
@@ -1306,16 +1373,32 @@ RaisePropertyChanged(() => GeneralSeason);
         #region IncrementDecrementRelay
 
         public bool IsIncrementButtonEnabled
-            // Off the list there is no item behind this property yet, so reading the item would hide
-            // the plus on exactly the entries where it is the only way in. The pill is no longer a
-            // "start watching" button, so it has to leave the plus visible or the stepper stops
-            // working there altogether.
-            => AddAnimeVisibility
-                ? Credentials.Authenticated
-                : (_animeItemReference as AnimeItemViewModel)?.IncrementEpsVisibility == true;
+        {
+            get
+            {
+                if (AddAnimeVisibility)
+                    return Credentials.Authenticated;
+                if (!Credentials.Authenticated)
+                    return false;
+                if (AllEpisodes != 0 && MyEpisodes >= AllEpisodes)
+                    return false;
+                return true;
+            }
+        }
 
         public bool IsDecrementButtonEnabled
-            => (_animeItemReference as AnimeItemViewModel)?.DecrementEpsVisibility == true;
+        {
+            get
+            {
+                if (AddAnimeVisibility)
+                    return false;
+                if (!Credentials.Authenticated)
+                    return false;
+                if (MyEpisodes <= 0)
+                    return false;
+                return true;
+            }
+        }
 
         private ICommand _incrementEpsCommand;
         private ICommand _decrementEpsCommand;
@@ -1338,6 +1421,12 @@ RaisePropertyChanged(() => GeneralSeason);
                 // with a progress of one could not be made from the page that shows the progress.
                 if (AddAnimeVisibility && !await AddAnimeAsync())
                     return;
+
+                if (IsRewatching && AllEpisodes != 0 && MyEpisodes + 1 >= AllEpisodes)
+                {
+                    await CompleteRewatchAsync();
+                    return;
+                }
 
                 (_animeItemReference as AnimeItemViewModel)?.IncrementWatchedCommand.Execute(null);
                 UpdateAnimeReferenceUiBindings(Id);
@@ -1444,6 +1533,24 @@ RaisePropertyChanged(() => GeneralSeason);
 
             if (_animeItemReference.IsRewatching)
             {
+                if (status == AnimeStatus.Completed)
+                {
+                    var newCount = RewatchCount + 1;
+                    _animeItemReference.RewatchingCount = newCount;
+                    if (!EndDateValid || Settings.OverrideValidStartEndDate)
+                    {
+                        _endDateTimeOffset = DateTimeOffset.Now;
+                        _animeItemReference.EndDate = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                        EndDateValid = true;
+                        RaisePropertyChanged(() => EndDateTimeOffset);
+                        RaisePropertyChanged(() => MyEndDate);
+                        UpdateUserDatesInDetailsRows();
+                    }
+                    var label = AnimeMode ? "Rewatch" : "Reread";
+                    ResourceLocator.DispatcherAdapter.Run(() =>
+                        ResourceLocator.SnackbarProvider.ShowText($"{label} completed! {label} count set to {newCount}."));
+                    RaisePropertyChanged(() => RewatchCount);
+                }
                 if (_animeItemReference.AllEpisodes != 0)
                     MyEpisodes = _animeItemReference.AllEpisodes;
                 _animeItemReference.IsRewatching = false;
@@ -1451,13 +1558,7 @@ RaisePropertyChanged(() => GeneralSeason);
                 RaisePropertyChanged(() => MyStatusBind);
             }
 
-            if (_animeItemReference.IsRewatching)
-            {
-                if (_animeItemReference.MyStatus == AnimeStatus.Completed && _animeItemReference.AllEpisodes != 0)
-                    _animeItemReference.MyEpisodes = _animeItemReference.AllEpisodes;
-            }
-
-            var response = await GetAppropriateUpdateQuery().GetRequestResponse();
+            var response = await GetAppropriateUpdateQuery(_animeItemReference?.RewatchingCount).GetRequestResponse();
             if (response != "Updated" && Settings.SelectedApiType == ApiType.Mal)
                 MyStatus = prevStatus;
             else
@@ -1467,7 +1568,13 @@ RaisePropertyChanged(() => GeneralSeason);
                     Title = Title,
                     NewStatus = MyStatus,
                     Id = Id,
-                    IsAnime = AnimeMode
+                    IsAnime = AnimeMode,
+                    ImageUrl = _imgUrl,
+                    Type = Type,
+                    NewEpisodes = MyStatus == AnimeStatus.Completed && AllEpisodes > 0 ? AllEpisodes : MyEpisodes,
+                    TotalEpisodes = AllEpisodes,
+                    GlobalScore = GlobalScore,
+                    SeasonTag = !string.IsNullOrWhiteSpace(GeneralSeason) ? GeneralSeason : StartYear
                 });
             }
 
@@ -1485,6 +1592,9 @@ RaisePropertyChanged(() => GeneralSeason);
                     vm.PromptForScoreChange();
                 }
             }
+
+            (_animeItemReference as AnimeItemViewModel)?.AdjustIncrementButtonsVisibility();
+            UpdateAnimeReferenceUiBindings(Id);
             LoadingUpdate = false;
         }
 
@@ -1513,7 +1623,13 @@ RaisePropertyChanged(() => GeneralSeason);
                     Title = Title,
                     NewScore = (int) MyScore,
                     Id = Id,
-                    IsAnime = AnimeMode
+                    IsAnime = AnimeMode,
+                    ImageUrl = _imgUrl,
+                    Type = Type,
+                    NewEpisodes = MyEpisodes,
+                    TotalEpisodes = AllEpisodes,
+                    GlobalScore = GlobalScore,
+                    SeasonTag = !string.IsNullOrWhiteSpace(GeneralSeason) ? GeneralSeason : StartYear
                 });
             }
             LoadingUpdate = false;
@@ -1589,21 +1705,34 @@ RaisePropertyChanged(() => GeneralSeason);
         /// <summary>Bound by the poster card. True once the entry carries at least one tag.</summary>
         public bool HasTags => !string.IsNullOrWhiteSpace(_animeItemReference?.Notes);
 
+        public int RewatchCount => _animeItemReference?.RewatchingCount ?? 0;
+
         private async void ChangeRewatching(bool state)
         {
             LoadingUpdate = true;
             IsRewatchingButtonEnabled = false;
 
+            if (_animeItemReference != null)
+            {
+                _animeItemReference.IsRewatching = state;
+            }
+
             if (state)
             {
-                _animeItemReference.MyEpisodes = 0;
+                if (_animeItemReference != null)
+                    _animeItemReference.MyEpisodes = 0;
             }
-            else if (_animeItemReference.AllEpisodes != 0)
+            else if (_animeItemReference != null && _animeItemReference.AllEpisodes != 0)
             {
                 _animeItemReference.MyEpisodes = _animeItemReference.AllEpisodes;
             }
             await GetAppropriateUpdateQuery().GetRequestResponse();
             (_animeItemReference as AnimeItemViewModel)?.AdjustIncrementButtonsVisibility();
+            RaisePropertyChanged(() => IsRewatching);
+            RaisePropertyChanged(() => MyStatusBind);
+            RaisePropertyChanged(() => MyEpisodes);
+            RaisePropertyChanged(() => MyEpisodesBind);
+            RaisePropertyChanged(() => MyEpisodesStepperBind);
             RaisePropertyChanged(() => IsIncrementButtonEnabled);
             RaisePropertyChanged(() => IsDecrementButtonEnabled);
 
@@ -1613,7 +1742,13 @@ RaisePropertyChanged(() => GeneralSeason);
                 {
                     Id = Id,
                     IsAnime = AnimeMode,
-                    Title = Title
+                    Title = Title,
+                    ImageUrl = _imgUrl,
+                    Type = Type,
+                    NewEpisodes = MyEpisodes,
+                    TotalEpisodes = AllEpisodes,
+                    GlobalScore = GlobalScore,
+                    SeasonTag = !string.IsNullOrWhiteSpace(GeneralSeason) ? GeneralSeason : StartYear
                 });
             }
 
@@ -1628,31 +1763,175 @@ RaisePropertyChanged(() => GeneralSeason);
         ///     here and private, reachable only from a stepper nobody had rebuilt.
         ///     </para>
         /// </summary>
-        public void SetRewatchCount(int count)
+        public Task<bool> SetRewatchCountAsync(int count)
         {
-            ChangeRewatchingCount(count);
+            return ChangeRewatchingCountAsync(count);
         }
 
-        private async void ChangeRewatchingCount(int count)
+        public void SetRewatchCount(int count)
+        {
+            _ = ChangeRewatchingCountAsync(count);
+        }
+
+        private void ChangeRewatchingCount(int count)
+        {
+            _ = ChangeRewatchingCountAsync(count);
+        }
+
+        private async Task<bool> ChangeRewatchingCountAsync(int count)
         {
             var query = GetAppropriateUpdateQuery(count);
 
             if(query == null)
-                return;
+                return false;
             LoadingUpdate = true;
             var response = await query.GetRequestResponse();
             LoadingUpdate = false;
 
             if (response == "Updated")
             {
+                if (_animeItemReference != null)
+                {
+                    _animeItemReference.RewatchingCount = count;
+                }
+                RaisePropertyChanged(() => RewatchCount);
+
                 ResourceLocator.ShareManager.EnqueueEvent(ShareEvent.ChangedRewatchingCount, new AnimeShareDiff
                 {
                     Id = Id,
                     IsAnime = AnimeMode,
                     Title = Title,
                     RewatchCount = count,
+                    ImageUrl = _imgUrl,
+                    Type = Type,
+                    NewEpisodes = MyEpisodes,
+                    TotalEpisodes = AllEpisodes,
+                    GlobalScore = GlobalScore,
+                    SeasonTag = !string.IsNullOrWhiteSpace(GeneralSeason) ? GeneralSeason : StartYear
                 });
+                return true;
             }
+            return false;
+        }
+
+        public async Task StartRewatchingAsync(bool updateDates)
+        {
+            LoadingUpdate = true;
+            IsRewatchingButtonEnabled = false;
+
+            if (_animeItemReference != null)
+            {
+                _animeItemReference.IsRewatching = true;
+                _animeItemReference.MyEpisodes = 0;
+
+                if (updateDates)
+                {
+                    _startDateTimeOffset = DateTimeOffset.Now;
+                    _animeItemReference.StartDate = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                    StartDateValid = true;
+
+                    _endDateTimeOffset = DateTimeOffset.MinValue;
+                    _animeItemReference.EndDate = "";
+                    EndDateValid = false;
+
+                    RaisePropertyChanged(() => StartDateTimeOffset);
+                    RaisePropertyChanged(() => EndDateTimeOffset);
+                    RaisePropertyChanged(() => MyStartDate);
+                    RaisePropertyChanged(() => MyEndDate);
+                    UpdateUserDatesInDetailsRows();
+                }
+            }
+
+            await GetAppropriateUpdateQuery().GetRequestResponse();
+
+            (_animeItemReference as AnimeItemViewModel)?.AdjustIncrementButtonsVisibility();
+            UpdateAnimeReferenceUiBindings(Id);
+
+            RaisePropertyChanged(() => IsRewatching);
+            RaisePropertyChanged(() => MyStatusBind);
+            RaisePropertyChanged(() => MyEpisodes);
+            RaisePropertyChanged(() => MyEpisodesBind);
+            RaisePropertyChanged(() => MyEpisodesStepperBind);
+            RaisePropertyChanged(() => IsIncrementButtonEnabled);
+            RaisePropertyChanged(() => IsDecrementButtonEnabled);
+
+            ResourceLocator.ShareManager.EnqueueEvent(ShareEvent.StartedRewatching, new AnimeShareDiff
+            {
+                Id = Id,
+                IsAnime = AnimeMode,
+                Title = Title,
+                ImageUrl = _imgUrl,
+                Type = Type,
+                NewEpisodes = MyEpisodes,
+                TotalEpisodes = AllEpisodes,
+                GlobalScore = GlobalScore,
+                SeasonTag = !string.IsNullOrWhiteSpace(GeneralSeason) ? GeneralSeason : StartYear
+            });
+
+            IsRewatchingButtonEnabled = true;
+            LoadingUpdate = false;
+        }
+
+        public async Task CompleteRewatchAsync()
+        {
+            LoadingUpdate = true;
+            var newCount = RewatchCount + 1;
+
+            if (_animeItemReference != null)
+            {
+                _animeItemReference.RewatchingCount = newCount;
+                _animeItemReference.IsRewatching = false;
+                if (AllEpisodes != 0)
+                    _animeItemReference.MyEpisodes = AllEpisodes;
+                _animeItemReference.MyStatus = AnimeStatus.Completed;
+
+                if (!EndDateValid || Settings.OverrideValidStartEndDate)
+                {
+                    _endDateTimeOffset = DateTimeOffset.Now;
+                    _animeItemReference.EndDate = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                    EndDateValid = true;
+
+                    RaisePropertyChanged(() => EndDateTimeOffset);
+                    RaisePropertyChanged(() => MyEndDate);
+                    UpdateUserDatesInDetailsRows();
+                }
+            }
+
+            await GetAppropriateUpdateQuery(newCount).GetRequestResponse();
+
+            (_animeItemReference as AnimeItemViewModel)?.AdjustIncrementButtonsVisibility();
+            UpdateAnimeReferenceUiBindings(Id);
+
+            RaisePropertyChanged(() => RewatchCount);
+            RaisePropertyChanged(() => IsRewatching);
+            RaisePropertyChanged(() => MyStatus);
+            RaisePropertyChanged(() => MyStatusBind);
+            RaisePropertyChanged(() => MyEpisodes);
+            RaisePropertyChanged(() => MyEpisodesBind);
+            RaisePropertyChanged(() => MyEpisodesStepperBind);
+            RaisePropertyChanged(() => IsIncrementButtonEnabled);
+            RaisePropertyChanged(() => IsDecrementButtonEnabled);
+
+            var label = AnimeMode ? "Rewatch" : "Reread";
+            ResourceLocator.DispatcherAdapter.Run(() =>
+                ResourceLocator.SnackbarProvider.ShowText($"{label} completed! {label} count set to {newCount}."));
+
+            ResourceLocator.ShareManager.EnqueueEvent(ShareEvent.AnimeStatusChanged, new AnimeShareDiff
+            {
+                Title = Title,
+                NewStatus = AnimeStatus.Completed,
+                Id = Id,
+                IsAnime = AnimeMode,
+                RewatchCount = newCount,
+                ImageUrl = _imgUrl,
+                Type = Type,
+                NewEpisodes = AllEpisodes > 0 ? AllEpisodes : MyEpisodes,
+                TotalEpisodes = AllEpisodes,
+                GlobalScore = GlobalScore,
+                SeasonTag = !string.IsNullOrWhiteSpace(GeneralSeason) ? GeneralSeason : StartYear
+            });
+
+            LoadingUpdate = false;
         }
 
         private async void ChangeWatchedEps() //change from input
@@ -1681,7 +1960,11 @@ RaisePropertyChanged(() => GeneralSeason);
                         NewEpisodes = MyEpisodes,
                         TotalEpisodes = AllEpisodes,
                         Id = Id,
-                        IsAnime = AnimeMode
+                        IsAnime = AnimeMode,
+                        ImageUrl = _imgUrl,
+                        Type = Type,
+                        GlobalScore = GlobalScore,
+                        SeasonTag = !string.IsNullOrWhiteSpace(GeneralSeason) ? GeneralSeason : StartYear
                     });
                 }
 
@@ -1695,8 +1978,15 @@ RaisePropertyChanged(() => GeneralSeason);
                     var completedNow = AllEpisodes != 0 && MyEpisodes == AllEpisodes;
                     if (completedNow)
                     {
-                        reference.PromptForStatusChange(AnimeStatus.Completed);
-                        RaisePropertyChanged(() => MyStatusBind);
+                        if (IsRewatching)
+                        {
+                            await CompleteRewatchAsync();
+                        }
+                        else
+                        {
+                            reference.PromptForStatusChange(AnimeStatus.Completed);
+                            RaisePropertyChanged(() => MyStatusBind);
+                        }
                     }
                     else if (prevEps == 0 && MyEpisodes != AllEpisodes &&
                              (MyStatus == AnimeStatus.PlanToWatch || MyStatus == AnimeStatus.Dropped ||
@@ -1715,6 +2005,8 @@ RaisePropertyChanged(() => GeneralSeason);
                 WatchedEpsInputNoticeVisibility = true;
             }
 
+            (_animeItemReference as AnimeItemViewModel)?.AdjustIncrementButtonsVisibility();
+            UpdateAnimeReferenceUiBindings(Id);
             RaisePropertyChanged(() => IsIncrementButtonEnabled);
             RaisePropertyChanged(() => IsDecrementButtonEnabled);
 
@@ -1748,7 +2040,9 @@ RaisePropertyChanged(() => GeneralSeason);
                         TotalEpisodes = AllVolumes,
                         Id = Id,
                         IsAnime = false,
-                        IsVolumes = true
+                        IsVolumes = true,
+                        ImageUrl = _imgUrl,
+                        Type = Type
                     });
                 }
 
@@ -2069,8 +2363,22 @@ RaisePropertyChanged(() => GeneralSeason);
         {
             try
             {
-                _startDateTimeOffset = DateTimeOffset.Parse(_animeItemReference.StartDate);
-                StartDateValid = true;
+                var s = _animeItemReference?.StartDate;
+                if (!string.IsNullOrEmpty(s) && s != AnimeItemViewModel.InvalidStartEndDate)
+                {
+                    if (s.EndsWith("-00-00") && int.TryParse(s.Substring(0, 4), out var yr))
+                        _startDateTimeOffset = new DateTimeOffset(yr, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                    else if (s.EndsWith("-00") && DateTime.TryParse(s.Substring(0, 7) + "-01", CultureInfo.InvariantCulture, DateTimeStyles.None, out var ym))
+                        _startDateTimeOffset = ym;
+                    else
+                        _startDateTimeOffset = DateTimeOffset.Parse(s);
+                    StartDateValid = true;
+                }
+                else
+                {
+                    _startDateTimeOffset = DateTimeOffset.Now;
+                    StartDateValid = false;
+                }
             }
             catch (Exception)
             {
@@ -2079,14 +2387,34 @@ RaisePropertyChanged(() => GeneralSeason);
             }
             try
             {
-                _endDateTimeOffset = DateTimeOffset.Parse(_animeItemReference.EndDate);
-                EndDateValid = true;
+                var e = _animeItemReference?.EndDate;
+                if (!string.IsNullOrEmpty(e) && e != AnimeItemViewModel.InvalidStartEndDate)
+                {
+                    if (e.EndsWith("-00-00") && int.TryParse(e.Substring(0, 4), out var yr))
+                        _endDateTimeOffset = new DateTimeOffset(yr, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                    else if (e.EndsWith("-00") && DateTime.TryParse(e.Substring(0, 7) + "-01", CultureInfo.InvariantCulture, DateTimeStyles.None, out var ym))
+                        _endDateTimeOffset = ym;
+                    else
+                        _endDateTimeOffset = DateTimeOffset.Parse(e);
+                    EndDateValid = true;
+                }
+                else
+                {
+                    _endDateTimeOffset = DateTimeOffset.Now;
+                    EndDateValid = false;
+                }
             }
             catch (Exception)
             {
                 _endDateTimeOffset = DateTimeOffset.Now;
                 EndDateValid = false;
             }
+
+            RaisePropertyChanged(() => StartDateTimeOffset);
+            RaisePropertyChanged(() => EndDateTimeOffset);
+            RaisePropertyChanged(() => MyStartDate);
+            RaisePropertyChanged(() => MyEndDate);
+            UpdateUserDatesInDetailsRows();
         }
 
         /// <summary>

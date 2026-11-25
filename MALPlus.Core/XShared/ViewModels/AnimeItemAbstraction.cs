@@ -46,6 +46,16 @@ namespace MALPlus.XShared.ViewModels
             set => EntryData.Priority = value;
         }
 
+        public int RewatchingCount
+        {
+            get => EntryData?.RewatchingCount ?? 0;
+            set
+            {
+                if (EntryData != null)
+                    EntryData.RewatchingCount = value;
+            }
+        }
+
         public int Index;
         public bool LoadedAnime;
         public bool LoadedModel;

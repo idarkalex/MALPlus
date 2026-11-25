@@ -115,24 +115,29 @@ public partial class FloatingShareButton : ContentView
         }
     }
 
-    private void OnShareTapped(object sender, EventArgs e)
+    private async void OnShareTapped(object sender, EventArgs e)
     {
         try
         {
-            var msg = ResourceLocator.ShareManager.GenerateMessage();
-            if (!string.IsNullOrEmpty(msg))
+            var model = ResourceLocator.ShareManager.GetCurrentShareCardModel();
+            ResourceLocator.ShareManager.Dismiss();
+            if (model != null)
             {
-                var provider = SimpleIoc.Default.GetInstance<IShareProvider>();
-                provider?.Share(msg);
+                await OptionsSheetHost.ShowSharePreviewAsync(model);
+            }
+            else
+            {
+                var msg = ResourceLocator.ShareManager.GenerateMessage();
+                if (!string.IsNullOrEmpty(msg))
+                {
+                    var provider = SimpleIoc.Default.GetInstance<IShareProvider>();
+                    provider?.Share(msg);
+                }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS FloatingShareButton OnShareTapped failed: " + ex.Message);
-        }
-        finally
-        {
-            ResourceLocator.ShareManager.Dismiss();
         }
     }
 

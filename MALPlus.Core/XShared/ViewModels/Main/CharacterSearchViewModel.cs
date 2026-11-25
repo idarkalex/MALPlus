@@ -117,8 +117,12 @@ namespace MALPlus.XShared.ViewModels.Main
 
             try
             {
-                FoundCharacters.AddRange((await new CharactersSearchQuery(query).GetSearchResults()).Select(
-                            character => new FavouriteViewModel(character)));
+                var results = await new CharactersSearchQuery(query).GetSearchResults();
+                if (results != null)
+                {
+                    FoundCharacters.AddRange(results.Select(
+                                character => new FavouriteViewModel(character)));
+                }
                 IsEmptyNoticeVisible = !FoundCharacters.Any();
             }
             catch (Exception)

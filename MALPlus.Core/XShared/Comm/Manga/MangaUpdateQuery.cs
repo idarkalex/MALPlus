@@ -17,14 +17,17 @@ namespace MALPlus.XShared.Comm.Manga
         public static bool SuppressOfflineSync { get; set; }
         public static bool UpdatedSomething { get; set; } //used for data saving on suspending in app.xaml.cs
 
+        private readonly int? _rewatched;
+
         /// <summary>
         /// Just send rewatched value witch cannot be retrieved back
         /// </summary>
         /// <param name="item"></param>
         /// <param name="rewatched"></param>
-        public MangaUpdateQuery(IAnimeData item, int rewatched)
+        public MangaUpdateQuery(IAnimeData item, int? rewatched)
         {
             _item = item;
+            _rewatched = rewatched;
         }
 
         public MangaUpdateQuery(IAnimeData item)
@@ -58,6 +61,11 @@ namespace MALPlus.XShared.Comm.Manga
                         new("priority", ((int) _item.Priority).ToString()),
                         new("tags", _item.Notes),
                     };
+
+                    if (_rewatched != null)
+                    {
+                        data.Add(new KeyValuePair<string, string>("num_times_reread", _rewatched.Value.ToString()));
+                    }
 
                     // Null means the note was never loaded, and sending it anyway would replace it
                     // with an empty one. See the same guard in AnimeUpdateQuery.

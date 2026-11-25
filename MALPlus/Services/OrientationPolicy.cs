@@ -88,10 +88,10 @@ public static class OrientationPolicy
             return global::Android.Content.PM.ScreenOrientation.SensorLandscape;
 
         if (configuration == null)
-            return global::Android.Content.PM.ScreenOrientation.UserPortrait;
+            return global::Android.Content.PM.ScreenOrientation.Portrait;
 
         return IsCompact(configuration)
-            ? global::Android.Content.PM.ScreenOrientation.UserPortrait
+            ? global::Android.Content.PM.ScreenOrientation.Portrait
             : global::Android.Content.PM.ScreenOrientation.FullUser;
     }
 

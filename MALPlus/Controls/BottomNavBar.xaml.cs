@@ -638,6 +638,7 @@ public partial class BottomNavBar : ContentView
         }
 
         MALPlus.Services.Navigation.BackRouter.Clear();
+        MALPlus.Views.AnimeListPage.DismissAllDropdowns();
 
         if (IsListSection(section))
             MALPlus.Views.AnimeListPage.SetPendingRootRoute(route);

@@ -62,7 +62,12 @@ public partial class ClubsIndexPage : ContentPage, ITabSwipeHost
         {
             if (TabStrip.Children[i] is Button b)
             {
-                TabChipHelper.ApplyStyle(b, i == activeIndex);
+                var isActive = i == activeIndex;
+                TabChipHelper.ApplyStyle(b, isActive);
+                if (isActive && TabStripScroll != null)
+                {
+                    _ = TabStripScroll.ScrollToAsync(b, ScrollToPosition.Center, true);
+                }
             }
         }
     }
@@ -96,7 +101,7 @@ public partial class ClubsIndexPage : ContentPage, ITabSwipeHost
 
     private void OnSearchRefresh(object sender, EventArgs e)
     {
-        try { Vm.SearchCommand?.Execute(null); } catch { }
+        ExecuteSearch();
     }
 
     private void OnActivityRefresh(object sender, EventArgs e)
@@ -104,9 +109,34 @@ public partial class ClubsIndexPage : ContentPage, ITabSwipeHost
         try { Vm.LoadClubActivityCommand?.Execute(null); } catch { }
     }
 
+    private void OnSearchButtonTapped(object sender, EventArgs e)
+    {
+        ExecuteSearch();
+    }
+
     private void OnSearchCompleted(object sender, EventArgs e)
     {
-        try { Vm.SearchCommand?.Execute(null); } catch { }
+        ExecuteSearch();
+    }
+
+    private void ExecuteSearch()
+    {
+        try
+        {
+            if (SearchEntry != null)
+            {
+                SearchEntry.Unfocus();
+                if (Vm != null && !string.IsNullOrWhiteSpace(SearchEntry.Text))
+                {
+                    Vm.SearchQuery = SearchEntry.Text.Trim();
+                }
+            }
+            Vm?.SearchCommand?.Execute(null);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS club search failed: " + ex.Message);
+        }
     }
 
     private async void OnClubTapped(object sender, SelectionChangedEventArgs e)

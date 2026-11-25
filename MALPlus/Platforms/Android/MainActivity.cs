@@ -9,6 +9,7 @@ using Microsoft.Maui;
 namespace MALPlus;
 
 [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, Exported = true, LaunchMode = LaunchMode.SingleTop,
+    ScreenOrientation = ScreenOrientation.Portrait,
     WindowSoftInputMode = SoftInput.AdjustNothing,
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 [IntentFilter(new[] { Microsoft.Maui.ApplicationModel.Platform.Intent.ActionAppAction },
@@ -16,6 +17,16 @@ namespace MALPlus;
 [IntentFilter(new[] { Android.Content.Intent.ActionView },
     Categories = new[] { Android.Content.Intent.CategoryDefault, Android.Content.Intent.CategoryBrowsable },
     DataScheme = "malplus")]
+[IntentFilter(new[] { Android.Content.Intent.ActionView },
+    Categories = new[] { Android.Content.Intent.CategoryDefault, Android.Content.Intent.CategoryBrowsable },
+    DataScheme = "https",
+    DataHost = "myanimelist.net",
+    DataPathPrefix = "/anime")]
+[IntentFilter(new[] { Android.Content.Intent.ActionView },
+    Categories = new[] { Android.Content.Intent.CategoryDefault, Android.Content.Intent.CategoryBrowsable },
+    DataScheme = "https",
+    DataHost = "myanimelist.net",
+    DataPathPrefix = "/manga")]
 public class MainActivity : MauiAppCompatActivity
 {
     public static MainActivity Instance { get; private set; }
@@ -222,10 +233,14 @@ public class MainActivity : MauiAppCompatActivity
         MALPlus.Services.OrientationPolicy.Apply(this);
 
         Android.Util.Log.Info("MALPLUS", $"OnCreate intent data: {Intent?.Data}");
-        if (Intent?.Data != null && Intent.Data.ToString().StartsWith("malplus://"))
+        if (Intent?.Data != null)
         {
-            DeepLinkIntent = Intent;
-            PendingDeepLinkPath = Intent.Data.ToString().Replace("malplus://", "");
+            var path = ResolveDeepLinkPath(Intent.Data.ToString());
+            if (!string.IsNullOrEmpty(path))
+            {
+                DeepLinkIntent = Intent;
+                PendingDeepLinkPath = path;
+            }
         }
 
         // An open video overlay has to be the first thing the back gesture meets, otherwise back
@@ -530,12 +545,37 @@ public override void HandleOnBackPressed()
         base.OnNewIntent(intent);
         Intent = intent;
         Android.Util.Log.Info("MALPLUS", $"OnNewIntent data: {intent?.Data}");
-        if (intent?.Data != null && intent.Data.ToString().StartsWith("malplus://"))
+        if (intent?.Data != null)
         {
-            DeepLinkIntent = intent;
-            PendingDeepLinkPath = intent.Data.ToString().Replace("malplus://", "");
-            HandleDeepLinkNavigation(intent.Data.ToString());
+            var path = ResolveDeepLinkPath(intent.Data.ToString());
+            if (!string.IsNullOrEmpty(path))
+            {
+                DeepLinkIntent = intent;
+                PendingDeepLinkPath = path;
+                HandleDeepLinkNavigation(path);
+            }
         }
+    }
+
+    public static string ResolveDeepLinkPath(string uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri))
+            return null;
+
+        if (uri.StartsWith("malplus://"))
+            return uri.Replace("malplus://", "");
+
+        if (uri.Contains("myanimelist.net/anime/") || uri.Contains("myanimelist.net/manga/"))
+        {
+            var isManga = uri.Contains("/manga/");
+            var match = System.Text.RegularExpressions.Regex.Match(uri, @"/(?:anime|manga)/(\d+)");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var id))
+            {
+                return $"animedetails?id={id}&manga={isManga.ToString().ToLowerInvariant()}";
+            }
+        }
+
+        return null;
     }
 
     public static async Task ApplyPendingDeepLinkAsync()
@@ -566,11 +606,9 @@ public override void HandleOnBackPressed()
 
     private void HandleDeepLinkNavigation(string uri)
     {
-        if (uri.StartsWith("malplus://"))
-        {
-            var path = uri.Replace("malplus://", "");
-            Android.Util.Log.Info("MALPLUS", $"Deep link path: {path}");
-            MainThread.BeginInvokeOnMainThread(async () =>
+        var path = uri.StartsWith("malplus://") ? uri.Replace("malplus://", "") : uri;
+        Android.Util.Log.Info("MALPLUS", $"Deep link path: {path}");
+        MainThread.BeginInvokeOnMainThread(async () =>
             {
                 for (int attempt = 0; attempt < 20; attempt++)
                 {
@@ -596,4 +634,3 @@ public override void HandleOnBackPressed()
             });
         }
     }
-}

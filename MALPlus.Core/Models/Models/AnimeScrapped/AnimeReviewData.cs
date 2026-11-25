@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
@@ -14,9 +15,23 @@ namespace MALPlus.Models.Models.AnimeScrapped
     public class AnimeReviewData : INotifyPropertyChanged
     {
         private bool _isExpanded;
+        private string _review;
 
         public string Id { get; set; }
-        public string Review { get; set; }
+
+        public string Review
+        {
+            get => _review;
+            set
+            {
+                if (_review == value)
+                    return;
+                _review = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ReviewToggleVisible));
+            }
+        }
+
         public string Author { get; set; }
         public string Date { get; set; }
         public string AuthorAvatar { get; set; }
@@ -26,6 +41,32 @@ namespace MALPlus.Models.Models.AnimeScrapped
         public bool HasSpoilers { get; set; }
         public bool IsPreliminary { get; set; }
         public List<ReviewScore> Score { get; set; } = new List<ReviewScore>();
+
+        private const int ReviewCollapsedLines = 6;
+        private const int ReviewCollapseThreshold = 220;
+
+        public static bool ShouldShowReviewToggle(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            if (text.Length > ReviewCollapseThreshold)
+                return true;
+
+            var lines = text.Split('\n');
+            if (lines.Length > ReviewCollapsedLines)
+                return true;
+
+            int estimatedLines = 0;
+            foreach (var line in lines)
+            {
+                estimatedLines += Math.Max(1, (int)Math.Ceiling(line.Length / 42.0));
+                if (estimatedLines > ReviewCollapsedLines)
+                    return true;
+            }
+
+            return false;
+        }
 
         [Newtonsoft.Json.JsonIgnore]
         [JsonIgnore]
@@ -45,11 +86,15 @@ namespace MALPlus.Models.Models.AnimeScrapped
 
         [Newtonsoft.Json.JsonIgnore]
         [JsonIgnore]
-        public int ReviewMaxLines => IsExpanded ? 10000 : 6;
+        public int ReviewMaxLines => IsExpanded ? 10000 : ReviewCollapsedLines;
 
         [Newtonsoft.Json.JsonIgnore]
         [JsonIgnore]
         public string ReviewToggleText => IsExpanded ? "Show less" : "Show more";
+
+        [Newtonsoft.Json.JsonIgnore]
+        [JsonIgnore]
+        public bool ReviewToggleVisible => ShouldShowReviewToggle(Review);
 
         public event PropertyChangedEventHandler PropertyChanged;
 

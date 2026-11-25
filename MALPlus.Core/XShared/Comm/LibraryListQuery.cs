@@ -83,7 +83,7 @@ namespace MALPlus.XShared.Comm
                 var offset = 0;
                 var i = 0;
                 var loop = true; //loop_noop
-                var failedOnce = false;
+                var retryCount = 0;
                 Exception lastError = null;
 
                 string rawAnime = null;
@@ -104,8 +104,11 @@ namespace MALPlus.XShared.Comm
                                     {
 
                                         case AnimeListWorkModes.Anime:
+                                            var userTargetAnime = string.IsNullOrWhiteSpace(_source) || string.Equals(_source, Credentials.UserName, StringComparison.OrdinalIgnoreCase)
+                                                ? "@me"
+                                                : _source;
                                             var animeResponse = await client.GetAsync(
-                                                $"https://api.myanimelist.net/v2/users/{_source}/animelist?fields=" +
+                                                $"https://api.myanimelist.net/v2/users/{userTargetAnime}/animelist?fields=" +
                                                 $"title," +
                                                 $"alternative_titles," +
                                                 $"start_date," +
@@ -120,7 +123,7 @@ namespace MALPlus.XShared.Comm
                                                 $"comments," +
                                                 $"priority," +
                                                 $"num_episodes_rewatched," +
-                                                $"num_watched_times," +
+                                                $"num_times_rewatched," +
                                                 $"list_updated_at}}&limit=1000&offset={offset}&nsfw={ContentFilter.NsfwFlag}", cts.Token);
 
                                             rawAnime = await animeResponse.Content.ReadAsStringAsync();
@@ -145,6 +148,7 @@ namespace MALPlus.XShared.Comm
                                                 return await GetLibrary(force, true);
                                             }
 
+                                            retryCount = 0;
                                             offset += anime.data?.Count ?? 0;
 
                                             if (anime.paging?.next == null)
@@ -215,6 +219,7 @@ namespace MALPlus.XShared.Comm
                                                         AlternateTitle = alternateTitle,
                                                         Priority = (AnimePriority)node.list_status?.priority,
                                                         AirStartDate = airStartDate,
+                                                        RewatchingCount = node.list_status.num_times_rewatched,
                                                     });
 
                                                     if (!string.IsNullOrEmpty(airStartDate))
@@ -243,8 +248,11 @@ namespace MALPlus.XShared.Comm
 
                                             break;
                                         case AnimeListWorkModes.Manga:
+                                            var userTargetManga = string.IsNullOrWhiteSpace(_source) || string.Equals(_source, Credentials.UserName, StringComparison.OrdinalIgnoreCase)
+                                                ? "@me"
+                                                : _source;
                                             var mangaResponse = await client.GetAsync(
-                                                $"https://api.myanimelist.net/v2/users/{_source}/mangalist?fields=" +
+                                                $"https://api.myanimelist.net/v2/users/{userTargetManga}/mangalist?fields=" +
                                                 $"title," +
                                                 $"alternative_titles," +
                                                 $"start_date," +
@@ -258,9 +266,8 @@ namespace MALPlus.XShared.Comm
                                                 $"finish_date," +
                                                 $"comments," +
                                                 $"priority," +
-                                                $"num_episodes_rewatched," +
-                                                $"num_watched_times," +
-                                                $"list_updated_at}}&limit=1000&offset={offset}&nsfw={ContentFilter.NsfwFlag}", cts.Token);
+                                                $"num_times_reread," +
+                                                $"updated_at}}&limit=1000&offset={offset}&nsfw={ContentFilter.NsfwFlag}", cts.Token);
 
                                             var rawManga = await mangaResponse.Content.ReadAsStringAsync();
 
@@ -283,6 +290,7 @@ namespace MALPlus.XShared.Comm
                                                     return cached;
                                                 return await GetLibrary(force, true);
                                             }
+                                            retryCount = 0;
                                             offset += manga.data?.Count ?? 0;
 
                                             if (manga.paging?.next == null)
@@ -337,7 +345,8 @@ namespace MALPlus.XShared.Comm
                                                         AlternateTitle = alternateTitle,
                                                         LastWatched = node.list_status.updated_at,
                                                         Priority = (AnimePriority)node.list_status.priority,
-                                                        AirStartDate = item.start_date
+                                                        AirStartDate = item.start_date,
+                                                        RewatchingCount = node.list_status.num_times_reread,
                                                     });
                                                 }
                                                 catch (Exception e)
@@ -623,7 +632,8 @@ namespace MALPlus.XShared.Comm
                             ResourceLocator.LocalDiagnostics.TrackException(e);
                             lastError = e;
                             Console.WriteLine("MALPLUS library read failed: " + e);
-                            if (failedOnce)
+                            var authFailure = LooksLikeAuthFailure(e);
+                            if (authFailure || retryCount >= 2)
                             {
                                 loop = false;
 
@@ -634,7 +644,6 @@ namespace MALPlus.XShared.Comm
                                 if (cachedFallback != null && cachedFallback.Count > 0)
                                     return cachedFallback;
 
-                                var authFailure = LooksLikeAuthFailure(e);
                                 ResourceLocator.DispatcherAdapter.Run(() =>
                                     ResourceLocator.MessageDialogProvider.ShowMessageDialog(
                                         authFailure
@@ -644,8 +653,10 @@ namespace MALPlus.XShared.Comm
                             }
                             else
                             {
-                                failedOnce = true;
-                                await Task.Delay(TimeSpan.FromSeconds(1));
+                                retryCount++;
+                                var delayMs = retryCount == 1 ? 1500 : 2500;
+                                Console.WriteLine($"MALPLUS library read retry {retryCount}/2 after {delayMs}ms");
+                                await Task.Delay(TimeSpan.FromMilliseconds(delayMs));
                             }
                         }
                     }
@@ -671,7 +682,7 @@ namespace MALPlus.XShared.Comm
 
         private string FixDate(string date)
         {
-            if (date == null)
+            if (string.IsNullOrWhiteSpace(date))
                 return null;
 
             if (date.Length == 10)
@@ -680,8 +691,10 @@ namespace MALPlus.XShared.Comm
             if (date.Length == 4) //only year
                 return $"{date}-00-00";
 
-            //year + month
-            return $"{date}-00";
+            if (date.Length == 7) //year + month
+                return $"{date}-00";
+
+            return date;
         }
 
         private AnimeStatus ParseAnimeStatus(string status)
@@ -747,6 +760,8 @@ namespace MALPlus.XShared.Comm
             public bool is_rereading { get; set; }
             public int num_volumes_read { get; set; }
             public int num_chapters_read { get; set; }
+            public int num_times_rewatched { get; set; }
+            public int num_times_reread { get; set; }
 
         }
 

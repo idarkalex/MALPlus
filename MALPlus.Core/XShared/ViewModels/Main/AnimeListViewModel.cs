@@ -2366,6 +2366,10 @@ catch (Exception)
         private async Task FetchDataCore(bool force, AnimeListWorkModes? modeOverride)
         {
             var requestedMode = modeOverride ?? WorkMode;
+            if (string.IsNullOrWhiteSpace(ListSource) && !string.IsNullOrWhiteSpace(Credentials.UserName))
+            {
+                ListSource = Credentials.UserName;
+            }
 
             Console.WriteLine($"MALPLUS fetch: source={ListSource} mode={requestedMode} force={force} auth={Credentials.Authenticated}");
 

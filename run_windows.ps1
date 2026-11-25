@@ -21,8 +21,21 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
     $Root = (Get-Location).Path
 }
 
-$DotnetRoot = "D:\Descargas\dotnet11"
-if (Test-Path "$DotnetRoot\dotnet.exe") {
+$dotnetCandidates = @(
+    "D:\Desarrollo\sdks\dotnet11",
+    "D:\Desarrollo\dotnet11",
+    (Join-Path $Root "..\sdks\dotnet11"),
+    (Join-Path $Root "..\dotnet11"),
+    "D:\Descargas\dotnet11"
+)
+$DotnetRoot = $null
+foreach ($cand in $dotnetCandidates) {
+    if (Test-Path "$cand\dotnet.exe") {
+        $DotnetRoot = $cand
+        break
+    }
+}
+if ($DotnetRoot -and (Test-Path "$DotnetRoot\dotnet.exe")) {
     $env:DOTNET_ROOT = $DotnetRoot
     $dotnet = "$DotnetRoot\dotnet.exe"
 } else {

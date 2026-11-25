@@ -910,8 +910,12 @@ namespace MALPlus.XShared.Utils
 
         public static string ShareCustomSuffix
         {
-            get => (string)(ApplicationDataService[nameof(ShareCustomSuffix)] ?? DefaultShareCustomSuffix);
-            set => ApplicationDataService[nameof(ShareCustomSuffix)] = value;
+            get
+            {
+                var val = ApplicationDataService[nameof(ShareCustomSuffix)] as string;
+                return string.IsNullOrWhiteSpace(val) ? DefaultShareCustomSuffix : val;
+            }
+            set => ApplicationDataService[nameof(ShareCustomSuffix)] = string.IsNullOrWhiteSpace(value) ? null : value;
         }
 
         #endregion PopUpsPrompts

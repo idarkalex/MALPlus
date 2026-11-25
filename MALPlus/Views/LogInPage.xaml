@@ -13,10 +13,22 @@
             <Label Text="Your anime and manga list, with you"
                    FontFamily="Inter" FontSize="14"
                    TextColor="{StaticResource BrushText}" HorizontalOptions="Center" />
-            <Entry x:Name="UserEntry" Placeholder="MyAnimeList username" Text="{Binding UserNameInput}"
-                   FontFamily="Inter" FontSize="14" ReturnType="Next" Completed="OnUserEntryCompleted" />
-            <Entry x:Name="PassEntry" Placeholder="Password" Text="{Binding PasswordInput}" IsPassword="True"
-                   FontFamily="Inter" FontSize="14" ReturnType="Go" Completed="OnPassEntryCompleted" />
+            <Border Stroke="#80FFFFFF" StrokeThickness="1.2" StrokeShape="RoundRectangle 10"
+                    BackgroundColor="{DynamicResource EmSheet}" HeightRequest="48" Padding="14,0">
+                <Entry x:Name="UserEntry" Placeholder="MyAnimeList username" Text="{Binding UserNameInput}"
+                       PlaceholderColor="#80FFFFFF" TextColor="{StaticResource BrushText}"
+                       FontFamily="Inter" FontSize="14" BackgroundColor="Transparent"
+                       VerticalOptions="Center" ReturnType="Next" Completed="OnUserEntryCompleted"
+                       HandlerChanged="OnEntryHandlerChanged" />
+            </Border>
+            <Border Stroke="#80FFFFFF" StrokeThickness="1.2" StrokeShape="RoundRectangle 10"
+                    BackgroundColor="{DynamicResource EmSheet}" HeightRequest="48" Padding="14,0">
+                <Entry x:Name="PassEntry" Placeholder="Password" Text="{Binding PasswordInput}" IsPassword="True"
+                       PlaceholderColor="#80FFFFFF" TextColor="{StaticResource BrushText}"
+                       FontFamily="Inter" FontSize="14" BackgroundColor="Transparent"
+                       VerticalOptions="Center" ReturnType="Go" Completed="OnPassEntryCompleted"
+                       HandlerChanged="OnEntryHandlerChanged" />
+            </Border>
 <!-- One way in. The username and password are typed here, our form fills MyAnimeList's own
                          login page behind the scenes, and the privacy notice, the OAuth consent and
                          the token exchange are all accepted without the user ever seeing MAL's

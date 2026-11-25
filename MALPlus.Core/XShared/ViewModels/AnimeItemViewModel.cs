@@ -242,7 +242,16 @@ namespace MALPlus.XShared.ViewModels
             }
         }
 
-        public int RewatchingCount { get; set; }
+        public int RewatchingCount
+        {
+            get => ParentAbstraction?.RewatchingCount ?? 0;
+            set
+            {
+                if (ParentAbstraction != null)
+                    ParentAbstraction.RewatchingCount = value;
+                RaisePropertyChanged();
+            }
+        }
 
         public string TopLeftInfoBind
             =>
@@ -814,6 +823,7 @@ namespace MALPlus.XShared.ViewModels
                 RaisePropertyChanged(() => MyEpisodesBindShort);
                 RaisePropertyChanged(() => LibraryBadgeMain);
                 RaisePropertyChanged(() => CalendarBadgeMain);
+                AdjustIncrementButtonsVisibility();
                 ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
                 ChangedWatched?.Invoke(this,value);
             }
@@ -1600,12 +1610,12 @@ private string _title;
 
         #region AnimeUpdate
 
-        private Query GetAppropriateUpdateQuery()
+        private Query GetAppropriateUpdateQuery(int? rewatched = null)
         {
             ParentAbstraction.LastWatched = DateTime.Now;
             if (ParentAbstraction.RepresentsAnime)
-                return new AnimeUpdateQuery(this);
-            return new MangaUpdateQuery(this);
+                return rewatched.HasValue ? new AnimeUpdateQuery(this, rewatched.Value) : new AnimeUpdateQuery(this);
+            return rewatched.HasValue ? new MangaUpdateQuery(this, rewatched.Value) : new MangaUpdateQuery(this);
         }
 
         #region Watched
@@ -1649,10 +1659,14 @@ private string _title;
                 {
                     Title = Title,
                     NewEpisodes = MyEpisodesFocused,
-                    TotalEpisodes = MyEpisodesFocused,
+                    TotalEpisodes = AllEpisodesFocused,
                     Id = Id,
                     IsAnime = ParentAbstraction.RepresentsAnime,
-                    IsVolumes = Settings.MangaFocusVolumes
+                    IsVolumes = Settings.MangaFocusVolumes,
+                    ImageUrl = MalImageUrl.Normalize(ImgUrl),
+                    Type = Type,
+                    SeasonTag = SeasonTag,
+                    GlobalScore = GlobalScore
                 });
             }
 
@@ -1663,6 +1677,9 @@ private string _title;
             // This is the other case: the entry was already following and this tap finished it.
             if (!askedStatus && MyEpisodesFocused == AllEpisodesFocused && AllEpisodesFocused != 0)
                 PromptForStatusChange( AnimeStatus.Completed);
+
+            AdjustIncrementButtonsVisibility();
+            ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
 
             LoadingUpdate = false;
             _incrementing = false;
@@ -1690,9 +1707,16 @@ private string _title;
                     NewEpisodes = MyEpisodes,
                     TotalEpisodes = AllEpisodes,
                     Id = Id,
-                    IsAnime = ParentAbstraction.RepresentsAnime
+                    IsAnime = ParentAbstraction.RepresentsAnime,
+                    ImageUrl = MalImageUrl.Normalize(ImgUrl),
+                    Type = Type,
+                    SeasonTag = SeasonTag,
+                    GlobalScore = GlobalScore
                 });
             }
+
+            AdjustIncrementButtonsVisibility();
+            ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
 
             _decrementing = false;
             LoadingUpdate = false;
@@ -1740,7 +1764,11 @@ private string _title;
                         TotalEpisodes = AllEpisodesFocused,
                         Id = Id,
                         IsAnime = ParentAbstraction.RepresentsAnime,
-                        IsVolumes = Settings.MangaFocusVolumes
+                        IsVolumes = Settings.MangaFocusVolumes,
+                        ImageUrl = MalImageUrl.Normalize(ImgUrl),
+                        Type = Type,
+                        SeasonTag = SeasonTag,
+                        GlobalScore = GlobalScore
                     });
                 }
                 AdjustIncrementButtonsVisibility();
@@ -1798,7 +1826,7 @@ private string _title;
                      (Settings.OverrideValidStartEndDate || ParentAbstraction.MyEndDate == AnimeItemViewModel.InvalidStartEndDate))
                 EndDate = DateTimeOffset.Now.ToString("yyyy-MM-dd");
             else if (Settings.SetEndDateOnCompleted &&  stat == AnimeStatus.Completed &&
-                     (Settings.OverrideValidStartEndDate || ParentAbstraction.MyEndDate == AnimeItemViewModel.InvalidStartEndDate))
+                     (Settings.OverrideValidStartEndDate || ParentAbstraction.MyEndDate == AnimeItemViewModel.InvalidStartEndDate || string.IsNullOrEmpty(ParentAbstraction.MyEndDate)))
                 EndDate = DateTimeOffset.Now.ToString("yyyy-MM-dd");
 
             //in case of series having one episode
@@ -1808,14 +1836,21 @@ private string _title;
 
             if (IsRewatching)
             {
-                if (AllEpisodes != 0 && MyStatus == AnimeStatus.Completed)
+                if (stat == AnimeStatus.Completed)
+                {
+                    RewatchingCount++;
+                    var label = ParentAbstraction.RepresentsAnime ? "Rewatch" : "Reread";
+                    ResourceLocator.DispatcherAdapter.Run(() =>
+                        ResourceLocator.SnackbarProvider.ShowText($"{label} completed! {label} count set to {RewatchingCount}."));
+                }
+                if (AllEpisodes != 0 && stat == AnimeStatus.Completed)
                     MyEpisodes = AllEpisodes;
                 IsRewatching = false;
             }
 
             ViewModelLocator.AnimeDetails.UpdateAnimeReferenceUiBindings(Id);
 
-            var response = await GetAppropriateUpdateQuery().GetRequestResponse();
+            var response = await GetAppropriateUpdateQuery(RewatchingCount).GetRequestResponse();
             Console.WriteLine($"MALPLUS ChangeStatus id={Id} status={MyStatus} prev={myPrevStatus} response={response} api={Settings.SelectedApiType}");
             if (response != "Updated" && Settings.SelectedApiType == ApiType.Mal)
                 MyStatus = myPrevStatus;
@@ -1826,7 +1861,13 @@ private string _title;
                     Title = Title,
                     NewStatus = MyStatus,
                     Id = Id,
-                    IsAnime = ParentAbstraction.RepresentsAnime
+                    IsAnime = ParentAbstraction.RepresentsAnime,
+                    ImageUrl = MalImageUrl.Normalize(ImgUrl),
+                    Type = Type,
+                    NewEpisodes = MyStatus == AnimeStatus.Completed && AllEpisodesFocused > 0 ? AllEpisodesFocused : MyEpisodesFocused,
+                    TotalEpisodes = AllEpisodesFocused,
+                    SeasonTag = SeasonTag,
+                    GlobalScore = GlobalScore
                 });
             }
             if (MyStatus == AnimeStatus.Completed && _allEpisodes != 0)
@@ -1863,7 +1904,13 @@ private string _title;
                     Title = Title,
                     NewScore = (int)MyScore,
                     Id = Id,
-                    IsAnime = ParentAbstraction.RepresentsAnime
+                    IsAnime = ParentAbstraction.RepresentsAnime,
+                    ImageUrl = MalImageUrl.Normalize(ImgUrl),
+                    Type = Type,
+                    NewEpisodes = MyEpisodesFocused,
+                    TotalEpisodes = AllEpisodesFocused,
+                    SeasonTag = SeasonTag,
+                    GlobalScore = GlobalScore
                 });
             }
             LoadingUpdate = false;
@@ -2021,11 +2068,21 @@ private string _title;
                             if (to == AnimeStatus.Completed && IsRewatching)
                             {
                                 IsRewatching = false;
+                                RewatchingCount++;
                                 if (AllEpisodes != 0)
                                 {
                                     MyEpisodes = AllEpisodes;
                                 }
-                                await GetAppropriateUpdateQuery().GetRequestResponse();
+                                MyStatus = AnimeStatus.Completed;
+                                if (Settings.SetEndDateOnCompleted && (Settings.OverrideValidStartEndDate || ParentAbstraction.MyEndDate == AnimeItemViewModel.InvalidStartEndDate || string.IsNullOrEmpty(ParentAbstraction.MyEndDate)))
+                                {
+                                    EndDate = DateTimeOffset.Now.ToString("yyyy-MM-dd");
+                                }
+                                await GetAppropriateUpdateQuery(RewatchingCount).GetRequestResponse();
+
+                                var label = ParentAbstraction.RepresentsAnime ? "Rewatch" : "Reread";
+                                ResourceLocator.DispatcherAdapter.Run(() =>
+                                    ResourceLocator.SnackbarProvider.ShowText($"{label} completed! {label} count set to {RewatchingCount}."));
 
                                 ResourceLocator.ShareManager.EnqueueEvent(ShareEvent.AnimeEpisodesChanged, new AnimeShareDiff
                                 {
@@ -2033,7 +2090,11 @@ private string _title;
                                     NewEpisodes = MyEpisodes,
                                     TotalEpisodes = AllEpisodes,
                                     Id = Id,
-                                    IsAnime = ParentAbstraction.RepresentsAnime
+                                    IsAnime = ParentAbstraction.RepresentsAnime,
+                                    ImageUrl = ImgUrl,
+                                    Type = Type,
+                                    SeasonTag = SeasonTag,
+                                    GlobalScore = GlobalScore
                                 });
 
                                 AdjustIncrementButtonsVisibility();

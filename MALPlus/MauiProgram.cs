@@ -104,6 +104,7 @@ public static class MauiProgram
             handler.PlatformView.SetBackgroundColor(Android.Graphics.Color.Transparent);
             handler.PlatformView.SetPadding(0, 0, 0, 0);
             handler.PlatformView.SetMinimumHeight(0);
+            handler.PlatformView.Gravity = Android.Views.GravityFlags.CenterVertical;
         });
 #endif
 

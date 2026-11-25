@@ -105,6 +105,68 @@ public static class OptionsSheetHost
     }
 
     /// <summary>
+    ///     Displays a share preview dialog with the visual card, text message and toggle to attach image.
+    /// </summary>
+    public static async Task ShowSharePreviewAsync(Models.Models.Anime.ShareCardModel model)
+    {
+        if (model == null)
+            return;
+
+        var page = new OptionsSheetPage();
+        await Gate.WaitAsync();
+        try
+        {
+            var answered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            void DismissDialog()
+            {
+                if (answered.TrySetResult(false))
+                {
+                    _ = PopAsync(page);
+                }
+            }
+
+            page.Bind();
+            page.Dismissed += (_, _) => DismissDialog();
+            page.Sheet.Closed += (_, _) => DismissDialog();
+
+            page.Sheet.OpenSharePreview(model, (finalText, attachCard, cardPath) =>
+            {
+                if (answered.TrySetResult(true))
+                {
+                    _ = PopAsync(page);
+                }
+
+                var provider = GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<Adapters.IShareProvider>();
+                if (attachCard && !string.IsNullOrEmpty(cardPath) && System.IO.File.Exists(cardPath))
+                {
+                    provider?.Share(finalText, cardPath);
+                }
+                else
+                {
+                    provider?.Share(finalText);
+                }
+            }, () =>
+            {
+                DismissDialog();
+            });
+
+            await PushAsync(page);
+            await answered.Task;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS ShowSharePreviewAsync failed: " + ex.Message);
+            await PopAsync(page);
+        }
+        finally
+        {
+            await PopAsync(page);
+            Gate.Release();
+        }
+    }
+
+    /// <summary>
     ///     Displays a release update dialog with changelog and actions to update or postpone.
     /// </summary>
     public static async Task<bool> ShowUpdateAsync(XShared.Comm.AppUpdateInfo info,

@@ -160,7 +160,8 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     Placeholder = hint ?? string.Empty,
                     PlaceholderColor = _colorNoteHint,
                     BackgroundColor = Colors.Transparent,
-                    HeightRequest = 150
+                    HeightRequest = 150,
+                    VerticalOptions = LayoutOptions.Fill
                 };
             }
             else
@@ -179,7 +180,9 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     Placeholder = hint ?? string.Empty,
                     PlaceholderColor = _colorNoteHint,
                     BackgroundColor = Colors.Transparent,
-                    ClearButtonVisibility = ClearButtonVisibility.Never
+                    ClearButtonVisibility = ClearButtonVisibility.Never,
+                    VerticalTextAlignment = TextAlignment.Center,
+                    VerticalOptions = LayoutOptions.Center
                 };
             }
 
@@ -187,10 +190,12 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             {
                 BackgroundColor = _colorSheet,
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-                Padding = new Thickness(12, multiline ? 8 : 0),
+                Padding = new Thickness(14, multiline ? 10 : 0),
                 HeightRequest = multiline ? 150 : 48,
                 Stroke = _colorPromptBorder,
-                StrokeThickness = 1
+                StrokeThickness = 1,
+                Margin = new Thickness(0, 4, 0, 8),
+                VerticalOptions = LayoutOptions.Center
             };
             entry.Content = field;
 
@@ -210,31 +215,38 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             var capturedCancel = onCancel;
             if (closeOnSave)
             {
-                // Ordinary rows, and deliberately so: the panel closes the same way it does for a choice
-                // and the answer is whatever was in the field when the row was tapped.
-                ItemsHost.Add(BuildRow(new OptionsSheetItem("Save", "icon_check",
-                    action: () => capturedSave(readField()))));
+                var saveButton = CreateActionButton("Save", () =>
+                {
+                    ClosingByChoice = true;
+                    Dismiss();
+                    ClosingByChoice = false;
+                    capturedSave(readField());
+                }, ActionButtonKind.Primary);
+                saveButton.Margin = new Thickness(0, 2, 0, 4);
+                ItemsHost.Add(saveButton);
             }
             else
             {
-                // In a multi-level sheet, we don't dismiss the sheet when saving an in-place field;
-                // instead, the submenu callback runs onSave without triggering Dismiss/ItemChosen,
-                // allowing the caller to redraw the parent menu in place.
-                ItemsHost.Add(BuildRow(new OptionsSheetItem("Save", "icon_check",
-                    submenu: _ =>
-                    {
-                        capturedSave?.Invoke(readField());
-                        return true;
-                    })));
-
                 if (capturedCancel != null)
                 {
-                    ItemsHost.Add(BuildRow(new OptionsSheetItem("Cancel", "icon_close",
-                        submenu: _ =>
-                        {
-                            capturedCancel();
-                            return true;
-                        })));
+                    var cancelBtn = CreateActionButton("Cancel", () =>
+                    {
+                        capturedCancel();
+                    }, ActionButtonKind.Secondary);
+                    var saveBtn = CreateActionButton("Save", () =>
+                    {
+                        capturedSave?.Invoke(readField());
+                    }, ActionButtonKind.Primary);
+                    ItemsHost.Add(CreateActionPair(cancelBtn, saveBtn));
+                }
+                else
+                {
+                    var saveBtn = CreateActionButton("Save", () =>
+                    {
+                        capturedSave?.Invoke(readField());
+                    }, ActionButtonKind.Primary);
+                    saveBtn.Margin = new Thickness(0, 2, 0, 4);
+                    ItemsHost.Add(saveBtn);
                 }
             }
 
@@ -243,6 +255,206 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS options sheet prompt failed: " + ex.Message);
+        }
+    }
+
+    public void OpenSharePreview(Models.Models.Anime.ShareCardModel model, Action<string, bool, string> onShare, Action onCancel)
+    {
+        try
+        {
+            ApplyCompactShape();
+
+            Header.IsVisible = true;
+            CloseButton.IsVisible = true;
+            BackButton.IsVisible = false;
+            TitleLabel.Text = "Share";
+            TitleLabel.FontSize = 16;
+            SubtitleLabel.Text = "";
+            SubtitleLabel.IsVisible = false;
+
+            // 1. Preview Card Container
+            var spinner = new ActivityIndicator
+            {
+                IsRunning = true,
+                IsVisible = true,
+                Color = Color.FromArgb("#0066FF"),
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+                WidthRequest = 32,
+                HeightRequest = 32
+            };
+
+            var previewImage = new Image
+            {
+                Aspect = Aspect.AspectFit,
+                IsVisible = false,
+                HorizontalOptions = LayoutOptions.Fill,
+                VerticalOptions = LayoutOptions.Fill
+            };
+
+            var cardGrid = new Grid();
+            cardGrid.Children.Add(spinner);
+            cardGrid.Children.Add(previewImage);
+
+            var previewCard = new Border
+            {
+                BackgroundColor = Color.FromArgb("#051522"),
+                Stroke = Color.FromArgb("#1E3A52"),
+                StrokeThickness = 1.5,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+                WidthRequest = 140,
+                HeightRequest = 208,
+                HorizontalOptions = LayoutOptions.Center,
+                Margin = new Thickness(0, 4, 0, 8),
+                Padding = 0,
+                Content = cardGrid
+            };
+
+            string cardPath = null;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    cardPath = await Services.ShareCardGenerator.GenerateCardAsync(model);
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        spinner.IsRunning = false;
+                        spinner.IsVisible = false;
+                        if (!string.IsNullOrEmpty(cardPath) && File.Exists(cardPath))
+                        {
+                            previewImage.Source = ImageSource.FromFile(cardPath);
+                            previewImage.IsVisible = true;
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("MALPLUS card generation preview failed: " + ex.Message);
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        spinner.IsRunning = false;
+                        spinner.IsVisible = false;
+                    });
+                }
+            });
+
+            // 2. Message Editor
+            var editor = new Editor
+            {
+                Text = model?.ShareText ?? string.Empty,
+                Keyboard = Keyboard.Text,
+                FontFamily = "InterMedium",
+                FontSize = 13,
+                TextColor = Colors.White,
+                BackgroundColor = Colors.Transparent,
+                HeightRequest = 68,
+                VerticalOptions = LayoutOptions.Fill
+            };
+
+            var editorBorder = new Border
+            {
+                BackgroundColor = Color.FromArgb("#14FFFFFF"),
+                Stroke = Color.FromArgb("#25FFFFFF"),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+                Padding = new Thickness(10, 6),
+                Margin = new Thickness(0, 0, 0, 6),
+                Content = editor
+            };
+
+            // 3. Checkbox Row: "Attach visual card" (default true)
+            var checkBox = new CheckBox
+            {
+                IsChecked = true,
+                Color = Color.FromArgb("#0066FF"),
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalOptions = LayoutOptions.End
+            };
+
+            var checkLabelStack = new VerticalStackLayout
+            {
+                Spacing = 1,
+                VerticalOptions = LayoutOptions.Center
+            };
+            checkLabelStack.Children.Add(new Label
+            {
+                Text = "Attach visual card",
+                FontFamily = "InterSemiBold",
+                FontSize = 13,
+                TextColor = Colors.White
+            });
+            checkLabelStack.Children.Add(new Label
+            {
+                Text = "Poster, progress & score image",
+                FontFamily = "InterMedium",
+                FontSize = 11,
+                TextColor = Color.FromArgb("#8E9DAE")
+            });
+
+            var checkLeftStack = new HorizontalStackLayout
+            {
+                Spacing = 8,
+                VerticalOptions = LayoutOptions.Center
+            };
+            checkLeftStack.Children.Add(new Image
+            {
+                Source = "icon_share",
+                WidthRequest = 18,
+                HeightRequest = 18,
+                VerticalOptions = LayoutOptions.Center
+            });
+            checkLeftStack.Children.Add(checkLabelStack);
+
+            var checkGrid = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = GridLength.Auto }
+                },
+                Padding = new Thickness(4, 2, 4, 8),
+                VerticalOptions = LayoutOptions.Center
+            };
+            checkGrid.Children.Add(checkLeftStack);
+            Grid.SetColumn(checkLeftStack, 0);
+            checkGrid.Children.Add(checkBox);
+            Grid.SetColumn(checkBox, 1);
+
+            // Tapping anywhere on the row toggles the checkbox
+            var checkTap = new TapGestureRecognizer();
+            checkTap.Tapped += (s, e) => checkBox.IsChecked = !checkBox.IsChecked;
+            checkGrid.GestureRecognizers.Add(checkTap);
+
+            // 4. Buttons
+            var cancelBtn = CreateActionButton("Cancel", () =>
+            {
+                Dismiss();
+                onCancel?.Invoke();
+            }, ActionButtonKind.Secondary);
+
+            var shareBtn = CreateActionButton("Share", () =>
+            {
+                var text = editor.Text;
+                var attach = checkBox.IsChecked;
+                ClosingByChoice = true;
+                Dismiss();
+                ClosingByChoice = false;
+                onShare?.Invoke(text, attach, cardPath);
+            }, ActionButtonKind.Primary);
+
+            var actionPair = CreateActionPair(cancelBtn, shareBtn);
+
+            ItemsHost.Clear();
+            ItemsHost.Add(previewCard);
+            ItemsHost.Add(editorBorder);
+            ItemsHost.Add(checkGrid);
+            ItemsHost.Add(actionPair);
+
+            IsVisible = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OpenSharePreview failed: " + ex.Message);
         }
     }
 
@@ -317,15 +529,15 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     }
 
     /// <summary>
-    ///     A question with two answers, and both of them in the same row.
+    ///     A question with two answers, arranged either side-by-side or stacked vertically when labels are long.
     /// </summary>
     public void OpenConfirm(string title, string subtitle, string okLabel, string cancelLabel,
-        bool destructive = false, Action onConfirm = null)
+        bool destructive = false, Action onConfirm = null, Action onCancel = null)
     {
         try
         {
             ApplyCompactShape();
-            Panel.WidthRequest = 310;
+            Panel.WidthRequest = 330;
 
             var hasCancel = !string.IsNullOrWhiteSpace(cancelLabel);
 
@@ -350,13 +562,23 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             }
 
             var capturedConfirm = onConfirm;
+            var capturedCancel = onCancel;
 
             ItemsHost.Clear();
 
+            var okText = okLabel ?? "OK";
             if (hasCancel)
             {
-                var cancelButton = CreateActionButton(cancelLabel, () => Dismiss(), ActionButtonKind.Secondary);
-                var okButton = CreateActionButton(okLabel ?? "OK", () =>
+                var isLong = okText.Length > 11 || cancelLabel.Length > 11;
+
+                var cancelButton = CreateActionButton(cancelLabel, () =>
+                {
+                    ClosingByChoice = true;
+                    Dismiss();
+                    ClosingByChoice = false;
+                    capturedCancel?.Invoke();
+                }, ActionButtonKind.Secondary);
+                var okButton = CreateActionButton(okText, () =>
                 {
                     ClosingByChoice = true;
                     Dismiss();
@@ -364,11 +586,21 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     capturedConfirm?.Invoke();
                 }, destructive ? ActionButtonKind.Destructive : ActionButtonKind.Primary);
 
-                ItemsHost.Add(CreateActionPair(cancelButton, okButton));
+                if (isLong)
+                {
+                    okButton.Margin = new Thickness(0, 10, 0, 0);
+                    cancelButton.Margin = new Thickness(0, 8, 0, 0);
+                    ItemsHost.Add(okButton);
+                    ItemsHost.Add(cancelButton);
+                }
+                else
+                {
+                    ItemsHost.Add(CreateActionPair(cancelButton, okButton));
+                }
             }
             else
             {
-                var okButton = CreateActionButton(okLabel ?? "OK", () =>
+                var okButton = CreateActionButton(okText, () =>
                 {
                     ClosingByChoice = true;
                     Dismiss();
@@ -571,7 +803,17 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 }, ActionButtonKind.Secondary);
 
                 var okButton = CreateActionButton(okLabel ?? "OK", performUpdateAction, ActionButtonKind.Primary);
-                ItemsHost.Add(CreateActionPair(cancelButton, okButton));
+                if ((okLabel?.Length ?? 0) > 11 || cancelLabel.Length > 11)
+                {
+                    okButton.Margin = new Thickness(0, 10, 0, 0);
+                    cancelButton.Margin = new Thickness(0, 8, 0, 0);
+                    ItemsHost.Add(okButton);
+                    ItemsHost.Add(cancelButton);
+                }
+                else
+                {
+                    ItemsHost.Add(CreateActionPair(cancelButton, okButton));
+                }
             }
 
             IsVisible = true;
@@ -594,10 +836,9 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         //
         // These four numbers are the card's css, in one place, for every panel that uses this shape:
         // the confirms, the note and tag prompts, and everything raised through OptionsSheetHost.
-        // They are tight on purpose. An earlier pass put 12 above and 18 below to even out a header
-        // margin that has since changed, and the result was a card that read as empty at both ends.
-        Panel.Padding = new Thickness(0, 14, 0, 8);
+        Panel.Padding = new Thickness(0, 14, 0, 12);
         Header.Margin = new Thickness(20, 0, 12, 8);
+        Handle.IsVisible = false;
 
         // The header and everything in it hang from the top of the card rather than sitting wherever
         // the 32dp close button happens to land. Measured on a device with the header's own layout

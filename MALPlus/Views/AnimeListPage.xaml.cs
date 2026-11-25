@@ -325,9 +325,43 @@ public partial class AnimeListPage : ContentPage
         ("Planned", 4),
     };
 
+    private static readonly List<WeakReference<AnimeListPage>> _activeListPages = new();
+
+    public static void DismissAllDropdowns()
+    {
+        List<AnimeListPage> pagesToClose = null;
+        lock (_activeListPages)
+        {
+            for (int i = _activeListPages.Count - 1; i >= 0; i--)
+            {
+                if (_activeListPages[i].TryGetTarget(out var page))
+                {
+                    pagesToClose ??= new List<AnimeListPage>();
+                    pagesToClose.Add(page);
+                }
+                else
+                {
+                    _activeListPages.RemoveAt(i);
+                }
+            }
+        }
+
+        if (pagesToClose != null)
+        {
+            foreach (var page in pagesToClose)
+            {
+                page.CloseStatusDropdown();
+            }
+        }
+    }
+
     public AnimeListPage()
     {
         InitializeComponent();
+        lock (_activeListPages)
+        {
+            _activeListPages.Add(new WeakReference<AnimeListPage>(this));
+        }
         BindingContext = ViewModelLocator.AnimeList;
         // A panel dismissed by a tap leaves the back callback armed, and the next Back press would
         // then be eaten by a panel that is no longer on screen.
@@ -374,6 +408,7 @@ public partial class AnimeListPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        CloseStatusDropdown();
         (Shell.Current as AppShell)?.UpdateSharedBarVisibility();
         BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
         StatusBar.BackgroundColor = MALPlus.Services.ThemeService.CurrentSheet;
@@ -582,7 +617,9 @@ public partial class AnimeListPage : ContentPage
             // the plain library anyway while the log cheerfully reported back=True.
             var returningFromDetails = _returningFromDetails;
             _returningFromDetails = false;
-            var status = ResolveStatus(query, modeFromQuery);
+            var status = ResolveStatus(query, modeFromQuery, returningFromDetails);
+            _detailsReturnStatus = -1;
+            _detailsReturnMode = -1;
             var type = ResolveType(query, modeFromQuery);
             ParseTypeQuery(mode, type);
             ParseRangeQuery(query);
@@ -650,6 +687,8 @@ Mode = null;
                 _appliedSettingsRevision = SettingsViewModelBase.SettingsRevision;
                 if (openStatusMenu)
                     ToggleContextMenu(ContextMenuKind.Status);
+                else
+                    CloseStatusDropdown();
                 UpdateContextBars();
                 return;
             }
@@ -1695,8 +1734,18 @@ Season? routeSeason = null, int? routeYear = null)
         return false;
     }
 
-    private int ResolveStatus(Dictionary<string, string> query, bool fromQuery)
+    private int ResolveStatus(Dictionary<string, string> query, bool fromQuery, bool returningFromDetails = false)
     {
+        if (returningFromDetails)
+        {
+            if (_detailsReturnStatus >= 0 && _detailsReturnStatus <= MaxStatusIndex)
+                return _detailsReturnStatus;
+            if (_appliedStatus >= 0 && _appliedStatus <= MaxStatusIndex)
+                return _appliedStatus;
+            if (_lastStatus >= 0 && _lastStatus <= MaxStatusIndex)
+                return _lastStatus;
+        }
+
         if (fromQuery && query.TryGetValue("status", out var raw) &&
             int.TryParse(raw, out var parsed) && parsed >= 0 && parsed <= MaxStatusIndex)
             return parsed;
@@ -1705,20 +1754,19 @@ Season? routeSeason = null, int? routeYear = null)
 
     private int ResolveStatus()
     {
+        if (_detailsReturnStatus >= 0 && _detailsReturnStatus <= MaxStatusIndex)
+            return _detailsReturnStatus;
+        if (_appliedStatus >= 0 && _appliedStatus <= MaxStatusIndex)
+            return _appliedStatus;
+        if (_lastStatus >= 0 && _lastStatus <= MaxStatusIndex)
+            return _lastStatus;
+
         if (!string.IsNullOrWhiteSpace(Status))
         {
             if (int.TryParse(Status, out var parsed) && parsed >= 0 && parsed <= MaxStatusIndex)
                 return parsed;
             return DefaultStatusIndex;
         }
-
-        // No query and no [QueryProperty]: this is a back-nav from a details page, so the
-        // tab the user had chosen is still the right one. Falling back to the default here
-        // is what made "Planned" or "All" reopen as "Watching".
-        if (_appliedStatus >= 0)
-            return _appliedStatus;
-        if (_lastStatus >= 0)
-            return _lastStatus;
 
         return DefaultStatusIndex;
     }
@@ -1949,7 +1997,7 @@ Season? routeSeason = null, int? routeYear = null)
         OnStatusTabClicked(statusSelectorIndex);
     }
 
-    private void CloseStatusDropdown()
+    internal void CloseStatusDropdown()
     {
         try
         {
@@ -1958,8 +2006,19 @@ Season? routeSeason = null, int? routeYear = null)
             // that has already been handed to something else.
             _menuGeneration++;
             _openMenu = ContextMenuKind.None;
-            if (StatusDropdownOverlay != null)
-                StatusDropdownOverlay.IsVisible = false;
+            if (MainThread.IsMainThread)
+            {
+                if (StatusDropdownOverlay != null)
+                    StatusDropdownOverlay.IsVisible = false;
+            }
+            else
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (StatusDropdownOverlay != null)
+                        StatusDropdownOverlay.IsVisible = false;
+                });
+            }
         }
         catch { }
     }
@@ -2153,6 +2212,8 @@ case AnimeListWorkModes.SeasonalAnime:
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        CloseStatusDropdown();
+        PosterSheet?.Dismiss();
         // The panel's back callback is armed for as long as the reader is ON the list. Without
         // releasing it here it kept answering while a details page was in front, and back from a
         // details page was spent leaving the subpanel instead of coming back to it: the press ran
@@ -2376,28 +2437,64 @@ case AnimeListWorkModes.SeasonalAnime:
             var isAnime = !manga;
             var rows = new List<MALPlus.Controls.OptionsSheetItem>
             {
-                new("Recommend to friends", "icon_share", action: () =>
+                new("Recommend to friends", "icon_share", action: async () =>
                 {
                     var msg = ResourceLocator.ShareManager.GenerateRecommendMessage(
                         vm.Title, vm.Id, isAnime, vm.GlobalScore, vm.Type, vm.AllEpisodes);
-                    GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(msg);
+                    var url = $"https://myanimelist.net/{(isAnime ? "anime" : "manga")}/{vm.Id}";
+                    var model = new MALPlus.Models.Models.Anime.ShareCardModel
+                    {
+                        Id = vm.Id,
+                        Title = vm.Title,
+                        IsAnime = isAnime,
+                        ImageUrl = XShared.Utils.MalImageUrl.Normalize(vm.ImgUrl),
+                        GlobalScore = vm.GlobalScore,
+                        Type = vm.Type,
+                        SeasonTag = vm.SeasonTag,
+                        TotalEpisodes = vm.AllEpisodes,
+                        StatusText = "Recommended",
+                        ShareText = msg,
+                        Url = url
+                    };
+                    sheet.Dismiss();
+                    await OptionsSheetHost.ShowSharePreviewAsync(model);
                 })
             };
 
             if (vm.Auth)
             {
-                rows.Add(new MALPlus.Controls.OptionsSheetItem("Share my progress", "icon_user", action: () =>
+                rows.Add(new MALPlus.Controls.OptionsSheetItem("Share my progress", "icon_user", action: async () =>
                 {
                     var msg = ResourceLocator.ShareManager.GenerateMyEntryMessage(
                         vm.Title, vm.Id, isAnime, vm.MyStatus.ToString(), (int)vm.MyScore, vm.MyEpisodes, vm.AllEpisodes);
-                    GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(msg);
+                    var url = $"https://myanimelist.net/{(isAnime ? "anime" : "manga")}/{vm.Id}";
+                    var model = new MALPlus.Models.Models.Anime.ShareCardModel
+                    {
+                        Id = vm.Id,
+                        Title = vm.Title,
+                        IsAnime = isAnime,
+                        ImageUrl = XShared.Utils.MalImageUrl.Normalize(vm.ImgUrl),
+                        Score = (int)vm.MyScore,
+                        GlobalScore = vm.GlobalScore,
+                        Type = vm.Type,
+                        SeasonTag = vm.SeasonTag,
+                        WatchedEpisodes = vm.MyEpisodes,
+                        TotalEpisodes = vm.AllEpisodes,
+                        StatusText = vm.MyStatus.ToString(),
+                        ProgressText = vm.AllEpisodes > 0 ? $"{vm.MyEpisodes}/{vm.AllEpisodes}" : $"{vm.MyEpisodes} eps",
+                        ShareText = msg,
+                        Url = url
+                    };
+                    sheet.Dismiss();
+                    await OptionsSheetHost.ShowSharePreviewAsync(model);
                 }));
             }
 
             rows.Add(new MALPlus.Controls.OptionsSheetItem("Share link only", "icon_list", action: () =>
             {
                 var url = $"https://myanimelist.net/{(isAnime ? "anime" : "manga")}/{vm.Id}";
-                GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(url);
+                var shareUrl = XShared.BL.ShareManager.FormatShareUrls(url);
+                GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(shareUrl);
             }));
 
             rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy link to clipboard", "icon_copy",
@@ -2645,6 +2742,7 @@ case AnimeListWorkModes.SeasonalAnime:
             _returningFromDetails = true;
             _detailsReturnMode = _lastMode;
             _detailsReturnManga = manga;
+            _detailsReturnStatus = _lastStatus >= 0 ? _lastStatus : _appliedStatus;
 
             _panelBackArmed = false;
             MainActivity.DisarmMenuBackCallback();
@@ -2663,6 +2761,7 @@ case AnimeListWorkModes.SeasonalAnime:
 
     private int _detailsReturnMode = -1;
     private bool _detailsReturnManga;
+    private int _detailsReturnStatus = -1;
 
     /// <summary>
     ///     The way back from a details page this list opened: straight to this list, in the state it was
@@ -2673,6 +2772,7 @@ case AnimeListWorkModes.SeasonalAnime:
         MainActivity.DisarmMenuBackCallback();
         _detailsReturnMode = -1;
         _detailsReturnManga = false;
+        _detailsReturnStatus = -1;
         _ = MainThread.InvokeOnMainThreadAsync(async () =>
         {
             try

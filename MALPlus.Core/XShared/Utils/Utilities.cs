@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
@@ -105,14 +106,21 @@ namespace MALPlus.XShared.Utils
 
         public static string FormatMalDate(string date)
         {
-            if (date == null)
-                return null;
+            if (string.IsNullOrWhiteSpace(date) || date == "0000-00-00" || date.StartsWith("0000"))
+                return "";
 
-            var month = date.Substring(5, 2);
-            var day = date.Substring(8, 2);
-            var year = date.Substring(0, 4);
+            if (DateTime.TryParse(date, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+                return dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-            return $"{year}-{month}-{day}";
+            if (date.Length >= 10)
+            {
+                var month = date.Substring(5, 2);
+                var day = date.Substring(8, 2);
+                var year = date.Substring(0, 4);
+                return $"{year}-{month}-{day}";
+            }
+
+            return "";
         }
 
         public static string DayToString(DayOfWeek day, bool ignoreOffset = false)

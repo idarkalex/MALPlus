@@ -24,5 +24,9 @@ namespace MALPlus.Models.Models.Anime
         public int Id { get; set; }
         public bool IsVolumes { get; set; }
         public int RewatchCount { get; set; }
+        public string ImageUrl { get; set; }
+        public string Type { get; set; }
+        public string SeasonTag { get; set; }
+        public float GlobalScore { get; set; }
     }
 }

@@ -82,9 +82,51 @@ public partial class LogInPage : ContentPage
         await Task.CompletedTask;
     }
 
+    private void OnEntryHandlerChanged(object sender, EventArgs e)
+    {
+#if ANDROID
+        try
+        {
+            if (sender is Entry entry && entry.Handler?.PlatformView is global::Android.Widget.EditText edit)
+            {
+                edit.Background = null;
+                edit.SetPadding(0, 0, 0, 0);
+                edit.Gravity = global::Android.Views.GravityFlags.CenterVertical |
+                               global::Android.Views.GravityFlags.Start;
+            }
+        }
+        catch { }
+#endif
+    }
+
+    private void StripEntryUnderlines()
+    {
+#if ANDROID
+        try
+        {
+            if (UserEntry?.Handler?.PlatformView is global::Android.Widget.EditText userEdit)
+            {
+                userEdit.Background = null;
+                userEdit.SetPadding(0, 0, 0, 0);
+                userEdit.Gravity = global::Android.Views.GravityFlags.CenterVertical |
+                                   global::Android.Views.GravityFlags.Start;
+            }
+            if (PassEntry?.Handler?.PlatformView is global::Android.Widget.EditText passEdit)
+            {
+                passEdit.Background = null;
+                passEdit.SetPadding(0, 0, 0, 0);
+                passEdit.Gravity = global::Android.Views.GravityFlags.CenterVertical |
+                                   global::Android.Views.GravityFlags.Start;
+            }
+        }
+        catch { }
+#endif
+    }
+
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        StripEntryUnderlines();
         if (_initialized)
             return;
         _initialized = true;

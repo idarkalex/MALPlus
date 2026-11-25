@@ -173,6 +173,61 @@ public class MauiShareProvider : IShareProvider
             await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(new ShareTextRequest { Text = message ?? string.Empty });
         });
     }
+
+    public void Share(string message, string imagePath)
+    {
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+#if ANDROID
+            try
+            {
+                if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
+                {
+                    var activity = Platform.CurrentActivity ?? Android.App.Application.Context;
+                    var intent = new Android.Content.Intent(Android.Content.Intent.ActionSend);
+                    intent.SetType("image/png");
+
+                    var javaFile = new Java.IO.File(imagePath);
+                    var uri = AndroidX.Core.Content.FileProvider.GetUriForFile(
+                        activity,
+                        $"{activity.PackageName}.fileprovider",
+                        javaFile);
+
+                    intent.PutExtra(Android.Content.Intent.ExtraStream, uri);
+                    if (!string.IsNullOrEmpty(message))
+                    {
+                        intent.PutExtra(Android.Content.Intent.ExtraText, message);
+                    }
+                    intent.AddFlags(Android.Content.ActivityFlags.GrantReadUriPermission);
+
+                    var chooser = Android.Content.Intent.CreateChooser(intent, "Share");
+                    chooser.AddFlags(Android.Content.ActivityFlags.NewTask);
+                    activity.StartActivity(chooser);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS Native Share with image failed: " + ex.Message);
+            }
+#endif
+            if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
+            {
+                await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(new ShareFileRequest
+                {
+                    Title = "Share",
+                    File = new ShareFile(imagePath)
+                });
+            }
+            else
+            {
+                await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(new ShareTextRequest
+                {
+                    Text = message ?? string.Empty
+                });
+            }
+        });
+    }
 }
 
 public class MauiMessageDialogProvider : IMessageDialogProvider

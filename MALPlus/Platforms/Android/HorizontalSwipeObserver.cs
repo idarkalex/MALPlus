@@ -297,7 +297,11 @@ internal static class HorizontalSwipeObserver
             && pager.UserInputEnabled
             && (pager.CanScrollHorizontally(1) || pager.CanScrollHorizontally(-1)))
             return view;
-        if (view is RecyclerView recycler
+        if (view is Microsoft.Maui.Controls.Handlers.Items.MauiCarouselRecyclerView carousel && !carousel.IsSwipeEnabled)
+        {
+            // Carousel swipe is disabled; allow ITabSwipeHost to handle page-level tab swipes.
+        }
+        else if (view is RecyclerView recycler
             && recycler.Parent is not ViewPager2
             && recycler.GetLayoutManager() is LinearLayoutManager manager
             && manager.Orientation == LinearLayoutManager.Horizontal

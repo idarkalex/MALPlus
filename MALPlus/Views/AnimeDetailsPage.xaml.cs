@@ -791,15 +791,59 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
             // Only offered while the entry can actually be rewatching, same as the original.
             if (vm.IsRewatchingButtonVisibility)
+            {
+                var rewatchLabel = vm.IsRewatching
+                    ? (vm.AnimeMode ? "Stop rewatching" : "Stop rereading")
+                    : (vm.AnimeMode ? "Start rewatching" : "Start rereading");
+
                 rows.Add(new MALPlus.Controls.OptionsSheetItem(
-                    vm.AnimeMode ? "Rewatching" : "Rereading", "icon_history",
-                    submenu: sheet => OpenRewatchSubmenu(sheet, vm)));
+                    rewatchLabel, "icon_history",
+                    action: () =>
+                    {
+                        if (!vm.IsRewatching)
+                        {
+                            DetailsSheet.OpenConfirm(
+                                vm.AnimeMode ? "Start rewatching?" : "Start rereading?",
+                                vm.AnimeMode
+                                    ? "This will set status to Rewatching and reset watched episodes to 0.\n\nDo you want to set your start date to today and clear the finish date?"
+                                    : "This will set status to Rereading and reset read chapters to 0.\n\nDo you want to set your start reading date to today and clear the finish reading date?",
+                                "Update dates",
+                                "Keep original dates",
+                                destructive: false,
+                                onConfirm: async () =>
+                                {
+                                    await vm.StartRewatchingAsync(updateDates: true);
+                                },
+                                onCancel: async () =>
+                                {
+                                    await vm.StartRewatchingAsync(updateDates: false);
+                                });
+                        }
+                        else
+                        {
+                            vm.IsRewatching = false;
+                            DetailsSheet.Dismiss();
+                        }
+                    },
+                    value: vm.IsRewatching ? "Active" : null));
+            }
 
             if (onList)
             {
                 rows.Add(new MALPlus.Controls.OptionsSheetItem(
                     vm.AnimeMode ? "Set rewatch count" : "Set reread count", "icon_episodes",
-                    submenu: sheet => OpenRewatchSubmenu(sheet, vm)));
+                    submenu: sheet => OpenRewatchSubmenu(sheet, vm),
+                    value: vm.RewatchCount > 0 ? vm.RewatchCount.ToString() : "None"));
+
+                rows.Add(new MALPlus.Controls.OptionsSheetItem(
+                    vm.AnimeMode ? "Start date" : "Start reading date", "icon_history",
+                    submenu: sheet => OpenStartDateSubmenu(sheet, vm),
+                    value: vm.MyStartDate));
+
+                rows.Add(new MALPlus.Controls.OptionsSheetItem(
+                    vm.AnimeMode ? "Finish date" : "Finish reading date", "icon_history",
+                    submenu: sheet => OpenEndDateSubmenu(sheet, vm),
+                    value: vm.MyEndDate));
 
                 // The two fields at the bottom of MAL's own edit form. Only offered while the entry
                 // is on the list, because my_list_status does not exist for anything else and both
@@ -842,28 +886,64 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             var onList = !vm.AddAnimeVisibility;
             var rows = new List<MALPlus.Controls.OptionsSheetItem>
             {
-                new("Recommend to friends", "icon_share", action: () =>
+                new("Recommend to friends", "icon_share", action: async () =>
                 {
                     var msg = ResourceLocator.ShareManager.GenerateRecommendMessage(
                         vm.Title, vm.Id, vm.AnimeMode, vm.GlobalScore, vm.Type, vm.AllEpisodes);
-                    GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(msg);
+                    var url = $"https://myanimelist.net/{(vm.AnimeMode ? "anime" : "manga")}/{vm.Id}";
+                    var model = new MALPlus.Models.Models.Anime.ShareCardModel
+                    {
+                        Id = vm.Id,
+                        Title = vm.Title,
+                        IsAnime = vm.AnimeMode,
+                        ImageUrl = vm.DetailImage,
+                        GlobalScore = vm.GlobalScore,
+                        Type = vm.Type,
+                        SeasonTag = !string.IsNullOrWhiteSpace(vm.GeneralSeason) ? vm.GeneralSeason : vm.StartYear,
+                        TotalEpisodes = vm.AllEpisodes,
+                        StatusText = "Recommended",
+                        ShareText = msg,
+                        Url = url
+                    };
+                    sheet.Dismiss();
+                    await OptionsSheetHost.ShowSharePreviewAsync(model);
                 })
             };
 
             if (onList)
             {
-                rows.Add(new MALPlus.Controls.OptionsSheetItem("Share my progress", "icon_user", action: () =>
+                rows.Add(new MALPlus.Controls.OptionsSheetItem("Share my progress", "icon_user", action: async () =>
                 {
                     var msg = ResourceLocator.ShareManager.GenerateMyEntryMessage(
                         vm.Title, vm.Id, vm.AnimeMode, vm.MyStatus.ToString(), (int)vm.MyScore, vm.MyEpisodes, vm.AllEpisodes);
-                    GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(msg);
+                    var url = $"https://myanimelist.net/{(vm.AnimeMode ? "anime" : "manga")}/{vm.Id}";
+                    var model = new MALPlus.Models.Models.Anime.ShareCardModel
+                    {
+                        Id = vm.Id,
+                        Title = vm.Title,
+                        IsAnime = vm.AnimeMode,
+                        ImageUrl = vm.DetailImage,
+                        Score = (int)vm.MyScore,
+                        GlobalScore = vm.GlobalScore,
+                        Type = vm.Type,
+                        SeasonTag = !string.IsNullOrWhiteSpace(vm.GeneralSeason) ? vm.GeneralSeason : vm.StartYear,
+                        WatchedEpisodes = vm.MyEpisodes,
+                        TotalEpisodes = vm.AllEpisodes,
+                        StatusText = vm.MyStatus.ToString(),
+                        ProgressText = vm.AllEpisodes > 0 ? $"{vm.MyEpisodes}/{vm.AllEpisodes}" : $"{vm.MyEpisodes} eps",
+                        ShareText = msg,
+                        Url = url
+                    };
+                    sheet.Dismiss();
+                    await OptionsSheetHost.ShowSharePreviewAsync(model);
                 }));
             }
 
             rows.Add(new MALPlus.Controls.OptionsSheetItem("Share link only", "icon_list", action: () =>
             {
                 var url = $"https://myanimelist.net/{(vm.AnimeMode ? "anime" : "manga")}/{vm.Id}";
-                GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(url);
+                var shareUrl = XShared.BL.ShareManager.FormatShareUrls(url);
+                GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<MALPlus.Adapters.IShareProvider>()?.Share(shareUrl);
             }));
 
             rows.Add(new MALPlus.Controls.OptionsSheetItem("Copy link to clipboard", "icon_copy",
@@ -1048,19 +1128,146 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     private bool OpenRewatchSubmenu(MALPlus.Controls.OptionsSheet sheet,
         MALPlus.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
     {
+        var currentCount = vm.RewatchCount;
         var rows = new List<MALPlus.Controls.OptionsSheetItem>
         {
             new("None", "icon_episodes",
-                action: () => vm.SetRewatchCount(0))
+                action: () =>
+                {
+                    vm.SetRewatchCount(0);
+                    sheet.Dismiss();
+                },
+                value: currentCount == 0 ? "✓" : null)
         };
         for (var count = 1; count <= 5; count++)
         {
             var picked = count;
             rows.Add(new MALPlus.Controls.OptionsSheetItem(picked.ToString(), "icon_episodes",
-                action: () => vm.SetRewatchCount(picked)));
+                action: () =>
+                {
+                    if (!vm.IsRewatching)
+                    {
+                        sheet.OpenConfirm(
+                            vm.AnimeMode ? "Start rewatching?" : "Start rereading?",
+                            vm.AnimeMode
+                                ? $"Set rewatch count to {picked} and start rewatching (episodes reset to 0).\n\nDo you want to set your start date to today and clear the finish date?"
+                                : $"Set reread count to {picked} and start rereading (chapters reset to 0).\n\nDo you want to set your start reading date to today and clear the finish reading date?",
+                            "Update dates",
+                            "Keep original dates",
+                            destructive: false,
+                            onConfirm: async () =>
+                            {
+                                await vm.SetRewatchCountAsync(picked);
+                                await vm.StartRewatchingAsync(updateDates: true);
+                            },
+                            onCancel: async () =>
+                            {
+                                await vm.SetRewatchCountAsync(picked);
+                                await vm.StartRewatchingAsync(updateDates: false);
+                            });
+                    }
+                    else
+                    {
+                        vm.SetRewatchCount(picked);
+                        sheet.Dismiss();
+                    }
+                },
+                value: currentCount == picked ? "✓" : null));
         }
 
-        sheet.OpenSubmenu(vm.AnimeMode ? "Rewatching" : "Rereading", rows, () => OnShowMoreRequested());
+        sheet.OpenSubmenu(vm.AnimeMode ? "Rewatch count" : "Reread count", rows, () => OnShowMoreRequested());
+        return true;
+    }
+
+    private bool OpenStartDateSubmenu(MALPlus.Controls.OptionsSheet sheet,
+        MALPlus.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
+    {
+        var rows = new List<MALPlus.Controls.OptionsSheetItem>
+        {
+            new($"Today ({DateTime.Now:yyyy-MM-dd})", "icon_history", action: () =>
+            {
+                vm.StartDateTimeOffset = DateTimeOffset.Now;
+                sheet.Dismiss();
+            }),
+            new("Custom date (YYYY-MM-DD)", "icon_history", action: () =>
+            {
+                sheet.OpenPrompt(vm.AnimeMode ? "Start date" : "Start reading date", "Enter date as YYYY-MM-DD",
+                    vm.MyStartDate != "Not set" ? vm.MyStartDate : DateTime.Now.ToString("yyyy-MM-dd"),
+                    "YYYY-MM-DD", 10, false,
+                    value =>
+                    {
+                        if (DateTimeOffset.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dto))
+                        {
+                            vm.StartDateTimeOffset = dto;
+                        }
+                        else
+                        {
+                            MALPlus.XShared.ViewModels.ResourceLocator.SnackbarProvider.ShowText("Invalid date format. Use YYYY-MM-DD.");
+                        }
+                    },
+                    onCancel: () => OnShowMoreRequested(),
+                    keyboard: Keyboard.Numeric);
+            })
+        };
+
+        if (vm.MyStartDate != "Not set")
+        {
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Clear date (Not set)", "icon_close",
+                action: () =>
+                {
+                    vm.ResetStartDateCommand?.Execute(null);
+                    sheet.Dismiss();
+                },
+                destructive: true));
+        }
+
+        sheet.OpenSubmenu(vm.AnimeMode ? "Start date" : "Start reading date", rows, () => OnShowMoreRequested());
+        return true;
+    }
+
+    private bool OpenEndDateSubmenu(MALPlus.Controls.OptionsSheet sheet,
+        MALPlus.XShared.ViewModels.Details.AnimeDetailsPageViewModel vm)
+    {
+        var rows = new List<MALPlus.Controls.OptionsSheetItem>
+        {
+            new($"Today ({DateTime.Now:yyyy-MM-dd})", "icon_history", action: () =>
+            {
+                vm.EndDateTimeOffset = DateTimeOffset.Now;
+                sheet.Dismiss();
+            }),
+            new("Custom date (YYYY-MM-DD)", "icon_history", action: () =>
+            {
+                sheet.OpenPrompt(vm.AnimeMode ? "Finish date" : "Finish reading date", "Enter date as YYYY-MM-DD",
+                    vm.MyEndDate != "Not set" ? vm.MyEndDate : DateTime.Now.ToString("yyyy-MM-dd"),
+                    "YYYY-MM-DD", 10, false,
+                    value =>
+                    {
+                        if (DateTimeOffset.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dto))
+                        {
+                            vm.EndDateTimeOffset = dto;
+                        }
+                        else
+                        {
+                            MALPlus.XShared.ViewModels.ResourceLocator.SnackbarProvider.ShowText("Invalid date format. Use YYYY-MM-DD.");
+                        }
+                    },
+                    onCancel: () => OnShowMoreRequested(),
+                    keyboard: Keyboard.Numeric);
+            })
+        };
+
+        if (vm.MyEndDate != "Not set")
+        {
+            rows.Add(new MALPlus.Controls.OptionsSheetItem("Clear date (Not set)", "icon_close",
+                action: () =>
+                {
+                    vm.ResetEndDateCommand?.Execute(null);
+                    sheet.Dismiss();
+                },
+                destructive: true));
+        }
+
+        sheet.OpenSubmenu(vm.AnimeMode ? "Finish date" : "Finish reading date", rows, () => OnShowMoreRequested());
         return true;
     }
 
@@ -1175,6 +1382,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
             ApplyCharacterStaffBindings();
             Dispatcher.Dispatch(UpdateHeaderSpacer);
             NotifyStateProperties();
+
             System.Diagnostics.Debug.WriteLine("MALPLUS Details Init returned title=" + vm.Title
                 + " rank=" + vm.GeneralRank + " pop=" + vm.GeneralPopularity
                 + " studios=" + vm.GeneralStudios + " animemode=" + vm.AnimeMode);
@@ -1917,10 +2125,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     {
         try
         {
-            // CommandParameter already carries the exact review instance bound to the row,
-            // so it is the only one that may flip. Walking the collection by index used to
-            // expand every review from this one downwards.
-            if (sender is Button button && button.CommandParameter is AnimeReviewData review)
+            // CommandParameter carries the review instance when tapped from Button,
+            // or BindingContext carries it when tapped from the Review Label.
+            var review = (sender as Button)?.CommandParameter as AnimeReviewData
+                         ?? (sender as Element)?.BindingContext as AnimeReviewData;
+            if (review != null && review.ReviewToggleVisible)
                 review.IsExpanded = !review.IsExpanded;
         }
         catch (Exception ex)
@@ -1976,6 +2185,12 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
                 // watch every time for that reason and nothing else.
                 if (!await Vm.AddToListAsync())
                     return;
+            }
+
+            if (options[index] == AnimeStatus.Completed && Vm.IsRewatching)
+            {
+                await Vm.CompleteRewatchAsync();
+                return;
             }
 
             Vm.ChangeStatus(options[index]);
@@ -2188,12 +2403,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     {
         try
         {
-            if (sender is not BindableObject bo)
-                return;
-            var card = bo.BindingContext as MangaCharacterCard;
+            var card = (e?.Parameter as MangaCharacterCard)
+                       ?? (sender as BindableObject)?.BindingContext as MangaCharacterCard;
             var id = ResolveStringId(card?.Id);
             if (id > 0)
-                NavigateToCharacter(id);
+                _ = NavigateToCharacter(id);
         }
         catch (Exception ex)
         {
@@ -2206,12 +2420,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     {
         try
         {
-            if (sender is not BindableObject bo)
-                return;
-            var card = bo.BindingContext as AnimeCharacterCard;
+            var card = (e?.Parameter as AnimeCharacterCard)
+                       ?? (sender as BindableObject)?.BindingContext as AnimeCharacterCard;
             var id = ResolveStringId(card?.AnimeCharacter?.Data?.Id);
             if (id > 0)
-                NavigateToCharacter(id);
+                _ = NavigateToCharacter(id);
         }
         catch (Exception ex)
         {
@@ -2224,12 +2437,11 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     {
         try
         {
-            if (sender is not BindableObject bo)
-                return;
-            var card = bo.BindingContext as StaffCard;
+            var card = (e?.Parameter as StaffCard)
+                       ?? (sender as BindableObject)?.BindingContext as StaffCard;
             var id = ResolveStringId(card?.Id);
             if (id > 0)
-                NavigateToStaff(id);
+                _ = NavigateToStaff(id);
         }
         catch (Exception ex)
         {
@@ -2249,6 +2461,25 @@ private async void OnJapaneseVoiceClicked(object sender, EventArgs e)
             Console.WriteLine("MALPlus OnJapaneseVoiceClicked failed: " + ex.Message);
         }
     }
+
+    private async void OnJapaneseVoiceTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (TryGetNavigationId(e?.Parameter, out var id))
+                await Shell.Current.GoToAsync($"staff?id={id}");
+            else if (sender is BindableObject bo && bo.BindingContext is AnimeCharacterCard card &&
+                     TryGetNavigationId(card?.JapaneseVoice?.Data?.Id, out var cardStaffId))
+                await Shell.Current.GoToAsync($"staff?id={cardStaffId}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("MALPLUS OnJapaneseVoiceTapped: " + ex.Message);
+        }
+    }
+
+    private void OnSeeAllCharactersClicked(object sender, EventArgs e) => _ = SelectTabAsync(6, 1);
+    private void OnSeeAllStaffClicked(object sender, EventArgs e) => _ = SelectTabAsync(7, 1);
 
     private static int ResolveCharacterId(object item) => item switch
     {

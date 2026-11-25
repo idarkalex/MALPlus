@@ -7,7 +7,7 @@ using MALPlus.XShared.ViewModels.Main;
 namespace MALPlus.Views;
 
 [QueryProperty(nameof(InitialMode), "mode")]
-public partial class CalendarPage : ContentPage
+public partial class CalendarPage : ContentPage, ITabSwipeHost
 {
     private bool _initialized;
     private string _initialMode;
@@ -415,6 +415,34 @@ public partial class CalendarPage : ContentPage
         });
     }
 
+    bool ITabSwipeHost.TrySwipe(int direction)
+    {
+        if (Vm?.CalendarData == null || Vm.CalendarData.Count == 0)
+            return false;
+
+        var current = Vm.CalendarPivotIndex;
+        var next = current + (direction > 0 ? 1 : -1);
+        if (next < 0 || next >= Vm.CalendarData.Count)
+            return false;
+
+        SelectDay(next);
+        return true;
+    }
+
+    private void SelectDay(int index)
+    {
+        if (Vm?.CalendarData == null || index < 0 || index >= Vm.CalendarData.Count)
+            return;
+
+        if (Vm.CalendarPivotIndex != index)
+        {
+            Vm.CalendarPivotIndex = index;
+            CalendarCarousel.Position = index;
+            SyncPagerToElement();
+        }
+        HighlightActiveTab();
+    }
+
     /// <summary>
     ///     Re-applies the pager's swipe flag after every publish. A publish replaces the
     ///     carousel's items and the platform pager must come out of that swap with user input
@@ -425,11 +453,10 @@ public partial class CalendarPage : ContentPage
         try
         {
             CalendarCarousel.IsSwipeEnabled = false;
-            CalendarCarousel.IsSwipeEnabled = true;
 #if ANDROID
             if (CalendarCarousel.Handler?.PlatformView is Microsoft.Maui.Controls.Handlers.Items.MauiCarouselRecyclerView platform)
             {
-                platform.IsSwipeEnabled = true;
+                platform.IsSwipeEnabled = false;
                 platform.SetItemViewCacheSize(8);
             }
             ArmCarouselTouchShield();
@@ -669,16 +696,7 @@ public partial class CalendarPage : ContentPage
     {
         if (sender is not Button btn || btn.CommandParameter is not int index)
             return;
-        if (Vm?.CalendarData == null || index < 0 || index >= Vm.CalendarData.Count)
-            return;
-
-        if (Vm.CalendarPivotIndex != index)
-        {
-            Vm.CalendarPivotIndex = index;
-            CalendarCarousel.Position = index;
-            SyncPagerToElement();
-        }
-        HighlightActiveTab();
+        SelectDay(index);
     }
 
     private void HighlightActiveTab()
