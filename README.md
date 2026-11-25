@@ -86,9 +86,9 @@
 
 <table align="center">
   <tr>
-    <td align="center"><img src="images/preview-library.png" alt="Library view" width="250px" /><br><sub><b>Library</b></sub></td>
-    <td align="center"><img src="images/preview-details.png" alt="Anime details with OP/ED themes" width="250px" /><br><sub><b>Details and themes</b></sub></td>
-    <td align="center"><img src="images/preview-discover.png" alt="Discover hub" width="250px" /><br><sub><b>Discover</b></sub></td>
+    <td align="center"><img src="images/preview-library.png" alt="Library view" width="240px" /><br><sub><b>Library</b></sub></td>
+    <td align="center"><img src="images/preview-details.png" alt="Anime details with OP/ED themes" width="240px" /><br><sub><b>Details and themes</b></sub></td>
+    <td align="center"><img src="images/preview-discover.png" alt="Discover hub" width="240px" /><br><sub><b>Discover</b></sub></td>
   </tr>
 </table>
 
@@ -104,9 +104,9 @@ MAL+ is expanding to desktop! A dedicated Windows client built with .NET is curr
 
 <table align="center">
   <tr>
-    <td align="center"><img src="images/preview-windows-library.jpg" alt="MAL+ Windows Library Grid" width="260px" /><br><sub><b>High-Density Library</b></sub></td>
-    <td align="center"><img src="images/preview-windows-details.jpg" alt="MAL+ Windows Anime Details" width="260px" /><br><sub><b>Anime Details &amp; Relations</b></sub></td>
-    <td align="center"><img src="images/preview-windows-player.jpg" alt="MAL+ Windows Theme Player" width="260px" /><br><sub><b>AnimeThemes Player</b></sub></td>
+    <td align="center"><img src="images/preview-windows-library.jpg" alt="MAL+ Windows Library Grid" width="280px" /><br><sub><b>High-Density Library</b></sub></td>
+    <td align="center"><img src="images/preview-windows-details.jpg" alt="MAL+ Windows Anime Details" width="280px" /><br><sub><b>Anime Details &amp; Relations</b></sub></td>
+    <td align="center"><img src="images/preview-windows-player.jpg" alt="MAL+ Windows Theme Player" width="280px" /><br><sub><b>AnimeThemes Player</b></sub></td>
   </tr>
 </table>
 
@@ -185,8 +185,8 @@ dotnet build MALPlus/MALPlus.csproj -f net11.0-android37.0 -p:Configuration=Rele
 
 MAL+ exists thanks to the open-source community:
 
-- **[Drutol](https://github.com/Drutol)**: author of the original [MALClient](https://github.com/Drutol/MALClient) (UWP / Xamarin), the foundation of this client.
-- **[idarkalex](https://github.com/idarkalex)**: maintainer, responsible for the fork, the .NET 11 MAUI rewrite and the performance work.
+- **[idarkalex](https://github.com/idarkalex)**: project creator and maintainer, responsible for the modern .NET 11 MAUI rewrite, Windows edition, architecture, and performance work.
+- **[Drutol](https://github.com/Drutol)**: author of the original [MALClient](https://github.com/Drutol/MALClient) (UWP / Xamarin), the legacy foundation of this client.
 - **[Tenrai API](https://api.tenrai.org)**: fast, reliable anime and manga metadata and episode catalogue.
 - **[AnimeThemes](https://animethemes.moe)**: an open repository of high-definition anime themes (OP/ED).
 - **[MyAnimeList](https://myanimelist.net)** and **[AniList](https://anilist.co)**: the communities and databases that make this app possible.
