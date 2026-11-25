@@ -1,86 +1,50 @@
 name: "🐛 Bug Report"
-description: "Report a bug, error, or unexpected behavior in MAL+"
+description: "Report a bug, crash, or unexpected behavior in MAL+"
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to report this issue! Before submitting:
-        1. Ensure you are running **version 0.7.0 or higher**. Previous versions (1.x Xamarin) are legacy and no longer supported.
-        2. Check the [Open Issues](https://github.com/idarkalex/MALPlus/issues) to see if this has already been reported.
+        Thanks for reporting! Before submitting, please make sure you're on the [latest release](https://github.com/idarkalex/MALPlus/releases/latest) and check [open issues](https://github.com/idarkalex/MALPlus/issues) to avoid duplicates.
 
-  - type: input
-    id: app_version
+  - type: dropdown
+    id: platform
     attributes:
-      label: "MAL+ Version (Minimum 0.7.0)"
-      description: "Found under Settings > UPDATES or ABOUT."
-      placeholder: "e.g., 0.7.0 (Build 201)"
+      label: "Platform"
+      options:
+        - "Android"
+        - "Windows"
     validations:
       required: true
 
   - type: input
-    id: device_model
+    id: environment
     attributes:
-      label: "Device Model"
-      description: "Physical device manufacturer and model."
-      placeholder: "e.g., Google Pixel 8, Samsung Galaxy S24, Xiaomi 13"
-    validations:
-      required: true
-
-  - type: input
-    id: android_version
-    attributes:
-      label: "Android Version"
-      description: "Operating system version."
-      placeholder: "e.g., Android 14, Android 15"
+      label: "App Version & Device / OS"
+      description: "Check Settings > ABOUT for the version (legacy 1.x versions are not supported)."
+      placeholder: "e.g., 0.7.7 · Pixel 8 (Android 15) or 0.7.7 · Windows 11"
     validations:
       required: true
 
   - type: textarea
-    id: description
+    id: details
     attributes:
-      label: "Bug Description"
-      description: "Explain clearly what happens."
-    validations:
-      required: true
-
-  - type: textarea
-    id: steps_to_reproduce
-    attributes:
-      label: "Steps to Reproduce"
-      description: "Step-by-step instructions to reproduce the behavior."
+      label: "What happened & how to reproduce"
+      description: "Describe the bug, how to trigger it, and what you expected (if not obvious)."
       placeholder: |
-        1. Go to 'Anime' tab
-        2. Tap on 'Fire Force'
-        3. Switch to 'Episodes' tab
-        4. Observe the issue
+        1. Go to ...
+        2. Tap on ...
+        3. App crashes / shows ...
     validations:
       required: true
 
   - type: textarea
-    id: expected_behavior
+    id: attachments
     attributes:
-      label: "Expected Behavior"
-      description: "What did you expect to happen?"
-    validations:
-      required: true
-
-  - type: textarea
-    id: diagnostics_logs
-    attributes:
-      label: "Diagnostic Logs (Recommended)"
+      label: "Logs or Screenshots (Optional)"
       description: |
-        Navigate to **Settings > DIAGNOSTICS & LOGS > Export logs**, save the `.txt` report, and attach it here or paste relevant log lines.
-        *(Logs are strictly local and automatically redact tokens and passwords).*
-      placeholder: "Paste relevant log snippets here or attach the exported diagnostic report..."
-    validations:
-      required: false
-
-  - type: textarea
-    id: screenshots
-    attributes:
-      label: "Screenshots or Screen Recordings"
-      description: "Drag and drop media files illustrating the issue."
+        Drag & drop screenshots/videos, or attach the `.txt` file from **Settings > DIAGNOSTICS & LOGS > Export logs** *(tokens/passwords are redacted automatically)*.
+      placeholder: "Paste log snippets or drag & drop files here..."
     validations:
       required: false
