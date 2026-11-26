@@ -58,7 +58,32 @@ public partial class WelcomeSetupPage : ContentPage
             "https://cdn.myanimelist.net/images/anime/1584/143719.jpg",
             "ONA", "★ 8.6", "★ 9", "Fall 24",
             "P", Color.FromArgb("#FFFFFF"), "0/12", "EP 6/12", "Airing",
-            Color.FromArgb("#4C1D24"), Color.FromArgb("#F97316"))
+            Color.FromArgb("#4C1D24"), Color.FromArgb("#F97316")),
+        new("Attack on Titan", "Shingeki no Kyojin",
+            "https://cdn.myanimelist.net/images/anime/10/47347.jpg",
+            "TV", "★ 8.6", "★ 10", "Spr 13",
+            "C", Color.FromArgb("#60A5FA"), "25/25", null, null,
+            Color.FromArgb("#2D1810"), Color.FromArgb("#9A3412")),
+        new("Steins;Gate", "Steins;Gate",
+            "https://cdn.myanimelist.net/images/anime/1935/127974.jpg",
+            "TV", "★ 9.1", "★ 10", "Spr 11",
+            "C", Color.FromArgb("#60A5FA"), "24/24", null, null,
+            Color.FromArgb("#1E293B"), Color.FromArgb("#475569")),
+        new("Chainsaw Man", "Chainsaw Man",
+            "https://cdn.myanimelist.net/images/anime/1806/126216.jpg",
+            "TV", "★ 8.4", "★ 9", "Fall 22",
+            "W", Color.FromArgb("#4ADE80"), "9/12", null, null,
+            Color.FromArgb("#3F1215"), Color.FromArgb("#DC2626")),
+        new("Spy x Family", "Spy x Family",
+            "https://cdn.myanimelist.net/images/anime/1441/122795.jpg",
+            "TV", "★ 8.4", "★ 8", "Spr 22",
+            "W", Color.FromArgb("#4ADE80"), "6/12", "EP 9/12", "4D",
+            Color.FromArgb("#143326"), Color.FromArgb("#16A34A")),
+        new("Demon Slayer", "Kimetsu no Yaiba",
+            "https://cdn.myanimelist.net/images/anime/1286/99889.jpg",
+            "TV", "★ 8.4", "★ 9", "Spr 19",
+            "C", Color.FromArgb("#60A5FA"), "26/26", null, null,
+            Color.FromArgb("#162A2C"), Color.FromArgb("#0D9488"))
     };
 
     private static readonly HttpClient PosterHttp = new() { Timeout = TimeSpan.FromSeconds(8) };
@@ -294,15 +319,29 @@ public partial class WelcomeSetupPage : ContentPage
         LayoutPreviewGrid();
     }
 
-    private int ResolvePreviewColumns()
+    private int ResolvePreviewColumns(double availableWidth = -1)
     {
-        var cols = Settings.GridColumns;
-        if (cols >= 2 && cols <= 5)
-            return cols;
+        if (DeviceInfo.Platform != DevicePlatform.WinUI)
+        {
+            var cols = Settings.GridColumns;
+            if (cols >= 2 && cols <= 5)
+                return cols;
+        }
 
-        // Auto responsive preview
-        var hostW = PreviewGridHost?.Width ?? DeviceDisplay.MainDisplayInfo.Width / DeviceDisplay.MainDisplayInfo.Density;
-        return hostW >= 540 ? 4 : 3;
+        double hostW = availableWidth > 0
+            ? availableWidth
+            : (PreviewGridHost?.Width > 0 ? PreviewGridHost.Width : Width - 32);
+        if (hostW <= 0)
+            hostW = DeviceDisplay.MainDisplayInfo.Width / DeviceDisplay.MainDisplayInfo.Density;
+
+        if (hostW < 520d)
+            return 3;
+        if (hostW < 700d)
+            return 4;
+
+        const double targetCardWidth = 128d;
+        var calculated = (int)Math.Round(hostW / targetCardWidth);
+        return Math.Clamp(calculated, 4, Samples.Length);
     }
 
     private void LayoutPreviewGrid()
@@ -314,16 +353,23 @@ public partial class WelcomeSetupPage : ContentPage
         if (availableW <= 0)
             availableW = Math.Max(280, Width - 32);
 
-        int cols = ResolvePreviewColumns();
+        int cols = ResolvePreviewColumns(availableW);
         double spacing = Settings.PosterGridSpacing ? 8d : 0d;
         double sidePadding = Settings.PosterGridSpacing ? 8d : 0d;
         double gridWidth = Math.Max(180, availableW - sidePadding * 2);
 
         double cardWidth = Math.Floor((gridWidth - spacing * (cols - 1)) / cols);
-        double maxH = cols == 2 ? 176d : 152d;
-        double cardHeight = Math.Clamp(Math.Round(cardWidth * 1.42), 92d, maxH);
-        if (cols == 2 && cardHeight >= maxH)
+        double maxH = DeviceInfo.Platform == DevicePlatform.WinUI ? 184d : 176d;
+        double cardHeight = Math.Round(cardWidth * 1.42);
+        if (cardHeight > maxH)
+        {
+            cardHeight = maxH;
             cardWidth = Math.Round(cardHeight / 1.42);
+        }
+        else if (cardHeight < 92d)
+        {
+            cardHeight = 92d;
+        }
 
         PreviewPosterGrid.Children.Clear();
         PreviewPosterGrid.RowDefinitions.Clear();
@@ -342,6 +388,8 @@ public partial class WelcomeSetupPage : ContentPage
             Grid.SetColumn(card, c);
             PreviewPosterGrid.Children.Add(card);
         }
+
+        UpdateMiniChrome();
     }
 
     private void UpdatePreviewCardMetadata()
@@ -454,7 +502,9 @@ public partial class WelcomeSetupPage : ContentPage
             2 => "Real Dark",
             _ => "Midnight Blue"
         };
-        var colLabel = Settings.GridColumns == 0 ? "Auto" : $"{Settings.GridColumns} cols";
+        var colLabel = DeviceInfo.Platform == DevicePlatform.WinUI || Settings.GridColumns == 0
+            ? $"Auto ({ResolvePreviewColumns()} cols)"
+            : $"{Settings.GridColumns} cols";
         var spaceLabel = Settings.PosterGridSpacing ? "Spaced" : "Seamless";
 
         if (PreviewSummaryLabel != null)

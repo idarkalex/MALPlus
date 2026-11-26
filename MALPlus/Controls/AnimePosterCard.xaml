@@ -16,7 +16,7 @@
     </ContentView.Resources>
 
     <Grid x:Name="RootGrid" BackgroundColor="{DynamicResource EmSheet}">
-        <Image Source="{Binding PosterUrl, Converter={StaticResource ImageConverter}}"
+        <Image x:Name="PosterImage"
                Aspect="AspectFill" />
 
         <VerticalStackLayout x:Name="LeftChipsLayout" Spacing="4" Margin="6,6,0,0"

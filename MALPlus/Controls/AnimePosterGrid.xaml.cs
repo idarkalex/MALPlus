@@ -98,9 +98,18 @@ public partial class AnimePosterGrid : ContentView
             _airWarmed = 0;
             ScheduleApplyLayout(force: true);
         }
-        else
+        else if (FixedHeight || !_spanApplied)
         {
             ScheduleApplyLayout(force: false);
+        }
+        else
+        {
+            // Keep IsEmpty synchronized without triggering a full layout pass on scrollable grids
+            // during incremental LoadMore appends.
+            var count = (ItemsView.ItemsSource as ICollection)?.Count
+                        ?? (ItemsView.ItemsSource as IList)?.Count
+                        ?? 0;
+            IsEmpty = count == 0;
         }
         WarmAirTimes();
     }
@@ -359,11 +368,7 @@ public partial class AnimePosterGrid : ContentView
         {
             var gap = EffectiveSpacing;
             var span = EffectiveSpan(Width);
-            var contentWidth = Math.Max(0, Width - gap * 2);
-            CellWidth = Math.Floor((contentWidth - (span - 1) * gap) / span);
-            var wantedCellHeight = Math.Round(CellWidth * 1.5d);
-            CellHeight = wantedCellHeight;
-            RowHeight = wantedCellHeight + gap;
+            UpdateCellMetrics(Width, gap, span);
 
             if (Math.Abs(Width - _lastWidth) >= 1.0)
             {
@@ -443,12 +448,46 @@ public partial class AnimePosterGrid : ContentView
             return;
         var gap = EffectiveSpacing;
         var span = EffectiveSpan(width);
-        var contentWidth = Math.Max(0, width - gap * 2);
-        CellWidth = Math.Floor((contentWidth - (span - 1) * gap) / span);
+        UpdateCellMetrics(width, gap, span);
         if (Math.Abs(width - _lastWidth) < 1.0)
             return;
         _lastWidth = width;
         ScheduleApplyLayout(force: true);
+    }
+
+    private void UpdateCellMetrics(double availableWidth, double gap, int span)
+    {
+        if (availableWidth <= 0 || span <= 0)
+            return;
+
+        // WinUI 3 CollectionView hosts a vertical scrollbar (~16-18dp) inside its ScrollView when
+        // scrolling long lists; reserving that width prevents UniformGridLayout from wrapping the
+        // last column onto partial/1-poster rows.
+        double scrollbarReserve = 0d;
+#if WINDOWS
+        if (!FixedHeight)
+            scrollbarReserve = 18d;
+#endif
+        var contentWidth = Math.Max(0, availableWidth - gap * 2 - scrollbarReserve);
+        if (contentWidth <= 0)
+            return;
+
+        var wantedCellWidth = Math.Floor((contentWidth - (span - 1) * gap) / span);
+        if (wantedCellWidth <= 0)
+            return;
+
+        var wantedCellHeight = Math.Round(wantedCellWidth * 1.5d);
+        var wantedRowHeight = wantedCellHeight + gap;
+
+        if (Math.Abs(CellWidth - wantedCellWidth) > 0.5)
+            CellWidth = wantedCellWidth;
+        if (Math.Abs(_appliedCellHeight - wantedCellHeight) > 0.5 || Math.Abs(CellHeight - wantedCellHeight) > 0.5)
+        {
+            _appliedCellHeight = wantedCellHeight;
+            CellHeight = wantedCellHeight;
+        }
+        if (Math.Abs(RowHeight - wantedRowHeight) > 0.5)
+            RowHeight = wantedRowHeight;
     }
 
     private bool _layoutDispatchPending;
@@ -519,21 +558,7 @@ public partial class AnimePosterGrid : ContentView
             force = true;
         }
 
-        var contentWidth = Math.Max(0, availableWidth - gap * 2);
-        if (contentWidth > 0 && span > 0)
-            CellWidth = Math.Floor((contentWidth - (span - 1) * gap) / span);
-
-        var wantedCellHeight = CellWidth > 0
-            ? Math.Round(CellWidth * 1.5d)
-            : DefaultCellHeight;
-
-        var wantedRowHeight = wantedCellHeight + gap;
-        if (Math.Abs(_appliedCellHeight - wantedCellHeight) > 0.5 || Math.Abs(RowHeight - wantedRowHeight) > 0.5)
-        {
-            _appliedCellHeight = wantedCellHeight;
-            CellHeight = wantedCellHeight;
-            RowHeight = wantedRowHeight;
-        }
+        UpdateCellMetrics(availableWidth, gap, span);
 
         if (FixedHeight)
         {

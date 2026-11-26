@@ -70,6 +70,20 @@ namespace MALPlus.XShared.Utils
 
         }
 
+        /// <summary>
+        ///     Appends each item sequentially so virtualized platform grids (notably WinUI 3
+        ///     ItemsView / ItemsRepeater) receive single-item Add notifications instead of a
+        ///     mid-scroll Reset that tears down realized containers.
+        /// </summary>
+        public void AppendRange(IEnumerable<T> range)
+        {
+            if (range == null)
+                return;
+
+            foreach (var item in range)
+                Add(item);
+        }
+
         public void ReplaceRange(IEnumerable<T> range)
         {
             var enumerable = range?.ToArray() ?? Array.Empty<T>();

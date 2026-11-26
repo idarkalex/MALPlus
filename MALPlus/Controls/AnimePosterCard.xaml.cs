@@ -1,12 +1,58 @@
 using System.Collections;
+using System.Globalization;
 using System.Windows.Input;
+using MALPlus.Converters;
 
 namespace MALPlus.Controls;
 
 public partial class AnimePosterCard : ContentView
 {
+    private static readonly StringToImageSourceConverter PosterImageConverter = new();
+
     public static readonly BindableProperty PosterUrlProperty =
-        BindableProperty.Create(nameof(PosterUrl), typeof(string), typeof(AnimePosterCard), default(string));
+        BindableProperty.Create(nameof(PosterUrl), typeof(string), typeof(AnimePosterCard), default(string),
+            propertyChanged: OnPosterUrlChanged);
+
+    private string _appliedPosterUrl;
+    private bool _hadNonNullBindingContext;
+
+    private static void OnPosterUrlChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        ((AnimePosterCard)bindable).UpdatePosterImage(newValue as string);
+    }
+
+    private void UpdatePosterImage(string url)
+    {
+        if (string.Equals(_appliedPosterUrl, url, StringComparison.Ordinal))
+            return;
+
+        _appliedPosterUrl = url;
+        // Clear any recycled native bitmap synchronously before assigning the new source so
+        // WinUI/Android recycled cells never display stale artwork from a prior entry.
+        PosterImage.Source = null;
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        PosterImage.Source = PosterImageConverter.Convert(url, typeof(ImageSource), null, CultureInfo.InvariantCulture) as ImageSource;
+    }
+
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        if (BindingContext != null)
+        {
+            _hadNonNullBindingContext = true;
+            return;
+        }
+
+        // Only reset recycled DataTemplate cards returning to the pool; standalone cards never had
+        // an item BindingContext and keep their explicit PosterUrl.
+        if (_hadNonNullBindingContext)
+        {
+            _hadNonNullBindingContext = false;
+            UpdatePosterImage(null);
+        }
+    }
 
     public static readonly BindableProperty TitleProperty =
         BindableProperty.Create(nameof(Title), typeof(string), typeof(AnimePosterCard), default(string));

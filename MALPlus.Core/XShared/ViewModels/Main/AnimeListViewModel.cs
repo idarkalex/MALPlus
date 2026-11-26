@@ -203,13 +203,15 @@ namespace MALPlus.XShared.ViewModels.Main
                 // as before.
                 if (IsUnchangedPrefixOf(matches))
                 {
-                    // One batch, never a loop. Appending row by row raises a collection change per
-                    // row, and the grid re-lays out and re-warms on every one of them: three hundred
-                    // forced layouts for a single page, which is enough to stop the UI answering and
-                    // leave the grid blank. AddRange raises it once.
                     var tail = matches.Count - DisplayedItems.Count;
                     if (tail > 0)
-                        DisplayedItems.AddRange(matches.Skip(DisplayedItems.Count).ToList());
+                    {
+                        var additions = matches.Skip(DisplayedItems.Count).ToList();
+                        if (DisplayedItems.Count == 0)
+                            DisplayedItems.AddRange(additions);
+                        else
+                            DisplayedItems.AppendRange(additions);
+                    }
                     RaisePropertyChanged(() => PanelFilterEmpty);
                     return;
                 }
