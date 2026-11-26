@@ -308,7 +308,7 @@ jobs:
 
       - name: Install MAUI Windows workload
         shell: pwsh
-        run: dotnet workload install maui-windows
+        run: dotnet workload install maui-windows maui-android
 
       - name: Install Inno Setup
         shell: pwsh

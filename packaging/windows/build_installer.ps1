@@ -46,7 +46,7 @@ Write-Host "=== 1. Cleaning old AssemblyInfo in obj ===" -ForegroundColor Cyan
 Remove-Item (Join-Path $repoDir "MALPlus\obj\Release\net11.0-windows10.0.19041.0\win-x64\MALPlus.AssemblyInfo.cs") -Force -ErrorAction SilentlyContinue
 
 Write-Host "=== 2. Publishing SingleFile v$Version ===" -ForegroundColor Cyan
-& $dotnet publish $csproj -f net11.0-windows10.0.19041.0 -c Release -p:WindowsPackageType=None -p:SelfContained=true -r win-x64 -p:PublishSingleFile=true -o $outDir
+& $dotnet publish $csproj -f net11.0-windows10.0.19041.0 -c Release -p:TargetFrameworksOverride=net11.0-windows10.0.19041.0 -p:WindowsPackageType=None -p:SelfContained=true -r win-x64 -p:PublishSingleFile=true -o $outDir
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Publish failed with exit code $LASTEXITCODE" -ForegroundColor Red
