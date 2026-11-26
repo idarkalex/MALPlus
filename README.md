@@ -10,7 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/idarkalex/MALPlus/releases/latest"><img src="https://img.shields.io/badge/Download-Latest%20APK-0066FF?style=for-the-badge&logo=android&logoColor=white" alt="Download Latest APK" /></a>
+  <a href="https://github.com/idarkalex/MALPlus/releases/latest"><img src="https://img.shields.io/badge/Android-Download%20APK-0066FF?style=for-the-badge&logo=android&logoColor=white" alt="Download Android APK" /></a>
+  &nbsp;
+  <a href="https://github.com/idarkalex/MALPlus/releases/latest"><img src="https://img.shields.io/badge/Windows-Setup%20(.exe)-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows Setup" /></a>
   &nbsp;
   <a href="https://malplus.vercel.app"><img src="https://img.shields.io/badge/Website-malplus.vercel.app-101B2E?style=for-the-badge&logo=vercel&logoColor=white" alt="Official Website" /></a>
 </p>
@@ -110,19 +112,24 @@ MAL+ is expanding to desktop! A dedicated Windows client built with .NET is curr
   </tr>
 </table>
 
-> ⚠️ **Status:** The Windows desktop version is currently in active development (WIP). Pre-release builds will be published under GitHub Releases.
+> ⚠️ **Status:** Early preview builds (`MALPlus-Setup-*.exe`) are now available in **[GitHub Releases](https://github.com/idarkalex/MALPlus/releases/latest)**! Active development remains focused primarily on **Android**, though improvements to our shared `.NET MAUI` + `MALPlus.Core` base carry over to Windows too. See the [Windows announcement in Discussions](https://github.com/idarkalex/MALPlus/discussions/12) for details and feedback.
 
 ---
 
 ## Install
 
-Download the APK from the **[latest release](https://github.com/idarkalex/MALPlus/releases/latest)**.
+Download the installer for your platform from the **[latest release](https://github.com/idarkalex/MALPlus/releases/latest)**:
 
-1. Download `com.idarkalex.malplus.apk`.
+### Android
+1. Download **`com.idarkalex.malplus-arm64.apk`** *(recommended for modern phones & tablets; use `x86_64.apk` for emulators/x64 devices)*.
 2. Open it on your device. If Android asks, allow *Install unknown apps* for your browser or file manager.
 3. Sign in with your MyAnimeList account. Future updates arrive through the built-in updater.
 
 > **De-Googled friendly.** MAL+ needs no Google Play Services or proprietary frameworks. It runs on stock Android and on GrapheneOS, CalyxOS, LineageOS and microG.
+
+### Windows *(Early Preview)*
+1. Download **`MALPlus-Setup-*.exe`** from the latest release.
+2. Run the installer and sign in with your MyAnimeList account.
 
 ---
 
@@ -136,7 +143,7 @@ Download the APK from the **[latest release](https://github.com/idarkalex/MALPlu
 | Layer | Technology |
 |---|---|
 | **Framework** | .NET 11.0 (allow-prerelease) + .NET MAUI workload |
-| **Platform target** | Android 7.0 (API 24) to Android 15 (API 35+) |
+| **Platform target** | Android 7.0 (API 24) to Android 15 (API 35+) · Windows 10 / 11 (x64) |
 | **Architecture** | MVVM with decoupled service locators |
 | **Media playback** | AndroidX Media3 / ExoPlayer through a custom native MAUI handler |
 | **Graphics** | SkiaSharp for Android |

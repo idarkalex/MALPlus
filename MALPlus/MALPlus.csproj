@@ -41,9 +41,10 @@
   <ItemGroup>
     <MauiFont Include="Resources\Fonts\*" />
     <MauiImage Include="Resources\Images\*" />
-    <MauiAsset Include="Resources\Raw\**" Exclude="Resources\Raw\inter_*.ttf" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <MauiAsset Include="Resources\Raw\**" Exclude="Resources\Raw\inter_*.ttf;Resources\Raw\welcome_poster_*.jpg" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
     <EmbeddedResource Include="Resources\Raw\brand_wordmark_primary.png" />
     <EmbeddedResource Include="Resources\Raw\inter_*.ttf" />
+    <EmbeddedResource Include="Resources\Raw\welcome_poster_*.jpg" />
   </ItemGroup>
 
   <ItemGroup>

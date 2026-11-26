@@ -25,6 +25,9 @@ public class StringToImageSourceConverter : IValueConverter
         if (value is not string url || string.IsNullOrWhiteSpace(url))
             return null;
 
+        if (url.StartsWith("res://", StringComparison.Ordinal))
+            return ImageSource.FromResource(url.Substring(6), typeof(StringToImageSourceConverter).Assembly);
+
         if (LocalSources.TryGetValue(url, out var local))
             return local;
 

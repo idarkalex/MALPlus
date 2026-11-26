@@ -16,6 +16,12 @@ public partial class AnimePosterCard : ContentView
     private string _appliedPosterUrl;
     private bool _hadNonNullBindingContext;
 
+    /// <summary>
+    ///     Set on cards constructed outside a recycled DataTemplate (e.g. live previews) so detaching
+    ///     from a parent container never clears their explicit PosterUrl artwork.
+    /// </summary>
+    public bool IsStandalone { get; set; }
+
     private static void OnPosterUrlChanged(BindableObject bindable, object oldValue, object newValue)
     {
         ((AnimePosterCard)bindable).UpdatePosterImage(newValue as string);
@@ -39,6 +45,9 @@ public partial class AnimePosterCard : ContentView
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
+        if (IsStandalone)
+            return;
+
         if (BindingContext != null)
         {
             _hadNonNullBindingContext = true;

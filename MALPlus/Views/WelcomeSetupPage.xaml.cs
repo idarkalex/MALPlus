@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Net.Http;
 using System.Threading.Tasks;
 using MALPlus.Controls;
 using MALPlus.Services;
@@ -10,7 +8,6 @@ using MALPlus.XShared.ViewModels;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
-using SkiaSharp;
 
 namespace MALPlus.Views;
 
@@ -19,7 +16,7 @@ public partial class WelcomeSetupPage : ContentPage
     private sealed record PreviewAnimeSample(
         string EnglishTitle,
         string RomajiTitle,
-        string RemotePosterUrl,
+        string BundledPosterResource,
         string Format,
         string CommunityScore,
         string PersonalScore,
@@ -28,75 +25,64 @@ public partial class WelcomeSetupPage : ContentPage
         Color StatusColor,
         string Progress,
         string AiredBadge,
-        string Countdown,
-        Color GradTop,
-        Color GradBottom);
+        string Countdown);
 
     private static readonly PreviewAnimeSample[] Samples =
     {
         new("Frieren: Beyond Journey's End", "Sousou no Frieren",
-            "https://cdn.myanimelist.net/images/anime/1015/138006.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_0.jpg",
             "TV", "★ 9.2", "★ 10", "Fall 23",
-            "W", Color.FromArgb("#4ADE80"), "18/28", null, null,
-            Color.FromArgb("#1D3557"), Color.FromArgb("#457B9D")),
+            "W", Color.FromArgb("#4ADE80"), "18/28", null, null),
         new("Solo Leveling", "Ore dake Level Up na Ken",
-            "https://cdn.myanimelist.net/images/anime/1801/142390.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_1.jpg",
             "TV", "★ 8.3", "★ 9", "Win 24",
-            "W", Color.FromArgb("#4ADE80"), "8/12", "EP 10/12", "2D",
-            Color.FromArgb("#1A1336"), Color.FromArgb("#3B82F6")),
+            "W", Color.FromArgb("#4ADE80"), "8/12", "EP 10/12", "2D"),
         new("Your Name.", "Kimi no Na wa.",
-            "https://cdn.myanimelist.net/images/anime/5/87048.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_2.jpg",
             "Movie", "★ 8.8", "★ 9", "Sum 16",
-            "C", Color.FromArgb("#60A5FA"), "1/1", null, null,
-            Color.FromArgb("#3B1F5E"), Color.FromArgb("#E879F9")),
+            "C", Color.FromArgb("#60A5FA"), "1/1", null, null),
         new("The Apothecary Diaries", "Kusuriya no Hitorigoto",
-            "https://cdn.myanimelist.net/images/anime/1708/138033.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_3.jpg",
             "TV", "★ 8.9", "★ 8", "Fall 23",
-            "W", Color.FromArgb("#4ADE80"), "12/24", "EP 20/24", "5D",
-            Color.FromArgb("#0F3D3E"), Color.FromArgb("#10B981")),
+            "W", Color.FromArgb("#4ADE80"), "12/24", "EP 20/24", "5D"),
         new("Dandadan", "Dandadan",
-            "https://cdn.myanimelist.net/images/anime/1584/143719.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_4.jpg",
             "ONA", "★ 8.6", "★ 9", "Fall 24",
-            "P", Color.FromArgb("#FFFFFF"), "0/12", "EP 6/12", "Airing",
-            Color.FromArgb("#4C1D24"), Color.FromArgb("#F97316")),
+            "P", Color.FromArgb("#FFFFFF"), "0/12", "EP 6/12", "Airing"),
         new("Attack on Titan", "Shingeki no Kyojin",
-            "https://cdn.myanimelist.net/images/anime/10/47347.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_5.jpg",
             "TV", "★ 8.6", "★ 10", "Spr 13",
-            "C", Color.FromArgb("#60A5FA"), "25/25", null, null,
-            Color.FromArgb("#2D1810"), Color.FromArgb("#9A3412")),
+            "C", Color.FromArgb("#60A5FA"), "25/25", null, null),
         new("Steins;Gate", "Steins;Gate",
-            "https://cdn.myanimelist.net/images/anime/1935/127974.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_6.jpg",
             "TV", "★ 9.1", "★ 10", "Spr 11",
-            "C", Color.FromArgb("#60A5FA"), "24/24", null, null,
-            Color.FromArgb("#1E293B"), Color.FromArgb("#475569")),
+            "C", Color.FromArgb("#60A5FA"), "24/24", null, null),
         new("Chainsaw Man", "Chainsaw Man",
-            "https://cdn.myanimelist.net/images/anime/1806/126216.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_7.jpg",
             "TV", "★ 8.4", "★ 9", "Fall 22",
-            "W", Color.FromArgb("#4ADE80"), "9/12", null, null,
-            Color.FromArgb("#3F1215"), Color.FromArgb("#DC2626")),
+            "W", Color.FromArgb("#4ADE80"), "9/12", null, null),
         new("Spy x Family", "Spy x Family",
-            "https://cdn.myanimelist.net/images/anime/1441/122795.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_8.jpg",
             "TV", "★ 8.4", "★ 8", "Spr 22",
-            "W", Color.FromArgb("#4ADE80"), "6/12", "EP 9/12", "4D",
-            Color.FromArgb("#143326"), Color.FromArgb("#16A34A")),
+            "W", Color.FromArgb("#4ADE80"), "6/12", "EP 9/12", "4D"),
         new("Demon Slayer", "Kimetsu no Yaiba",
-            "https://cdn.myanimelist.net/images/anime/1286/99889.jpg",
+            "res://MALPlus.Resources.Raw.welcome_poster_9.jpg",
             "TV", "★ 8.4", "★ 9", "Spr 19",
-            "C", Color.FromArgb("#60A5FA"), "26/26", null, null,
-            Color.FromArgb("#162A2C"), Color.FromArgb("#0D9488"))
+            "C", Color.FromArgb("#60A5FA"), "26/26", null, null)
     };
-
-    private static readonly HttpClient PosterHttp = new() { Timeout = TimeSpan.FromSeconds(8) };
 
     private static TaskCompletionSource<bool> _pendingSession;
     private static bool _nextFromSettings;
     private static readonly object SessionLock = new();
 
     private readonly List<AnimePosterCard> _previewCards = new();
-    private readonly string[] _artworkPaths = new string[Samples.Length];
     private readonly bool _fromSettings;
     private bool _finished;
     private double _lastGridHostWidth = -1;
+    private int _lastLayoutCols = -1;
+    private double _lastLayoutSpacing = -1;
+    private double _lastCardWidth = -1;
+    private double _lastCardHeight = -1;
 
     private SettingsViewModelBase Vm => BindingContext as SettingsViewModelBase;
 
@@ -106,7 +92,6 @@ public partial class WelcomeSetupPage : ContentPage
         _nextFromSettings = false;
         InitializeComponent();
         BindingContext = ViewModelLocator.Settings;
-        EnsurePreviewArtwork();
         BuildPreviewCards();
         UpdateHeaderCopy();
         RefreshAllVisualState();
@@ -194,106 +179,6 @@ public partial class WelcomeSetupPage : ContentPage
             VersionPillLabel.Text = $"v{AppInfo.VersionString}";
     }
 
-    private void EnsurePreviewArtwork()
-    {
-        try
-        {
-            var dir = Path.Combine(FileSystem.CacheDirectory, "welcome_preview");
-            Directory.CreateDirectory(dir);
-
-            for (int i = 0; i < Samples.Length; i++)
-            {
-                var realFile = Path.Combine(dir, $"real_v1_{i}.jpg");
-                if (File.Exists(realFile) && new FileInfo(realFile).Length > 1024)
-                {
-                    _artworkPaths[i] = realFile;
-                    continue;
-                }
-
-                var fallbackFile = Path.Combine(dir, $"poster_v1_{i}.png");
-                if (!File.Exists(fallbackFile))
-                    RenderSamplePosterArt(fallbackFile, Samples[i], i);
-                _artworkPaths[i] = fallbackFile;
-
-                var idx = i;
-                var url = Samples[i].RemotePosterUrl;
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        var bytes = await PosterHttp.GetByteArrayAsync(url);
-                        if (bytes != null && bytes.Length > 1024)
-                        {
-                            File.WriteAllBytes(realFile, bytes);
-                            _artworkPaths[idx] = realFile;
-                            MainThread.BeginInvokeOnMainThread(() =>
-                            {
-                                if (idx < _previewCards.Count)
-                                    _previewCards[idx].PosterUrl = realFile;
-                            });
-                        }
-                    }
-                    catch { }
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("MALPLUS preview artwork generation failed: " + ex.Message);
-        }
-    }
-
-    private static void RenderSamplePosterArt(string path, PreviewAnimeSample sample, int variant)
-    {
-        const int w = 240;
-        const int h = 340;
-        using var surface = SKSurface.Create(new SKImageInfo(w, h));
-        var canvas = surface.Canvas;
-
-        var top = new SKColor((byte)(sample.GradTop.Red * 255), (byte)(sample.GradTop.Green * 255), (byte)(sample.GradTop.Blue * 255));
-        var bot = new SKColor((byte)(sample.GradBottom.Red * 255), (byte)(sample.GradBottom.Green * 255), (byte)(sample.GradBottom.Blue * 255));
-
-        using (var bgPaint = new SKPaint
-        {
-            Shader = SKShader.CreateLinearGradient(new SKPoint(0, 0), new SKPoint(w, h), new[] { top, bot }, SKShaderTileMode.Clamp),
-            IsAntialias = true
-        })
-        {
-            canvas.DrawRect(0, 0, w, h, bgPaint);
-        }
-
-        // Soft glowing celestial / spotlight accent
-        using (var glowPaint = new SKPaint
-        {
-            Color = new SKColor(255, 255, 255, 42),
-            IsAntialias = true
-        })
-        {
-            float cx = variant % 2 == 0 ? w * 0.68f : w * 0.34f;
-            float cy = h * (0.28f + (variant % 3) * 0.05f);
-            canvas.DrawCircle(cx, cy, 52, glowPaint);
-            glowPaint.Color = new SKColor(255, 255, 255, 24);
-            canvas.DrawCircle(cx, cy, 86, glowPaint);
-        }
-
-        // Layered silhouette horizon at lower third for anime key-visual depth
-        using (var hillPaint = new SKPaint { Color = new SKColor(0, 0, 0, 72), IsAntialias = true })
-        using (var ridge = new SKPath())
-        {
-            ridge.MoveTo(0, h);
-            ridge.LineTo(0, h * 0.68f);
-            ridge.CubicTo(w * 0.3f, h * (0.58f + (variant % 2) * 0.05f), w * 0.7f, h * 0.76f, w, h * 0.62f);
-            ridge.LineTo(w, h);
-            ridge.Close();
-            canvas.DrawPath(ridge, hillPaint);
-        }
-
-        using var image = surface.Snapshot();
-        using var data = image.Encode(SKEncodedImageFormat.Png, 90);
-        using var fs = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.None);
-        data.SaveTo(fs);
-    }
-
     private void BuildPreviewCards()
     {
         _previewCards.Clear();
@@ -301,10 +186,11 @@ public partial class WelcomeSetupPage : ContentPage
         {
             var card = new AnimePosterCard
             {
-                PosterUrl = _artworkPaths[i],
+                PosterUrl = Samples[i].BundledPosterResource,
                 TitleOverlay = true,
                 BadgeVisible = true,
-                InputTransparent = true
+                InputTransparent = true,
+                IsStandalone = true,
             };
             _previewCards.Add(card);
         }
