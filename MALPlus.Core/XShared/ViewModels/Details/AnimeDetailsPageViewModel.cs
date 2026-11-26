@@ -258,7 +258,7 @@ namespace MALPlus.XShared.ViewModels.Details
     ///     same row as SCORE and STATUS, so there is no vertical collision to design around, and
     ///     naming what the pair IS is both shorter and clearer than naming half of it.
     /// </summary>
-    public string LastAiredHeader => AnimeMode ? "LAST AIRED" : "LAST CHAPTER";
+    public string LastAiredHeader => AnimeMode ? "LAST AIRED EP" : "LAST CHAPTER";
 
     /// <summary>
     /// Episode number and air date, "1180 Â· 27 Sep". Shorter than the old "EP 1180 - 27 Sep" on

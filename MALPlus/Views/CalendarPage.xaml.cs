@@ -12,14 +12,8 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
     private bool _initialized;
     private string _initialMode;
     private bool _subscribed;
-
-    /// <summary>
-    ///     True from the moment a poster opens until this page is visible again. The carousel raises
-    ///     an item-change with position 0 while the details page is being pushed over this one, and
-    ///     that write landed in the view model, so coming back dropped the reader on the first day
-    ///     instead of the one they had picked.
-    /// </summary>
-    private bool _posterOpening;
+    private int _displayedIndex = -1;
+    private bool _isLoading;
 
     /// <summary>
     ///     "mine" or "global", set by the two Discover calendar tiles or More page.
@@ -43,91 +37,48 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
         InitializeComponent();
         BindingContext = ViewModelLocator.CalendarPage;
         UpdateHeaderUI();
-        // The pager and the day strip have to agree at all times, and the two-way Position
-        // binding on its own left the strip lagging on the first swipe.
-        CalendarCarousel.PositionChanged += OnCarouselPositionChanged;
-        CalendarCarousel.CurrentItemChanged += OnCarouselCurrentItemChanged;
-    }
-
-    private void OnCarouselCurrentItemChanged(object sender, CurrentItemChangedEventArgs e)
-    {
-        try
-        {
-            if (_posterOpening || !_initialized || Vm?.CalendarData == null || Vm.CalendarData.Count == 0)
-                return;
-            var position = CalendarCarousel.Position;
-            global::Android.Util.Log.Info("MALPlus Calendar", $"current item -> {position}");
-            if (position >= 0 && position < Vm.CalendarData.Count && position != Vm.CalendarPivotIndex)
-            {
-                Vm.CalendarPivotIndex = position;
-                HighlightActiveTab();
-            }
-            ScheduleStripResync();
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Calendar", "current item sync failed: " + ex.GetType().Name);
-        }
-    }
-
-    private int _stripSyncGeneration;
-
-    private void ScheduleStripResync()
-    {
-        var generation = ++_stripSyncGeneration;
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(350), () =>
-        {
-            try
-            {
-                if (generation != _stripSyncGeneration || Vm?.CalendarData == null || Vm.CalendarData.Count == 0 || _posterOpening || !_initialized)
-                    return;
-                var position = CalendarCarousel.Position;
-                if (position >= 0 && position < Vm.CalendarData.Count && position != Vm.CalendarPivotIndex)
-                    Vm.CalendarPivotIndex = position;
-                HighlightActiveTab();
-            }
-            catch (Exception ex)
-            {
-                global::Android.Util.Log.Warn("MALPlus Calendar", "strip resync failed: " + ex.GetType().Name);
-            }
-        });
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        _posterOpening = false;
         ThemeService.ThemeChanged += OnThemeChanged;
         OnThemeChanged();
         UpdateHeaderUI();
         ArmBackCallback();
-        // Re-subscribe on every appearance: the page instance outlives a navigation, and the day
-        // strip has to be rebuilt whenever the view model produces a fresh CalendarData.
+        if (Vm != null)
+            Vm.IsPageActive = true;
+
+        DayGrid?.InvalidateLayout();
         BuildTabStrip();
         try
         {
-            // A rebuild is needed when the data on screen was produced with different settings:
-            // the mode (Current Season / My List), the first day of the week, or anything else
-            // that goes into the build. Comparing the whole set is what makes a settings change
-            // applied while this page was away take effect on the way back.
             var force = Vm.CalendarBuiltKey != CalendarPageViewModel.CurrentSettingsKey();
             var sw = System.Diagnostics.Stopwatch.StartNew();
+            var shouldResetScroll = !_initialized || force;
+            _isLoading = true;
             if (!_initialized)
             {
                 _initialized = true;
-                await Vm.Init(force);
+                await Vm.InitAsync(force, resetToDesiredTab: true);
                 global::Android.Util.Log.Info("MALPlus Calendar", $"init first build done in {sw.ElapsedMilliseconds}ms");
             }
             else if (force)
             {
-                await Vm.Init(true);
+                await Vm.InitAsync(true, resetToDesiredTab: true);
                 global::Android.Util.Log.Info("MALPlus Calendar", $"init rebuild done in {sw.ElapsedMilliseconds}ms");
             }
-            SyncCarouselPosition();
+
+            BuildDayStrip();
+            SyncDisplayedDay(scrollToTop: shouldResetScroll);
         }
         catch (Exception ex)
         {
             global::Android.Util.Log.Warn("MALPlus Calendar", "Init failed: " + ex.GetType().Name);
+        }
+        finally
+        {
+            _isLoading = false;
         }
     }
 
@@ -135,9 +86,12 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
     {
         base.OnDisappearing();
         ThemeService.ThemeChanged -= OnThemeChanged;
-        if (_subscribed)
+        if (Vm != null)
+            Vm.IsPageActive = false;
+        if (_subscribed && Vm != null)
         {
             Vm.PropertyChanged -= OnVmPropertyChanged;
+            Vm.DayStripChanged -= OnVmDayStripChanged;
             _subscribed = false;
         }
 #if ANDROID
@@ -204,116 +158,62 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
         }
     }
 
-    // ---------- day strip / pager sync ----------
+    // ---------- single-grid day switch (matches AnimeListPage architecture) ----------
 
-    private void OnCarouselPositionChanged(object sender, PositionChangedEventArgs e)
+    private void SyncDisplayedDay(bool scrollToTop)
     {
         try
         {
-            if (e.CurrentPosition < 0 || _posterOpening || !_initialized || Vm?.CalendarData == null || Vm.CalendarData.Count == 0)
-                return;
-            var changed = e.CurrentPosition < Vm.CalendarData.Count && Vm != null && e.CurrentPosition != Vm.CalendarPivotIndex;
-            if (changed)
+            var pages = Vm?.CalendarData;
+            if (pages == null || pages.Count == 0)
             {
-                global::Android.Util.Log.Info("MALPlus Calendar", $"day -> {e.CurrentPosition}");
-                Vm.CalendarPivotIndex = e.CurrentPosition;
+                DayGrid.ItemsSource = null;
+                _displayedIndex = -1;
+                return;
             }
+
+            var index = Vm.CalendarPivotIndex;
+            if (index < 0 || index >= pages.Count)
+            {
+                index = 0;
+                Vm.CalendarPivotIndex = 0;
+            }
+
+            var page = pages[index];
+            var switchingDay = _displayedIndex != index;
+            if (!ReferenceEquals(DayGrid.ItemsSource, page.Items))
+            {
+                DayGrid.ItemsSource = page.Items;
+                if (scrollToTop || switchingDay)
+                    ScrollGridToTop();
+            }
+            else if (scrollToTop && switchingDay)
+            {
+                ScrollGridToTop();
+            }
+
+            _displayedIndex = index;
             HighlightActiveTab();
         }
         catch (Exception ex)
         {
-            global::Android.Util.Log.Warn("MALPlus Calendar", "position sync failed: " + ex.GetType().Name);
+            global::Android.Util.Log.Warn("MALPlus Calendar", "SyncDisplayedDay failed: " + ex.GetType().Name);
         }
     }
 
-    private void SyncCarouselPosition()
+    private void ScrollGridToTop()
     {
         try
         {
-            if (Vm?.CalendarData != null && Vm.CalendarData.Count > 0 &&
-                Vm.CalendarPivotIndex >= 0 && Vm.CalendarPivotIndex < Vm.CalendarData.Count)
-            {
-                if (CalendarCarousel.Position != Vm.CalendarPivotIndex)
-                    CalendarCarousel.Position = Vm.CalendarPivotIndex;
-            }
-            // The day change can also arrive through the Position binding (the view model picks
-            // the landing day while it builds), which moves the element but not necessarily the
-            // pager: the platform sync below is what makes the move real.
-            SyncPagerToElement();
-            // The landing runs after this wait (wherever it came from), so this is the point
-            // where the pager has settled with its pages attached: re-arm its swipe.
-            ReassertCarouselSwipe();
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Calendar", "carousel sync failed: " + ex.GetType().Name);
-        }
-    }
-
-    /// <summary>
-    ///     Moves the pager to the page the element points at, without going through MAUI's own
-    ///     scroll machinery. The element's Position mapper arms a goto token and starts a queued
-    ///     scroll that, depending on layout timing, can never apply: from then on the token stays
-    ///     set and every element-driven move (landing, strip tap) silently does nothing while the
-    ///     element says it moved. Clearing the token first and then scrolling the platform
-    ///     directly is what makes the move real; the ScrollBy also raises the platform scroll
-    ///     events that keep the element itself in sync afterwards.
-    /// </summary>
-    private void SyncPagerToElement()
-    {
-        try
-        {
-            ResetGotoToken();
-            var target = Vm?.CalendarPivotIndex ?? -1;
 #if ANDROID
-            if (target < 0 || CalendarCarousel.Handler?.PlatformView is not AndroidX.RecyclerView.Widget.RecyclerView platform)
-                return;
-            if (platform.GetAdapter() == null || target >= platform.GetAdapter().ItemCount)
-                return;
-            var lm = platform.GetLayoutManager() as AndroidX.RecyclerView.Widget.LinearLayoutManager;
-            var current = lm?.FindFirstCompletelyVisibleItemPosition() ?? -1;
-            if (current < 0)
-                current = lm?.FindFirstVisibleItemPosition() ?? -1;
-            if (current < 0 || current == target)
-                return;
-
-            if (CalendarCarousel.Position != target)
-                CalendarCarousel.Position = target;
-
-            platform.ScrollToPosition(target);
+            if (DayGrid?.Inner?.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+                rv.ScrollToPosition(0);
 #else
-            if (target >= 0 && CalendarCarousel.Position != target)
-                CalendarCarousel.Position = target;
+            if (DayGrid?.ItemsSource is System.Collections.IList list && list.Count > 0)
+                DayGrid.Inner.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
 #endif
         }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Calendar", "pager sync failed: " + ex.GetType().Name);
-        }
-    }
-
-    private void ResetGotoToken()
-    {
-        try
-        {
-            var platform = CalendarCarousel.Handler?.PlatformView;
-            if (platform == null)
-                return;
-            var type = platform.GetType();
-            while (type != null)
-            {
-                var field = type.GetField("_gotoPosition", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                if (field != null)
-                {
-                    field.SetValue(platform, -1);
-                    return;
-                }
-                type = type.BaseType;
-            }
-        }
-        catch
-        {
-        }
+        catch { }
     }
 
     // ---------- header & mode switch ----------
@@ -356,13 +256,20 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
     {
         try
         {
+            _isLoading = true;
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            await Vm.Init(true);
+            await Vm.InitAsync(true, resetToDesiredTab: true);
+            BuildDayStrip();
+            SyncDisplayedDay(scrollToTop: true);
             global::Android.Util.Log.Info("MALPlus Calendar", $"mode rebuild done in {sw.ElapsedMilliseconds}ms");
         }
         catch (Exception ex)
         {
             global::Android.Util.Log.Warn("MALPlus Calendar", "mode rebuild failed: " + ex.GetType().Name);
+        }
+        finally
+        {
+            _isLoading = false;
         }
     }
 
@@ -375,6 +282,7 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
         if (!_subscribed)
         {
             Vm.PropertyChanged += OnVmPropertyChanged;
+            Vm.DayStripChanged += OnVmDayStripChanged;
             _subscribed = true;
         }
         // Back-nav re-entry: the data is already there, so redraw without rebuilding it.
@@ -388,30 +296,41 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
         }
     }
 
+    private void OnVmDayStripChanged()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            BuildDayStrip();
+            // If enrichment added an item to the currently visible day, refresh the grid source.
+            var pages = Vm?.CalendarData;
+            if (pages != null && _displayedIndex >= 0 && _displayedIndex < pages.Count)
+            {
+                var current = pages[_displayedIndex];
+                if (ReferenceEquals(DayGrid.ItemsSource, current.Items))
+                {
+                    DayGrid.ItemsSource = null;
+                    DayGrid.ItemsSource = current.Items;
+                }
+            }
+        });
+    }
+
     private void OnVmPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (_isLoading)
+            return;
+
         if (e.PropertyName == nameof(CalendarPageViewModel.CalendarPivotIndex))
         {
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                HighlightActiveTab();
-                if (Vm?.CalendarData != null && Vm.CalendarData.Count > 0 &&
-                    Vm.CalendarPivotIndex >= 0 && Vm.CalendarPivotIndex < Vm.CalendarData.Count)
-                {
-                    if (CalendarCarousel.Position != Vm.CalendarPivotIndex)
-                        CalendarCarousel.Position = Vm.CalendarPivotIndex;
-                    SyncPagerToElement();
-                }
-            });
+            MainThread.BeginInvokeOnMainThread(() => SyncDisplayedDay(scrollToTop: true));
             return;
         }
         if (e.PropertyName != nameof(CalendarPageViewModel.CalendarData)) return;
         if (Vm?.CalendarData == null || Vm.CalendarData.Count == 0) return;
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            ReassertCarouselSwipe();
             BuildDayStrip();
-            SyncCarouselPosition();
+            SyncDisplayedDay(scrollToTop: true);
         });
     }
 
@@ -435,226 +354,9 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
             return;
 
         if (Vm.CalendarPivotIndex != index)
-        {
             Vm.CalendarPivotIndex = index;
-            CalendarCarousel.Position = index;
-            SyncPagerToElement();
-        }
-        HighlightActiveTab();
+        SyncDisplayedDay(scrollToTop: true);
     }
-
-    /// <summary>
-    ///     Re-applies the pager's swipe flag after every publish. A publish replaces the
-    ///     carousel's items and the platform pager must come out of that swap with user input
-    ///     on; the flag is set directly on the platform view as well as through the element.
-    /// </summary>
-    private void ReassertCarouselSwipe()
-    {
-        try
-        {
-            CalendarCarousel.IsSwipeEnabled = false;
-#if ANDROID
-            if (CalendarCarousel.Handler?.PlatformView is Microsoft.Maui.Controls.Handlers.Items.MauiCarouselRecyclerView platform)
-            {
-                platform.IsSwipeEnabled = false;
-                platform.SetItemViewCacheSize(8);
-            }
-            ArmCarouselTouchShield();
-#endif
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Calendar", "swipe re-assert failed: " + ex.GetType().Name);
-        }
-    }
-
-#if ANDROID
-    private global::Android.Views.View _touchShieldArmedFor;
-    private CarouselTouchListener _touchListener;
-    private bool _moveDisallowed;
-    private readonly System.Collections.Generic.HashSet<global::Android.Views.View> _gridArmed = new();
-
-    // The day page hosts a vertical poster grid whose MauiRecyclerView carries a gesture
-    // dispatcher that intercepts a horizontal drag and replays it to the carousel through
-    // OnTouchEvent. That replay bypasses the carousel's own intercept phase, so the pager
-    // never enters its dragging state and the swipe is silently swallowed. A descendant
-    // calling requestDisallowInterceptTouchEvent makes the dispatcher abandon that replay
-    // and let the normal touch chain (and therefore the carousel) handle the gesture.
-    private void OnDayPageLoaded(object sender, EventArgs e)
-    {
-        try
-        {
-            if (sender is not Microsoft.Maui.IVisualTreeElement node)
-                return;
-            foreach (var grid in FindPosterGrids(node))
-                ArmGridPlatform(grid);
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Calendar", "day page arm failed: " + ex.GetType().Name);
-        }
-    }
-
-    private void DisallowInnerGrids()
-    {
-        var sent = 0;
-        foreach (var gridPlatform in _gridArmed)
-        {
-            try
-            {
-                if (gridPlatform is global::Android.Views.IViewParent parentGrid)
-                {
-                    parentGrid.RequestDisallowInterceptTouchEvent(true);
-                    sent++;
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        if (sent > 0 && CalendarCarousel.Handler?.PlatformView is global::Android.Views.IViewParent carouselParent)
-        {
-            try
-            {
-                carouselParent.RequestDisallowInterceptTouchEvent(false);
-            }
-            catch
-            {
-            }
-        }
-    }
-
-    private void ArmGridPlatform(Controls.AnimePosterGrid grid)
-    {
-        if (grid.Handler?.PlatformView is not global::Android.Views.View platform)
-            return;
-        _gridArmed.Add(platform);
-    }
-
-    private static System.Collections.Generic.List<Controls.AnimePosterGrid> FindPosterGrids(Microsoft.Maui.IVisualTreeElement node)
-    {
-        var found = new System.Collections.Generic.List<Controls.AnimePosterGrid>();
-        var stack = new System.Collections.Generic.Stack<Microsoft.Maui.IVisualTreeElement>();
-        stack.Push(node);
-        while (stack.Count > 0)
-        {
-            var current = stack.Pop();
-            if (current is Controls.AnimePosterGrid grid)
-            {
-                found.Add(grid);
-                continue;
-            }
-
-            foreach (var child in current.GetVisualChildren())
-                stack.Push(child);
-        }
-        return found;
-    }
-
-    /// <summary>
-    ///     Arms a non-consuming touch listener on the carousel so every new gesture re-asserts
-    ///     that the nested poster grids never hand a horizontal drag to their parent scroller.
-    /// </summary>
-    private void ArmCarouselTouchShield()
-    {
-        try
-        {
-            if (CalendarCarousel.Handler?.PlatformView is not AndroidX.RecyclerView.Widget.RecyclerView platform)
-                return;
-            if (ReferenceEquals(_touchShieldArmedFor, platform))
-                return;
-
-            _touchListener = new CarouselTouchListener(this);
-            platform.AddOnItemTouchListener(_touchListener);
-            _touchShieldArmedFor = platform;
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Calendar", "touch shield failed: " + ex.GetType().Name);
-        }
-    }
-
-    private void OnCarouselItemTouch(AndroidX.RecyclerView.Widget.RecyclerView recyclerView, global::Android.Views.MotionEvent e)
-    {
-        try
-        {
-            switch (e.ActionMasked)
-            {
-                case global::Android.Views.MotionEventActions.Down:
-                    _moveDisallowed = false;
-                    DisallowInnerGrids();
-                    break;
-                case global::Android.Views.MotionEventActions.Move:
-                    if (!_moveDisallowed)
-                    {
-                        _moveDisallowed = true;
-                        DisallowInnerGrids();
-                    }
-                    break;
-                case global::Android.Views.MotionEventActions.Up:
-                    recyclerView.PostDelayed(() => SyncSettledPage(recyclerView), 450);
-                    break;
-            }
-        }
-        catch
-        {
-        }
-    }
-
-    /// <summary>
-    ///     Reads the page the pager physically settled on and, when the platform did not sync it
-    ///     back to the element, sets the element position itself. MAUI's own scroll-to-position
-    ///     sync is gated by a goto-token that a programmatic landing can leave set, and from then
-    ///     on swipe settles are swallowed: the pager moves, the strip and the view model do not.
-    /// </summary>
-    private void SyncSettledPage(AndroidX.RecyclerView.Widget.RecyclerView recyclerView)
-    {
-        try
-        {
-            var settled = -1;
-            if (recyclerView.GetLayoutManager() is AndroidX.RecyclerView.Widget.LinearLayoutManager lm)
-                settled = lm.FindFirstCompletelyVisibleItemPosition();
-            if (recyclerView.ScrollState != AndroidX.RecyclerView.Widget.RecyclerView.ScrollStateIdle)
-                return;
-            if (settled >= 0 && settled < (Vm?.CalendarData?.Count ?? 0) && CalendarCarousel.Position != settled)
-            {
-                CalendarCarousel.Position = settled;
-                ResetGotoToken();
-            }
-        }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Warn("MALPlus Calendar", "settle sync failed: " + ex.GetType().Name);
-        }
-    }
-
-    private sealed class CarouselTouchListener : Java.Lang.Object, AndroidX.RecyclerView.Widget.RecyclerView.IOnItemTouchListener
-    {
-        readonly CalendarPage _page;
-
-        public CarouselTouchListener(CalendarPage page)
-        {
-            _page = page;
-        }
-
-        public bool OnInterceptTouchEvent(AndroidX.RecyclerView.Widget.RecyclerView recyclerView, global::Android.Views.MotionEvent e)
-        {
-            _page.OnCarouselItemTouch(recyclerView, e);
-            return false;
-        }
-
-        public void OnTouchEvent(AndroidX.RecyclerView.Widget.RecyclerView recyclerView, global::Android.Views.MotionEvent e)
-        {
-        }
-
-        public void OnRequestDisallowInterceptTouchEvent(bool disallowIntercept)
-        {
-        }
-    }
-#else
-    private void OnDayPageLoaded(object sender, EventArgs e) { }
-#endif
 
     /// <summary>
     ///     Builds Option A Squircle Tab Chips for days of the week in a horizontal scroller.
@@ -728,12 +430,6 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
 
     // ---------- card navigation ----------
 
-    /// <summary>
-    ///     The calendar is a browsing surface: a tap opens the entry, like everywhere else in the
-    ///     app. The per-row actions of the old list layout have no room on a poster card, and a
-    ///     press-and-hold is not available on Android in MAUI 8, so "Add to List" and
-    ///     "Export to calendar" both live on the details page instead.
-    /// </summary>
     private async void OnGridItemTapped(object sender, object itemContext)
     {
         AnimeItemViewModel item = itemContext as AnimeItemViewModel;
@@ -748,42 +444,12 @@ public partial class CalendarPage : ContentPage, ITabSwipeHost
 #if ANDROID
             MainActivity.ArmMenuBackCallback(() => _ = PopBackAsync());
 #endif
-            _posterOpening = true;
             await Shell.Current.GoToAsync(
                 $"animedetails?id={item.Id}&title={Uri.EscapeDataString(item.Title ?? string.Empty)}");
         }
         catch (Exception ex)
         {
-            _posterOpening = false;
             global::Android.Util.Log.Warn("MALPlus Calendar", "grid item nav failed: " + ex.GetType().Name);
-        }
-    }
-
-    private async void OnPosterTapped(object sender, TappedEventArgs e)
-    {
-        if (e.Parameter is not AnimeItemViewModel item)
-            return;
-        try
-        {
-            HighlightActiveTab();
-            // The callback that answers the way back has to be the most recently added one to see
-            // the press at all, and the one armed on arrival was overtaken by the hub's own (MorePage
-            // arms after this page's OnAppearing, measured on device). Re-arming here puts this page
-            // back in front for as long as the details page is on top, so the press lands on the pop
-            // and returns to the calendar instead of unwinding past it to the tab root. The flag
-            // stays down so this page's OnDisappearing does not disarm what was just armed.
-            _backArmed = false;
-#if ANDROID
-            MainActivity.ArmMenuBackCallback(() => _ = PopBackAsync());
-#endif
-            _posterOpening = true;
-            await Shell.Current.GoToAsync(
-                $"animedetails?id={item.Id}&title={Uri.EscapeDataString(item.Title ?? string.Empty)}");
-        }
-        catch (Exception ex)
-        {
-            _posterOpening = false;
-            global::Android.Util.Log.Warn("MALPlus Calendar", "poster nav failed: " + ex.GetType().Name);
         }
     }
 }

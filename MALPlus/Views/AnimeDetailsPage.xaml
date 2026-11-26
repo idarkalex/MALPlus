@@ -9,7 +9,7 @@
 
              x:Name="DetailsPage"
              Shell.PresentationMode="NotAnimated"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:IntEqualityConverter x:Key="IntEq" />
@@ -21,9 +21,9 @@
         <!-- Look compartido de los botones de la barra de acciones. Lo que cambia por boton
              (ancho, fuente, color del trailer, trigger de favorito) sigue inline. -->
         <Style x:Key="ActionButtonStyle" TargetType="Button">
-            <Setter Property="BackgroundColor" Value="{StaticResource TabChipInactiveBg}" />
+            <Setter Property="BackgroundColor" Value="{DynamicResource TabChipInactiveBg}" />
             <Setter Property="TextColor" Value="{StaticResource BrushText}" />
-            <Setter Property="BorderColor" Value="{StaticResource EmBorder}" />
+            <Setter Property="BorderColor" Value="{DynamicResource EmBorder}" />
             <Setter Property="BorderWidth" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="HeightRequest" Value="40" />
@@ -46,7 +46,7 @@
             <Setter Property="FontFamily" Value="InterBold" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="CharacterSpacing" Value="1.2" />
-            <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
+            <Setter Property="TextColor" Value="{DynamicResource TabChipInactiveText}" />
             <Setter Property="MaxLines" Value="1" />
             <Setter Property="Margin" Value="2,16,2,6" />
         </Style>
@@ -95,7 +95,7 @@
                 <VerticalStackLayout Spacing="6">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16"
-                                Stroke="{StaticResource EmBorder}" StrokeThickness="1">
+                                Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1">
                             <Image Source="{Binding AuthorAvatar, Converter={StaticResource ImageConverter}}"
                                    Aspect="AspectFill" />
                         </Border>
@@ -103,7 +103,7 @@
                                TextColor="{StaticResource BrushText}" VerticalOptions="Center" MaxLines="1"
                                LineBreakMode="TailTruncation" />
                         <Label Grid.Column="2" Text="{Binding OverallRating}" FontFamily="InterBold" FontSize="14"
-                               TextColor="#FFD700" VerticalOptions="Center" MaxLines="1" />
+                               TextColor="{StaticResource BrushText}" VerticalOptions="Center" MaxLines="1" />
                     </Grid>
                     <Label Text="{Binding Review}" FontFamily="Inter" FontSize="12" TextColor="#C0FFFFFF"
                            MaxLines="{Binding ReviewMaxLines}" LineBreakMode="TailTruncation">
@@ -114,7 +114,7 @@
                     <Button Text="{Binding ReviewToggleText}" Clicked="OnReviewMoreClicked"
                             CommandParameter="{Binding .}" BackgroundColor="Transparent" BorderWidth="0"
                             Padding="0" HeightRequest="28" HorizontalOptions="Start"
-                            FontFamily="InterSemiBold" FontSize="11" TextColor="#7AB4FF"
+                            FontFamily="InterSemiBold" FontSize="11" TextColor="#60A5FA"
                             IsVisible="{Binding ReviewToggleVisible}" />
                 </VerticalStackLayout>
             </Border>
@@ -162,7 +162,8 @@
         </DataTemplate>
 
         <DataTemplate x:Key="RelatedCardTemplate">
-            <Border Margin="4" Padding="0" BackgroundColor="Transparent" StrokeThickness="0"
+            <Border Margin="{Binding Path=RelatedCardMargin, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
+                    Padding="0" BackgroundColor="Transparent" StrokeThickness="0"
                     WidthRequest="{Binding Path=RelatedCardWidth, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
                     HeightRequest="{Binding Path=RelatedCardHeight, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
                     FlexLayout.Basis="{Binding Path=RelatedCardBasis, Source={RelativeSource AncestorType={x:Type views:AnimeDetailsPage}}}"
@@ -212,9 +213,9 @@
                         <Label Text="{Binding AnimeCharacter.Data.Name}" FontFamily="InterBold" FontSize="12"
                                TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
                         <HorizontalStackLayout Spacing="3" IsVisible="{Binding HasFavorites}">
-                            <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="#FFD700" VerticalOptions="Center" />
+                            <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                             <Label Text="{Binding FavoritesText}" FontFamily="Inter" FontSize="10"
-                                   TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                                   TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
                     <Grid Grid.Row="2" ColumnDefinitions="24,*" ColumnSpacing="6"
@@ -230,7 +231,7 @@
                         <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="0">
                             <Label Text="{Binding JapaneseVoice.Data.Name}" FontFamily="InterSemiBold" FontSize="10"
                                    TextColor="#C0FFFFFF" MaxLines="1" LineBreakMode="TailTruncation" />
-                            <Label Text="JP Voice" FontFamily="Inter" FontSize="8" TextColor="#7AB4FF" />
+                            <Label Text="JP Voice" FontFamily="Inter" FontSize="8" TextColor="{DynamicResource TabChipInactiveText}" />
                         </VerticalStackLayout>
                     </Grid>
                     <Border Grid.Row="2" VerticalOptions="Center" HorizontalOptions="Start"
@@ -264,9 +265,9 @@
                         <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="12"
                                TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
                         <HorizontalStackLayout Spacing="3" IsVisible="{Binding HasFavorites}">
-                            <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="#FFD700" VerticalOptions="Center" />
+                            <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                             <Label Text="{Binding FavoritesText}" FontFamily="Inter" FontSize="10"
-                                   TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                                   TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
                 </Grid>
@@ -288,7 +289,7 @@
                         <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="11"
                                TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
                         <Label Text="{Binding RoleLineOne}" FontFamily="Inter" FontSize="9"
-                               TextColor="{StaticResource TabChipInactiveText}" MaxLines="2" LineBreakMode="TailTruncation" />
+                               TextColor="{DynamicResource TabChipInactiveText}" MaxLines="2" LineBreakMode="TailTruncation" />
                     </VerticalStackLayout>
                 </Grid>
             </Border>
@@ -303,7 +304,7 @@
                             <TapGestureRecognizer Tapped="OnAnimeCharacterTapped" CommandParameter="{Binding .}" />
                         </Grid.GestureRecognizers>
                         <Border WidthRequest="52" HeightRequest="76" StrokeShape="RoundRectangle 8"
-                                Stroke="{StaticResource EmBorder}" StrokeThickness="1" VerticalOptions="Center"
+                                Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" VerticalOptions="Center"
                                >
                             <Image Source="{Binding AnimeCharacter.Data.ImgUrl, Converter={StaticResource ImageConverter}}"
                                    Aspect="AspectFill" />
@@ -311,14 +312,14 @@
                         <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
                             <Label Text="{Binding AnimeCharacter.Data.Name}" FontFamily="InterBold" FontSize="12"
                                    TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
-                            <Border Padding="6,2" StrokeShape="RoundRectangle 6" BackgroundColor="#0066FF"
+                            <Border Padding="6,2" StrokeShape="RoundRectangle 6" BackgroundColor="{DynamicResource EmAccent}"
                                     StrokeThickness="0" HorizontalOptions="Start" IsVisible="{Binding HasRole}">
                                 <Label Text="{Binding Role}" FontFamily="InterBold" FontSize="8" TextColor="White" />
                             </Border>
                             <HorizontalStackLayout Spacing="3" IsVisible="{Binding HasFavorites}" VerticalOptions="Center">
-                                <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="#FFD700" VerticalOptions="Center" />
+                                <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                                 <Label Text="{Binding FavoritesText}" FontFamily="Inter" FontSize="10"
-                                       TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                                       TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                             </HorizontalStackLayout>
                         </VerticalStackLayout>
                     </Grid>
@@ -339,17 +340,17 @@
                                    HorizontalTextAlignment="End" />
                             <Border Padding="6,2" StrokeShape="RoundRectangle 6" BackgroundColor="#1A0066FF"
                                     StrokeThickness="0" HorizontalOptions="End">
-                                <Label Text="JAPANESE" FontFamily="InterSemiBold" FontSize="8" TextColor="#7AB4FF" />
+                                <Label Text="JAPANESE" FontFamily="InterSemiBold" FontSize="8" TextColor="#60A5FA" />
                             </Border>
                             <HorizontalStackLayout Spacing="3" IsVisible="{Binding HasVoiceFavorites}"
                                                    VerticalOptions="Center" HorizontalOptions="End">
-                                <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="#FFD700" VerticalOptions="Center" />
+                                <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                                 <Label Text="{Binding VoiceFavoritesText}" FontFamily="Inter" FontSize="10"
-                                       TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                                       TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                             </HorizontalStackLayout>
                         </VerticalStackLayout>
                         <Border Grid.Column="1" WidthRequest="52" HeightRequest="76" StrokeShape="RoundRectangle 8"
-                                Stroke="{StaticResource EmBorder}" StrokeThickness="1" VerticalOptions="Center">
+                                Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" VerticalOptions="Center">
                             <Image Source="{Binding JapaneseVoice.Data.ImgUrl, Converter={StaticResource ImageConverter}}"
                                    Aspect="AspectFill" />
                         </Border>
@@ -357,9 +358,9 @@
 
                     <!-- Right Fallback: When no voice actor is credited in MAL -->
                     <Border Grid.Column="2" VerticalOptions="Center" HorizontalOptions="Center"
-                            Padding="8,5" BackgroundColor="#0DFFFFFF" StrokeShape="RoundRectangle 6" StrokeThickness="0"
+                            Padding="8,5" BackgroundColor="{DynamicResource TabChipInactiveBg}" StrokeShape="RoundRectangle 6" StrokeThickness="0"
                             IsVisible="{Binding HasJapaneseVoice, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
-                        <Label Text="No VA credited" FontFamily="Inter" FontSize="11" TextColor="#60FFFFFF" />
+                        <Label Text="No VA credited" FontFamily="Inter" FontSize="11" TextColor="{DynamicResource TabChipInactiveText}" />
                     </Border>
                 </Grid>
             </Border>
@@ -372,7 +373,7 @@
                 </Border.GestureRecognizers>
                 <Grid ColumnDefinitions="54,*" ColumnSpacing="12">
                     <Border WidthRequest="54" HeightRequest="78" StrokeShape="RoundRectangle 8"
-                            Stroke="{StaticResource EmBorder}" StrokeThickness="1" VerticalOptions="Center"
+                            Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" VerticalOptions="Center"
                            >
                         <Image Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
                                Aspect="AspectFill" />
@@ -381,16 +382,16 @@
                         <Label Text="{Binding Name}" FontFamily="InterBold" FontSize="13"
                                TextColor="{StaticResource BrushText}" MaxLines="2" LineBreakMode="TailTruncation" />
                         <HorizontalStackLayout Spacing="8">
-                            <Border Padding="6,2" StrokeShape="RoundRectangle 6" BackgroundColor="#0066FF"
+                            <Border Padding="6,2" StrokeShape="RoundRectangle 6" BackgroundColor="{DynamicResource EmAccent}"
                                     StrokeThickness="0" IsVisible="{Binding HasRole}">
                                 <Label Text="{Binding Role}" FontFamily="InterBold" FontSize="8" TextColor="White" />
                             </Border>
                             <HorizontalStackLayout Spacing="3" IsVisible="{Binding HasFavorites}"
                                                    VerticalOptions="Center">
-                                <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="#FFD700"
+                                <Label Text="★" FontFamily="Inter" FontSize="8" TextColor="{StaticResource BrushText}"
                                        VerticalOptions="Center" />
                                 <Label Text="{Binding FavoritesText}" FontFamily="Inter" FontSize="10"
-                                       TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                                       TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                             </HorizontalStackLayout>
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
@@ -407,7 +408,7 @@
                 <VerticalStackLayout Spacing="5">
                     <Border WidthRequest="74" HeightRequest="100" HorizontalOptions="Center"
                             StrokeShape="RoundRectangle 8"
-                            Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                            >
                         <Image Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"
                                Aspect="AspectFill" />
@@ -417,25 +418,25 @@
                            TextColor="{StaticResource BrushText}" MaxLines="1" LineBreakMode="TailTruncation" />
                     <Label Text="{Binding RoleLineOne}" FontFamily="Inter" FontSize="10"
                            HorizontalTextAlignment="Center"
-                           TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" LineBreakMode="TailTruncation"
+                           TextColor="{DynamicResource TabChipInactiveText}" MaxLines="1" LineBreakMode="TailTruncation"
                            IsVisible="{Binding HasRoleLineOne}" />
                     <Label Text="{Binding RoleLineTwo}" FontFamily="Inter" FontSize="9"
                            HorizontalTextAlignment="Center"
-                           TextColor="#6A859E" MaxLines="1" LineBreakMode="TailTruncation"
+                           TextColor="{DynamicResource TabChipInactiveText}" MaxLines="1" LineBreakMode="TailTruncation"
                            IsVisible="{Binding HasRoleLineTwo}" />
                 </VerticalStackLayout>
             </Border>
         </DataTemplate>
     </ContentPage.Resources>
 
-    <Grid BackgroundColor="{StaticResource EmSheet}">
+    <Grid BackgroundColor="{DynamicResource EmSheet}">
         <ScrollView x:Name="PageScroll" Scrolled="OnPageScrolled"
                         SizeChanged="OnPageViewportSizeChanged"
                         VerticalScrollBarVisibility="Never" HorizontalScrollBarVisibility="Never">
             <VerticalStackLayout Spacing="0">
                 <Grid x:Name="HeaderSpacer" HeightRequest="600" BackgroundColor="Transparent" />
 
-                <Grid x:Name="TabContentHost" BackgroundColor="{StaticResource EmSheet}">
+                <Grid x:Name="TabContentHost" BackgroundColor="{DynamicResource EmSheet}">
 <!-- One tab for what used to be General and Details. The split was costing a tap
                          and duplicating nothing useful, while the four 18sp rank cards were eating
                          the top of the screen and pushing the synopsis, the actual reason for
@@ -472,7 +473,7 @@
                                     </Label.GestureRecognizers>
                                 </Label>
                                 <Label Text="{Binding SynopsisToggleText}" FontFamily="InterSemiBold" FontSize="11"
-                                       TextColor="#7AB4FF" MaxLines="1" Padding="0,2"
+                                       TextColor="#60A5FA" MaxLines="1" Padding="0,2"
                                        IsVisible="{Binding SynopsisToggleVisible}">
                                     <Label.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnSynopsisTapped" />
@@ -480,7 +481,7 @@
                                 </Label>
                                 <Label Text="No synopsis available."
                                        IsVisible="{Binding Source={x:Reference DetailsPage}, Path=GeneralSynopsisEmptyVisible}"
-                                       FontFamily="Inter" FontSize="12" TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
+                                       FontFamily="Inter" FontSize="12" TextColor="{DynamicResource TabChipInactiveText}" MaxLines="1" />
                             </VerticalStackLayout>
                         </Border>
 
@@ -567,7 +568,7 @@
                                     <DataTemplate>
                                         <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
                                             <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
+                                                   TextColor="{DynamicResource TabChipInactiveText}" MaxLines="1" />
                                             <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
                                                    TextColor="{StaticResource BrushText}" />
                                         </Grid>
@@ -585,7 +586,7 @@
                                     <DataTemplate>
                                         <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
                                             <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
+                                                   TextColor="{DynamicResource TabChipInactiveText}" MaxLines="1" />
                                             <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
                                                    TextColor="{StaticResource BrushText}" />
                                         </Grid>
@@ -610,7 +611,7 @@
                                     </Label.GestureRecognizers>
                                 </Label>
                                 <Label Text="{Binding MoreInfoToggleText}" FontFamily="InterSemiBold" FontSize="11"
-                                       TextColor="#7AB4FF" MaxLines="1" Padding="0,2"
+                                       TextColor="#60A5FA" MaxLines="1" Padding="0,2"
                                        IsVisible="{Binding MoreInfoToggleVisible}">
                                     <Label.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnMoreInfoTapped" />
@@ -628,7 +629,7 @@
                                     <DataTemplate>
                                         <Grid ColumnDefinitions="96,*" Padding="0,4" ColumnSpacing="10">
                                             <Label Text="{Binding Item1}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" />
+                                                   TextColor="{DynamicResource TabChipInactiveText}" MaxLines="1" />
                                             <Label Grid.Column="1" Text="{Binding Item2}" FontFamily="Inter" FontSize="12"
                                                    TextColor="{StaticResource BrushText}" />
                                         </Grid>
@@ -646,15 +647,15 @@
                                         AlignItems="Start">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
-                                                BackgroundColor="{StaticResource TabChipInactiveBg}"
+                                        <Border Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                                BackgroundColor="{DynamicResource TabChipInactiveBg}"
                                                 Padding="11,5" Margin="0,3,6,3">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnExternalLinkTapped"
                                                                       CommandParameter="{Binding Url}" />
                                             </Border.GestureRecognizers>
                                             <Label Text="{Binding Label}" FontFamily="Inter" FontSize="12"
-                                                   TextColor="#8FB8E8" MaxLines="1" LineBreakMode="NoWrap" />
+                                                   TextColor="#60A5FA" MaxLines="1" LineBreakMode="NoWrap" />
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
@@ -728,7 +729,7 @@
                                 <Label Grid.Column="0" Text="{Binding Source={x:Reference DetailsPage}, Path=EpisodesRangeSummary}"
                                        FontFamily="InterMedium" FontSize="12" TextColor="#A0A0A0" VerticalOptions="Center" />
 
-                                <Border Grid.Column="1" Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                <Border Grid.Column="1" Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
                                         BackgroundColor="#1AFFFFFF" Padding="8,4" InputTransparent="False">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnToggleEpisodeSortTapped" />
@@ -738,7 +739,7 @@
                                            InputTransparent="True" />
                                 </Border>
 
-                                <Border Grid.Column="2" Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                                <Border Grid.Column="2" Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
                                         BackgroundColor="#1AFFFFFF" Padding="8,4" InputTransparent="False"
                                         IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasFillerEpisodes}">
                                     <Border.GestureRecognizers>
@@ -797,8 +798,8 @@
                         <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12" Margin="14,10,14,0"
                               IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasEpisodeRanges}">
                             <Border Grid.Column="0" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasPrevRange}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8"
-                                    BackgroundColor="{StaticResource TabChipInactiveBg}" Padding="12,8" InputTransparent="False">
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" StrokeShape="RoundRectangle 8"
+                                    BackgroundColor="{DynamicResource TabChipInactiveBg}" Padding="12,8" InputTransparent="False">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnPrevRangeTapped" />
                                 </Border.GestureRecognizers>
@@ -807,8 +808,8 @@
                             </Border>
 
                             <Border Grid.Column="1" IsVisible="{Binding Source={x:Reference DetailsPage}, Path=HasNextRange}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8"
-                                    BackgroundColor="{StaticResource TabChipInactiveBg}" Padding="12,8" InputTransparent="False">
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1" StrokeShape="RoundRectangle 8"
+                                    BackgroundColor="{DynamicResource TabChipInactiveBg}" Padding="12,8" InputTransparent="False">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnNextRangeTapped" />
                                 </Border.GestureRecognizers>
@@ -876,7 +877,7 @@
 
                     <VerticalStackLayout x:Name="RelatedPanel"
                                          IsVisible="{Binding DetailsPivotSelectedIndex, Converter={StaticResource IntEq}, ConverterParameter=5}"
-                                         Padding="8,8,8,32" Spacing="6">
+                                         Padding="{Binding Source={x:Reference DetailsPage}, Path=RelatedPanelPadding}" Spacing="6">
                         <Border IsVisible="{Binding LoadingRelated}" Margin="4,8" Style="{StaticResource PanelStyle}" Padding="18">
                             <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                                 <ActivityIndicator IsRunning="{Binding LoadingRelated}" Color="#0066FF"
@@ -982,7 +983,7 @@
         </ScrollView>
 
         <VerticalStackLayout x:Name="HeaderFlow" Spacing="0" ZIndex="20" VerticalOptions="Start" HorizontalOptions="Fill"
-                             BackgroundColor="{StaticResource EmSheet}">
+                             BackgroundColor="{DynamicResource EmSheet}">
             <Grid x:Name="HeroContainer" HeightRequest="460" HorizontalOptions="Fill" BackgroundColor="Transparent" IsClippedToBounds="True">
                 <Grid x:Name="HeroVisual" HeightRequest="460" IsClippedToBounds="True" VerticalOptions="Start" HorizontalOptions="Fill">
                     <controls:BlurHeroView ImageUrl="{Binding DetailImage}" />
@@ -1001,26 +1002,32 @@
                     <BoxView InputTransparent="True">
                         <BoxView.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Color="#00051522" Offset="0.0" />
-                                <GradientStop Color="#00051522" Offset="0.35" />
-                                <GradientStop Color="#4D051522" Offset="0.65" />
-                                <GradientStop Color="#CC051522" Offset="1.0" />
+                                <GradientStop Color="#00030B14" Offset="0.0" />
+                                <GradientStop Color="#00030B14" Offset="0.35" />
+                                <GradientStop Color="#80030B14" Offset="0.52" />
+                                <GradientStop Color="#CC030B14" Offset="0.66" />
+                                <GradientStop Color="#F0030B14" Offset="0.82" />
+                                <GradientStop Color="#FC030B14" Offset="1.0" />
                             </LinearGradientBrush>
                         </BoxView.Background>
                     </BoxView>
                     <BoxView x:Name="HeroScrim" Opacity="0" InputTransparent="True">
                         <BoxView.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Color="#00051522" Offset="0.0" />
-                                <GradientStop Color="#4D051522" Offset="0.4" />
-                                <GradientStop Color="#E6051522" Offset="1.0" />
+                                <GradientStop Color="#1A030B14" Offset="0.0" />
+                                <GradientStop Color="#88030B14" Offset="0.45" />
+                                <GradientStop Color="#F5030B14" Offset="1.0" />
                             </LinearGradientBrush>
                         </BoxView.Background>
                     </BoxView>
                     <Grid x:Name="TitleSection" VerticalOptions="End" RowDefinitions="Auto,Auto,Auto" Padding="20,10,20,12">
                         <Label Grid.Row="0" x:Name="TitleLabel" Text="{Binding Title}"
                                FontFamily="InterBold" FontSize="26" TextColor="White"
-                               MaxLines="2" LineBreakMode="TailTruncation" Margin="0,0,0,4" />
+                               MaxLines="2" LineBreakMode="TailTruncation" Margin="0,0,0,4">
+                            <Label.Shadow>
+                                <Shadow Brush="#CC000000" Offset="0,2" Radius="6" Opacity="0.9" />
+                            </Label.Shadow>
+                        </Label>
                         <HorizontalStackLayout Grid.Row="1" Spacing="6" Margin="0,0,0,8">
                             <Border Padding="8,2" StrokeShape="RoundRectangle 6" BackgroundColor="#0066FF" StrokeThickness="0">
                                 <Label Text="{Binding Type}" FontFamily="InterBold" FontSize="11" TextColor="White" />
@@ -1038,14 +1045,14 @@
                                 </Border.IsVisible>
                                 <Label Text="{Binding TimeTillNextAir}" FontFamily="InterBold" FontSize="11" TextColor="White" />
                             </Border>
-                            <Label Text="•" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" VerticalOptions="Center" Margin="6,0" />
-                            <Label Text="{Binding StartYear}" FontFamily="Inter" FontSize="12" TextColor="#CCFFFFFF" VerticalOptions="Center" />
-                            <Label Text="•" FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF" VerticalOptions="Center" Margin="6,0" />
+                            <Label Text="•" FontFamily="Inter" FontSize="11" TextColor="#B3FFFFFF" VerticalOptions="Center" Margin="6,0" />
+                            <Label Text="{Binding StartYear}" FontFamily="Inter" FontSize="12" TextColor="#E6FFFFFF" VerticalOptions="Center" />
+                            <Label Text="•" FontFamily="Inter" FontSize="11" TextColor="#B3FFFFFF" VerticalOptions="Center" Margin="6,0" />
                             <Label Text="{Binding AllEpisodesBind, StringFormat='{0} Episodes'}" IsVisible="{Binding AnimeMode}"
-                                   FontFamily="Inter" FontSize="12" TextColor="#CCFFFFFF" VerticalOptions="Center" />
+                                   FontFamily="Inter" FontSize="12" TextColor="#E6FFFFFF" VerticalOptions="Center" />
                             <Label Text="{Binding AllEpisodesBind, StringFormat='{0} Chapters'}"
                                    IsVisible="{Binding AnimeMode, Converter={StaticResource BoolVis}, ConverterParameter=invert}"
-                                   FontFamily="Inter" FontSize="12" TextColor="#CCFFFFFF" VerticalOptions="Center" />
+                                   FontFamily="Inter" FontSize="12" TextColor="#E6FFFFFF" VerticalOptions="Center" />
                         </HorizontalStackLayout>
                         <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
                             <!-- Two rows instead of a FlexLayout: a flex row aligns the groups by
@@ -1058,14 +1065,14 @@
                                   RowDefinitions="Auto,Auto" HorizontalOptions="Start"
                                   VerticalOptions="Center">
                                 <HorizontalStackLayout x:Name="ScoreHeaderGroup" Grid.Row="0" Grid.Column="0" Spacing="3">
-                                    <Label Text="★" FontFamily="InterBold" FontSize="9" TextColor="#FFD700" />
-                                    <Label Text="MAL" FontFamily="InterBold" FontSize="9" TextColor="#80FFFFFF" />
+                                    <Label Text="★" FontFamily="InterBold" FontSize="9" TextColor="{StaticResource BrushText}" />
+                                    <Label Text="MAL" FontFamily="InterBold" FontSize="9" TextColor="#B3FFFFFF" />
                                 </HorizontalStackLayout>
                                 <Label x:Name="ScoreMetaGroup" Grid.Row="1" Grid.Column="0"
                                        Text="{Binding GlobalScoreBind}" FontFamily="InterBold" FontSize="14" TextColor="White" />
 
                                 <Label x:Name="StatusHeaderGroup" Grid.Row="0" Grid.Column="1"
-                                       Text="STATUS" FontFamily="InterBold" FontSize="9" TextColor="#80FFFFFF" />
+                                       Text="STATUS" FontFamily="InterBold" FontSize="9" TextColor="#B3FFFFFF" />
                                 <Button x:Name="StatusMetaGroup" Grid.Row="1" Grid.Column="1"
                                         Text="{Binding MyStatusBind, StringFormat='{0} ▾'}" Clicked="OnStatusClicked"
                                         FontFamily="InterBold" FontSize="14" BackgroundColor="Transparent" TextColor="White"
@@ -1073,7 +1080,7 @@
 
                                 <Grid x:Name="LastAiredMetaGroup" Grid.Row="0" Grid.RowSpan="2" Grid.Column="2">
                                 <VerticalStackLayout Spacing="2">
-                                    <Label Text="{Binding LastAiredHeader}" FontFamily="InterBold" FontSize="9" TextColor="#80FFFFFF">
+                                    <Label Text="{Binding LastAiredHeader}" FontFamily="InterBold" FontSize="9" TextColor="#B3FFFFFF">
                                         <Label.IsVisible>
                                             <MultiBinding Converter="{StaticResource MultiAnd}">
                                                 <Binding Path="Status" Converter="{StaticResource AiringStatus}" />
@@ -1124,7 +1131,7 @@
                 </Grid>
             </Grid>
 
-            <Border x:Name="ActionBar" HorizontalOptions="Fill" BackgroundColor="{StaticResource EmSheet}" StrokeShape="RoundRectangle 24,24,0,0" Stroke="Transparent" Padding="14,12,14,8">
+            <Border x:Name="ActionBar" HorizontalOptions="Fill" BackgroundColor="{DynamicResource EmSheet}" StrokeShape="RoundRectangle 24,24,0,0" Stroke="Transparent" Padding="14,12,14,8">
                 <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="6">
                     <Button Grid.Column="0" Text="Add to List" Command="{Binding AddAnimeCommand}" IsVisible="{Binding AddAnimeVisibility}"
                             IsEnabled="{Binding IsAddAnimeButtonEnabled}" FontFamily="InterSemiBold" FontSize="12"
@@ -1147,14 +1154,14 @@
                         </Button.Triggers>
                     </Button>
                     <Button Grid.Column="2" Text="▶" Clicked="OnTrailerClicked" IsVisible="{Binding HasTrailer}" FontFamily="InterBold" FontSize="14"
-                            Style="{StaticResource ActionButtonStyle}" TextColor="#FF6B00"
+                            Style="{StaticResource ActionButtonStyle}"
                             WidthRequest="40" Padding="0" />
                     <Button Grid.Column="3" Text="↻" Command="{Binding RefreshCommand}" FontFamily="InterBold" FontSize="14"
                             Style="{StaticResource ActionButtonStyle}"
                             WidthRequest="40" Padding="0" />
                     <Border Grid.Column="4" WidthRequest="40" HeightRequest="40"
-                            StrokeShape="RoundRectangle 8" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                            BackgroundColor="{StaticResource TabChipInactiveBg}" Padding="0">
+                            StrokeShape="RoundRectangle 8" Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
+                            BackgroundColor="{DynamicResource TabChipInactiveBg}" Padding="0">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnShareButtonTapped" />
                         </Border.GestureRecognizers>
@@ -1168,7 +1175,7 @@
             </Border>
 
             <ScrollView x:Name="TabStripScroll" HorizontalOptions="Fill" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
-                        Margin="0,0,0,0" Padding="14,4,14,8" BackgroundColor="{StaticResource EmSheet}">
+                        Margin="0,0,0,0" Padding="14,4,14,8" BackgroundColor="{DynamicResource EmSheet}">
                 <HorizontalStackLayout Spacing="8">
                     <Button x:Name="TabGeneral" Text="Overview" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="0" />
                     <Button x:Name="TabEpisodes" Text="Episodes" Style="{StaticResource TabChipButtonStyle}" Clicked="OnTabButtonClicked" CommandParameter="1" />
@@ -1239,6 +1246,39 @@
                     <Button Clicked="OnDesktopBackClicked" BackgroundColor="Transparent" BorderWidth="0" Padding="0" />
                 </Grid>
             </Border>
+
+            <!-- Random Anime / Manga floating top-right controls (settings gear + reroll button) -->
+            <HorizontalStackLayout x:Name="RandomFloatingControls"
+                                   ZIndex="90"
+                                   HorizontalOptions="End" VerticalOptions="Start"
+                                   Margin="0,16,16,0" Spacing="8"
+                                   IsVisible="False">
+                <Border x:Name="RandomFiltersButton"
+                        WidthRequest="40" HeightRequest="40"
+                        StrokeShape="RoundRectangle 20"
+                        BackgroundColor="#B3051522" Stroke="#33FFFFFF" StrokeThickness="1"
+                        Padding="0">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRandomFiltersTapped" />
+                    </Border.GestureRecognizers>
+                    <Image Source="icon_settings.png" WidthRequest="18" HeightRequest="18"
+                           HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
+                </Border>
+                <Border x:Name="RandomRerollButton"
+                        HeightRequest="40" Padding="14,0"
+                        StrokeShape="RoundRectangle 20"
+                        BackgroundColor="#E60066FF" Stroke="#4DFFFFFF" StrokeThickness="1">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRandomRerollTapped" />
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="6" VerticalOptions="Center" InputTransparent="True">
+                        <Label Text="↻" FontFamily="InterBold" FontSize="15" TextColor="White"
+                               VerticalOptions="Center" />
+                        <Label Text="Reroll" FontFamily="InterSemiBold" FontSize="12" TextColor="White"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+            </HorizontalStackLayout>
 
             <controls:OptionsSheet x:Name="DetailsSheet" ZIndex="300" />
         </Grid>

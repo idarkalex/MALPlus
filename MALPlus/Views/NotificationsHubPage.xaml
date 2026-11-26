@@ -2,11 +2,12 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
              xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
              xmlns:mnotifications="clr-namespace:MALPlus.Models.Models.Notifications;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.NotificationsHubPage"
              x:DataType="vm:NotificationsHubViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -20,13 +21,14 @@
         </Grid>
 
         <Grid RowDefinitions="Auto,Auto,*">
-            <Grid Grid.Row="0" Padding="16,12" ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="0" Padding="16,12" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <Label Grid.Column="0" Text="Notifications" FontFamily="InterBold" FontSize="22"
                        TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                <Button Grid.Column="1" Text="✓ All read" Command="{Binding MarkAllAsReadCommand}"
+                <controls:WindowsRefreshButton Grid.Column="1" Clicked="OnRefreshing" />
+                <Button Grid.Column="2" Text="✓ All read" Command="{Binding MarkAllAsReadCommand}"
                         FontFamily="InterSemiBold" FontSize="11"
-                        BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
-                        BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8"
+                        BackgroundColor="{DynamicResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                        BorderColor="{DynamicResource EmBorder}" BorderWidth="1" CornerRadius="8"
                         HeightRequest="32" Padding="10,0" />
             </Grid>
 
@@ -56,8 +58,8 @@
                     </CollectionView.EmptyView>
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="mnotifications:MalNotification">
-                            <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            <Border Margin="16,4" BackgroundColor="{DynamicResource EmSheet}"
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 14" Padding="12">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnNotificationItemTapped" CommandParameter="{Binding .}" />

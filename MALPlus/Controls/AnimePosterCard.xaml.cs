@@ -289,9 +289,161 @@ public partial class AnimePosterCard : ContentView
     {
         InitializeComponent();
         RootGrid.BindingContext = this;
+    }
+
+    private int _currentScaleMode = 1;
+
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        if (width <= 0)
+            return;
+
+        int mode = width >= 155 ? 2 : (width < 110 ? 0 : 1);
+        if (mode == _currentScaleMode)
+            return;
+
+        _currentScaleMode = mode;
 #if WINDOWS
-        WidthRequest = 130;
-        HeightRequest = 195;
+        // On WinUI 3, mutating child layout properties inside OnSizeAllocated (ArrangeOverride)
+        // inside a virtualizing CollectionView can trigger a LayoutCycle crash/hang (0x80073b01).
+        Dispatcher.Dispatch(() =>
+        {
+            if (_currentScaleMode == mode)
+                ApplyCardScale(mode);
+        });
+#else
+        ApplyCardScale(mode);
+#endif
+    }
+
+    private void ApplyCardScale(int mode)
+    {
+        switch (mode)
+        {
+            case 0: // Compact (e.g. 4-5 columns)
+                TitleLabel.FontSize = 9.5;
+                TitleLabel.HeightRequest = 26;
+                TitleLabel.Margin = new Thickness(4, 0, 4, 3);
+
+                var pad0 = new Thickness(4, 1.5);
+                LeftChipsLayout.Margin = new Thickness(4, 4, 0, 0);
+                TypeTagBorder.Padding = pad0;
+                TypeTagLabel.FontSize = 7.5;
+                ScoreTagBorder.Padding = pad0;
+                ScoreTagLabel.FontSize = 7.5;
+                SeasonTagBorder.Padding = pad0;
+                SeasonTagLabel.FontSize = 7.5;
+
+                BadgeBorder.Padding = pad0;
+                BadgeBorder.Margin = new Thickness(0, 4, 4, 0);
+                BadgeAccentLabel.FontSize = 7.5;
+                BadgeMainLabel.FontSize = 7.5;
+                BadgeExtraLabel.FontSize = 7.5;
+
+                TagIndicatorBorder.WidthRequest = 15;
+                TagIndicatorBorder.HeightRequest = 15;
+                TagIndicatorIcon.WidthRequest = 9;
+                TagIndicatorIcon.HeightRequest = 9;
+                NoteIndicatorBorder.WidthRequest = 15;
+                NoteIndicatorBorder.HeightRequest = 15;
+                NoteIndicatorIcon.WidthRequest = 9;
+                NoteIndicatorIcon.HeightRequest = 9;
+                IndicatorsLayout.Margin = new Thickness(0, 24, 4, 0);
+
+                BottomBadgesLayout.Margin = new Thickness(0, 0, 4, 27);
+                BottomAirBorder.Padding = pad0;
+                BottomAirLabel.FontSize = 7.5;
+                RankBorder.Padding = pad0;
+                RankLabel.FontSize = 7.5;
+                break;
+
+            case 2: // Large (e.g. 2 columns)
+                TitleLabel.FontSize = 13;
+                TitleLabel.HeightRequest = 38;
+                TitleLabel.Margin = new Thickness(8, 0, 8, 5);
+
+                var pad2 = new Thickness(7.5, 3);
+                LeftChipsLayout.Margin = new Thickness(8, 8, 0, 0);
+                TypeTagBorder.Padding = pad2;
+                TypeTagLabel.FontSize = 10.5;
+                ScoreTagBorder.Padding = pad2;
+                ScoreTagLabel.FontSize = 10.5;
+                SeasonTagBorder.Padding = pad2;
+                SeasonTagLabel.FontSize = 10.5;
+
+                BadgeBorder.Padding = pad2;
+                BadgeBorder.Margin = new Thickness(0, 8, 8, 0);
+                BadgeAccentLabel.FontSize = 10.5;
+                BadgeMainLabel.FontSize = 10.5;
+                BadgeExtraLabel.FontSize = 10.5;
+
+                TagIndicatorBorder.WidthRequest = 20;
+                TagIndicatorBorder.HeightRequest = 20;
+                TagIndicatorIcon.WidthRequest = 13;
+                TagIndicatorIcon.HeightRequest = 13;
+                NoteIndicatorBorder.WidthRequest = 20;
+                NoteIndicatorBorder.HeightRequest = 20;
+                NoteIndicatorIcon.WidthRequest = 13;
+                NoteIndicatorIcon.HeightRequest = 13;
+                IndicatorsLayout.Margin = new Thickness(0, 35, 8, 0);
+
+                BottomBadgesLayout.Margin = new Thickness(0, 0, 8, 40);
+                BottomAirBorder.Padding = pad2;
+                BottomAirLabel.FontSize = 10.5;
+                RankBorder.Padding = pad2;
+                RankLabel.FontSize = 10.5;
+                break;
+
+            default: // Classic / Standard (e.g. 3 columns)
+                TitleLabel.FontSize = 11;
+                TitleLabel.HeightRequest = 32;
+                TitleLabel.Margin = new Thickness(6, 0, 6, 4);
+
+                var pad1 = new Thickness(6, 2);
+                LeftChipsLayout.Margin = new Thickness(6, 6, 0, 0);
+                TypeTagBorder.Padding = pad1;
+                TypeTagLabel.FontSize = 9;
+                ScoreTagBorder.Padding = pad1;
+                ScoreTagLabel.FontSize = 9;
+                SeasonTagBorder.Padding = pad1;
+                SeasonTagLabel.FontSize = 9;
+
+                BadgeBorder.Padding = pad1;
+                BadgeBorder.Margin = new Thickness(0, 6, 6, 0);
+                BadgeAccentLabel.FontSize = 9;
+                BadgeMainLabel.FontSize = 9;
+                BadgeExtraLabel.FontSize = 9;
+
+                TagIndicatorBorder.WidthRequest = 18;
+                TagIndicatorBorder.HeightRequest = 18;
+                TagIndicatorIcon.WidthRequest = 11;
+                TagIndicatorIcon.HeightRequest = 11;
+                NoteIndicatorBorder.WidthRequest = 18;
+                NoteIndicatorBorder.HeightRequest = 18;
+                NoteIndicatorIcon.WidthRequest = 11;
+                NoteIndicatorIcon.HeightRequest = 11;
+                IndicatorsLayout.Margin = new Thickness(0, 30, 6, 0);
+
+                BottomBadgesLayout.Margin = new Thickness(0, 0, 6, 32);
+                BottomAirBorder.Padding = pad1;
+                BottomAirLabel.FontSize = 9;
+                RankBorder.Padding = pad1;
+                RankLabel.FontSize = 9;
+                break;
+        }
+#if !WINDOWS
+        try
+        {
+            TypeTagBorder.InvalidateMeasure();
+            ScoreTagBorder.InvalidateMeasure();
+            SeasonTagBorder.InvalidateMeasure();
+            BadgeBorder.InvalidateMeasure();
+            BottomAirBorder.InvalidateMeasure();
+            RankBorder.InvalidateMeasure();
+            LeftChipsLayout.InvalidateMeasure();
+        }
+        catch { }
 #endif
     }
 
@@ -300,6 +452,35 @@ public partial class AnimePosterCard : ContentView
     ///     <see cref="AnimePosterGrid.ItemLongPressed" />, which is what hosts actually subscribe to.
     /// </summary>
     public event EventHandler<object> LongPressed;
+
+#if WINDOWS
+    private Microsoft.UI.Xaml.UIElement _winElement;
+
+    protected override void OnHandlerChanged()
+    {
+        base.OnHandlerChanged();
+        if (_winElement != null)
+        {
+            _winElement.RightTapped -= OnWinRightTapped;
+            _winElement = null;
+        }
+        if (Handler?.PlatformView is Microsoft.UI.Xaml.UIElement element)
+        {
+            _winElement = element;
+            _winElement.RightTapped += OnWinRightTapped;
+        }
+    }
+
+    private void OnWinRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        // Touch long-press is already handled by LongPressGestureRecognizer;
+        // right-click (mouse, touchpad, pen) opens the same poster options menu on Windows.
+        if (e.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
+            return;
+        e.Handled = true;
+        OnLongPressed(this, EventArgs.Empty);
+    }
+#endif
 
     private void OnLongPressed(object sender, EventArgs e)
     {

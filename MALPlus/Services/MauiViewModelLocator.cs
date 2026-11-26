@@ -28,7 +28,6 @@ public static class MauiViewModelLocator
         SimpleIoc.Default.Register<IMessageDialogProvider, MauiMessageDialogProvider>();
         SimpleIoc.Default.Register<IImageDownloaderService, MauiImageDownloaderService>();
         SimpleIoc.Default.Register<ILocalDiagnosticsProvider, MauiLocalDiagnosticsProvider>();
-        SimpleIoc.Default.Register<ITelemetryProvider>(() => (ITelemetryProvider)SimpleIoc.Default.GetInstance<ILocalDiagnosticsProvider>());
         SimpleIoc.Default.Register<INotificationsTaskManager, MauiNotificationsTaskManager>();
         SimpleIoc.Default.Register<ISchdeuledJobsManger, MauiScheduledJobsManager>();
         SimpleIoc.Default.Register<ICssManager, MauiCssManager>();

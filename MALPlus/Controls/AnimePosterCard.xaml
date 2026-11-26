@@ -19,33 +19,33 @@
         <Image Source="{Binding PosterUrl, Converter={StaticResource ImageConverter}}"
                Aspect="AspectFill" />
 
-        <VerticalStackLayout Spacing="4" Margin="6,6,0,0"
+        <VerticalStackLayout x:Name="LeftChipsLayout" Spacing="4" Margin="6,6,0,0"
                              HorizontalOptions="Start" VerticalOptions="Start">
-            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+            <Border x:Name="TypeTagBorder" Padding="6,2" StrokeShape="RoundRectangle 6"
                     BackgroundColor="#0066FF" Stroke="Transparent"
                     HorizontalOptions="Start"
                     IsVisible="{Binding TypeTag, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
-                <Label Text="{Binding TypeTag}"
-                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+                <Label x:Name="TypeTagLabel" Text="{Binding TypeTag}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" LineBreakMode="NoWrap" />
             </Border>
 
             <!-- Mean score, same tag as the type, right under it. Tops and search used to print
                  "Score 8.72" in the counter pill instead. -->
-            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+            <Border x:Name="ScoreTagBorder" Padding="6,2" StrokeShape="RoundRectangle 6"
                     BackgroundColor="#0066FF" Stroke="Transparent"
                     HorizontalOptions="Start"
                     IsVisible="{Binding ScoreTag, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
-                <Label Text="{Binding ScoreTag}"
-                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+                <Label x:Name="ScoreTagLabel" Text="{Binding ScoreTag}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" LineBreakMode="NoWrap" />
             </Border>
 
             <!-- Season chip (e.g. 'Fall 24'), 3rd tag under score -->
-            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+            <Border x:Name="SeasonTagBorder" Padding="6,2" StrokeShape="RoundRectangle 6"
                     BackgroundColor="#0066FF" Stroke="Transparent"
                     HorizontalOptions="Start"
                     IsVisible="{Binding SeasonTag, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
-                <Label Text="{Binding SeasonTag}"
-                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+                <Label x:Name="SeasonTagLabel" Text="{Binding SeasonTag}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" LineBreakMode="NoWrap" />
             </Border>
 
             <VerticalStackLayout Spacing="0"
@@ -56,23 +56,25 @@
         </VerticalStackLayout>
 
         <!-- Top-right counter pill: status, episodes watched and countdown. Styled in solid blue matching the left chips -->
-        <Border BackgroundColor="#0066FF" Stroke="Transparent" StrokeThickness="0"
+        <Border x:Name="BadgeBorder" BackgroundColor="#0066FF" Stroke="Transparent" StrokeThickness="0"
                 StrokeShape="RoundRectangle 6" Padding="6,2"
                 HorizontalOptions="End" VerticalOptions="Start"
                 Margin="0,6,6,0"
                 IsVisible="{Binding HasBadge}">
             <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                <Label Text="{Binding BadgeAccent}"
+                <Label x:Name="BadgeAccentLabel" Text="{Binding BadgeAccent}"
                        FontFamily="InterBold" FontSize="9"
                        TextColor="{Binding BadgeAccentColor}" VerticalOptions="Center"
+                       MaxLines="1" LineBreakMode="NoWrap"
                        IsVisible="{Binding BadgeAccent, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
-                <Label Text="{Binding BadgeMain}"
+                <Label x:Name="BadgeMainLabel" Text="{Binding BadgeMain}"
                        FontFamily="InterBold" FontSize="9" TextColor="White" VerticalOptions="Center"
+                       MaxLines="1" LineBreakMode="NoWrap"
                        IsVisible="{Binding BadgeMain, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}" />
                 <BoxView WidthRequest="1" HeightRequest="10" Color="#59FFFFFF"
                          VerticalOptions="Center"
                          IsVisible="{Binding HasBadgeExtra}" />
-                <Label Text="{Binding BadgeExtra}"
+                <Label x:Name="BadgeExtraLabel" Text="{Binding BadgeExtra}"
                        FontFamily="InterBold" FontSize="9" TextColor="White"
                        VerticalOptions="Center" MaxLines="1" LineBreakMode="TailTruncation"
                        IsVisible="{Binding HasBadgeExtraTop}" />
@@ -88,20 +90,20 @@
              The chip is a translucent black with a black outline and a white glyph: it sits on
              artwork that can be anything, and the outline is what keeps it off a white sky.
              Off unless the grid asked for them, which only the anime library list does. -->
-        <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="Start"
+        <HorizontalStackLayout x:Name="IndicatorsLayout" HorizontalOptions="End" VerticalOptions="Start"
                                Margin="0,30,6,0" Spacing="4"
                                IsVisible="{Binding HasAnyIndicator}"
                                InputTransparent="True">
-            <Border WidthRequest="18" HeightRequest="18" Padding="0" StrokeShape="RoundRectangle 5"
+            <Border x:Name="TagIndicatorBorder" WidthRequest="18" HeightRequest="18" Padding="0" StrokeShape="RoundRectangle 5"
                     BackgroundColor="#99000000" Stroke="Black" StrokeThickness="1"
                     IsVisible="{Binding HasTagIndicator}">
-                <Image Source="icon_tag" WidthRequest="11" HeightRequest="11" Aspect="AspectFit"
+                <Image x:Name="TagIndicatorIcon" Source="icon_tag" WidthRequest="11" HeightRequest="11" Aspect="AspectFit"
                        Opacity="0.75" />
             </Border>
-            <Border WidthRequest="18" HeightRequest="18" Padding="0" StrokeShape="RoundRectangle 5"
+            <Border x:Name="NoteIndicatorBorder" WidthRequest="18" HeightRequest="18" Padding="0" StrokeShape="RoundRectangle 5"
                     BackgroundColor="#99000000" Stroke="Black" StrokeThickness="1"
                     IsVisible="{Binding HasNoteIndicator}">
-                <Image Source="icon_note" WidthRequest="11" HeightRequest="11" Aspect="AspectFit"
+                <Image x:Name="NoteIndicatorIcon" Source="icon_note" WidthRequest="11" HeightRequest="11" Aspect="AspectFit"
                        Opacity="0.75" />
             </Border>
         </HorizontalStackLayout>
@@ -115,28 +117,28 @@
                 Background="{StaticResource PosterScrimBrush}" />
 
         <!-- Bottom-right badges above the title overlay: Airing now indicator and/or Rank tag -->
-        <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="End"
+        <HorizontalStackLayout x:Name="BottomBadgesLayout" HorizontalOptions="End" VerticalOptions="End"
                                Margin="0,0,6,32" Spacing="4"
                                InputTransparent="True">
-            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+            <Border x:Name="BottomAirBorder" Padding="6,2" StrokeShape="RoundRectangle 6"
                     BackgroundColor="#E11D48" Stroke="Transparent"
                     IsVisible="{Binding HasBottomAirTag}">
-                <Label Text="{Binding EffectiveBottomAirText}"
-                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+                <Label x:Name="BottomAirLabel" Text="{Binding EffectiveBottomAirText}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" LineBreakMode="NoWrap" />
             </Border>
 
-            <Border Padding="6,2" StrokeShape="RoundRectangle 6"
+            <Border x:Name="RankBorder" Padding="6,2" StrokeShape="RoundRectangle 6"
                     BackgroundColor="#0066FF" Stroke="Transparent"
                     IsVisible="{Binding HasRank}">
-                <Label Text="{Binding RankTag}"
-                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" />
+                <Label x:Name="RankLabel" Text="{Binding RankTag}"
+                       FontFamily="InterBold" FontSize="9" TextColor="White" MaxLines="1" LineBreakMode="NoWrap" />
             </Border>
         </HorizontalStackLayout>
 
         <!-- The label box is two lines tall so long titles have room, which used to leave a one
              line hole under a short title. Anchoring the text to the bottom keeps every card's
              title sitting on the same baseline. -->
-        <Label Text="{Binding Title}"
+        <Label x:Name="TitleLabel" Text="{Binding Title}"
                FontFamily="Inter" FontSize="11"
                TextColor="White"
                MaxLines="2" LineBreakMode="TailTruncation"

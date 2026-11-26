@@ -105,6 +105,7 @@ protected override void OnDisappearing()
           StudioIconCache.MapReady -= OnStudioIconMapReady;
           StudioIconCache.IconResolved += OnStudioIconResolved;
           StudioIconCache.MapReady += OnStudioIconMapReady;
+          ResultsGrid?.InvalidateLayout();
           if (_initialized)
               return;
         _initialized = true;

@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="MALPlus.Views.LogInPage"
              Shell.NavBarIsVisible="False"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <Grid>
     <ScrollView x:Name="LoginForm">
         <VerticalStackLayout Padding="24" Spacing="14" VerticalOptions="Center"
@@ -61,7 +61,7 @@
                     TextColor="{StaticResource EmAccent}" />
         </VerticalStackLayout>
     </ScrollView>
-    <Grid x:Name="WebOverlay" IsVisible="False" BackgroundColor="{StaticResource EmBackground}"
+    <Grid x:Name="WebOverlay" IsVisible="False" BackgroundColor="{DynamicResource EmBackground}"
           VerticalOptions="Fill" HorizontalOptions="Fill">
         <Grid RowDefinitions="Auto,Auto,*">
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Padding="12,8,12,4">
@@ -69,7 +69,7 @@
                         FontFamily="InterSemiBold" FontSize="12" BackgroundColor="Transparent"
                         TextColor="{StaticResource EmAccent}" />
                 <Button Grid.Column="2" Text="Close" Clicked="OnWebCloseClicked"
-                        FontFamily="InterSemiBold" FontSize="13" BackgroundColor="{StaticResource EmSheet}"
+                        FontFamily="InterSemiBold" FontSize="13" BackgroundColor="{DynamicResource EmSheet}"
                         TextColor="{StaticResource BrushText}" CornerRadius="8" Padding="14,6" />
             </Grid>
             <Label x:Name="OverlayHint" Grid.Row="1" IsVisible="False"
@@ -84,7 +84,7 @@
                  happened instead, because the manual sign-in is the last way into the app and a
                  blank box there is indistinguishable from a broken build. -->
             <VerticalStackLayout Grid.Row="2" x:Name="WebEmptyState" IsVisible="False"
-                                 BackgroundColor="{StaticResource EmBackground}" Spacing="10"
+                                 BackgroundColor="{DynamicResource EmBackground}" Spacing="10"
                                  HorizontalOptions="Center" VerticalOptions="Center" Margin="28">
                 <Label Text="The MyAnimeList page did not load" FontFamily="InterSemiBold" FontSize="15"
                        TextColor="{StaticResource BrushText}" HorizontalTextAlignment="Center" />
@@ -93,8 +93,8 @@
                        HorizontalTextAlignment="Center" />
                 <Button Text="Retry" Clicked="OnWebRetryClicked"
                         FontFamily="InterSemiBold" FontSize="13"
-                        BackgroundColor="{StaticResource EmSheet}" TextColor="{StaticResource BrushText}"
-                        BorderColor="{StaticResource EmBorder}" BorderWidth="1"
+                        BackgroundColor="{DynamicResource EmSheet}" TextColor="{StaticResource BrushText}"
+                        BorderColor="{DynamicResource EmBorder}" BorderWidth="1"
                         CornerRadius="10" Padding="16,8" HorizontalOptions="Center" />
             </VerticalStackLayout>
         </Grid>

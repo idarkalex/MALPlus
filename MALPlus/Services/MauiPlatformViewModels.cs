@@ -269,6 +269,9 @@ public class MauiMainViewModel : MainViewModelBase
         var final = string.IsNullOrEmpty(query) ? route : route + query;
         MainThread.BeginInvokeOnMainThread(async () =>
         {
+            if (_navigating)
+                return;
+            _navigating = true;
             try
             {
                 if (Shell.Current != null)
@@ -297,8 +300,14 @@ public class MauiMainViewModel : MainViewModelBase
                 Views.AnimeListPage.ClearPendingRootRoute(final);
                 Console.WriteLine($"MALPLUS Navigate failed for '{final}': {ex.GetType().Name} {ex.Message}");
             }
+            finally
+            {
+                _navigating = false;
+            }
         });
     }
+
+    private bool _navigating;
 
     private static bool IsListRootPage(PageIndex index)
         => index is PageIndex.PageAnimeList or PageIndex.PageSeasonal or PageIndex.PageTopAnime

@@ -24,7 +24,7 @@
         </ResourceDictionary>
     </ContentView.Resources>
 
-    <Border Stroke="{DynamicResource EmBorder}" StrokeThickness="0,0,0,1" Padding="16,0" HeightRequest="54">
+    <Border x:Name="RootBorder" Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="0,0,0,1" Padding="16,0">
         <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalOptions="Center">
             <!-- Brand Logo & Optional Back Button -->
             <HorizontalStackLayout Grid.Column="0" Spacing="8" VerticalOptions="Center" Margin="0,0,24,0">

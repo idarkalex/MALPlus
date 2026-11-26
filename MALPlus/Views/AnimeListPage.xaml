@@ -7,7 +7,7 @@
              xmlns:itemvm="clr-namespace:MALPlus.XShared.ViewModels;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.AnimeListPage"
              x:DataType="vm:AnimeListViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -23,7 +23,14 @@
          Neither bar draws a Stroke, not even a hairline: a rule above and below turned the block
          into two stacked framed boxes and fought the grid underneath it. The fill alone is enough
          to separate them from EmBackground. -->
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{OnPlatform WinUI=Auto, Android=0, iOS=0, Default=0}" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <controls:DesktopNavBar Grid.Row="0" />
 
         <Border x:Name="StatusBar" Grid.Row="1"
@@ -146,6 +153,7 @@
                 </Grid>
 
                 <HorizontalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center" HorizontalOptions="End">
+                    <controls:WindowsRefreshButton x:Name="RefreshButton" Clicked="OnRefreshButtonClicked" />
                     <Border x:Name="PanelFilterButton" WidthRequest="32" HeightRequest="32"
                             StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
                             VerticalOptions="Center">
@@ -202,7 +210,7 @@
             <Label Text="Nothing matches that here" FontFamily="InterSemiBold" FontSize="15"
                    TextColor="{StaticResource BrushText}" HorizontalOptions="Center" />
             <Label Text="The magnifier only looks inside this panel" FontFamily="Inter" FontSize="12"
-                   TextColor="{StaticResource TabChipInactiveText}" HorizontalOptions="Center" />
+                   TextColor="{DynamicResource TabChipInactiveText}" HorizontalOptions="Center" />
         </VerticalStackLayout>
 
         <!-- Seasonal used to own a second bar here, above the navigation: a pair of chevrons around

@@ -26,6 +26,8 @@ public class MauiApplicationDataService : IApplicationDataService
     // Settings.* is read from bound property getters (per cell, per bind), and every
     // read used to cost two JNI SharedPreferences round trips plus a few TryParse.
     // Cache the parsed values and drop the entry on write.
+    // Accessed from both the UI thread (Settings bindings) and background startup/API tasks.
+    private static readonly object Sync = new();
     private static readonly Dictionary<string, object> Cache = new();
     private static readonly Dictionary<string, bool> Missing = new();
 
@@ -33,67 +35,73 @@ public class MauiApplicationDataService : IApplicationDataService
     {
         get
         {
-            if (Cache.TryGetValue(key, out var cached))
-                return cached;
-            if (Missing.ContainsKey(key))
-                return null;
-
-            if (!Preferences.ContainsKey(key))
+            lock (Sync)
             {
-                Missing[key] = true;
-                return null;
-            }
+                if (Cache.TryGetValue(key, out var cached))
+                    return cached;
+                if (Missing.ContainsKey(key))
+                    return null;
 
-            // ContainsKey says nothing about the stored TYPE. Preferences.Get(key, (string)null)
-            // marshals straight through to SharedPreferences.getString, so an entry written as an
-            // int or a bool makes the JNI layer throw ClassCastException, and because this indexer
-            // runs from a static constructor it takes the whole process down at first touch ("UserId"
-            // was stored as an int by an older build and every cold start died in Credentials..cctor).
-            //
-            // The typed overloads are NOT a safe way to probe for that. On Android they answer with
-            // the supplied default instead of throwing when the stored value is of another type, so
-            // trying them in turn silently turns a string key into 0/False. That is how "Auth" came
-            // back True and "UserId" came back 0 for a user who was never signed in: the app decided
-            // it had a session and skipped the login screen entirely.
-            //
-            // So the type has to come from the store itself rather than from a getter. The values are
-            // all written as strings by the setter below, and Android's SharedPreferences cannot be
-            // asked what a key holds, so the read that can only be correct is the string one; a value
-            // of another type is a foreign entry from a build with a different format and is dropped
-            // rather than guessed at.
-            string raw;
-            try
-            {
-                raw = Preferences.Get(key, (string)null);
-            }
-            catch (Exception)
-            {
-                // Not a string. Treated as absent instead of coerced into some other shape: this
-                // indexer carries the credentials, and a wrong value here is a wrong identity.
-                Missing[key] = true;
-                return null;
-            }
+                if (!Preferences.ContainsKey(key))
+                {
+                    Missing[key] = true;
+                    return null;
+                }
 
-            if (raw == null)
-            {
-                Missing[key] = true;
-                return null;
-            }
+                // ContainsKey says nothing about the stored TYPE. Preferences.Get(key, (string)null)
+                // marshals straight through to SharedPreferences.getString, so an entry written as an
+                // int or a bool makes the JNI layer throw ClassCastException, and because this indexer
+                // runs from a static constructor it takes the whole process down at first touch ("UserId"
+                // was stored as an int by an older build and every cold start died in Credentials..cctor).
+                //
+                // The typed overloads are NOT a safe way to probe for that. On Android they answer with
+                // the supplied default instead of throwing when the stored value is of another type, so
+                // trying them in turn silently turns a string key into 0/False. That is how "Auth" came
+                // back True and "UserId" came back 0 for a user who was never signed in: the app decided
+                // it had a session and skipped the login screen entirely.
+                //
+                // So the type has to come from the store itself rather than from a getter. The values are
+                // all written as strings by the setter below, and Android's SharedPreferences cannot be
+                // asked what a key holds, so the read that can only be correct is the string one; a value
+                // of another type is a foreign entry from a build with a different format and is dropped
+                // rather than guessed at.
+                string raw;
+                try
+                {
+                    raw = Preferences.Get(key, (string)null);
+                }
+                catch (Exception)
+                {
+                    // Not a string. Treated as absent instead of coerced into some other shape: this
+                    // indexer carries the credentials, and a wrong value here is a wrong identity.
+                    Missing[key] = true;
+                    return null;
+                }
 
-            var value = Parse(raw);
-            Cache[key] = value;
-            return value;
+                if (raw == null)
+                {
+                    Missing[key] = true;
+                    return null;
+                }
+
+                var value = Parse(raw);
+                Cache[key] = value;
+                return value;
+            }
         }
         set
         {
-            Cache.Remove(key);
-            Missing.Remove(key);
-            if (value == null)
+            lock (Sync)
             {
-                Preferences.Remove(key);
-                return;
+                Cache.Remove(key);
+                Missing.Remove(key);
+                if (value == null)
+                {
+                    Preferences.Remove(key);
+                    return;
+                }
+                Preferences.Set(key, (int)Type.GetTypeCode(value.GetType()) + ":" + value);
             }
-            Preferences.Set(key, (int)Type.GetTypeCode(value.GetType()) + ":" + value);
         }
     }
 
@@ -303,8 +311,21 @@ public class MauiSnackbarProvider : ISnackbarProvider
     {
         MainThread.BeginInvokeOnMainThread(async () =>
         {
+#if ANDROID
+            try
+            {
+                Android.Widget.Toast.MakeText(
+                    Android.App.Application.Context,
+                    text ?? string.Empty,
+                    Android.Widget.ToastLength.Short)?.Show();
+            }
+            catch
+            {
+            }
+#elif WINDOWS
             if (Shell.Current != null)
                 await OptionsSheetHost.ConfirmAsync("MAL+", text ?? string.Empty, "OK");
+#endif
         });
     }
 }
@@ -636,19 +657,19 @@ public class MauiPasswordVault : IPasswordVault
     }
 }
 
-public class MauiLocalDiagnosticsProvider : ILocalDiagnosticsProvider, ITelemetryProvider
+public class MauiLocalDiagnosticsProvider : ILocalDiagnosticsProvider
 {
     public void Init()
     {
-        AppLog.Debug("Diagnostics", "Local diagnostics provider initialized (100% local, zero external telemetry).");
+        AppLog.Debug("Diagnostics", "Local diagnostics provider initialized (100% local).");
     }
 
-    public void TrackEvent(TelemetryTrackedEvents @event)
+    public void TrackEvent(DiagnosticsEvent @event)
     {
         AppLog.Info("Event", $"Event: {@event}");
     }
 
-    public void TrackEvent(TelemetryTrackedEvents @event, params (string Key, string Param)[] args)
+    public void TrackEvent(DiagnosticsEvent @event, params (string Key, string Param)[] args)
     {
         var details = args != null && args.Length > 0
             ? string.Join(", ", args.Select(a => $"{a.Key}={a.Param}"))
@@ -688,11 +709,6 @@ public class MauiLocalDiagnosticsProvider : ILocalDiagnosticsProvider, ITelemetr
             : $"Exception in {caller}: {e?.Message}";
         AppLog.Error("Core", msg, e);
     }
-}
-
-[Obsolete("Use MauiLocalDiagnosticsProvider instead")]
-public class MauiTelemetryProvider : MauiLocalDiagnosticsProvider
-{
 }
 
 public class MauiNotificationsTaskManager : INotificationsTaskManager
@@ -843,6 +859,10 @@ public class MauiDataCache : IDataCache
 
     private static string Root => FileSystem.AppDataDirectory;
     private static readonly HashSet<string> EnsuredDirs = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> FileLocks = new(StringComparer.OrdinalIgnoreCase);
+
+    private static SemaphoreSlim GetFileLock(string path)
+        => FileLocks.GetOrAdd(path, static _ => new SemaphoreSlim(1, 1));
 
     private static string Resolve(string filename, string folder)
     {
@@ -859,8 +879,18 @@ public class MauiDataCache : IDataCache
 
     public async Task SaveData<T>(T data, string filename, string targetFolder)
     {
+        var path = Resolve(filename, targetFolder);
         var json = JsonSerializer.Serialize(data, CacheSerializerOptions);
-        await File.WriteAllTextAsync(Resolve(filename, targetFolder), json);
+        var gate = GetFileLock(path);
+        await gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await File.WriteAllTextAsync(path, json).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public Task SaveDataRoaming<T>(T data, string filename)
@@ -871,12 +901,21 @@ public class MauiDataCache : IDataCache
     public async Task<T> RetrieveData<T>(string filename, string originFolder, int expiration)
     {
         var path = Resolve(filename, originFolder);
-        if (!File.Exists(path))
-            return default;
-        if (expiration > 0 && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) > TimeSpan.FromDays(expiration))
-            return default;
-        var json = await File.ReadAllTextAsync(path);
-        return JsonSerializer.Deserialize<T>(json, CacheSerializerOptions);
+        var gate = GetFileLock(path);
+        await gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!File.Exists(path))
+                return default;
+            if (expiration > 0 && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) > TimeSpan.FromDays(expiration))
+                return default;
+            var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+            return JsonSerializer.Deserialize<T>(json, CacheSerializerOptions);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public Task<T> RetrieveDataRoaming<T>(string filename, int expiration)

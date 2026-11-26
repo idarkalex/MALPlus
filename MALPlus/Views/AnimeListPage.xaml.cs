@@ -410,8 +410,6 @@ public partial class AnimeListPage : ContentPage
         base.OnAppearing();
         CloseStatusDropdown();
         (Shell.Current as AppShell)?.UpdateSharedBarVisibility();
-        BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
-        StatusBar.BackgroundColor = MALPlus.Services.ThemeService.CurrentSheet;
 #if ANDROID
         SetupChildScrollCallback();
 #endif
@@ -421,6 +419,8 @@ public partial class AnimeListPage : ContentPage
             BottomNav.SectionChanging += OnSectionChanging;
             _navConnected = true;
         }
+
+        AnimeGrid?.InvalidateLayout();
 
         if (_appliedSettingsRevision != SettingsViewModelBase.SettingsRevision)
         {
@@ -2148,6 +2148,17 @@ case AnimeListWorkModes.SeasonalAnime:
         }
     }
 
+    private void OnRefreshButtonClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            if (Vm != null)
+                Vm.Loading = true;
+            OnRefreshing(this, EventArgs.Empty);
+        }
+        catch { }
+    }
+
     private async void OnRefreshing(object sender, EventArgs e)
     {
         try
@@ -2411,6 +2422,10 @@ case AnimeListWorkModes.SeasonalAnime:
                 rows.Add(BuildScoreSubmenu(viewModel));
                 rows.Add(BuildPrioritySubmenu(viewModel));
                 rows.Add(BuildWatchedSubmenu(viewModel, manga));
+                rows.Add(new("Tags", "icon_tag", action: () => EditTags(viewModel),
+                    value: string.IsNullOrWhiteSpace(viewModel.Notes) ? null : "✓"));
+                rows.Add(new("Note", "icon_note", action: () => EditNote(viewModel),
+                    value: string.IsNullOrWhiteSpace(viewModel.Comment) ? null : "✓"));
             }
 
             _sheetTarget = viewModel;
@@ -2663,6 +2678,37 @@ case AnimeListWorkModes.SeasonalAnime:
             $"MALPLUS menu watched -> {count} for {vm.Id} (was {vm.MyEpisodesFocused})");
         vm.WatchedEpsInput = count.ToString();
         vm.ChangeWatchedEps();
+    }
+
+    private void EditNote(MALPlus.XShared.ViewModels.AnimeItemViewModel vm)
+    {
+        try
+        {
+            if (PosterSheet == null || vm == null) return;
+            PosterSheet.OpenPrompt("Note", null, vm.Comment, "Write a note...", 2000, true,
+                value => _ = vm.ChangeCommentAsync(value), null, multiline: true);
+            MainActivity.ArmMenuBackCallback(() => PosterSheet.Dismiss());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS EditNote failed: " + ex.Message);
+        }
+    }
+
+    private void EditTags(MALPlus.XShared.ViewModels.AnimeItemViewModel vm)
+    {
+        try
+        {
+            if (PosterSheet == null || vm == null) return;
+            PosterSheet.OpenPrompt("Tags", "Separate them with commas", vm.Notes,
+                "favourite, rewatching...", 200, true,
+                value => _ = vm.ChangeTagsAsync(value), null, keyboard: Keyboard.Text);
+            MainActivity.ArmMenuBackCallback(() => PosterSheet.Dismiss());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS EditTags failed: " + ex.Message);
+        }
     }
 
     /// <summary>Rebuilds the first level, so Back out of a submenu lands on the menu, not on nothing.</summary>

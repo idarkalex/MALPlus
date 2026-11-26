@@ -69,6 +69,29 @@ public void SetCookies(string cookies)
             }
         }
 
+        private static HttpClient CreateApiHttpClient(string bearerToken)
+        {
+            var handler = new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+                PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
+                ConnectTimeout = TimeSpan.FromSeconds(15)
+            };
+            var client = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(25)
+            };
+            if (!string.IsNullOrEmpty(bearerToken))
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+            return client;
+        }
+
+        public void InvalidateApiContext()
+        {
+            _apiHttpClient = null;
+            _lastRefresh = DateTime.MinValue;
+        }
+
         public async Task<HttpClient> GetApiHttpContextAsync()
         {
             if (_apiHttpClient != null && DateTime.UtcNow - _lastRefresh < TimeSpan.FromMinutes(50) && _apiHttpClient?.DefaultRequestHeaders?.Authorization?.Parameter == Settings.ApiToken)
@@ -81,34 +104,37 @@ public void SetCookies(string cookies)
                 if (_apiHttpClient != null && DateTime.UtcNow - _lastRefresh < TimeSpan.FromMinutes(50) && _apiHttpClient?.DefaultRequestHeaders?.Authorization?.Parameter == Settings.ApiToken)
                     return _apiHttpClient;
 
-                using var tokenClient = new HttpClient();
-                var content = new FormUrlEncodedContent(new List<KeyValuePair<string, string>>
-                {
-                    new("client_id", MalOAuthSettings.ClientId),
-                    new("grant_type", "refresh_token"),
-                    new("refresh_token", Settings.RefreshToken)
-                });
-
+                var expirationDiff = DateTimeOffset.FromUnixTimeSeconds(Settings.ApiTokenExpires) - DateTimeOffset.UtcNow;
                 try
                 {
-                    var expirationDiff = DateTimeOffset.FromUnixTimeSeconds(Settings.ApiTokenExpires) - DateTimeOffset.UtcNow;
-                    if (expirationDiff > TimeSpan.FromHours(1) && (_apiHttpClient == null || _apiHttpClient?.DefaultRequestHeaders?.Authorization.Parameter == Settings.ApiToken))
+                    if (!string.IsNullOrEmpty(Settings.ApiToken) && expirationDiff > TimeSpan.FromMinutes(5) &&
+                        (_apiHttpClient == null || _apiHttpClient?.DefaultRequestHeaders?.Authorization?.Parameter == Settings.ApiToken))
                     {
                         _lastRefresh = DateTime.UtcNow;
-
-                        _apiHttpClient = new HttpClient();
-                        _apiHttpClient.DefaultRequestHeaders.Authorization =
-                            new AuthenticationHeaderValue("Bearer", Settings.ApiToken);
+                        _apiHttpClient = CreateApiHttpClient(Settings.ApiToken);
                     }
                     else
                     {
+                        using var tokenClient = CreateApiHttpClient(null);
+                        var content = new FormUrlEncodedContent(new List<KeyValuePair<string, string>>
+                        {
+                            new("client_id", MalOAuthSettings.ClientId),
+                            new("grant_type", "refresh_token"),
+                            new("refresh_token", Settings.RefreshToken)
+                        });
                         var response = await tokenClient.PostAsync("https://myanimelist.net/v1/oauth2/token", content);
+                        response.EnsureSuccessStatusCode();
                         var json = await response.Content.ReadAsStringAsync();
                         var tokens = JsonConvert.DeserializeObject<TokenResponse>(json);
+                        if (tokens == null || string.IsNullOrEmpty(tokens.access_token))
+                            throw new HttpRequestException("Empty token response from MAL OAuth.");
 
-                        Settings.ApiTokenExpires =
-                            DateTimeOffset.UtcNow.AddSeconds(tokens.expires_in).Subtract(TimeSpan.FromHours(1)).ToUnixTimeSeconds();
-                        await Task.Delay(TimeSpan.FromSeconds(1));
+                        var lifetimeSeconds = tokens.expires_in > 0 ? tokens.expires_in : 3600;
+                        var marginSeconds = Math.Min(300, Math.Max(60, lifetimeSeconds / 10));
+                        Settings.ApiTokenExpires = DateTimeOffset.UtcNow
+                            .AddSeconds(lifetimeSeconds - marginSeconds)
+                            .ToUnixTimeSeconds();
+                        await Task.Delay(TimeSpan.FromMilliseconds(250));
                         //try
                         //{
                         //    var jwtData = JsonConvert.DeserializeObject<Root>(Encoding.UTF8.GetString(Convert.FromBase64String(tokens.access_token.Split('.')[1])));
@@ -150,12 +176,11 @@ public void SetCookies(string cookies)
                         //}
 
                         Settings.ApiToken = tokens.access_token;
-                        Settings.RefreshToken = tokens.refresh_token;
+                        if (!string.IsNullOrEmpty(tokens.refresh_token))
+                            Settings.RefreshToken = tokens.refresh_token;
                         _lastRefresh = DateTime.UtcNow;
 
-                        _apiHttpClient = new HttpClient();
-                        _apiHttpClient.DefaultRequestHeaders.Authorization =
-                            new AuthenticationHeaderValue("Bearer", Settings.ApiToken);
+                        _apiHttpClient = CreateApiHttpClient(Settings.ApiToken);
                     }
                 }
                 catch (Exception e)
@@ -164,6 +189,15 @@ public void SetCookies(string cookies)
                     //sends the user through a pointless sign-in.
                     var authFailure = AuthFailure.LooksLikeAuthFailure(e);
                     Console.WriteLine("MALPLUS auth context failed (auth=" + authFailure + "): " + e);
+                    if (!authFailure && !string.IsNullOrEmpty(Settings.ApiToken) &&
+                        (DateTimeOffset.FromUnixTimeSeconds(Settings.ApiTokenExpires) - DateTimeOffset.UtcNow) > TimeSpan.FromSeconds(30))
+                    {
+                        _lastRefresh = DateTime.UtcNow;
+                        _apiHttpClient = CreateApiHttpClient(Settings.ApiToken);
+                        return _apiHttpClient;
+                    }
+                    _apiHttpClient = null;
+                    _lastRefresh = DateTime.MinValue;
                     if (authFailure)
                         ResourceLocator.DispatcherAdapter.Run(() =>
                             ResourceLocator.MessageDialogProvider.ShowMessageDialog(
@@ -183,7 +217,7 @@ public void SetCookies(string cookies)
 
         public void ErrorMessage(string what)
         {
-            ResourceLocator.MessageDialogProvider.ShowMessageDialog($"Something went wrong... {what} implementation is pretty hacky so this stuff can happen from time to time, try again later or wait for next update. Sorry!", "Error");
+            System.Diagnostics.Debug.WriteLine($"MALPLUS {what} query failed (hacky endpoint)");
         }
 
         public virtual async Task<CsrfHttpClient> GetHttpContextAsync(bool skipAtuhCheck = false)
@@ -213,12 +247,7 @@ public void SetCookies(string cookies)
                 if (e.Message.Contains("Unable to authorize") && !_warnedAboutAuth)
                 {
                     _warnedAboutAuth = true;
-                    ResourceLocator.DispatcherAdapter.Run(
-                        () =>
-                        {
-                            ResourceLocator.SnackbarProvider.ShowText("Failed to authorize with website API, some functionality may be limited. " +
-                                                                      "Basic operations will use official API. Sign in again if needed.");
-                        });
+                    System.Diagnostics.Debug.WriteLine("MALPLUS website auth check failed: " + e.Message);
                 }
 
                 _skippedFirstError = false;
@@ -249,6 +278,7 @@ public void SetCookies(string cookies)
             _httpClient?.ExpiredDispose();
             _httpClient = null;
             _contextExpirationTime = null;
+            InvalidateApiContext();
         }
 
         public abstract HttpClientHandler GetHandler();

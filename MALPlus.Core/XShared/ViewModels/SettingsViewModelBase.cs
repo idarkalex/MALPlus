@@ -274,6 +274,55 @@ protected ICommand _requestNavigationCommand;
             "Hidden (No score chip)"
         };
 
+        public bool PosterGridSpacing
+        {
+            get => Settings.PosterGridSpacing;
+            set
+            {
+                if (Settings.PosterGridSpacing == value)
+                    return;
+                Settings.PosterGridSpacing = value;
+                RaisePropertyChanged(() => PosterGridSpacing);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
+        public int GridColumnsIndex
+        {
+            get => Settings.GridColumns switch
+            {
+                2 => 1,
+                3 => 2,
+                4 => 3,
+                5 => 4,
+                _ => 0
+            };
+            set
+            {
+                if (value < 0 || value > 4) return;
+                var columns = value switch
+                {
+                    1 => 2,
+                    2 => 3,
+                    3 => 4,
+                    4 => 5,
+                    _ => 0
+                };
+                Settings.GridColumns = columns;
+                RaisePropertyChanged(() => GridColumnsIndex);
+                InvalidateSettings(resetData: false, refreshTitles: false);
+            }
+        }
+
+        public string[] GridColumnsOptions { get; } = new[]
+        {
+            "Auto (Responsive)",
+            "2 columns (Large)",
+            "3 columns (Classic)",
+            "4 columns (Compact)",
+            "5 columns (Very compact)"
+        };
+
         public string[] LibrarySortOptions { get; } = new[]
         {
             "Title (A → Z)",
@@ -568,7 +617,7 @@ protected ICommand _requestNavigationCommand;
             set => Settings.EnableHearthAnimation = value;
         }
 
-        public int RatePopUpStartupCounter => 7 - Settings.RatePopUpStartupCounter; //TODO Move this constant upper in dependency hierarchy
+        public int RatePopUpStartupCounter => 30 - Settings.RatePopUpStartupCounter;
 
         public int AirDayOffset
         {

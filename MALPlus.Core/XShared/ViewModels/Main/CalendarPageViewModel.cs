@@ -168,12 +168,33 @@ namespace MALPlus.XShared.ViewModels.Main
         {
             _animeLibraryDataStorage = animeLibraryDataStorage;
             ItemWidth = AnimeItemViewModel.MaxWidth - 8;
-            ResourceLocator.AiringInfoProvider.AiringsUpdated += async () => { if (_initialized) await Init(true); };
+            ResourceLocator.AiringInfoProvider.AiringsUpdated += () =>
+            {
+                if (!_initialized)
+                    return;
+
+                // Never interrupt the user with a reload when our own build/refresh triggered this
+                // or when the calendar already has populated schedule data on screen.
+                if (_buildGate.CurrentCount == 0 ||
+                    (CalendarData != null && CalendarData.Any(p => p.Items != null && p.Items.Count > 0)))
+                {
+                    if (!IsPageActive)
+                        CalendarBuiltKey = string.Empty;
+                    return;
+                }
+
+                if (IsPageActive)
+                    ResourceLocator.DispatcherAdapter.Run(() => _ = InitAsync(true, resetToDesiredTab: true, silent: true));
+                else
+                    CalendarBuiltKey = string.Empty;
+            };
         }
 
         private bool _initialized;
         private readonly SemaphoreSlim _buildGate = new SemaphoreSlim(1, 1);
         private int _buildVersion;
+        public bool IsPageActive { get; set; }
+        public event Action DayStripChanged;
 
         /// <summary>
         ///     Which content of calendar was last built: true for everything airing, false for only the
@@ -237,11 +258,23 @@ namespace MALPlus.XShared.ViewModels.Main
             }
         }
 
-        public async Task Init(bool force = false)
+        public Task Init(bool force = false)
+            => InitAsync(force, resetToDesiredTab: force, silent: false);
+
+        public async Task InitAsync(bool force = false, bool resetToDesiredTab = false, bool silent = false)
         {
             if (_initialized && !force)
             {
-                await GoToDesiredTab();
+                if (resetToDesiredTab && CalendarData != null && CalendarData.Count > 0)
+                {
+                    var desired = ResolveDesiredTabIndex(CalendarData);
+                    if (desired >= 0 && desired < CalendarData.Count)
+                    {
+                        _calendarPivotIndex = desired;
+                        RaisePropertyChanged(() => CalendarPivotIndex);
+                    }
+                }
+                CalendarBuildingVisibility = false;
                 CalendarVisibility = true;
                 return;
             }
@@ -259,7 +292,7 @@ namespace MALPlus.XShared.ViewModels.Main
             {
                 if (!IsCurrentBuild(version))
                     return;
-                await BuildCore(version);
+                await BuildCore(version, resetToDesiredTab, silent);
             }
             catch (Exception ex)
             {
@@ -277,11 +310,10 @@ namespace MALPlus.XShared.ViewModels.Main
             }
         }
 
-        private async Task BuildCore(int version)
+        private async Task BuildCore(int version, bool resetToDesiredTab, bool silent)
         {
             // Captured before the assignment below: a rebuild that lands while the reader is
-            // browsing (AiringsUpdated, the deferred refresh) must not jump them back to the
-            // landing page, but a mode switch must.
+            // browsing must not jump them back to the landing page, but a mode switch or initial open must.
             var modeChanged = CalendarBuiltForAllAiring != Settings.CalendarShowAllAiring;
             // Written before the reads below, so it names what is being built and not what the
             // setting said: the two are the same value but only this one is inside the build.
@@ -293,7 +325,8 @@ namespace MALPlus.XShared.ViewModels.Main
             // membership set backing IsOnMyList cannot be cached across them.
             _myListIds = null;
             BuildError = string.Empty;
-            CalendarBuildingVisibility = true;
+            if (!silent)
+                CalendarBuildingVisibility = true;
 
             // Everything lands in a local list first. The visible collection is replaced once the
             // build is complete, so an interrupted build cannot leave half a calendar on screen,
@@ -357,18 +390,15 @@ namespace MALPlus.XShared.ViewModels.Main
             // keeps the live collection untouched and the pager keeps its input.
             var changed = !firstPublish && !CalendarContentMatches(CalendarData, pages);
 
-            if (firstPublish || modeChanged)
+            if (firstPublish || modeChanged || resetToDesiredTab)
             {
                 var desired = ResolveDesiredTabIndex(pages);
                 if (desired >= 0 && desired < pages.Count)
-                {
                     _calendarPivotIndex = desired;
-                    RaisePropertyChanged(() => CalendarPivotIndex);
-                }
             }
-            else if (CalendarPivotIndex >= pages.Count)
+            else if (_calendarPivotIndex >= pages.Count)
             {
-                CalendarPivotIndex = pages.Count - 1;
+                _calendarPivotIndex = pages.Count - 1;
             }
 
             if (firstPublish || changed || modeChanged)
@@ -376,6 +406,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 CalendarData = new ObservableCollection<CalendarPivotPage>(pages);
                 RaisePropertyChanged(() => CalendarData);
             }
+            RaisePropertyChanged(() => CalendarPivotIndex);
 
             // Safety net only: almost everything already carries a date from the provider.
             RefreshCountdownsAsync();
@@ -809,7 +840,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 break;
             }
 
-            RaisePropertyChanged(() => CalendarData);
+            DayStripChanged?.Invoke();
         }
 
         /// <summary>
@@ -856,7 +887,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 // The provider's ids are one of the three sources below, so it has to be in before
                 // they are read: at startup it is reset and refilled behind a network bound, and
                 // reading it early is how a whole season of provider ids goes missing.
-                await WaitForProviderAsync(1000);
+                await WaitForProviderAsync(1500);
 
                 // The ids worth asking about. The schedule endpoint is one source, but it misses
                 // series that really are airing. The user's own list and the current season cover the rest.
@@ -882,7 +913,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 var seasonalData = new Dictionary<int, SeasonalAnimeData>();
                 try
                 {
-                    var seasonDone = await Task.WhenAny(seasonTask, Task.Delay(1000));
+                    var seasonDone = await Task.WhenAny(seasonTask, Task.Delay(5000));
                     if (seasonDone == seasonTask)
                     {
                         foreach (var season in await seasonTask)
@@ -895,22 +926,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     }
                     else
                     {
-                        _ = seasonTask.ContinueWith(t =>
-                        {
-                            try
-                            {
-                                if (!t.IsCompletedSuccessfully || t.Result == null || t.Result.Count == 0 || !_initialized)
-                                    return;
-                                // Trigger rebuild if season data wasn't ready yet or returned new IDs
-                                var hasNewIds = seasonalData.Count == 0 || t.Result.Any(s => s != null && s.Id > 0 && !ids.Contains(s.Id));
-                                if (!hasNewIds)
-                                    return;
-                                ResourceLocator.DispatcherAdapter.Run(() => _ = Init(true));
-                            }
-                            catch (Exception)
-                            {
-                            }
-                        }, TaskScheduler.Default);
+                        _ = seasonTask.ContinueWith(_ => { }, TaskScheduler.Default);
                     }
                 }
                 catch (Exception)
@@ -919,32 +935,14 @@ namespace MALPlus.XShared.ViewModels.Main
 
                 // Ask about the whole set and keep those with a real date in the week ahead, plus
                 // the one airing right now: an episode that just started is still on today.
-                // No force: the provider warms this same table at startup, so a calendar open is a
-                // small top-up of what has never been answered instead of a full re-ask. Forcing it
-                // re-sent every series that has no announced episode on every single open, which
-                // was the slow part. The wait is tiny because the startup warm usually holds the
-                // same gate while it re-asks AniList: the stored dates already place every series
-                // on its weekday, so the page comes up with what is known and the deferred rebuild
-                // below lands the fresh dates a few seconds later.
+                // Bounded inside this single build so opening the calendar doesn't schedule
+                // delayed rebuilds that interrupt the user while they are browsing.
                 try
                 {
                     var refreshTask = ResourceLocator.AiringInfoProvider.RefreshDeclaredNextAirAsync(ids);
-                    var refreshDone = await Task.WhenAny(refreshTask, Task.Delay(1200));
+                    var refreshDone = await Task.WhenAny(refreshTask, Task.Delay(3500));
                     if (refreshDone != refreshTask)
-                    {
-                        _ = refreshTask.ContinueWith(t =>
-                        {
-                            try
-                            {
-                                if (!t.IsCompletedSuccessfully || t.Result <= 0 || !_initialized)
-                                    return;
-                                ResourceLocator.DispatcherAdapter.Run(() => _ = Init(true));
-                            }
-                            catch (Exception)
-                            {
-                            }
-                        }, TaskScheduler.Default);
-                    }
+                        _ = refreshTask.ContinueWith(_ => { }, TaskScheduler.Default);
 
                     var wanted = ids
                         .Where(id => ResourceLocator.AiringInfoProvider.TryGetDeclaredNextAirDate(id, out var d) &&
@@ -1068,13 +1066,12 @@ namespace MALPlus.XShared.ViewModels.Main
             {
                 var timeZone = CalendarTimeZone.Resolve();
                 var todayDayOfWeek = CalendarTimeZone.ToZoneDay(DateTime.UtcNow, timeZone);
-                string today = Utilities.DayToString(todayDayOfWeek, true);
 
                 for (int i = 0; i < pages.Count; i++)
                 {
                     if (i == summaryIndex)
                         continue;
-                    if (string.Equals(pages[i].Header, today, StringComparison.OrdinalIgnoreCase))
+                    if (pages[i].DayOfWeek == todayDayOfWeek)
                         return i;
                 }
 
@@ -1090,13 +1087,13 @@ namespace MALPlus.XShared.ViewModels.Main
             return fallback;
         }
 
-        public async Task GoToDesiredTab()
+        public Task GoToDesiredTab()
         {
-            await Task.Delay(10);
             if (CalendarData != null && CalendarData.Count > 0)
             {
                 CalendarPivotIndex = ResolveDesiredTabIndex(CalendarData);
             }
+            return Task.CompletedTask;
         }
 
     }

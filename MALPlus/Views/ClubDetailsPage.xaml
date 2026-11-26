@@ -7,7 +7,7 @@
              xmlns:tmodels="clr-namespace:MALPlus.Models.Models;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.ClubDetailsPage"
              x:DataType="vm:ClubDetailsViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -33,7 +33,7 @@
                 <Grid ColumnDefinitions="80,*" ColumnSpacing="14">
                     <Border Grid.Column="0" WidthRequest="72" HeightRequest="72"
                             StrokeShape="RoundRectangle 12"
-                            Stroke="{StaticResource EmBorder}" StrokeThickness="1">
+                            Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1">
                         <Image Source="{Binding Details.ImgUrl, Converter={StaticResource ImageConverter}}"
                                Aspect="AspectFill" />
                     </Border>
@@ -57,22 +57,22 @@
                     <Button Grid.Column="0" Text="Leave club" Command="{Binding LeaveClubCommand}"
                             IsVisible="{Binding Details.Joined, Converter={StaticResource BoolVis}}"
                             FontFamily="InterSemiBold" FontSize="14"
-                            BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="#FF6B6B"
-                            BorderColor="{StaticResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="44" />
+                            BackgroundColor="{DynamicResource TabChipInactiveBg}" TextColor="#FF6B6B"
+                            BorderColor="{DynamicResource EmBorder}" BorderWidth="1" CornerRadius="8" HeightRequest="44" />
                     <Label Grid.Column="1" Text="Joined" VerticalOptions="Center"
                            FontFamily="InterSemiBold" FontSize="13" TextColor="{StaticResource EmAccent}"
                            IsVisible="{Binding Details.Joined, Converter={StaticResource BoolVis}}" />
                 </Grid>
 
-                <Border BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                <Border BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 14" Padding="14">
                     <WebView Source="{Binding Details.DescriptionHtml, Converter={StaticResource HtmlSource}}"
                              HeightRequest="240" />
                 </Border>
 
-                <Border BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                <Border BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 8" Padding="14"
                         IsVisible="{Binding Details.MembersPeek.Count, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}">
                     <VerticalStackLayout Spacing="8">
@@ -95,8 +95,8 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                <Border BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 8" Padding="14"
                         IsVisible="{Binding Details.RecentComments.Count, Converter={StaticResource BoolVis}, ConverterParameter=hasitems}">
                     <VerticalStackLayout Spacing="8">
@@ -107,8 +107,8 @@
                             <CollectionView.ItemTemplate>
                                 <DataTemplate
                                 x:DataType="tmalspecific:MalClubComment">
-                                    <Border Margin="0,4" BackgroundColor="{StaticResource EmBackground}"
-                                            Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                    <Border Margin="0,4" BackgroundColor="{DynamicResource EmBackground}"
+                                            Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                             StrokeShape="RoundRectangle 8" Padding="10">
                                         <VerticalStackLayout Spacing="2">
                                             <Label Text="{Binding User.Name}" FontFamily="InterBold" FontSize="13"

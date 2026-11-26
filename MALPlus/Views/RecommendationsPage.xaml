@@ -4,7 +4,7 @@
              xmlns:controls="clr-namespace:MALPlus.Controls"
              xmlns:converters="clr-namespace:MALPlus.Converters"
              x:Class="MALPlus.Views.RecommendationsPage"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <ResourceDictionary>
             <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -12,8 +12,8 @@
             <!-- Misma tarjeta que Discover (EmSheet + EmBorder). Si hoisteas DiscoverCardStyle a
                  App.xaml / Styles, borra esta copia local y usa la global. -->
             <Style x:Key="RecCardStyle" TargetType="Border">
-                <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
-                <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
+                <Setter Property="BackgroundColor" Value="{DynamicResource EmSheet}" />
+                <Setter Property="Stroke" Value="{DynamicResource EmBorderBrush}" />
                 <Setter Property="StrokeThickness" Value="1" />
                 <Setter Property="Padding" Value="16,14" />
                 <Setter Property="StrokeShape">
@@ -28,7 +28,7 @@
                 <Setter Property="FontSize" Value="10" />
                 <Setter Property="CharacterSpacing" Value="1.2" />
                 <Setter Property="TextTransform" Value="Uppercase" />
-                <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
+                <Setter Property="TextColor" Value="{DynamicResource TabChipInactiveText}" />
             </Style>
 
             <Style x:Key="RecPosterTitle" TargetType="Label">
@@ -162,7 +162,7 @@
                     </Grid>
 
                     <Label Text="No recommendations" FontFamily="Inter" FontSize="13"
-                           TextColor="{StaticResource TabChipInactiveText}"
+                           TextColor="{DynamicResource TabChipInactiveText}"
                            HorizontalOptions="Center" Margin="0,48"
                            IsVisible="{Binding HasAny, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
 
@@ -181,13 +181,13 @@
                                 <HorizontalStackLayout Spacing="4" VerticalOptions="Center"
                                                        IsVisible="{Binding CurrentRecommendation.RecommendedBy, Converter={StaticResource BoolVis}, ConverterParameter=nonempty}">
                                     <Label Text="by" FontFamily="Inter" FontSize="11"
-                                           TextColor="{StaticResource TabChipInactiveText}" />
+                                           TextColor="{DynamicResource TabChipInactiveText}" />
                                     <Label Text="{Binding CurrentRecommendation.RecommendedBy}"
                                            FontFamily="InterSemiBold" FontSize="11"
                                            TextColor="{StaticResource EmAccent}" />
                                     <Label Text="{Binding CurrentRecommendation.RecommendedWhen}"
                                            FontFamily="Inter" FontSize="11"
-                                           TextColor="{StaticResource TabChipInactiveText}" />
+                                           TextColor="{DynamicResource TabChipInactiveText}" />
                                 </HorizontalStackLayout>
                                 <Border Padding="6,2"
                                         BackgroundColor="#1A0066FF" Stroke="#330066FF" StrokeThickness="1"
@@ -197,7 +197,7 @@
                                         <RoundRectangle CornerRadius="6" />
                                     </Border.StrokeShape>
                                     <HorizontalStackLayout Spacing="3" VerticalOptions="Center">
-                                        <Label Text="★" FontFamily="Inter" FontSize="10" TextColor="#FFD700" VerticalOptions="Center" />
+                                        <Label Text="★" FontFamily="Inter" FontSize="10" TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                                         <Label Text="{Binding CurrentRecommendation.VotesText}"
                                                FontFamily="InterSemiBold" FontSize="11" TextColor="#80B4FF"
                                                VerticalOptions="Center" />
@@ -231,7 +231,7 @@
                 </Border>
 
                 <Label Grid.Column="1" Text="{Binding CounterText}" FontFamily="InterSemiBold" FontSize="13"
-                       TextColor="{StaticResource TabChipInactiveText}"
+                       TextColor="{DynamicResource TabChipInactiveText}"
                        HorizontalOptions="Center" VerticalOptions="Center" />
 
                 <Border Grid.Column="2" WidthRequest="44" HeightRequest="44" Padding="0"

@@ -1,13 +1,11 @@
-using System.Collections.ObjectModel;
 using MALPlus.Controls;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Anime;
 using MALPlus.Models.Models.Favourites;
+using MALPlus.Services;
 using MALPlus.XShared.NavArgs;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Details;
-using MALPlus.Services;
-using Microsoft.Maui.Graphics;
 
 namespace MALPlus.Views;
 
@@ -17,12 +15,9 @@ public partial class CharacterDetailsPage : ContentPage, ITabSwipeHost
     private bool _initialized;
     private int _loadedId = -1;
     private int _selectedTab;
+    private readonly List<int> _visibleTabs = new() { 0 };
 
     public string CharId { get; set; }
-
-    public ObservableCollection<FavouriteViewModel> TopVoiceActors { get; } = new();
-    public ObservableCollection<AnimeLightEntry> TopAnimeography { get; } = new();
-    public ObservableCollection<AnimeLightEntry> TopMangaography { get; } = new();
 
     private CharacterDetailsViewModel Vm => BindingContext as CharacterDetailsViewModel;
 
@@ -30,42 +25,7 @@ public partial class CharacterDetailsPage : ContentPage, ITabSwipeHost
     {
         InitializeComponent();
         BindingContext = ViewModelLocator.CharacterDetails;
-        if (Vm != null)
-            Vm.PropertyChanged += OnVmPropertyChanged;
         UpdateTabVisuals();
-    }
-
-    private void OnVmPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(CharacterDetailsViewModel.Data) ||
-            e.PropertyName == nameof(CharacterDetailsViewModel.VoiceActors))
-        {
-            MainThread.BeginInvokeOnMainThread(PopulateOverviewShelves);
-        }
-    }
-
-    private void PopulateOverviewShelves()
-    {
-        var vm = Vm;
-        if (vm == null) return;
-
-        TopVoiceActors.Clear();
-        foreach (var va in vm.VoiceActors.Take(10))
-            TopVoiceActors.Add(va);
-
-        TopAnimeography.Clear();
-        if (vm.Data?.Animeography != null)
-        {
-            foreach (var a in vm.Data.Animeography.Take(10))
-                TopAnimeography.Add(a);
-        }
-
-        TopMangaography.Clear();
-        if (vm.Data?.Mangaography != null)
-        {
-            foreach (var m in vm.Data.Mangaography.Take(10))
-                TopMangaography.Add(m);
-        }
     }
 
     protected override async void OnAppearing()
@@ -82,16 +42,49 @@ public partial class CharacterDetailsPage : ContentPage, ITabSwipeHost
                 await vm.Init(new CharacterDetailsNavigationArgs { Id = id });
                 _loadedId = id;
                 _initialized = true;
-                PopulateOverviewShelves();
             }
             catch (Exception ex)
             {
                 Console.WriteLine("MALPLUS CharacterDetails Init failed: " + ex);
             }
+            ApplyTabsAndLanding(resetToFirstTab: true);
         }
         else
         {
-            PopulateOverviewShelves();
+            ApplyTabsAndLanding(resetToFirstTab: false);
+        }
+    }
+
+    private void ApplyTabsAndLanding(bool resetToFirstTab)
+    {
+        var vm = Vm;
+        var hasInfo = vm != null && (vm.HasAboutContent || vm.SpoilerButtonVisibility);
+        var hasVa = (vm?.VoiceActors?.Count ?? 0) > 0;
+        var hasAnime = (vm?.Data?.Animeography?.Count ?? 0) > 0;
+        var hasManga = (vm?.Data?.Mangaography?.Count ?? 0) > 0;
+
+        if (!hasInfo && !hasVa && !hasAnime && !hasManga)
+            hasInfo = true;
+
+        _visibleTabs.Clear();
+        if (hasInfo) _visibleTabs.Add(0);
+        if (hasVa) _visibleTabs.Add(1);
+        if (hasAnime) _visibleTabs.Add(2);
+        if (hasManga) _visibleTabs.Add(3);
+
+        TabOverview.IsVisible = hasInfo;
+        TabVoiceActors.IsVisible = hasVa;
+        TabAnimeography.IsVisible = hasAnime;
+        TabMangaography.IsVisible = hasManga;
+        TabStripScroll.IsVisible = _visibleTabs.Count > 1;
+
+        if (resetToFirstTab || !_visibleTabs.Contains(_selectedTab))
+        {
+            _ = SelectTabAsync(_visibleTabs[0], false, forceApply: true);
+        }
+        else
+        {
+            UpdateTabVisuals();
         }
     }
 
@@ -115,18 +108,25 @@ public partial class CharacterDetailsPage : ContentPage, ITabSwipeHost
 
     bool ITabSwipeHost.TrySwipe(int direction)
     {
-        var next = _selectedTab + (direction > 0 ? 1 : -1);
-        if (next < 0 || next > 3)
+        if (_visibleTabs.Count <= 1)
             return false;
 
-        _ = SelectTabAsync(next, true);
+        var pos = _visibleTabs.IndexOf(_selectedTab);
+        if (pos < 0)
+            pos = 0;
+
+        var nextPos = pos + (direction > 0 ? 1 : -1);
+        if (nextPos < 0 || nextPos >= _visibleTabs.Count)
+            return false;
+
+        _ = SelectTabAsync(_visibleTabs[nextPos], true);
         return true;
     }
 
-    private async Task SelectTabAsync(int index, bool animate)
+    private async Task SelectTabAsync(int index, bool animate, bool forceApply = false)
     {
         index = Math.Clamp(index, 0, 3);
-        if (index == _selectedTab)
+        if (!forceApply && index == _selectedTab)
             return;
 
         int direction = index > _selectedTab ? 1 : -1;
@@ -153,7 +153,7 @@ public partial class CharacterDetailsPage : ContentPage, ITabSwipeHost
     {
         if (TabStripScroll == null) return;
         var buttons = new[] { TabOverview, TabVoiceActors, TabAnimeography, TabMangaography };
-        if (index >= 0 && index < buttons.Length && buttons[index] != null)
+        if (index >= 0 && index < buttons.Length && buttons[index] != null && buttons[index].IsVisible)
         {
             var btn = buttons[index];
             var targetX = Math.Max(0, btn.X - 16);

@@ -1,13 +1,11 @@
-using System.Collections.ObjectModel;
 using MALPlus.Controls;
 using MALPlus.Models.Enums;
 using MALPlus.Models.Models.Anime;
 using MALPlus.Models.Models.ScrappedDetails;
+using MALPlus.Services;
 using MALPlus.XShared.NavArgs;
 using MALPlus.XShared.ViewModels;
 using MALPlus.XShared.ViewModels.Details;
-using MALPlus.Services;
-using Microsoft.Maui.Graphics;
 
 namespace MALPlus.Views;
 
@@ -18,11 +16,9 @@ public partial class StaffDetailsPage : ContentPage, ITabSwipeHost
     private int _loadedId = -1;
     private StaffDetailsViewModel _subscribedVm;
     private int _selectedTab;
+    private readonly List<int> _visibleTabs = new() { 0 };
 
     public string StaffId { get; set; }
-
-    public ObservableCollection<ShowCharacterPair> TopVoiceRoles { get; } = new();
-    public ObservableCollection<AnimeLightEntry> TopProductionRoles { get; } = new();
 
     private StaffDetailsViewModel Vm => BindingContext as StaffDetailsViewModel;
 
@@ -30,37 +26,7 @@ public partial class StaffDetailsPage : ContentPage, ITabSwipeHost
     {
         InitializeComponent();
         BindingContext = ViewModelLocator.StaffDetails;
-        if (Vm != null)
-            Vm.PropertyChanged += OnVmPropertyChanged;
         UpdateTabVisuals();
-    }
-
-    private void OnVmPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(StaffDetailsViewModel.Data))
-        {
-            MainThread.BeginInvokeOnMainThread(PopulateOverviewShelves);
-        }
-    }
-
-    private void PopulateOverviewShelves()
-    {
-        var vm = Vm;
-        if (vm == null) return;
-
-        TopVoiceRoles.Clear();
-        if (vm.Data?.ShowCharacterPairs != null)
-        {
-            foreach (var pair in vm.Data.ShowCharacterPairs.Take(10))
-                TopVoiceRoles.Add(pair);
-        }
-
-        TopProductionRoles.Clear();
-        if (vm.Data?.StaffPositions != null)
-        {
-            foreach (var pos in vm.Data.StaffPositions.Take(10))
-                TopProductionRoles.Add(pos);
-        }
     }
 
     protected override async void OnAppearing()
@@ -78,17 +44,16 @@ public partial class StaffDetailsPage : ContentPage, ITabSwipeHost
                 await vm.Init(new StaffDetailsNaviagtionArgs { Id = id });
                 _loadedId = id;
                 _initialized = true;
-                PopulateOverviewShelves();
             }
             catch (Exception ex)
             {
                 Console.WriteLine("MALPLUS StaffDetails Init failed: " + ex);
             }
-            ResetRenderedItems();
+            ApplyTabsAndLanding(resetToFirstTab: true);
         }
         else
         {
-            PopulateOverviewShelves();
+            ApplyTabsAndLanding(resetToFirstTab: false);
         }
     }
 
@@ -117,17 +82,54 @@ public partial class StaffDetailsPage : ContentPage, ITabSwipeHost
 
     private void OnPivotItemSelectionRequest(int index)
     {
-        if (index < 0 || index > 2)
+        if (index < 0 || index > 2 || !_visibleTabs.Contains(index))
             return;
         _ = SelectTabAsync(index, true);
     }
 
-    private void ResetRenderedItems()
+    private void ApplyTabsAndLanding(bool resetToFirstTab)
     {
-        if ((Vm?.Data?.ShowCharacterPairs?.Count ?? 0) == 0 && (Vm?.Data?.StaffPositions?.Count ?? 0) > 0)
-            _ = SelectTabAsync(2, false);
-        else if ((Vm?.Data?.ShowCharacterPairs?.Count ?? 0) == 0)
-            _ = SelectTabAsync(1, false);
+        var data = Vm?.Data;
+        var hasInfo = (data?.Details?.Count ?? 0) > 0;
+        var hasVoice = (data?.ShowCharacterPairs?.Count ?? 0) > 0;
+        var hasProd = (data?.StaffPositions?.Count ?? 0) > 0;
+
+        // If nothing has content, still keep Info visible to show the empty notice cleanly.
+        if (!hasInfo && !hasVoice && !hasProd)
+            hasInfo = true;
+
+        _visibleTabs.Clear();
+        if (hasInfo) _visibleTabs.Add(0);
+        if (hasVoice) _visibleTabs.Add(1);
+        if (hasProd) _visibleTabs.Add(2);
+
+        TabInfo.IsVisible = hasInfo;
+        TabVoiceRoles.IsVisible = hasVoice;
+        TabProductionRoles.IsVisible = hasProd;
+        TabStripScroll.IsVisible = _visibleTabs.Count > 1;
+
+        if (InfoEmptyNotice != null)
+            InfoEmptyNotice.IsVisible = (data?.Details?.Count ?? 0) == 0;
+
+        if (RoleBadgeLabel != null)
+        {
+            RoleBadgeLabel.Text = (hasVoice, hasProd) switch
+            {
+                (true, true) => "SEIYUU & STAFF",
+                (true, false) => "VOICE ACTOR",
+                (false, true) => "STAFF",
+                _ => "PERSON"
+            };
+        }
+
+        if (resetToFirstTab || !_visibleTabs.Contains(_selectedTab))
+        {
+            _ = SelectTabAsync(_visibleTabs[0], false, forceApply: true);
+        }
+        else
+        {
+            UpdateTabVisuals();
+        }
     }
 
     private async void OnBackButtonClicked(object sender, EventArgs e)
@@ -149,18 +151,25 @@ public partial class StaffDetailsPage : ContentPage, ITabSwipeHost
 
     bool ITabSwipeHost.TrySwipe(int direction)
     {
-        var next = _selectedTab + (direction > 0 ? 1 : -1);
-        if (next < 0 || next > 2)
+        if (_visibleTabs.Count <= 1)
             return false;
 
-        _ = SelectTabAsync(next, true);
+        var pos = _visibleTabs.IndexOf(_selectedTab);
+        if (pos < 0)
+            pos = 0;
+
+        var nextPos = pos + (direction > 0 ? 1 : -1);
+        if (nextPos < 0 || nextPos >= _visibleTabs.Count)
+            return false;
+
+        _ = SelectTabAsync(_visibleTabs[nextPos], true);
         return true;
     }
 
-    private async Task SelectTabAsync(int index, bool animate)
+    private async Task SelectTabAsync(int index, bool animate, bool forceApply = false)
     {
         index = Math.Clamp(index, 0, 2);
-        if (index == _selectedTab)
+        if (!forceApply && index == _selectedTab)
         {
             await ResetTabTranslationAsync();
             return;
@@ -189,7 +198,7 @@ public partial class StaffDetailsPage : ContentPage, ITabSwipeHost
     {
         if (TabStripScroll == null) return;
         var buttons = new[] { TabInfo, TabVoiceRoles, TabProductionRoles };
-        if (index >= 0 && index < buttons.Length && buttons[index] != null)
+        if (index >= 0 && index < buttons.Length && buttons[index] != null && buttons[index].IsVisible)
         {
             var btn = buttons[index];
             var targetX = Math.Max(0, btn.X - 16);

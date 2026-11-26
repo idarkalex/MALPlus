@@ -81,6 +81,15 @@ base.OnStart();
                                   " token=" + !string.IsNullOrEmpty(Settings.ApiToken) +
                                   " refresh=" + !string.IsNullOrEmpty(Settings.RefreshToken) +
                                   " vaultUser=" + (TryPeekVaultUser() ?? "<none>"));
+
+                if (!string.Equals(Settings.LastOnboardingVersion, Settings.CurrentOnboardingVersion, StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MALPLUS_SKIP_ONBOARDING")))
+                {
+                    StartupTrace.Mark("welcome-setup-begin");
+                    await Views.WelcomeSetupPage.PresentAsync();
+                    StartupTrace.Mark("welcome-setup-done");
+                }
+
                 if (!Credentials.Authenticated || string.IsNullOrWhiteSpace(Credentials.UserName))
                 {
                     await MainThread.InvokeOnMainThreadAsync(() =>

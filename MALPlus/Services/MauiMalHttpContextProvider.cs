@@ -28,6 +28,24 @@ public class MauiMalHttpContextProvider : MALPlus.XShared.BL.MalHttpContextProvi
             // The website cookies, not the password. These used to be the same field, which meant a password
             // was being handed to the cookie jar on every sign-in made through the password form.
             var existingCookies = Credentials.WebSessionCookies;
+#if ANDROID
+            if (string.IsNullOrEmpty(existingCookies))
+            {
+                try
+                {
+                    var androidCookies = Android.Webkit.CookieManager.Instance?.GetCookie("https://myanimelist.net");
+                    if (!string.IsNullOrEmpty(androidCookies))
+                    {
+                        existingCookies = androidCookies;
+                        Credentials.WebSessionCookies = androidCookies;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine("MALPLUS CookieManager retrieval failed: " + ex.Message);
+                }
+            }
+#endif
             var success = false;
 
             if (!string.IsNullOrEmpty(existingCookies))
@@ -61,13 +79,6 @@ public class MauiMalHttpContextProvider : MALPlus.XShared.BL.MalHttpContextProvi
 
             if (!success)
             {
-                ResourceLocator.DispatcherAdapter.Run(async () =>
-                {
-                    await ResourceLocator.MessageDialogProvider.ShowMessageDialogAsync(
-                        "Failed to sign in. Please sign in again, MAL seems to have invalidated your current session :(",
-                        "Error.");
-                });
-
                 throw new WebException($"Unable to authorize,");
             }
 

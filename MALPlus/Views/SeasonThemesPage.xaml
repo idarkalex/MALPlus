@@ -6,7 +6,7 @@
              x:Class="MALPlus.Views.SeasonThemesPage"
              x:Name="SeasonThemesPageRoot"
              Shell.PresentationMode="NotAnimated"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
 
     <!-- ONE root grid, holding both the page and the playback overlay. It has to be one element because
          a ContentPage takes a single content child, and two of them meant the season list was dropped
@@ -21,7 +21,7 @@
 
         <!-- The bar the list pages use, and the same control for both halves: which season, which
              year. The selection is what fills the rows below, and it opens on whatever is airing. -->
-        <Border Grid.Row="0" BackgroundColor="{StaticResource EmSheet}" Padding="14,0"
+        <Border Grid.Row="0" BackgroundColor="{DynamicResource EmSheet}" Padding="14,0"
                 HeightRequest="52">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <HorizontalStackLayout Grid.Column="0" Spacing="12" VerticalOptions="Center">
@@ -91,7 +91,7 @@
                                        TextColor="{StaticResource BrushText}" MaxLines="2"
                                        LineBreakMode="TailTruncation" />
                                 <Label Text="{Binding MetaLine}" FontFamily="Inter" FontSize="11"
-                                       TextColor="{StaticResource TabChipInactiveText}" MaxLines="1" LineBreakMode="TailTruncation" />
+                                       TextColor="{DynamicResource TabChipInactiveText}" MaxLines="1" LineBreakMode="TailTruncation" />
 
                                 <!-- Kept as a line of its own rather than hidden, so a season entry
                                      with no theme still reads as a row of the season. -->

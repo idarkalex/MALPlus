@@ -19,7 +19,7 @@ namespace MALPlus.Views;
 public partial class MorePage : ContentPage
 {
     private bool _initialized;
-    private Color _lastAppliedThemeBg;
+    private int _lastAppliedTheme = Settings.AppTheme;
 
     private bool _animeListPanelExpanded;
     private bool _mangaListPanelExpanded;
@@ -46,9 +46,12 @@ public partial class MorePage : ContentPage
     private string _appliedContentTag;
     private long _appliedSettingsRevision;
 
+    private bool _navigating;
+
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        _navigating = false;
         (Shell.Current as AppShell)?.UpdateSharedBarVisibility();
         ApplyTheme();
         if (_initialized)
@@ -422,11 +425,27 @@ public partial class MorePage : ContentPage
     {
         try
         {
-            var bg = MALPlus.Services.ThemeService.CurrentBackground;
-            if (_lastAppliedThemeBg == bg)
+            var theme = Settings.AppTheme;
+            if (_lastAppliedTheme == theme)
                 return;
-            _lastAppliedThemeBg = bg;
-            BackgroundColor = bg;
+            _lastAppliedTheme = theme;
+
+            if (AnimeListPanel.Children.Count > 0)
+                PopulateStatusPanel(AnimeListPanel, false);
+            if (MangaListPanel.Children.Count > 0)
+                PopulateStatusPanel(MangaListPanel, true);
+            if (TopAnimePanel.Children.Count > 0)
+            {
+                TopAnimePanel.Children.Clear();
+                EnsureTopAnimePanel();
+            }
+            if (TopMangaPanel.Children.Count > 0)
+                PopulateTopMangaPanel();
+            if (AdaptedPanel.Children.Count > 0)
+            {
+                AdaptedPanel.Children.Clear();
+                EnsureAdaptedPanel();
+            }
         }
         catch { }
     }
@@ -594,6 +613,11 @@ public partial class MorePage : ContentPage
 
     private void NavigateTo(PageIndex page, object args = null)
     {
+        if (_navigating)
+            return;
+        _navigating = true;
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(450), () => _navigating = false);
+
         if (args is AnimeListPageNavigationArgs animeArgs)
         {
             animeArgs.FromMore = true;

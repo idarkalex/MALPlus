@@ -5,7 +5,7 @@
              xmlns:controls="clr-namespace:MALPlus.Controls"
              xmlns:converters="clr-namespace:MALPlus.Converters"
              x:Class="MALPlus.Views.CalendarPage"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -32,7 +32,7 @@
                        TextColor="{StaticResource BrushText}" />
                 <Label x:Name="CalendarSubtitleLabel" Text="Weekly TV &amp; ONA broadcast schedule"
                        FontFamily="Inter" FontSize="11"
-                       TextColor="{StaticResource TabChipInactiveText}" LineBreakMode="TailTruncation" />
+                       TextColor="{DynamicResource TabChipInactiveText}" LineBreakMode="TailTruncation" />
             </VerticalStackLayout>
 
             <!-- Mode Switch Chip (Allows easily jumping between Global and My List) -->
@@ -68,28 +68,16 @@
                    FontFamily="Inter" FontSize="12" TextColor="#FF6B6B"
                    Padding="16,4" LineBreakMode="CharacterWrap" />
 
-            <CarouselView x:Name="CalendarCarousel"
-                          ItemsSource="{Binding CalendarData}"
-                          Position="0"
-                          IsSwipeEnabled="False"
-                          Loop="False">
-                <CarouselView.ItemTemplate>
-                    <DataTemplate>
-                        <!-- No day header here: the fixed strip above already names the day
-                             and shows its count. Edge-to-edge poster grid matches the rest of the app. -->
-                        <Grid Loaded="OnDayPageLoaded">
-                            <controls:AnimePosterGrid x:Name="DayGrid"
-                                ItemsSource="{Binding Items}"
-                                ItemTapped="OnGridItemTapped" />
+            <Grid>
+                <controls:AnimePosterGrid x:Name="DayGrid"
+                                          ItemTapped="OnGridItemTapped" />
 
-                            <Label Text="Nothing airing today" FontFamily="Inter" FontSize="14"
-                                   TextColor="#80FFFFFF" HorizontalOptions="Center"
-                                   VerticalOptions="Center"
-                                   IsVisible="{Binding Source={x:Reference DayGrid}, Path=IsEmpty}" />
-                        </Grid>
-                    </DataTemplate>
-                </CarouselView.ItemTemplate>
-            </CarouselView>
+                <Label Text="Nothing airing today" FontFamily="Inter" FontSize="14"
+                       TextColor="#80FFFFFF" HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       InputTransparent="True"
+                       IsVisible="{Binding Source={x:Reference DayGrid}, Path=IsEmpty}" />
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

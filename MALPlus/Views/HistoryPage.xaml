@@ -2,8 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
              x:Class="MALPlus.Views.HistoryPage"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -24,14 +25,17 @@
             <Grid RowDefinitions="Auto,*" RowSpacing="0">
                 <!-- One page per type, as MAL itself splits it. The list used to be a single flat
                      run of everything, which made it long and unmixable. -->
-                <HorizontalStackLayout Grid.Row="0" Padding="16,4,16,8" Spacing="8">
-                    <Button x:Name="TabAll" Text="All" Clicked="OnTypeTabTapped" CommandParameter="All"
-                            Style="{StaticResource TabChipActiveButtonStyle}" />
-                    <Button x:Name="TabAnime" Text="Anime" Clicked="OnTypeTabTapped" CommandParameter="Anime"
-                            Style="{StaticResource TabChipButtonStyle}" />
-                    <Button x:Name="TabManga" Text="Manga" Clicked="OnTypeTabTapped" CommandParameter="Manga"
-                            Style="{StaticResource TabChipButtonStyle}" />
-                </HorizontalStackLayout>
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,8,16,8">
+                    <HorizontalStackLayout Grid.Column="0" Spacing="8">
+                        <Button x:Name="TabAll" Text="All" Clicked="OnTypeTabTapped" CommandParameter="All"
+                                Style="{StaticResource TabChipActiveButtonStyle}" />
+                        <Button x:Name="TabAnime" Text="Anime" Clicked="OnTypeTabTapped" CommandParameter="Anime"
+                                Style="{StaticResource TabChipButtonStyle}" />
+                        <Button x:Name="TabManga" Text="Manga" Clicked="OnTypeTabTapped" CommandParameter="Manga"
+                                Style="{StaticResource TabChipButtonStyle}" />
+                    </HorizontalStackLayout>
+                    <controls:WindowsRefreshButton Grid.Column="1" Clicked="OnRefreshing" />
+                </Grid>
 
                 <CollectionView x:Name="HistoryList" Grid.Row="1" SelectionMode="Single"
                                 SelectionChanged="OnHistoryEntrySelected"
@@ -44,8 +48,8 @@
                 </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
-                                Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        <Border Margin="16,4" BackgroundColor="{DynamicResource EmSheet}"
+                                Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                 StrokeShape="RoundRectangle 14" Padding="10">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnHistoryEntryTapped"
@@ -85,7 +89,7 @@
                                            IsVisible="{Binding LoadingMore}" />
 
                         <!-- End of History Card -->
-                        <Border BackgroundColor="{StaticResource TabChipInactiveBg}" Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        <Border BackgroundColor="{DynamicResource TabChipInactiveBg}" Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                 StrokeShape="RoundRectangle 14" Padding="16,12"
                                 IsVisible="{Binding LoadingVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                             <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
@@ -95,7 +99,7 @@
                                            TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
                                 </HorizontalStackLayout>
                                 <Label Text="MyAnimeList preserves activity logs for up to 3 weeks."
-                                       FontFamily="Inter" FontSize="11" TextColor="{StaticResource TabChipInactiveText}"
+                                       FontFamily="Inter" FontSize="11" TextColor="{DynamicResource TabChipInactiveText}"
                                        HorizontalOptions="Center" HorizontalTextAlignment="Center" />
                             </VerticalStackLayout>
                         </Border>

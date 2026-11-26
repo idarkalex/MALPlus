@@ -2,11 +2,12 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
              xmlns:titems="clr-namespace:MALPlus.XShared.ViewModels.Items;assembly=MALPlus.Core"
              xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.WallpapersPage"
              x:DataType="vm:WallpapersViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -23,8 +24,11 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Label Grid.Row="0" Text="Wallpapers" FontFamily="InterBold" FontSize="22"
-                   TextColor="{StaticResource BrushText}" Padding="16,12" />
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,12">
+                <Label Grid.Column="0" Text="Wallpapers" FontFamily="InterBold" FontSize="22"
+                       TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+                <controls:WindowsRefreshButton Grid.Column="1" Clicked="OnRefreshing" />
+            </Grid>
 
             <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingWallpapersVisibility, FallbackValue=false}" Refreshing="OnRefreshing">
                 <CollectionView ItemsSource="{Binding Wallpapers}" SelectionMode="Single"
@@ -45,8 +49,8 @@
                     <CollectionView.ItemTemplate>
                         <DataTemplate
                         x:DataType="titems:WallpaperItemViewModel">
-                            <Border BackgroundColor="{StaticResource EmSheet}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            <Border BackgroundColor="{DynamicResource EmSheet}"
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="0">
                                 <Grid RowDefinitions="*,Auto" RowSpacing="0">
                                     <Image Grid.Row="0" Source="{Binding Data.Thumb, Converter={StaticResource ImageConverter}}"

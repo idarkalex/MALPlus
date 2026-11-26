@@ -66,6 +66,19 @@ public static class MauiProgram
                 }
             }
         });
+
+        // Work around a .NET 11 MAUI WinUI ItemsViewHandler2 hang: when ItemsUpdatingScrollMode
+        // defaults to KeepItemsInView, mutating or replacing ItemsSource dispatches
+        // ItemsView.StartBringItemIntoView(0, ...), which can deadlock WinUI layout/measure (AppHangB1).
+        static void EnsureKeepScrollOffset(Microsoft.Maui.IElementHandler handler, ItemsView view)
+        {
+            if (view != null && !view.IsSet(ItemsView.ItemsUpdatingScrollModeProperty))
+                view.ItemsUpdatingScrollMode = ItemsUpdatingScrollMode.KeepScrollOffset;
+        }
+        Microsoft.Maui.Controls.Handlers.Items2.CollectionViewHandler2.Mapper.PrependToMapping(
+            nameof(ItemsView.ItemsUpdatingScrollMode), EnsureKeepScrollOffset);
+        Microsoft.Maui.Controls.Handlers.Items2.CollectionViewHandler2.Mapper.PrependToMapping(
+            nameof(ItemsView.ItemsSource), EnsureKeepScrollOffset);
 #endif
 
 #if ANDROID

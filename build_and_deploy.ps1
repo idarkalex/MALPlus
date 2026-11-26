@@ -224,11 +224,23 @@ if (!$SkipInstall) {
     Write-Host ("      ready ({0})" -f (Format-Duration $step.Elapsed.TotalSeconds)) -ForegroundColor DarkGray
 }
 
+$targetAbi = (& $adb -s $Device shell getprop ro.product.cpu.abi 2>$null)
+if ($targetAbi) { $targetAbi = $targetAbi.Trim() }
+$rid = "android-arm64"
+if ($targetAbi -match "x86_64") {
+    $rid = "android-x64"
+} elseif ($targetAbi -match "x86") {
+    $rid = "android-x86"
+} elseif ($targetAbi -match "armeabi-v7a") {
+    $rid = "android-arm"
+}
+
 $buildArguments = @(
     "build",
     $project,
     "-f", "net11.0-android37.0",
     "-p:Configuration=$Configuration",
+    "-p:RuntimeIdentifier=$rid",
     "-p:AndroidSdkDirectory=`"$env:ANDROID_HOME`"",
     "-v:m",
     "--nologo",
@@ -251,12 +263,21 @@ foreach ($ks in $keystoreCandidates) {
         break
     }
 }
-if ($releaseKeystore -and (Test-Path $releaseKeystore)) {
+$keystorePass = $env:MALPLUS_KEYSTORE_PASSWORD
+if ([string]::IsNullOrWhiteSpace($keystorePass)) {
+    $keystorePass = [Environment]::GetEnvironmentVariable("MALPLUS_KEYSTORE_PASSWORD", "User")
+}
+if ([string]::IsNullOrWhiteSpace($keystorePass)) {
+    $keystorePass = $env:ANDROID_KEYSTORE_PASSWORD
+}
+$keystoreAlias = if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_KEY_ALIAS)) { $env:ANDROID_KEY_ALIAS } else { "malplus" }
+
+if ($releaseKeystore -and (Test-Path $releaseKeystore) -and -not [string]::IsNullOrWhiteSpace($keystorePass)) {
     $buildArguments += "-p:AndroidKeyStore=true"
     $buildArguments += "-p:AndroidSigningKeyStore=$releaseKeystore"
-    $buildArguments += "-p:AndroidSigningStorePass=MalPlus2026ReleaseKey!"
-    $buildArguments += "-p:AndroidSigningKeyAlias=malplus"
-    $buildArguments += "-p:AndroidSigningKeyPass=MalPlus2026ReleaseKey!"
+    $buildArguments += "-p:AndroidSigningStorePass=$keystorePass"
+    $buildArguments += "-p:AndroidSigningKeyAlias=$keystoreAlias"
+    $buildArguments += "-p:AndroidSigningKeyPass=$keystorePass"
 }
 
 if ($FastDeploy) {
@@ -304,9 +325,16 @@ if ($SkipInstall) {
     $step = [System.Diagnostics.Stopwatch]::StartNew()
 
     $apk = Get-ChildItem -Path $apkDir -Recurse -Filter "*.apk" -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -like "*-Signed.apk" } |
+        Where-Object { $_.Name -like "*-Signed.apk" -and ($_.FullName -like "*$rid*" -or -not ($_.FullName -like "*android-*")) } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
+
+    if (-not $apk) {
+        $apk = Get-ChildItem -Path $apkDir -Recurse -Filter "*.apk" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "*-Signed.apk" } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
 
     if (-not $apk) {
         throw "no *-Signed.apk found under $apkDir"
@@ -315,14 +343,14 @@ if ($SkipInstall) {
     $sizeMb = [math]::Round($apk.Length / 1MB, 1)
     Write-Host "      $($apk.Name) ($sizeMb MB)"
     $releaseKs = $releaseKeystore
-    if ($releaseKs -and (Test-Path $releaseKs)) {
+    if ($releaseKs -and (Test-Path $releaseKs) -and -not [string]::IsNullOrWhiteSpace($keystorePass)) {
         $apksignerBat = "C:\Program Files (x86)\Android\android-sdk\build-tools\35.0.0\apksigner.bat"
         if (-not (Test-Path $apksignerBat)) {
             $found = Get-ChildItem -Path $env:ANDROID_HOME -Recurse -Filter "apksigner.bat" -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($found) { $apksignerBat = $found.FullName }
         }
         if ($apksignerBat -and (Test-Path $apksignerBat)) {
-            & $apksignerBat sign --ks $releaseKs --ks-pass "pass:MalPlus2026ReleaseKey!" --ks-key-alias "malplus" --key-pass "pass:MalPlus2026ReleaseKey!" $apk.FullName 2>&1 | Out-Null
+            & $apksignerBat sign --ks $releaseKs --ks-pass "pass:$keystorePass" --ks-key-alias $keystoreAlias --key-pass "pass:$keystorePass" $apk.FullName 2>&1 | Out-Null
         }
     }
 

@@ -34,9 +34,6 @@ namespace MALPlus.XShared.ViewModels
 
         public static ILocalDiagnosticsProvider LocalDiagnostics => SimpleIoc.Default.GetInstance<ILocalDiagnosticsProvider>();
 
-        [Obsolete("Use LocalDiagnostics")]
-        public static ILocalDiagnosticsProvider TelemetryProvider => LocalDiagnostics;
-
         public static INotificationsTaskManager  NotificationsTaskManager  => SimpleIoc.Default.GetInstance<INotificationsTaskManager>();
 
         public static IChangeLogProvider  ChangelogProvider  => SimpleIoc.Default.GetInstance<IChangeLogProvider>();

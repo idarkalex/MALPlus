@@ -382,6 +382,75 @@ public partial class RandomThemePage : ContentPage, INotifyPropertyChanged
     /// <summary>MAL id of the entry, 0 when the search never found one.</summary>
     public int MalId { get; private set; }
 
+    private bool _rerolling;
+
+    private async void OnRerollTapped(object sender, TappedEventArgs e)
+    {
+        if (_rerolling)
+            return;
+        _rerolling = true;
+        try
+        {
+            if (RerollSpinner != null)
+            {
+                RerollSpinner.IsVisible = true;
+                RerollSpinner.IsRunning = true;
+            }
+            if (RerollGlyph != null)
+                RerollGlyph.IsVisible = false;
+
+            CancelPendingRetries();
+            StopDirectMedia();
+            _player?.Close();
+            if (VideoFailed != null)
+                VideoFailed.IsVisible = false;
+
+            var theme = await AnimeThemesHelper.GetRandomThemeAsync();
+            if (string.IsNullOrEmpty(theme?.Url))
+            {
+                await OptionsSheetHost.ConfirmAsync("", "AnimeThemes returned no theme.", "OK");
+                return;
+            }
+
+            var animeName = await AnimeThemesHelper.GetAnimeNameAsync(theme.AnimeSlug);
+
+            Slug = theme.AnimeSlug ?? string.Empty;
+            Anime = animeName ?? string.Empty;
+            Song = theme.SongTitle ?? string.Empty;
+            Slot = (theme.Type + " " + theme.Sequence).Trim();
+            Url = theme.Url;
+
+            _year = 0;
+            _synopsis = null;
+            _mediaFormat = null;
+            MalId = 0;
+            HeroImage = string.Empty;
+
+            foreach (var name in new[] { nameof(AnimeName), nameof(AnimeYear), nameof(HasYear),
+                        nameof(AnimeSynopsis), nameof(MediaFormat), nameof(HasMediaFormat),
+                        nameof(IsOpening), nameof(SongLine), nameof(HeroImage) })
+                Raise(name);
+
+            await LoadAnimeAsync();
+            PlayMediaUrl(Url);
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("MALPlus RandomTheme", "reroll failed: " + ex.GetType().Name);
+        }
+        finally
+        {
+            if (RerollSpinner != null)
+            {
+                RerollSpinner.IsRunning = false;
+                RerollSpinner.IsVisible = false;
+            }
+            if (RerollGlyph != null)
+                RerollGlyph.IsVisible = true;
+            _rerolling = false;
+        }
+    }
+
     private void OnCloseTapped(object sender, EventArgs e)
     {
         if (FullscreenVideo.IsActive)

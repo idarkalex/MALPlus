@@ -105,7 +105,7 @@ namespace MALPlus.XShared.Comm
                 if (res.StatusCode == HttpStatusCode.Forbidden
                     && Request.Host.EndsWith("myanimelist.net", StringComparison.OrdinalIgnoreCase)
                     && !Request.ToString()
-                        .Contains("https://myanimelist.net/rss.php?type=rw&u=")) //workaround because I don't want to disturb the spaghetti gods sleeping around
+                        .Contains("https://myanimelist.net/rss.php?")) //workaround because I don't want to disturb the spaghetti gods sleeping around
                 {
                     HandleMalBuggines();
                 }

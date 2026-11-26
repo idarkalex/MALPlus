@@ -246,7 +246,7 @@ namespace MALPlus.XShared.ViewModels.Main
                 Query.RefreshClientAuthHeader();
                 Settings.SelectedApiType = ApiType.Mal;
                 Credentials.SetAuthStatus(true);
-                ResourceLocator.LocalDiagnostics.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInMyAnimeList);
+                ResourceLocator.LocalDiagnostics.TrackEvent(DiagnosticsEvent.LoggedInMyAnimeList);
             }
             catch (Exception)
             {
@@ -308,8 +308,6 @@ namespace MALPlus.XShared.ViewModels.Main
 
                 try
                 {
-                    var context = await _httpContextProvider.GetHttpContextAsync();
-
                     using var tokenClient = new HttpClient();
                     using var content = new FormUrlEncodedContent(new List<KeyValuePair<string, string>>
                     {
@@ -357,7 +355,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     ViewModelLocator.AnimeList.ListSource = Credentials.UserName;
                     Settings.SelectedApiType = ApiType.Mal;
                     Credentials.SetAuthStatus(true);
-                    ResourceLocator.LocalDiagnostics.TelemetryTrackEvent(TelemetryTrackedEvents.LoggedInMyAnimeList);
+                    ResourceLocator.LocalDiagnostics.TrackEvent(DiagnosticsEvent.LoggedInMyAnimeList);
 
                     try
                     {

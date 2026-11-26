@@ -44,6 +44,8 @@ public partial class SettingsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        if (!_initialized)
+            NavigateToCategory(SettingsCategory.Hub);
         ThemeService.ThemeChanged += OnThemeChanged;
         if (Vm != null)
             Vm.PropertyChanged += OnVmPropertyChanged;
@@ -121,6 +123,20 @@ public partial class SettingsPage : ContentPage
                     1 => "Personal score",
                     2 => "Hidden",
                     _ => "Community score"
+                };
+            }
+
+            // Grid columns
+            if (GridColumnsValueLabel != null)
+            {
+                var idx = vm.GridColumnsIndex;
+                GridColumnsValueLabel.Text = idx switch
+                {
+                    1 => "2 columns",
+                    2 => "3 columns",
+                    3 => "4 columns",
+                    4 => "5 columns",
+                    _ => "Auto"
                 };
             }
 
@@ -228,6 +244,32 @@ public partial class SettingsPage : ContentPage
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS OnPickScoreChipClicked failed: " + ex.Message);
+        }
+    }
+
+    private async void OnPickGridColumnsClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var vm = Vm;
+            if (vm == null) return;
+            var current = vm.GridColumnsIndex;
+            var rows = vm.GridColumnsOptions.Select((opt, idx) =>
+                new OptionsSheetItem(opt, null, value: idx == current ? "✓" : null)
+            ).ToList();
+            var picked = await OptionsSheetHost.PickAsync("Grid columns",
+                "Number of poster columns displayed in anime and manga grids", rows);
+            if (string.IsNullOrEmpty(picked)) return;
+            var newIndex = Array.IndexOf(vm.GridColumnsOptions, picked);
+            if (newIndex >= 0 && newIndex != current)
+            {
+                vm.GridColumnsIndex = newIndex;
+                UpdateSelectorLabels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnPickGridColumnsClicked failed: " + ex.Message);
         }
     }
 
@@ -443,42 +485,22 @@ public partial class SettingsPage : ContentPage
         }
     }
 
-    private int _lastAppliedTheme = -1;
-
-    private void OnThemeChanged()
+    private async void OnOpenVisualSetupClicked(object sender, EventArgs e)
     {
         try
         {
-            var currentTheme = MALPlus.XShared.Utils.Settings.AppTheme;
-            if (_lastAppliedTheme == currentTheme)
-                return;
-            _lastAppliedTheme = currentTheme;
-
-            var bg = ThemeService.CurrentBackground;
-            var sheet = ThemeService.CurrentSheet;
-            var border = ThemeService.CurrentBorder;
-            var chipBg = ThemeService.CurrentChipBg;
-
-            BackgroundColor = bg;
-            foreach (var element in this.GetVisualTreeDescendants())
-            {
-                if (element is Border b)
-                {
-                    if (b.HeightRequest == 34 || (b.HeightRequest == 40 && b.Padding.Left == 14))
-                    {
-                        // Action / chip border (e.g. SettingSelectChip, GitHub Issues)
-                        b.BackgroundColor = chipBg;
-                        b.Stroke = new SolidColorBrush(border);
-                    }
-                    else
-                    {
-                        b.BackgroundColor = sheet;
-                        b.Stroke = new SolidColorBrush(border);
-                    }
-                }
-            }
+            await WelcomeSetupPage.PresentAsync(fromSettings: true);
+            UpdateSelectorLabels();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OnOpenVisualSetupClicked failed: " + ex.Message);
+        }
+    }
+
+    private void OnThemeChanged()
+    {
+        UpdateSelectorLabels();
     }
 
     private void UpdateDiagnosticsAndVersion()
@@ -495,6 +517,8 @@ public partial class SettingsPage : ContentPage
                         LogSizeLabel.Text = summary;
                     if (VersionLabel != null)
                         VersionLabel.Text = version;
+                    if (DetailVersionLabel != null)
+                        DetailVersionLabel.Text = version;
                 });
             }
             catch { }
@@ -626,6 +650,11 @@ public partial class SettingsPage : ContentPage
         await AppUpdateService.ShowCurrentChangelogAsync();
     }
 
+    private async void OnGitHubStarClicked(object sender, EventArgs e)
+    {
+        await MALPlus.Services.GitHubStarService.OpenGitHubForStarAsync();
+    }
+
     private async void OnGitHubIssuesClicked(object sender, EventArgs e)
     {
         try
@@ -637,4 +666,95 @@ public partial class SettingsPage : ContentPage
             Console.WriteLine("MALPLUS open github issues failed: " + ex.Message);
         }
     }
+
+    #region Category Navigation (Option 1 Subcategories)
+
+    public enum SettingsCategory
+    {
+        Hub,
+        Appearance,
+        Posters,
+        Library,
+        Calendar,
+        Sharing,
+        Data
+    }
+
+    private SettingsCategory _currentCategory = SettingsCategory.Hub;
+
+    public void NavigateToCategory(SettingsCategory category)
+    {
+        _currentCategory = category;
+
+        if (category == SettingsCategory.Hub)
+        {
+            DetailScrollView.IsVisible = false;
+            HubScrollView.IsVisible = true;
+            HubScrollView.ScrollToAsync(0, 0, false);
+            return;
+        }
+
+        HubScrollView.IsVisible = false;
+        DetailScrollView.IsVisible = true;
+
+        CategoryAppearanceContent.IsVisible = category == SettingsCategory.Appearance;
+        CategoryPostersContent.IsVisible = category == SettingsCategory.Posters;
+        CategoryLibraryContent.IsVisible = category == SettingsCategory.Library;
+        CategoryCalendarContent.IsVisible = category == SettingsCategory.Calendar;
+        CategorySharingContent.IsVisible = category == SettingsCategory.Sharing;
+        CategoryDataContent.IsVisible = category == SettingsCategory.Data;
+
+        switch (category)
+        {
+            case SettingsCategory.Appearance:
+                DetailTitleLabel.Text = "Appearance & Display";
+                DetailDescLabel.Text = DeviceInfo.Platform == DevicePlatform.WinUI
+                    ? "Theme, start page, language"
+                    : "Theme, grid columns, start page, language";
+                break;
+            case SettingsCategory.Posters:
+                DetailTitleLabel.Text = "Poster Cards & Badges";
+                DetailDescLabel.Text = "Score chip, media format, season, badges";
+                break;
+            case SettingsCategory.Library:
+                DetailTitleLabel.Text = "Library & Tracking";
+                DetailDescLabel.Text = "List sort, per-list ordering, auto-dates";
+                break;
+            case SettingsCategory.Calendar:
+                DetailTitleLabel.Text = "Broadcast Calendar";
+                DetailDescLabel.Text = "Time zone, week start, day filters and limits";
+                break;
+            case SettingsCategory.Sharing:
+                DetailTitleLabel.Text = "Sharing & Social";
+                DetailDescLabel.Text = "Floating share button, post templates";
+                break;
+            case SettingsCategory.Data:
+                DetailTitleLabel.Text = "Data & Storage";
+                DetailDescLabel.Text = "Clear caches, local logs, updates";
+                break;
+        }
+
+        DetailScrollView.ScrollToAsync(0, 0, false);
+    }
+
+    private void OnCategoryAppearanceTapped(object sender, EventArgs e) => NavigateToCategory(SettingsCategory.Appearance);
+    private void OnCategoryPostersTapped(object sender, EventArgs e) => NavigateToCategory(SettingsCategory.Posters);
+    private void OnCategoryLibraryTapped(object sender, EventArgs e) => NavigateToCategory(SettingsCategory.Library);
+    private void OnCategoryCalendarTapped(object sender, EventArgs e) => NavigateToCategory(SettingsCategory.Calendar);
+    private void OnCategorySharingTapped(object sender, EventArgs e) => NavigateToCategory(SettingsCategory.Sharing);
+    private void OnCategoryDataTapped(object sender, EventArgs e) => NavigateToCategory(SettingsCategory.Data);
+
+    private void OnBackToHubClicked(object sender, EventArgs e) => NavigateToCategory(SettingsCategory.Hub);
+
+    protected override bool OnBackButtonPressed()
+    {
+        if (_currentCategory != SettingsCategory.Hub)
+        {
+            NavigateToCategory(SettingsCategory.Hub);
+            return true;
+        }
+        return base.OnBackButtonPressed();
+    }
+
+    #endregion
 }

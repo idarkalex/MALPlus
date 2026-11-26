@@ -149,6 +149,11 @@ public static class ShareCardGenerator
         var titleLines = WrapText(model.Title ?? string.Empty, titlePaint, width - 120);
         float titleTotalH = titleLines.Count * 42f;
 
+        var preStatusLabel = CleanStatusLabel(model.StatusText, model.IsAnime);
+        bool isRecommendation = string.Equals(preStatusLabel, "Recommended", StringComparison.OrdinalIgnoreCase);
+        bool showProgressRow = !isRecommendation || model.TotalEpisodes > 0;
+        bool showProgressBar = !isRecommendation;
+
         const float gapAfterTitle = 12f;
         const float progTextH = 22f;
         const float gapProgBar = 7f;
@@ -160,9 +165,12 @@ public static class ShareCardGenerator
         const float logoH = 38f;
         const float bottomPad = 34f;
 
+        float progSectionH = (showProgressRow ? gapAfterTitle + progTextH : 0f) +
+                             (showProgressBar ? gapProgBar + progBarH : 0f) +
+                             gapAfterProg;
+
         int height = (int)(posY + posterH + gapAfterPoster + pillH + gapAfterPill +
-                           titleTotalH + gapAfterTitle + progTextH + gapProgBar +
-                           progBarH + gapAfterProg + boxH + gapAfterBoxes + logoH + bottomPad);
+                           titleTotalH + progSectionH + boxH + gapAfterBoxes + logoH + bottomPad);
 
         SKBitmap coverBitmap = null;
         var normalizedUrl = MalImageUrl.Normalize(model.ImageUrl);
@@ -360,8 +368,7 @@ public static class ShareCardGenerator
             currentY += 42f;
         }
 
-        // 8. Episode / Chapter Progress Bar
-        currentY += gapAfterTitle;
+        // 8. Episode / Chapter Progress Bar (or simple total count for recommendations)
         const float marginSide = 65f;
         const float contentW = width - marginSide * 2f;
 
@@ -374,72 +381,87 @@ public static class ShareCardGenerator
             watched = total;
         }
 
-        using (var progLblPaint = new SKPaint
+        if (showProgressRow)
         {
-            Color = new SKColor(0x8F, 0xA8, 0xC0),
-            TextSize = 16,
-            IsAntialias = true,
-            Typeface = _mediumTypeface
-        })
-        using (var progValPaint = new SKPaint
-        {
-            Color = SKColors.White,
-            TextSize = 16,
-            IsAntialias = true,
-            TextAlign = SKTextAlign.Right,
-            Typeface = _boldTypeface
-        })
-        {
-            string progTitle = model.IsAnime ? "Episode progress" : "Chapter progress";
-            canvas.DrawText(progTitle, marginSide, currentY + 16, progLblPaint);
+            currentY += gapAfterTitle;
+            using (var progLblPaint = new SKPaint
+            {
+                Color = new SKColor(0x8F, 0xA8, 0xC0),
+                TextSize = 16,
+                IsAntialias = true,
+                Typeface = _mediumTypeface
+            })
+            using (var progValPaint = new SKPaint
+            {
+                Color = SKColors.White,
+                TextSize = 16,
+                IsAntialias = true,
+                TextAlign = SKTextAlign.Right,
+                Typeface = _boldTypeface
+            })
+            {
+                string progTitle = isRecommendation
+                    ? (model.IsAnime ? "Episodes" : "Chapters")
+                    : (model.IsAnime ? "Episode progress" : "Chapter progress");
+                canvas.DrawText(progTitle, marginSide, currentY + 16, progLblPaint);
 
-            string progValStr;
-            if (total > 0)
-                progValStr = $"{watched} / {total}";
-            else if (watched > 0)
-                progValStr = $"{watched} {(model.IsAnime ? "eps" : "ch")}";
-            else if (statusLabel.Equals("Completed", StringComparison.OrdinalIgnoreCase))
-                progValStr = "Completed";
-            else
-                progValStr = $"{watched} / ?";
+                string progValStr;
+                if (isRecommendation)
+                    progValStr = $"{total}";
+                else if (total > 0)
+                    progValStr = $"{watched} / {total}";
+                else if (watched > 0)
+                    progValStr = $"{watched} {(model.IsAnime ? "eps" : "ch")}";
+                else if (statusLabel.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                    progValStr = "Completed";
+                else
+                    progValStr = $"{watched} / ?";
 
-            canvas.DrawText(progValStr, width - marginSide, currentY + 16, progValPaint);
+                canvas.DrawText(progValStr, width - marginSide, currentY + 16, progValPaint);
+            }
+
+            currentY += progTextH;
         }
 
-        currentY += progTextH + gapProgBar;
-        float progressRatio = total > 0
-            ? Math.Clamp((float)watched / total, 0f, 1f)
-            : (statusLabel.Equals("Completed", StringComparison.OrdinalIgnoreCase) ? 1f : (watched > 0 ? 0.5f : 0f));
-
-        // Progress bar track
-        using (var trackPaint = new SKPaint { Color = new SKColor(0x0A, 0x1F, 0x2E), IsAntialias = true })
-        using (var trackBorder = new SKPaint
+        if (showProgressBar)
         {
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1,
-            Color = new SKColor(0x1E, 0x3A, 0x52),
-            IsAntialias = true
-        })
-        {
-            var trackRect = new SKRect(marginSide, currentY, marginSide + contentW, currentY + progBarH);
-            canvas.DrawRoundRect(trackRect, 4, 4, trackPaint);
-            canvas.DrawRoundRect(trackRect, 4, 4, trackBorder);
+            currentY += gapProgBar;
+            float progressRatio = total > 0
+                ? Math.Clamp((float)watched / total, 0f, 1f)
+                : (statusLabel.Equals("Completed", StringComparison.OrdinalIgnoreCase) ? 1f : (watched > 0 ? 0.5f : 0f));
 
-            // Progress bar fill
-            float fillW = Math.Max(progBarH, contentW * progressRatio);
-            if (progressRatio > 0)
+            // Progress bar track
+            using (var trackPaint = new SKPaint { Color = new SKColor(0x0A, 0x1F, 0x2E), IsAntialias = true })
+            using (var trackBorder = new SKPaint
             {
-                SKColor fillCol = statusColor.Alpha > 0 ? statusColor : new SKColor(0x00, 0x66, 0xFF);
-                using var fillPaint = new SKPaint { Color = fillCol, IsAntialias = true };
-                var fillRect = new SKRect(marginSide, currentY, Math.Min(marginSide + fillW, marginSide + contentW), currentY + progBarH);
-                canvas.DrawRoundRect(fillRect, 4, 4, fillPaint);
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1,
+                Color = new SKColor(0x1E, 0x3A, 0x52),
+                IsAntialias = true
+            })
+            {
+                var trackRect = new SKRect(marginSide, currentY, marginSide + contentW, currentY + progBarH);
+                canvas.DrawRoundRect(trackRect, 4, 4, trackPaint);
+                canvas.DrawRoundRect(trackRect, 4, 4, trackBorder);
+
+                // Progress bar fill
+                float fillW = Math.Max(progBarH, contentW * progressRatio);
+                if (progressRatio > 0)
+                {
+                    SKColor fillCol = statusColor.Alpha > 0 ? statusColor : new SKColor(0x00, 0x66, 0xFF);
+                    using var fillPaint = new SKPaint { Color = fillCol, IsAntialias = true };
+                    var fillRect = new SKRect(marginSide, currentY, Math.Min(marginSide + fillW, marginSide + contentW), currentY + progBarH);
+                    canvas.DrawRoundRect(fillRect, 4, 4, fillPaint);
+                }
             }
+
+            currentY += progBarH;
         }
 
         // 9. Score Area: DYNAMIC
         // If user scored > 0: Dual boxes side-by-side
         // If user has NOT scored: Single centered Community box!
-        currentY += progBarH + gapAfterProg;
+        currentY += gapAfterProg;
 
         using var boxBgPaint = new SKPaint { Color = new SKColor(0x0A, 0x1F, 0x2E, 230), IsAntialias = true };
         using var boxBorderPaint = new SKPaint

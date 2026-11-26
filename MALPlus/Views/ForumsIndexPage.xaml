@@ -2,8 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
              x:Class="MALPlus.Views.ForumsIndexPage"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
         <converters:IntEqualityConverter x:Key="IntEq" />
@@ -18,10 +19,12 @@
 
         <Grid RowDefinitions="Auto,*" IsVisible="{Binding LoadingSideContentVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert, FallbackValue=true}">
             <!-- Tab strip -->
-            <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
-                        Padding="12,8,12,0">
-                <HorizontalStackLayout x:Name="TabStrip" Spacing="6" />
-            </ScrollView>
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="12,8,12,0">
+                <ScrollView Grid.Column="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+                    <HorizontalStackLayout x:Name="TabStrip" Spacing="6" />
+                </ScrollView>
+                <controls:WindowsRefreshButton Grid.Column="1" Clicked="OnRefreshing" />
+            </Grid>
 
             <!-- Boards tab -->
             <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingSideContentVisibility, FallbackValue=false}" Refreshing="OnRefreshing"
@@ -33,12 +36,12 @@
                                 <DataTemplate>
                                     <VerticalStackLayout Spacing="8" Margin="0,0,0,8">
                                         <Label Text="{Binding Group}" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                                               TextColor="{StaticResource TabChipInactiveText}" TextTransform="Uppercase" Margin="4,8,4,4" />
+                                               TextColor="{DynamicResource TabChipInactiveText}" TextTransform="Uppercase" Margin="4,8,4,4" />
                                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding Items}">
                                             <BindableLayout.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border BackgroundColor="{StaticResource EmSheet}"
-                                                            Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                                    <Border BackgroundColor="{DynamicResource EmSheet}"
+                                                            Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                                             StrokeShape="RoundRectangle 14" Padding="14,12" Margin="0,0,0,4">
                                                         <Border.GestureRecognizers>
                                                             <TapGestureRecognizer Tapped="OnBoardTapped" CommandParameter="{Binding .}" />
@@ -73,15 +76,15 @@
                     </CollectionView.EmptyView>
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="12,3" BackgroundColor="{StaticResource EmSheet}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            <Border Margin="12,3" BackgroundColor="{DynamicResource EmSheet}"
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 14" Padding="12,10">
                                 <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="5">
                                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <Label Grid.Column="0" Text="{Binding BoardName}" FontFamily="InterBold" FontSize="11"
                                                TextColor="{StaticResource EmAccent}" VerticalOptions="Center" />
                                         <Label Grid.Column="1" Text="{Binding PostTime}" FontFamily="Inter" FontSize="11"
-                                               TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                                               TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                                     </Grid>
                                     <Label Grid.Row="1" Text="{Binding Title}" FontFamily="InterBold" FontSize="14"
                                            TextColor="{StaticResource BrushText}" MaxLines="2"
@@ -89,13 +92,13 @@
                                     <HorizontalStackLayout Grid.Row="2" Spacing="6" VerticalOptions="Center">
                                         <Border WidthRequest="20" HeightRequest="20"
                                                 StrokeShape="RoundRectangle 10"
-                                                Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                                Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                                 VerticalOptions="Center">
                                             <Image Source="{Binding User.ImgUrl, Converter={StaticResource ImageConverter}}"
                                                    Aspect="AspectFill" WidthRequest="20" HeightRequest="20" />
                                         </Border>
                                         <Label Text="{Binding User.Name}" FontFamily="InterSemiBold" FontSize="11"
-                                               TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                                               TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                                     </HorizontalStackLayout>
                                 </Grid>
                             </Border>

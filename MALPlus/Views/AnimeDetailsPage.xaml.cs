@@ -21,6 +21,7 @@ namespace MALPlus.Views;
 [QueryProperty(nameof(AnimeTitle), "title")]
 [QueryProperty(nameof(InitialIsManga), "manga")]
 [QueryProperty(nameof(InitialTabIndex), "tab")]
+[QueryProperty(nameof(RandomMode), "random")]
 public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 {
     //First paint shows five rows; the rest is already in the VM and gets appended as the user
@@ -126,6 +127,9 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     public string AnimeTitle { get; set; }
     public string InitialIsManga { get; set; }
     public int InitialTabIndex { get; set; }
+    public string RandomMode { get; set; }
+    private bool _randomBusy;
+    private bool IsRandomMode => string.Equals(RandomMode, "true", StringComparison.OrdinalIgnoreCase);
 
     public SmartObservableCollection<AnimeEpisode> DisplayedEpisodes { get; } = new();
     public ObservableCollection<AnimeReviewData> DisplayedReviews { get; } = new();
@@ -504,12 +508,38 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         }
     }
 
+    private Thickness _relatedCardMargin = new Thickness(0);
+    public Thickness RelatedCardMargin
+    {
+        get => _relatedCardMargin;
+        private set
+        {
+            if (_relatedCardMargin == value) return;
+            _relatedCardMargin = value;
+            OnPropertyChanged(nameof(RelatedCardMargin));
+        }
+    }
+
+    private Thickness _relatedPanelPadding = new Thickness(0, 0, 0, 32);
+    public Thickness RelatedPanelPadding
+    {
+        get => _relatedPanelPadding;
+        private set
+        {
+            if (_relatedPanelPadding == value) return;
+            _relatedPanelPadding = value;
+            OnPropertyChanged(nameof(RelatedPanelPadding));
+        }
+    }
+
     public void UpdateRelatedCardDimensions(double viewportWidth)
     {
         if (viewportWidth <= 0) return;
-        var availableWidth = Math.Max(0, viewportWidth - 16);
+        var spaced = MALPlus.XShared.Utils.Settings.PosterGridSpacing;
+        var outerPad = spaced ? 16d : 0d;
+        var marginPerCard = spaced ? 8d : 0d;
+        var availableWidth = Math.Max(0, viewportWidth - outerPad);
         const double targetCardWidth = 135d;
-        const double marginPerCard = 8d;
 
         int span;
         if (availableWidth < 500d)
@@ -529,6 +559,18 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         RelatedCardWidth = cardWidth;
         RelatedCardHeight = cardHeight;
         RelatedCardBasis = new Microsoft.Maui.Layouts.FlexBasis((float)cardSlotWidth, isRelative: false);
+        RelatedCardMargin = spaced ? new Thickness(4) : new Thickness(0);
+        RelatedPanelPadding = spaced ? new Thickness(8, 8, 8, 32) : new Thickness(0, 0, 0, 32);
+    }
+
+    private void OnPosterGridSpacingChanged()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            var w = PageScroll?.Width > 0 ? PageScroll.Width : Width;
+            if (w > 0)
+                UpdateRelatedCardDimensions(w);
+        });
     }
 
     public string CharactersErrorText => EmptyStateText(_charactersError, "Unable to load characters.");
@@ -1286,11 +1328,17 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
     {
         base.OnAppearing();
         BackgroundColor = MALPlus.Services.ThemeService.CurrentBackground;
+        if (RandomFloatingControls != null)
+            RandomFloatingControls.IsVisible = IsRandomMode;
         _isAppearing = true;
         // Attached here and released on disappearing, because these are static events: a page that
         // subscribed once and never unsubscribed would answer for every overlay opened afterwards.
         VideoWebViewHelper.PlaybackError += OnVideoPlaybackError;
         VideoWebViewHelper.PlaybackStarted += OnVideoPlaybackStarted;
+        MALPlus.XShared.Utils.Settings.PosterGridSpacingChanged -= OnPosterGridSpacingChanged;
+        MALPlus.XShared.Utils.Settings.PosterGridSpacingChanged += OnPosterGridSpacingChanged;
+        if (PageScroll?.Width > 0)
+            UpdateRelatedCardDimensions(PageScroll.Width);
         AttachSubscriptions();
         EnsureInitialized();
     }
@@ -1307,6 +1355,9 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
 
             if (!_isAppearing)
                 return;
+
+            if (RandomFloatingControls != null)
+                RandomFloatingControls.IsVisible = IsRandomMode;
 
             if (!int.TryParse(MalId, out var id) || id <= 0)
                 return;
@@ -1525,6 +1576,7 @@ public partial class AnimeDetailsPage : ContentPage, ISwipePreviewHost
         MainActivity.DisarmMenuBackCallback();
         VideoWebViewHelper.PlaybackError -= OnVideoPlaybackError;
         VideoWebViewHelper.PlaybackStarted -= OnVideoPlaybackStarted;
+        MALPlus.XShared.Utils.Settings.PosterGridSpacingChanged -= OnPosterGridSpacingChanged;
         DetachSubscriptions();
     }
 
@@ -2955,6 +3007,63 @@ private void HideVideoLoading()
         catch { }
     }
 
+
+    private async void OnRandomFiltersTapped(object sender, TappedEventArgs e)
+    {
+        if (_randomBusy)
+            return;
+        _randomBusy = true;
+        try
+        {
+            var isManga = string.Equals(InitialIsManga, "true", StringComparison.OrdinalIgnoreCase);
+            await RandomDiscoveryService.EditFilterAsync(isManga);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS RandomFilters failed: " + ex.Message);
+        }
+        finally
+        {
+            _randomBusy = false;
+        }
+    }
+
+    private async void OnRandomRerollTapped(object sender, TappedEventArgs e)
+    {
+        if (_randomBusy)
+            return;
+        _randomBusy = true;
+        try
+        {
+            var isManga = string.Equals(InitialIsManga, "true", StringComparison.OrdinalIgnoreCase);
+            if (Vm != null)
+                Vm.LoadingGlobal = true;
+
+            var item = await RandomDiscoveryService.PickRandomAsync(isManga, excludeId: _initializedId);
+            if (item == null)
+            {
+                if (Vm != null)
+                    Vm.LoadingGlobal = false;
+                await OptionsSheetHost.ConfirmAsync("", "Nothing matched those filters.", "OK");
+                return;
+            }
+
+            AnimeTitle = item.Title ?? string.Empty;
+            InitialTabIndex = 0;
+            _lastTabIndex = 0;
+            MalId = item.Id.ToString();
+        }
+        catch (Exception ex)
+        {
+            if (Vm != null)
+                Vm.LoadingGlobal = false;
+            Console.WriteLine("MALPLUS RandomReroll failed: " + ex.Message);
+        }
+        finally
+        {
+            _randomBusy = false;
+        }
+    }
 
     private async void OnDesktopBackClicked(object sender, EventArgs e)
     {

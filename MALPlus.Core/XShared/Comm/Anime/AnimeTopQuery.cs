@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -43,8 +44,8 @@ namespace MALPlus.XShared.Comm.Anime
 
     public class AnimeTopQuery : Query
     {
-        private static Dictionary<string, (List<TopAnimeData> data, DateTime fetchedAt)> _prevQueriesCache =
-            new Dictionary<string, (List<TopAnimeData>, DateTime)>();
+        private static readonly ConcurrentDictionary<string, (List<TopAnimeData> data, DateTime fetchedAt)> _prevQueriesCache =
+            new ConcurrentDictionary<string, (List<TopAnimeData>, DateTime)>();
         private TopAnimeType _type;
         private MangaTopType _mangaType;
         private bool _isManga;

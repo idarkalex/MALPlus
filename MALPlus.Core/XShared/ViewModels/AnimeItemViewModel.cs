@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -1914,6 +1915,68 @@ private string _title;
                 });
             }
             LoadingUpdate = false;
+        }
+
+        public async Task ChangeCommentAsync(string value)
+        {
+            var prev = Comment;
+            Comment = value ?? "";
+            LoadingUpdate = true;
+            try
+            {
+                var response = await GetAppropriateUpdateQuery().GetRequestResponse();
+                if (response != "Updated" && Settings.SelectedApiType == ApiType.Mal)
+                {
+                    Comment = prev;
+                }
+                else
+                {
+                    ViewModelLocator.AnimeDetails?.UpdateAnimeReferenceUiBindings(Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                Comment = prev;
+                Console.WriteLine($"MALPLUS ChangeCommentAsync failed for {Id}: {ex.Message}");
+            }
+            finally
+            {
+                LoadingUpdate = false;
+            }
+        }
+
+        public async Task ChangeTagsAsync(string value)
+        {
+            var prev = Notes;
+            var cleaned = string.Join(",",
+                (value ?? "")
+                    .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(t => t.Trim())
+                    .Where(t => t.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
+            Notes = cleaned;
+            LoadingUpdate = true;
+            try
+            {
+                var response = await GetAppropriateUpdateQuery().GetRequestResponse();
+                if (response != "Updated" && Settings.SelectedApiType == ApiType.Mal)
+                {
+                    Notes = prev;
+                }
+                else
+                {
+                    ViewModelLocator.AnimeDetails?.UpdateAnimeReferenceUiBindings(Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                Notes = prev;
+                Console.WriteLine($"MALPLUS ChangeTagsAsync failed for {Id}: {ex.Message}");
+            }
+            finally
+            {
+                LoadingUpdate = false;
+            }
         }
 
         private async void AddThisToMyList()

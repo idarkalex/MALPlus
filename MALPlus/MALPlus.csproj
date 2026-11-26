@@ -10,12 +10,12 @@
     <Nullable>disable</Nullable>
     <ApplicationTitle>MAL+</ApplicationTitle>
     <ApplicationId>com.idarkalex.malplus</ApplicationId>
-    <ApplicationDisplayVersion>0.7.7</ApplicationDisplayVersion>
-    <ApplicationVersion>214</ApplicationVersion>
+    <ApplicationDisplayVersion>0.8.0</ApplicationDisplayVersion>
+    <ApplicationVersion>215</ApplicationVersion>
 
     <!-- Android platform properties -->
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
-    <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">android-arm64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' and '$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifier>
     <AndroidPackageFormats Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">apk</AndroidPackageFormats>
     <AndroidIncludeDebugSymbols Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">false</AndroidIncludeDebugSymbols>
     <EmbedAssembliesIntoApk Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">true</EmbedAssembliesIntoApk>
@@ -40,8 +40,9 @@
   <ItemGroup>
     <MauiFont Include="Resources\Fonts\*" />
     <MauiImage Include="Resources\Images\*" />
-    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <MauiAsset Include="Resources\Raw\**" Exclude="Resources\Raw\inter_*.ttf" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
     <EmbeddedResource Include="Resources\Raw\brand_wordmark_primary.png" />
+    <EmbeddedResource Include="Resources\Raw\inter_*.ttf" />
   </ItemGroup>
 
   <ItemGroup>

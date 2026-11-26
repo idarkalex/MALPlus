@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -140,7 +140,7 @@ namespace MALPlus.XShared.ViewModels.Main
                         catch (Exception ex)
                         {
                             System.Diagnostics.Debug.WriteLine("MALPLUS LoadMore inbox failed: " + ex.Message);
-                            ResourceLocator.MalHttpContextProvider.ErrorMessage("Messages");
+                            // Suppressed hacky implementation error popup
                             LoadMorePagesVisibility = false;
                         }
                     }
@@ -162,7 +162,7 @@ namespace MALPlus.XShared.ViewModels.Main
                     catch (Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine("MALPLUS LoadMore outbox failed: " + ex.Message);
-                        ResourceLocator.MalHttpContextProvider.ErrorMessage("Messages");
+                        // Suppressed hacky implementation error popup
                     }
                 }
             }

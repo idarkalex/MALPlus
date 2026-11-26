@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -2311,6 +2311,9 @@ catch (Exception)
 
         private bool _attemptedMangaFetch;
         private bool _attemptedAnimeFetch;
+        private readonly Dictionary<string, DateTime> _lastBgSyncUtc = new();
+        private readonly HashSet<string> _bgSyncInFlight = new();
+        private static readonly TimeSpan BackgroundRevalidateInterval = TimeSpan.FromMinutes(3);
 
         /// <summary>
         ///     Feteches manga and anime data for currstnt ListSource.
@@ -2400,6 +2403,7 @@ catch (Exception)
                 }
                 // Nothing to fetch, so nothing will lower the spinner the caller already raised.
                 Loading = false;
+                TryScheduleBackgroundRevalidate(ListSource, requestedMode);
                 return;
             }
             _prevSortOption = SortOption;
@@ -2477,6 +2481,8 @@ catch (Exception)
                 }
                 await Task.Run(async () => data =
                     await new LibraryListQuery(ListSource, requestedMode).GetLibrary(force));
+                if (!force && (data == null || data.Count == 0))
+                    data = await DataCache.RetrieveDataForUser(ListSource, requestedMode, ignoreExpiration: true);
                 if (data == null || data.Count == 0)
                 {
                     //no data?
@@ -2591,6 +2597,144 @@ catch (Exception)
             RefreshList();
             LoadError = null;
             LoadErrorVisibility = false;
+
+            if (force)
+                _lastBgSyncUtc[$"{ListSource?.ToLowerInvariant()}|{(int)requestedMode}"] = DateTime.UtcNow;
+            else if (modeOverride == null)
+                TryScheduleBackgroundRevalidate(ListSource, requestedMode);
+        }
+
+        private void TryScheduleBackgroundRevalidate(string source, AnimeListWorkModes mode)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+                return;
+            if (mode != AnimeListWorkModes.Anime && mode != AnimeListWorkModes.Manga)
+                return;
+            if (!ResourceLocator.ConnectionInfoProvider.HasInternetConnection)
+                return;
+            if (Settings.EnableOfflineSync && (Settings.AnimeSyncRequired || Settings.MangaSyncRequired))
+                return;
+
+            var syncKey = $"{source.ToLowerInvariant()}|{(int)mode}";
+            lock (_bgSyncInFlight)
+            {
+                if (_bgSyncInFlight.Contains(syncKey))
+                    return;
+                if (_lastBgSyncUtc.TryGetValue(syncKey, out var last) &&
+                    DateTime.UtcNow - last < BackgroundRevalidateInterval)
+                    return;
+                _bgSyncInFlight.Add(syncKey);
+                _lastBgSyncUtc[syncKey] = DateTime.UtcNow;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var fresh = await new LibraryListQuery(source, mode).GetLibrary(force: true, silentOnFailure: true);
+                    if (fresh == null || fresh.Count == 0)
+                        return;
+
+                    var isOwn = string.Equals(source, Credentials.UserName, StringComparison.CurrentCultureIgnoreCase);
+                    List<AnimeItemAbstraction> existing;
+                    if (mode == AnimeListWorkModes.Anime)
+                    {
+                        existing = isOwn
+                            ? _animeLibraryDataStorage.AllLoadedAuthAnimeItems
+                            : _animeLibraryDataStorage.AllLoadedAnimeItemAbstractions;
+                    }
+                    else
+                    {
+                        existing = isOwn
+                            ? _animeLibraryDataStorage.AllLoadedAuthMangaItems
+                            : _animeLibraryDataStorage.AllLoadedMangaItemAbstractions;
+                    }
+
+                    var currentSig = ComputeLibrarySignature(existing?.Where(a => a?.EntryData != null).Select(a => a.EntryData));
+                    var freshSig = ComputeLibrarySignature(fresh);
+                    if (currentSig == freshSig)
+                        return;
+
+                    var auth = Credentials.Authenticated && isOwn;
+                    var rebuilt = new List<AnimeItemAbstraction>(fresh.Count);
+                    if (mode == AnimeListWorkModes.Anime)
+                    {
+                        foreach (var item in fresh)
+                            rebuilt.Add(new AnimeItemAbstraction(auth, item as AnimeLibraryItemData));
+                    }
+                    else
+                    {
+                        var mangaAuth = auth && Settings.SelectedApiType == ApiType.Mal;
+                        foreach (var item in fresh)
+                            rebuilt.Add(new AnimeItemAbstraction(mangaAuth, item as MangaLibraryItemData));
+                    }
+
+                    ResourceLocator.DispatcherAdapter.Run(() =>
+                    {
+                        if (mode == AnimeListWorkModes.Anime)
+                        {
+                            if (isOwn)
+                                _animeLibraryDataStorage.AllLoadedAuthAnimeItems = rebuilt;
+                            if (WorkMode == mode && string.Equals(ListSource, source, StringComparison.OrdinalIgnoreCase))
+                            {
+                                _animeLibraryDataStorage.AllLoadedAnimeItemAbstractions = rebuilt;
+                                LibraryVersion++;
+                                RefreshList();
+                            }
+                        }
+                        else
+                        {
+                            if (isOwn)
+                                _animeLibraryDataStorage.AllLoadedAuthMangaItems = rebuilt;
+                            if (WorkMode == mode && string.Equals(ListSource, source, StringComparison.OrdinalIgnoreCase))
+                            {
+                                _animeLibraryDataStorage.AllLoadedMangaItemAbstractions = rebuilt;
+                                LibraryVersion++;
+                                RefreshList();
+                            }
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"MALPLUS bg revalidate failed ({mode}): {ex.Message}");
+                }
+                finally
+                {
+                    lock (_bgSyncInFlight)
+                    {
+                        _bgSyncInFlight.Remove(syncKey);
+                    }
+                }
+            });
+        }
+
+        private static string ComputeLibrarySignature(IEnumerable<ILibraryData> items)
+        {
+            if (items == null)
+                return string.Empty;
+
+            unchecked
+            {
+                var ordered = items.OrderBy(i => i.Id).ToList();
+                long hash = 17 + ordered.Count * 397L;
+                foreach (var it in ordered)
+                {
+                    hash = hash * 31 + it.Id;
+                    hash = hash * 31 + (int)it.MyStatus;
+                    hash = hash * 31 + it.MyEpisodes;
+                    hash = hash * 31 + (int)Math.Round(it.MyScore * 10);
+                    hash = hash * 31 + (it.IsRewatching ? 1 : 0);
+                    hash = hash * 31 + (int)it.Priority;
+                    if (it is MangaLibraryItemData m)
+                        hash = hash * 31 + m.MyVolumes;
+                    if (!string.IsNullOrEmpty(it.Notes))
+                        hash = hash * 31 + StringComparer.Ordinal.GetHashCode(it.Notes);
+                    if (!string.IsNullOrEmpty(it.Comment))
+                        hash = hash * 31 + StringComparer.Ordinal.GetHashCode(it.Comment);
+                }
+                return $"{ordered.Count}:{hash}";
+            }
         }
 
         /// <summary>

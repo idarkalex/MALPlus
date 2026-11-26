@@ -43,6 +43,7 @@ public partial class OptionsSheet : ContentView
     private static readonly Color _chipTintCopy      = Color.FromArgb("#1A94A3B8");
     private static readonly Color _chipTintDestructive = Color.FromArgb("#26F87171");
     private static readonly Color _chipTintDefault   = Color.FromArgb("#1A0066FF");
+    private static readonly Color _chipTintNote      = Color.FromArgb("#1AF59E0B");
     // ── End cached colours / shapes ─────────────────────────────────────────
     /// <summary>Raised after a row is chosen, with that row.</summary>
     public event EventHandler<OptionsSheetItem> ItemChosen;
@@ -149,7 +150,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 // A note is paragraphs, not a score. The single line Entry this shares with the
                 // other prompts is 48dp tall with a numeric keyboard, which is unusable for one and
                 // hides all but the first line of what was written.
-                field = new Editor
+                var multilineEditor = new Editor
                 {
                     Text = initial ?? string.Empty,
                     Keyboard = Keyboard.Text,
@@ -163,6 +164,10 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                     HeightRequest = 150,
                     VerticalOptions = LayoutOptions.Fill
                 };
+#if ANDROID
+                EnableVerticalScroll(multilineEditor);
+#endif
+                field = multilineEditor;
             }
             else
             {
@@ -298,8 +303,8 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
 
             var previewCard = new Border
             {
-                BackgroundColor = Color.FromArgb("#051522"),
-                Stroke = Color.FromArgb("#1E3A52"),
+                BackgroundColor = Services.ThemeService.CurrentBackground,
+                Stroke = Services.ThemeService.CurrentBorder,
                 StrokeThickness = 1.5,
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
                 WidthRequest = 140,
@@ -347,9 +352,12 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 FontSize = 13,
                 TextColor = Colors.White,
                 BackgroundColor = Colors.Transparent,
-                HeightRequest = 68,
+                HeightRequest = 110,
                 VerticalOptions = LayoutOptions.Fill
             };
+#if ANDROID
+            EnableVerticalScroll(editor);
+#endif
 
             var editorBorder = new Border
             {
@@ -616,6 +624,65 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS options sheet confirm failed: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Non-intrusive GitHub star prompt with primary Star CTA plus secondary Dismiss / Later choices.
+    /// </summary>
+    public void OpenGitHubStar(Action onStar, Action onLater, Action onDismiss)
+    {
+        try
+        {
+            ApplyCompactShape();
+            Panel.WidthRequest = 330;
+
+            Header.IsVisible = true;
+            CloseButton.IsVisible = false;
+            BackButton.IsVisible = false;
+            TitleLabel.Text = "Enjoying MAL+?";
+            TitleLabel.FontSize = 16;
+
+            SubtitleLabel.Text =
+                "MAL+ is free & open-source. Giving us a star on GitHub helps others find the app — just tap Star at the top of the repo page.";
+            SubtitleLabel.IsVisible = true;
+            SubtitleLabel.MaxLines = 6;
+            SubtitleLabel.LineBreakMode = LineBreakMode.WordWrap;
+
+            ItemsHost.Clear();
+
+            var starBtn = CreateActionButton("★ Star on GitHub", () =>
+            {
+                ClosingByChoice = true;
+                Dismiss();
+                ClosingByChoice = false;
+                onStar?.Invoke();
+            }, ActionButtonKind.Primary);
+            starBtn.Margin = new Thickness(0, 10, 0, 8);
+            ItemsHost.Add(starBtn);
+
+            var dismissBtn = CreateActionButton("Dismiss", () =>
+            {
+                ClosingByChoice = true;
+                Dismiss();
+                ClosingByChoice = false;
+                onDismiss?.Invoke();
+            }, ActionButtonKind.Secondary);
+
+            var laterBtn = CreateActionButton("Later", () =>
+            {
+                ClosingByChoice = true;
+                Dismiss();
+                ClosingByChoice = false;
+                onLater?.Invoke();
+            }, ActionButtonKind.Secondary);
+
+            ItemsHost.Add(CreateActionPair(dismissBtn, laterBtn));
+            IsVisible = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS OpenGitHubStar failed: " + ex.Message);
         }
     }
 
@@ -1147,7 +1214,7 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(6) },
                 Stroke = new SolidColorBrush(Color.FromArgb("#33FFFFFF")),
                 StrokeThickness = 1,
-                BackgroundColor = Color.FromArgb("#141D2B"),
+                BackgroundColor = Services.ThemeService.CurrentChipBg,
                 Padding = new Thickness(0),
                 VerticalOptions = LayoutOptions.Center
             };
@@ -1311,6 +1378,8 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
             result = _chipTintVideo;
         else if (icon.Contains("tag", StringComparison.OrdinalIgnoreCase))
             result = _chipTintTag;
+        else if (icon.Contains("note", StringComparison.OrdinalIgnoreCase))
+            result = _chipTintNote;
         else if (icon.Contains("score", StringComparison.OrdinalIgnoreCase))
             result = _chipTintScore;
         else if (icon.Contains("episodes", StringComparison.OrdinalIgnoreCase) ||
@@ -1393,4 +1462,49 @@ public void OpenCompactWithSubtitle(string title, string subtitle, IEnumerable<O
     {
         Dismiss();
     }
+
+#if ANDROID
+    private static void EnableVerticalScroll(Editor editor)
+    {
+        void Setup(Android.Widget.EditText et)
+        {
+            et.VerticalScrollBarEnabled = true;
+            et.OverScrollMode = Android.Views.OverScrollMode.Always;
+            et.ScrollBarStyle = Android.Views.ScrollbarStyles.InsideInset;
+            et.Touch += (s, e) =>
+            {
+                if (e.Event != null)
+                {
+                    switch (e.Event.ActionMasked)
+                    {
+                        case Android.Views.MotionEventActions.Down:
+                        case Android.Views.MotionEventActions.Move:
+                            et.Parent?.RequestDisallowInterceptTouchEvent(true);
+                            break;
+                        case Android.Views.MotionEventActions.Up:
+                        case Android.Views.MotionEventActions.Cancel:
+                            et.Parent?.RequestDisallowInterceptTouchEvent(false);
+                            break;
+                    }
+                }
+                e.Handled = false;
+            };
+        }
+
+        if (editor.Handler?.PlatformView is Android.Widget.EditText nativeEt)
+        {
+            Setup(nativeEt);
+        }
+        else
+        {
+            editor.HandlerChanged += (s, e) =>
+            {
+                if (editor.Handler?.PlatformView is Android.Widget.EditText et)
+                {
+                    Setup(et);
+                }
+            };
+        }
+    }
+#endif
 }

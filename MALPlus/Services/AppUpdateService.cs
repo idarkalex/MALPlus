@@ -443,13 +443,12 @@ public static class AppUpdateService
 
             if (string.IsNullOrWhiteSpace(changelogText))
             {
-                changelogText = @"• Complete migration to .NET 11 and .NET MAUI for Android.
-• Modernized dark-first visual design with fluid ViewPager2 gestures.
-• Offline seed bundle: 500+ anime titles preloaded with details and episodes.
-• AnimeThemes integration for high quality OP/ED video and audio playback.
-• Native MyAnimeList forum browser with clean pagination and quick replies.
-• 100% local diagnostic logger with exportable support bundle in Settings.
-• Content rating filters, localized title preferences, and live MAL sync.";
+                changelogText = @"• Interactive Visual Studio onboarding & live customizer with real poster previews.
+• Instant theme switching (Midnight Blue, Dark AMOLED, Real Dark) without restarting.
+• Configurable poster grid columns (Auto, 2–5), optional 8dp spacing, and cleaner default badges.
+• Subcategory Settings redesign, unified Details/Characters/Staff/Reviews styling, and improved hero legibility.
+• Refined recommendation Share cards and in-page share preview preserving bottom navigation.
+• Windows Desktop Edition support, AnimeThemes OP/ED player, and 100% local on-device diagnostics.";
             }
 
             await OptionsSheetHost.ShowChangelogAsync(

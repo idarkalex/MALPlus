@@ -27,6 +27,7 @@ public class DiscoveryItem
             /// <summary>Year the entry started airing/publishing, 0 when unknown.</summary>
             public int Year { get; set; }
             public int AllEpisodes { get; set; }
+            public int DurationMinutes { get; set; }
             public string AirStartDate { get; set; }
             public string Status { get; set; }
         /// <summary>Direct media url, only set for the OP/ED discovery entries.</summary>
@@ -404,6 +405,9 @@ public class DiscoveryItem
                 int episodes = 0;
                 if (entry.TryGetProperty("episodes", out var ep) && ep.ValueKind == JsonValueKind.Number)
                     episodes = ep.GetInt32();
+                int durationMinutes = 0;
+                if (!manga && entry.TryGetProperty("duration", out var dur) && dur.ValueKind == JsonValueKind.String)
+                    durationMinutes = ParseDurationMinutes(dur.GetString());
 
                   return new DiscoveryItem
                   {
@@ -417,6 +421,7 @@ public class DiscoveryItem
                       Members = members,
                       Year = year,
                       AllEpisodes = episodes,
+                      DurationMinutes = durationMinutes,
                       AirStartDate = airStartDate,
                       Status = status,
                       Subtitle = BuildSubtitle(type, score, popularity)
@@ -426,6 +431,29 @@ public class DiscoveryItem
             {
                 return null;
             }
+        }
+
+        private static int ParseDurationMinutes(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return 0;
+
+            var total = 0;
+            var hasSeconds = false;
+            var tokens = raw.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < tokens.Length - 1; i++)
+            {
+                if (!int.TryParse(tokens[i], out var value) || value <= 0)
+                    continue;
+                var unit = tokens[i + 1].ToLowerInvariant();
+                if (unit.StartsWith("hr", StringComparison.Ordinal))
+                    total += value * 60;
+                else if (unit.StartsWith("min", StringComparison.Ordinal))
+                    total += value;
+                else if (unit.StartsWith("sec", StringComparison.Ordinal))
+                    hasSeconds = true;
+            }
+            return total == 0 && hasSeconds ? 1 : total;
         }
 
         private static string BuildSubtitle(string type, double score, int popularity)
@@ -442,21 +470,26 @@ public class DiscoveryItem
     }
 
     /// <summary>
-    ///     One hidden gem per week: highly rated, genuinely underseen, and not something the user
-    ///     already has on their list.
+    ///     One hidden gem per day: critically acclaimed (`>= 7.75-7.85`), genuinely underseen
+    ///     (`<= 130k-160k` members, excluding massive mainstream hits), not already in the user's
+    ///     library or recent gem history.
     ///
-    ///     Tenrai ignores min_members/max_members and has no "not in my list" filter, so both are
-    ///     applied here against a pooled sample. The pick is stored by id with the ISO week it was
-    ///     made in, so the tile shows the same title all week instead of reshuffling on every tap.
+    ///     Uses Tenrai's native `/random/anime` endpoint in tiered passes (standalone IPs first,
+    ///     then general hidden gems, then score-weighted catalog sampling as fallback).
     /// </summary>
     public static class DiscoveryGemQuery
     {
-        private const double MinScore = 7.5;
-        private const int MinPopularityRank = 1500;
-        private const int MaxPopularityRank = 15000;
-        private const int MaxMembers = 60000;
-        private const int MinYear = 2010;
+        private const int GemSchemaVersion = 3;
+        private const double Tier1MinScore = 7.85;
+        private const double Tier2MinScore = 7.75;
+        private const int Tier1MinMembers = 4000;
+        private const int Tier1MaxMembers = 130000;
+        private const int Tier2MinMembers = 3000;
+        private const int Tier2MaxMembers = 160000;
+        private const int Tier1MinYear = 1998;
+        private const int Tier2MinYear = 1990;
 
+        private const string VerKey = "GemOfTheDay_Ver";
         private const string IdKey = "GemOfTheDay_Id";
         private const string DayKey = "GemOfTheDay_Day";
         private const string TitleKey = "GemOfTheDay_Title";
@@ -464,10 +497,12 @@ public class DiscoveryItem
         private const string TypeKey = "GemOfTheDay_Type";
         private const string ScoreKey = "GemOfTheDay_Score";
         private const string YearKey = "GemOfTheDay_Year";
+        private const string HistoryKey = "GemOfTheDay_History";
 
         private const int PageSize = 25;
-        private const int MaxOffset = 20000;
-        private const int PoolPages = 8;
+        private const int MaxOffset = 15000;
+        private const int CatalogPoolPages = 4;
+        private const int MaxHistoryIds = 30;
 
         private static readonly Random Rng = new();
 
@@ -480,21 +515,26 @@ public class DiscoveryItem
         public static DiscoveryItem GetCachedGem()
         {
             var store = ViewModels.ResourceLocator.ApplicationDataService;
+            if ((int)(store[VerKey] ?? 0) != GemSchemaVersion)
+                return null;
             if ((string)store[DayKey] != CurrentDay())
                 return null;
             var id = (int)(store[IdKey] ?? 0);
             if (id <= 0)
                 return null;
+            var rawScore = (int)(store[ScoreKey] ?? 0);
+            var score = rawScore > 100 ? rawScore / 100.0 : rawScore / 10.0;
+            var type = (string)store[TypeKey] ?? "";
+            var year = (int)(store[YearKey] ?? 0);
             return new DiscoveryItem
             {
                 Id = id,
                 Title = (string)store[TitleKey] ?? "",
                 ImgUrl = (string)store[ImgKey] ?? "",
-                Type = (string)store[TypeKey] ?? "",
-                Score = (int)(store[ScoreKey] ?? 0) / 10.0,
-                Year = (int)(store[YearKey] ?? 0),
-                Subtitle = BuildGemSubtitle((string)store[TypeKey], (int)(store[ScoreKey] ?? 0) / 10.0,
-                    (int)(store[YearKey] ?? 0))
+                Type = type,
+                Score = score,
+                Year = year,
+                Subtitle = BuildGemSubtitle(type, score, year)
             };
         }
 
@@ -502,7 +542,7 @@ public class DiscoveryItem
         {
             var parts = new List<string>();
             if (score > 0)
-                parts.Add("★ " + score.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+                parts.Add("★ " + score.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture));
             if (!string.IsNullOrEmpty(type))
                 parts.Add(type);
             if (year > 0)
@@ -510,9 +550,50 @@ public class DiscoveryItem
             return string.Join(" · ", parts);
         }
 
+        private static List<int> LoadHistory()
+        {
+            var raw = ViewModels.ResourceLocator.ApplicationDataService[HistoryKey] as string;
+            var ids = new List<int>();
+            if (string.IsNullOrWhiteSpace(raw))
+                return ids;
+            foreach (var token in raw.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (int.TryParse(token, out var id) && id > 0 && !ids.Contains(id))
+                    ids.Add(id);
+            }
+            return ids;
+        }
+
+        private static void RecordHistory(int gemId)
+        {
+            if (gemId <= 0)
+                return;
+            var ids = LoadHistory();
+            ids.Remove(gemId);
+            ids.Add(gemId);
+            if (ids.Count > MaxHistoryIds)
+                ids.RemoveRange(0, ids.Count - MaxHistoryIds);
+            ViewModels.ResourceLocator.ApplicationDataService[HistoryKey] = string.Join(",", ids);
+        }
+
+        private static void SaveCachedGem(DiscoveryItem gem)
+        {
+            gem.Subtitle = BuildGemSubtitle(gem.Type, gem.Score, gem.Year);
+            var store = ViewModels.ResourceLocator.ApplicationDataService;
+            store[VerKey] = GemSchemaVersion;
+            store[IdKey] = gem.Id;
+            store[TitleKey] = gem.Title;
+            store[ImgKey] = gem.ImgUrl;
+            store[TypeKey] = gem.Type;
+            store[ScoreKey] = (int)Math.Round(gem.Score * 100);
+            store[YearKey] = gem.Year;
+            store[DayKey] = CurrentDay();
+            RecordHistory(gem.Id);
+        }
+
         /// <summary>
-        ///     Returns the stored gem when it is still this week's, otherwise draws a new one and
-        ///     persists it. Returns null when nothing in the sampled pool qualifies.
+        ///     Returns today's cached gem when valid, otherwise draws a new one using Tenrai's
+        ///     filtered random endpoint and persists it. Returns null if no candidate qualifies.
         /// </summary>
         public static async Task<DiscoveryItem> GetAsync(HashSet<int> alreadyInLibrary)
         {
@@ -520,82 +601,197 @@ public class DiscoveryItem
             if (cached != null)
                 return cached;
 
+            var excludeSet = alreadyInLibrary != null ? new HashSet<int>(alreadyInLibrary) : new HashSet<int>();
+            foreach (var histId in LoadHistory())
+                excludeSet.Add(histId);
+
+            // Tier 1: Standalone hidden gem (has_relations=false avoids random Season 3+ sequels)
+            var gem = await TryRandomEndpointAsync(
+                minScore: Tier1MinScore,
+                minScoredBy: 1500,
+                minMembers: Tier1MinMembers,
+                maxMembers: Tier1MaxMembers,
+                minYear: Tier1MinYear,
+                types: "tv,movie,ova",
+                standaloneOnly: true,
+                excludeSet: excludeSet,
+                attempts: 4);
+
+            // Tier 2: Hidden gem allowing franchise entries / ONAs / 1990+ classics
+            gem ??= await TryRandomEndpointAsync(
+                minScore: Tier2MinScore,
+                minScoredBy: 1200,
+                minMembers: Tier2MinMembers,
+                maxMembers: Tier2MaxMembers,
+                minYear: Tier2MinYear,
+                types: "tv,movie,ova,ona",
+                standaloneOnly: false,
+                excludeSet: excludeSet,
+                attempts: 4);
+
+            // Tier 3: Score-weighted catalog sampling fallback
+            gem ??= await TryWeightedCatalogFallbackAsync(excludeSet);
+
+            if (gem == null)
+                return null;
+
+            SaveCachedGem(gem);
+            return gem;
+        }
+
+        private static string BuildCommonParams(double minScore, int minScoredBy, int minMembers,
+            int maxMembers, int minYear, string types, bool standaloneOnly, HashSet<int> excludeSet)
+        {
+            var parts = new List<string>
+            {
+                ContentFilter.UsesSourceFilter ? "sfw" : "sfw=false",
+                "status=finished_airing",
+                "type=" + types,
+                "min_score=" + minScore.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+                $"min_scored_by={minScoredBy}",
+                $"min_members={minMembers}",
+                $"max_members={maxMembers}",
+                $"start_date={minYear:D4}-01-01"
+            };
+            if (standaloneOnly)
+                parts.Add("has_relations=false");
+            if (excludeSet != null && excludeSet.Count > 0)
+                parts.Add("exclude_ids=" + string.Join(",", excludeSet.Take(1000)));
+            return string.Join("&", parts);
+        }
+
+        private static bool IsValidGem(DiscoveryItem item, HashSet<int> excludeSet,
+            double minScore, int maxMembers, int minYear)
+        {
+            if (item == null || item.Id <= 0)
+                return false;
+            if (excludeSet != null && excludeSet.Contains(item.Id))
+                return false;
+            if (item.Score < minScore)
+                return false;
+            if (item.Members > 0 && item.Members > maxMembers)
+                return false;
+            if (item.Year > 0 && item.Year < minYear)
+                return false;
+
+            var normType = item.Type?.Trim().ToLowerInvariant();
+            if (normType != "tv" && normType != "movie" && normType != "ova" && normType != "ona")
+                return false;
+
+            // Avoid short festival films/trailers for movies (< 40m) and short-form clips/episodes (< 12m)
+            if (normType == "movie" && item.DurationMinutes > 0 && item.DurationMinutes < 40)
+                return false;
+            if (normType != "movie" && item.DurationMinutes > 0 && item.DurationMinutes < 12)
+                return false;
+
+            // Avoid 1-3 episode promo clips/specials disguised as TV/ONA
+            if ((normType == "tv" || normType == "ona") && item.AllEpisodes > 0 && item.AllEpisodes < 4)
+                return false;
+
+            return true;
+        }
+
+        private static async Task<DiscoveryItem> TryRandomEndpointAsync(double minScore, int minScoredBy,
+            int minMembers, int maxMembers, int minYear, string types, bool standaloneOnly,
+            HashSet<int> excludeSet, int attempts)
+        {
+            var query = "random/anime?" + BuildCommonParams(
+                minScore, minScoredBy, minMembers, maxMembers, minYear, types, standaloneOnly, excludeSet);
+
+            for (var i = 0; i < attempts; i++)
+            {
+                try
+                {
+                    var raw = await TenraiClient.GetRawJsonAsync(query);
+                    if (string.IsNullOrEmpty(raw))
+                        continue;
+
+                    using var doc = JsonDocument.Parse(raw);
+                    if (!doc.RootElement.TryGetProperty("data", out var data) ||
+                        data.ValueKind != JsonValueKind.Object)
+                        continue;
+
+                    var item = DiscoveryRandomQuery.ParseCatalogEntry(data, false);
+                    if (IsValidGem(item, excludeSet, minScore, maxMembers, minYear))
+                        return item;
+                }
+                catch
+                {
+                }
+            }
+
+            return null;
+        }
+
+        private static async Task<DiscoveryItem> TryWeightedCatalogFallbackAsync(HashSet<int> excludeSet)
+        {
+            var baseQuery = "anime?" + BuildCommonParams(
+                Tier2MinScore, 1000, Tier2MinMembers, Tier2MaxMembers, Tier2MinYear,
+                "tv,movie,ova", standaloneOnly: false, excludeSet: null);
+
+            var lastPage = await ResolveLastPageAsync(baseQuery, PageSize);
+            if (lastPage < 1)
+                return null;
+
+            var maxPage = Math.Max(1, Math.Min(lastPage, MaxOffset / PageSize));
             var pool = new List<DiscoveryItem>();
 
-            var lastPage = await ResolveLastPageAsync("anime", ContentFilter.Query("anime?min_score=" +
-                MinScore.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)), PageSize);
-            var maxPage = Math.Max(1, Math.Min(lastPage, MaxOffset / PageSize));
-
-            for (var attempt = 0; attempt < PoolPages && pool.Count < 40; attempt++)
+            for (var attempt = 0; attempt < CatalogPoolPages && pool.Count < 30; attempt++)
             {
                 var page = maxPage == 1 ? 1 : Rng.Next(1, maxPage + 1);
-                var raw = await TenraiClient.GetRawJsonAsync(
-                    ContentFilter.Query("anime?min_score=" + MinScore.ToString("0.0",
-                        System.Globalization.CultureInfo.InvariantCulture) + $"&page={page}&limit={PageSize}"));
+                var raw = await TenraiClient.GetRawJsonAsync($"{baseQuery}&page={page}&limit={PageSize}");
                 if (string.IsNullOrEmpty(raw))
                     continue;
-                List<DiscoveryItem> batch;
+
                 try
                 {
                     using var doc = JsonDocument.Parse(raw);
-                    batch = new List<DiscoveryItem>();
                     if (!doc.RootElement.TryGetProperty("data", out var data) ||
                         data.ValueKind != JsonValueKind.Array)
                         continue;
+
                     foreach (var entry in data.EnumerateArray())
                     {
                         var item = DiscoveryRandomQuery.ParseCatalogEntry(entry, false);
-                        if (item != null)
-                            batch.Add(item);
+                        if (IsValidGem(item, excludeSet, Tier2MinScore, Tier2MaxMembers, Tier2MinYear))
+                            pool.Add(item);
                     }
                 }
                 catch
                 {
-                    continue;
-                }
-
-                foreach (var item in batch)
-                {
-                    if (item.Score < MinScore)
-                        continue;
-                    if (item.PopularityRank < MinPopularityRank || item.PopularityRank > MaxPopularityRank)
-                        continue;
-                    if (item.Members <= 0 || item.Members > MaxMembers)
-                        continue;
-                    if (item.Year > 0 && item.Year < MinYear)
-                        continue;
-
-                    var normType = item.Type?.Trim().ToLowerInvariant();
-                    if (normType != "tv" && normType != "movie" && normType != "ova")
-                        continue;
-
-                    if (alreadyInLibrary != null && alreadyInLibrary.Contains(item.Id))
-                        continue;
-
-                    pool.Add(item);
                 }
             }
 
             if (pool.Count == 0)
                 return null;
 
-            var gem = pool[Rng.Next(0, pool.Count)];
-            var store = ViewModels.ResourceLocator.ApplicationDataService;
-            store[IdKey] = gem.Id;
-            store[TitleKey] = gem.Title;
-            store[ImgKey] = gem.ImgUrl;
-            store[TypeKey] = gem.Type;
-            store[ScoreKey] = (int)Math.Round(gem.Score * 10);
-            store[YearKey] = gem.Year;
-            store[DayKey] = CurrentDay();
-            return gem;
+            // Bias selection toward higher-rated gems so 8.1+ entries clearly beat 7.7s
+            double totalWeight = 0;
+            var weights = new double[pool.Count];
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var delta = Math.Max(0.15, pool[i].Score - 7.45);
+                weights[i] = Math.Pow(delta, 2.2);
+                totalWeight += weights[i];
+            }
+
+            var roll = Rng.NextDouble() * totalWeight;
+            double acc = 0;
+            for (var i = 0; i < pool.Count; i++)
+            {
+                acc += weights[i];
+                if (roll <= acc)
+                    return pool[i];
+            }
+
+            return pool[pool.Count - 1];
         }
 
-        private static async Task<int> ResolveLastPageAsync(string media, string query, int pageSize)
+        private static async Task<int> ResolveLastPageAsync(string query, int pageSize)
         {
             try
             {
-                var raw = await TenraiClient.GetRawJsonAsync($"{query}&limit={pageSize}");
+                var raw = await TenraiClient.GetRawJsonAsync($"{query}&page=1&limit={pageSize}");
                 if (string.IsNullOrEmpty(raw))
                     return 0;
                 using var doc = JsonDocument.Parse(raw);

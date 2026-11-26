@@ -2,11 +2,12 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
 xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
 xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.ArticlesPage"
              x:DataType="vm:MalArticlesViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -25,7 +26,7 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Grid Grid.Row="0" BackgroundColor="{StaticResource EmSheet}" Padding="12,12" ColumnDefinitions="Auto,*,Auto">
+            <Grid Grid.Row="0" BackgroundColor="{DynamicResource EmSheet}" Padding="12,12" ColumnDefinitions="Auto,*,Auto">
                 <Button Grid.Column="0" Text="←" Clicked="OnBackToList"
                         FontFamily="InterBold" FontSize="18" BackgroundColor="Transparent"
                         TextColor="{StaticResource EmAccent}" Padding="8,0" />
@@ -47,17 +48,19 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
-                        Padding="12,12" BackgroundColor="{StaticResource EmBackground}">
-                <HorizontalStackLayout Spacing="8">
-                    <Button x:Name="ArticlesTab" Text="Articles" Clicked="OnWorkModeClicked"
-                            CommandParameter="Articles" Style="{StaticResource TabChipActiveButtonStyle}" />
-                    <Button x:Name="NewsTab" Text="News" Clicked="OnWorkModeClicked"
-                            CommandParameter="News" Style="{StaticResource TabChipButtonStyle}" />
-                    <Button x:Name="AnnTab" Text="ANN" Clicked="OnWorkModeClicked"
-                            CommandParameter="AnnNews" Style="{StaticResource TabChipButtonStyle}" />
-                </HorizontalStackLayout>
-            </ScrollView>
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="12,12" BackgroundColor="{DynamicResource EmBackground}">
+                <ScrollView Grid.Column="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+                    <HorizontalStackLayout Spacing="8">
+                        <Button x:Name="ArticlesTab" Text="Articles" Clicked="OnWorkModeClicked"
+                                CommandParameter="Articles" Style="{StaticResource TabChipActiveButtonStyle}" />
+                        <Button x:Name="NewsTab" Text="News" Clicked="OnWorkModeClicked"
+                                CommandParameter="News" Style="{StaticResource TabChipButtonStyle}" />
+                        <Button x:Name="AnnTab" Text="ANN" Clicked="OnWorkModeClicked"
+                                CommandParameter="AnnNews" Style="{StaticResource TabChipButtonStyle}" />
+                    </HorizontalStackLayout>
+                </ScrollView>
+                <controls:WindowsRefreshButton Grid.Column="1" Clicked="OnRefreshing" />
+            </Grid>
 
             <RefreshView Grid.Row="1" IsRefreshing="{Binding LoadingVisibility}" Refreshing="OnRefreshing">
                 <CollectionView x:Name="NewsList"
@@ -70,15 +73,15 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                     <CollectionView.ItemTemplate>
                         <DataTemplate
                         x:DataType="mmalspecific:MalNewsUnitModel">
-                            <Border Margin="16,6" BackgroundColor="{StaticResource EmSheet}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            <Border Margin="16,6" BackgroundColor="{DynamicResource EmSheet}"
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 14" Padding="0">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="0">
                                     <Grid Grid.Column="0" IsVisible="{Binding ImgUrl, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
                                         <!-- Placeholder while the picture has not been fetched yet. Without
                                              it the thumbnail column simply vanishes and the row looks
                                              broken rather than pending. -->
-                                        <BoxView WidthRequest="100" HeightRequest="80" Color="{StaticResource EmBackground}" />
+                                        <BoxView WidthRequest="100" HeightRequest="80" Color="{DynamicResource EmBackground}" />
                                         <Label Text="▪" FontSize="20" TextColor="#29FFFFFF"
                                                HorizontalOptions="Center" VerticalOptions="Center" />
                                     </Grid>

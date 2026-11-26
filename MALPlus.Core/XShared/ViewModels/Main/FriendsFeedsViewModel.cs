@@ -16,6 +16,8 @@ namespace MALPlus.XShared.ViewModels.Main
     public class FriendsFeedsViewModel : ViewModelBase
     {
         private List<UserFeedEntryModel> _feeds;
+        private List<UserFeedEntryModel> _filteredFeeds;
+        private int _filterIndex;
         private ICommand _navigateDeitalsCommand;
         private ICommand _navigateProfileCommand;
         private bool _loading;
@@ -29,7 +31,46 @@ namespace MALPlus.XShared.ViewModels.Main
             {
                 _feeds = value;
                 RaisePropertyChanged(() => Feeds);
+                ApplyFilter();
             }
+        }
+
+        public List<UserFeedEntryModel> FilteredFeeds
+        {
+            get { return _filteredFeeds; }
+            set
+            {
+                _filteredFeeds = value;
+                RaisePropertyChanged(() => FilteredFeeds);
+            }
+        }
+
+        public int FilterIndex
+        {
+            get { return _filterIndex; }
+            set
+            {
+                if (_filterIndex == value) return;
+                _filterIndex = value;
+                RaisePropertyChanged(() => FilterIndex);
+                ApplyFilter();
+            }
+        }
+
+        private void ApplyFilter()
+        {
+            if (_feeds == null)
+            {
+                FilteredFeeds = null;
+                return;
+            }
+
+            FilteredFeeds = _filterIndex switch
+            {
+                1 => _feeds.Where(f => !f.IsManga).ToList(),
+                2 => _feeds.Where(f => f.IsManga).ToList(),
+                _ => _feeds
+            };
         }
 
         /// <summary>
@@ -66,29 +107,43 @@ public async void Init(bool force = false)
                 var friends = ViewModelLocator.ProfilePage.MyFriends;
                 if (force || friends == null || friends.Count == 0)
                 {
-                    ViewModelLocator.GeneralMain.LockCurrentStatus = true;
                     try
                     {
-                        // Always forced. LoadProfileData declines to refetch a profile it already holds
-                        // and this is always the reader's own page, so without the flag a second visit
-                        // sat on the stale list and kept reporting "no friends" behind friends the
-                        // account does have.
-                        await ViewModelLocator.ProfilePage.LoadProfileData(
-                            new ProfilePageNavigationArgs { TargetUser = Credentials.UserName }, true);
-                        friends = ViewModelLocator.ProfilePage.MyFriends;
+                        // Query MAL friends directly first so we don't depend on ProfileQuery's
+                        // heavy full-profile scrape or stale partial friend thumbnails.
+                        var queried = await new MALPlus.XShared.Comm.Profile.FriendsQuery(Credentials.UserName).GetFriends();
+                        if (queried != null && queried.Count > 0)
+                        {
+                            friends = queried.Select(f => f.User).Where(u => u != null && !string.IsNullOrWhiteSpace(u.Name)).ToList();
+                            ViewModelLocator.ProfilePage.MyFriends = friends;
+                        }
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
+                        Console.WriteLine($"MALPLUS Feeds FriendsQuery failed: {ex.Message}");
                     }
-                    finally
+
+                    if (friends == null || friends.Count == 0)
                     {
-                        // LockCurrentStatus stayed true on failure, permanently freezing
-                        // the status bar text.
-                        ViewModelLocator.GeneralMain.LockCurrentStatus = false;
+                        ViewModelLocator.GeneralMain.LockCurrentStatus = true;
+                        try
+                        {
+                            await ViewModelLocator.ProfilePage.LoadProfileData(
+                                new ProfilePageNavigationArgs { TargetUser = Credentials.UserName }, true);
+                            friends = ViewModelLocator.ProfilePage.MyFriends;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"MALPLUS Feeds ProfilePage fallback failed: {ex.Message}");
+                        }
+                        finally
+                        {
+                            ViewModelLocator.GeneralMain.LockCurrentStatus = false;
+                        }
                     }
                 }
 
-                if (Feeds != null && !force)
+                if (Feeds != null && Feeds.Count > 0 && !force)
                     return;
 
                 // The list is deliberately not emptied before the read. Clearing it first is what made

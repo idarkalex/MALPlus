@@ -81,7 +81,7 @@ public partial class AnimePosterGrid : ContentView
             newNotifier.CollectionChanged += grid.OnItemsSourceCollectionChanged;
         grid.Inner.ItemsSource = newValue as IEnumerable;
         grid._airWarmed = 0;
-        grid.ApplyLayout(force: true);
+        grid.ScheduleApplyLayout(force: true);
         grid.WarmAirTimes();
     }
 
@@ -96,11 +96,11 @@ public partial class AnimePosterGrid : ContentView
         if (e.Action == NotifyCollectionChangedAction.Reset)
         {
             _airWarmed = 0;
-            ApplyLayout(force: true);
+            ScheduleApplyLayout(force: true);
         }
         else
         {
-            ApplyLayout(force: false);
+            ScheduleApplyLayout(force: false);
         }
         WarmAirTimes();
     }
@@ -169,17 +169,17 @@ public partial class AnimePosterGrid : ContentView
 
     public static readonly BindableProperty SpanProperty =
         BindableProperty.Create(nameof(Span), typeof(int), typeof(AnimePosterGrid), 0,
-            propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ApplyLayout(force: true));
+            propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ScheduleApplyLayout(force: true));
 
     /// <summary>Gap between two cards, and half of it on each outer edge.</summary>
     public static readonly BindableProperty SpacingProperty =
         BindableProperty.Create(nameof(Spacing), typeof(double), typeof(AnimePosterGrid), DefaultSpacing,
-            propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ApplyLayout(force: true));
+            propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ScheduleApplyLayout(force: true));
 
     /// <summary>Optional cell content. Null uses the standard library cell.</summary>
     public static readonly BindableProperty CellTemplateProperty =
         BindableProperty.Create(nameof(CellTemplate), typeof(DataTemplate), typeof(AnimePosterGrid),
-            default(DataTemplate), propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ApplyLayout(force: true));
+            default(DataTemplate), propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ScheduleApplyLayout(force: true));
 
     /// <summary>Width of a single card, derived from the available width.</summary>
     public static readonly BindableProperty CellWidthProperty =
@@ -203,7 +203,7 @@ public partial class AnimePosterGrid : ContentView
     /// </summary>
     public static readonly BindableProperty FixedHeightProperty =
         BindableProperty.Create(nameof(FixedHeight), typeof(bool), typeof(AnimePosterGrid), false,
-            propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ApplyLayout(force: true));
+            propertyChanged: (b, o, n) => ((AnimePosterGrid)b).ScheduleApplyLayout(force: true));
 
     /// <summary>
     ///     Shows the tag and note indicators on the cards.
@@ -293,34 +293,82 @@ public partial class AnimePosterGrid : ContentView
         set => SetValue(FixedHeightProperty, value);
     }
 
+    private double EffectiveSpacing => Spacing > 0
+        ? Spacing
+        : (MALPlus.XShared.Utils.Settings.PosterGridSpacing ? 8d : DefaultSpacing);
+
     public AnimePosterGrid()
     {
         InitializeComponent();
+        var gap = EffectiveSpacing;
         CellWidth = 130d;
         CellHeight = DefaultCellHeight;
-        RowHeight = DefaultCellHeight + Spacing;
+        RowHeight = DefaultCellHeight + gap;
         ItemsView.Scrolled += OnItemsScrolled;
         SizeChanged += OnGridSizeChanged;
+        Loaded += OnGridLoaded;
+        Unloaded += OnGridUnloaded;
 #if ANDROID
         ItemsView.HandlerChanged += OnItemsViewHandlerChanged;
 #endif
+        SubscribeLayoutSettings();
         ApplyLayout(force: true);
+    }
+
+    private void SubscribeLayoutSettings()
+    {
+        MALPlus.XShared.Utils.Settings.GridColumnsChanged -= OnGridLayoutSettingChanged;
+        MALPlus.XShared.Utils.Settings.GridColumnsChanged += OnGridLayoutSettingChanged;
+        MALPlus.XShared.Utils.Settings.PosterGridSpacingChanged -= OnGridLayoutSettingChanged;
+        MALPlus.XShared.Utils.Settings.PosterGridSpacingChanged += OnGridLayoutSettingChanged;
+    }
+
+    private void UnsubscribeLayoutSettings()
+    {
+        MALPlus.XShared.Utils.Settings.GridColumnsChanged -= OnGridLayoutSettingChanged;
+        MALPlus.XShared.Utils.Settings.PosterGridSpacingChanged -= OnGridLayoutSettingChanged;
+    }
+
+    private void OnGridLayoutSettingChanged()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            ScheduleApplyLayout(force: true, refreshAdapter: true);
+        });
+    }
+
+    private void OnGridLoaded(object sender, EventArgs e)
+    {
+        SubscribeLayoutSettings();
+        ScheduleApplyLayout(force: true);
+    }
+
+    private void OnGridUnloaded(object sender, EventArgs e)
+    {
+        UnsubscribeLayoutSettings();
+    }
+
+    public new void InvalidateLayout()
+    {
+        ScheduleApplyLayout(force: true);
     }
 
     private void OnGridSizeChanged(object sender, EventArgs e)
     {
         if (Width > 0)
         {
+            var gap = EffectiveSpacing;
             var span = EffectiveSpan(Width);
-            CellWidth = Math.Floor((Width - (span - 1) * Spacing) / span);
+            var contentWidth = Math.Max(0, Width - gap * 2);
+            CellWidth = Math.Floor((contentWidth - (span - 1) * gap) / span);
             var wantedCellHeight = Math.Round(CellWidth * 1.5d);
             CellHeight = wantedCellHeight;
-            RowHeight = wantedCellHeight + Spacing;
+            RowHeight = wantedCellHeight + gap;
 
             if (Math.Abs(Width - _lastWidth) >= 1.0)
             {
                 _lastWidth = Width;
-                ApplyLayout(force: true);
+                ScheduleApplyLayout(force: true);
             }
         }
     }
@@ -361,18 +409,31 @@ public partial class AnimePosterGrid : ContentView
         if (Span > 0)
             return Span;
 
+        if (DeviceInfo.Platform != DevicePlatform.WinUI)
+        {
+            var userColumns = MALPlus.XShared.Utils.Settings.GridColumns;
+            if (userColumns > 0)
+                return userColumns;
+        }
+
         if (availableWidth <= 0)
             return DefaultSpan;
 
-        // Standard phones in portrait are between ~360dp and ~450dp wide: always keep exactly 3 columns (DefaultSpan).
-        // On wider viewports (foldables unfolded, tablets, desktop windows), scale columns dynamically so that
-        // each card stays at roughly the standard ~135dp width (maintaining the 2:3 vertical aspect ratio).
-        const double targetCardWidth = 135d;
-        if (availableWidth < 500d)
-            return DefaultSpan;
+        // Auto mode: scale columns dynamically based on available width:
+        // - Small screens (< 350dp): 2 columns
+        // - Standard screens (350dp - 520dp): 3 columns
+        // - Large screens / Foldables (520dp - 700dp): 4 columns
+        // - Tablets / Wide desktop (> 700dp): 5+ columns
+        if (availableWidth < 350d)
+            return 2;
+        if (availableWidth < 520d)
+            return 3;
+        if (availableWidth < 700d)
+            return 4;
 
+        const double targetCardWidth = 135d;
         var calculated = (int)Math.Round(availableWidth / targetCardWidth);
-        return Math.Max(DefaultSpan, calculated);
+        return Math.Clamp(calculated, 3, 8);
     }
 
     protected override void OnSizeAllocated(double width, double height)
@@ -380,15 +441,47 @@ public partial class AnimePosterGrid : ContentView
         base.OnSizeAllocated(width, height);
         if (width <= 0)
             return;
+        var gap = EffectiveSpacing;
         var span = EffectiveSpan(width);
-        CellWidth = Math.Floor((width - (span - 1) * Spacing) / span);
+        var contentWidth = Math.Max(0, width - gap * 2);
+        CellWidth = Math.Floor((contentWidth - (span - 1) * gap) / span);
         if (Math.Abs(width - _lastWidth) < 1.0)
             return;
         _lastWidth = width;
-        ApplyLayout(force: true);
+        ScheduleApplyLayout(force: true);
     }
 
-    private void ApplyLayout(bool force)
+    private bool _layoutDispatchPending;
+    private bool _pendingLayoutForce;
+    private bool _pendingLayoutRefreshAdapter;
+
+    private void ScheduleApplyLayout(bool force, bool refreshAdapter = false)
+    {
+#if WINDOWS
+        if (force)
+            _pendingLayoutForce = true;
+        if (refreshAdapter)
+            _pendingLayoutRefreshAdapter = true;
+        if (_layoutDispatchPending)
+            return;
+        _layoutDispatchPending = true;
+        Dispatcher.Dispatch(() =>
+        {
+            var f = _pendingLayoutForce;
+            var r = _pendingLayoutRefreshAdapter;
+            _layoutDispatchPending = false;
+            _pendingLayoutForce = false;
+            _pendingLayoutRefreshAdapter = false;
+            ApplyLayout(force: f, refreshAdapter: r);
+        });
+#else
+        ApplyLayout(force: force, refreshAdapter: refreshAdapter);
+#endif
+    }
+
+    private int _appliedSpan = -1;
+
+    private void ApplyLayout(bool force, bool refreshAdapter = false)
     {
         // The empty state has to be correct even before the control has a width, otherwise a grid
         // that never gets sized would stay hidden forever.
@@ -399,26 +492,54 @@ public partial class AnimePosterGrid : ContentView
         IsEmpty = count == 0;
 
         var availableWidth = _lastWidth > 0 ? _lastWidth : (Width > 0 ? Width : 0);
-        var span = EffectiveSpan(availableWidth);
+        if (availableWidth <= 0)
+        {
+            try
+            {
+                var displayWidth = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
+                if (displayWidth > 0)
+                    availableWidth = displayWidth;
+            }
+            catch { }
+        }
 
-        if (availableWidth > 0 && span > 0)
-            CellWidth = Math.Floor((availableWidth - (span - 1) * Spacing) / span);
+        var gap = EffectiveSpacing;
+        var targetPadding = gap > 0 ? new Thickness(gap, gap, gap, 0) : Thickness.Zero;
+        if (Padding != targetPadding)
+        {
+            Padding = targetPadding;
+            force = true;
+        }
+
+        var span = EffectiveSpan(availableWidth);
+        var spanChanged = _appliedSpan != span;
+        if (spanChanged)
+        {
+            _appliedSpan = span;
+            force = true;
+        }
+
+        var contentWidth = Math.Max(0, availableWidth - gap * 2);
+        if (contentWidth > 0 && span > 0)
+            CellWidth = Math.Floor((contentWidth - (span - 1) * gap) / span);
 
         var wantedCellHeight = CellWidth > 0
             ? Math.Round(CellWidth * 1.5d)
             : DefaultCellHeight;
 
-        if (Math.Abs(_appliedCellHeight - wantedCellHeight) > 0.5)
+        var wantedRowHeight = wantedCellHeight + gap;
+        if (Math.Abs(_appliedCellHeight - wantedCellHeight) > 0.5 || Math.Abs(RowHeight - wantedRowHeight) > 0.5)
         {
             _appliedCellHeight = wantedCellHeight;
             CellHeight = wantedCellHeight;
-            RowHeight = CellHeight + Spacing;
+            RowHeight = wantedRowHeight;
         }
 
         if (FixedHeight)
         {
-            var effectiveRowHeight = RowHeight > 0 ? RowHeight : DefaultCellHeight + Spacing;
-            var wantedHeight = CalculateHeight(count, span, effectiveRowHeight);
+            var effectiveRowHeight = RowHeight > 0 ? RowHeight : DefaultCellHeight + gap;
+            var extraTop = gap > 0 ? gap : 0;
+            var wantedHeight = CalculateHeight(count, span, effectiveRowHeight) + extraTop;
             if (Math.Abs(HeightRequest - wantedHeight) > 0.5)
             {
                 HeightRequest = wantedHeight;
@@ -426,26 +547,55 @@ public partial class AnimePosterGrid : ContentView
             }
         }
 
-        if (!force && _spanApplied)
-            return;
-
-        // On Windows and Android, modify the existing GridItemsLayout's Span directly to ensure
-        // the platform view dynamically updates its columns without re-instantiation bugs.
+        // On Windows and Android, modify the existing GridItemsLayout's Span and item spacing directly
+        // so the platform view dynamically updates without re-instantiation bugs.
         if (ItemsView.ItemsLayout is GridItemsLayout existingGrid)
         {
             if (existingGrid.Span != span)
-                existingGrid.Span = span;
+            {
+                try { existingGrid.Span = span; }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AnimePosterGrid] Span update failed: {ex.Message}"); }
+            }
+            if (Math.Abs(existingGrid.HorizontalItemSpacing - gap) > 0.1)
+                existingGrid.HorizontalItemSpacing = gap;
+            if (Math.Abs(existingGrid.VerticalItemSpacing - gap) > 0.1)
+                existingGrid.VerticalItemSpacing = gap;
             _spanApplied = true;
         }
         else
         {
             ItemsView.ItemsLayout = new GridItemsLayout(span, ItemsLayoutOrientation.Vertical)
             {
-                HorizontalItemSpacing = Spacing,
-                VerticalItemSpacing = Spacing
+                HorizontalItemSpacing = gap,
+                VerticalItemSpacing = gap
             };
             _spanApplied = true;
         }
+
+#if ANDROID
+        if (spanChanged || refreshAdapter)
+        {
+            if (ItemsView.Handler?.PlatformView is AndroidX.RecyclerView.Widget.RecyclerView rv)
+            {
+                rv.Post(() =>
+                {
+                    try
+                    {
+                        rv.GetAdapter()?.NotifyDataSetChanged();
+                        rv.RequestLayout();
+                        rv.Invalidate();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[AnimePosterGrid] RV update failed: {ex.Message}");
+                    }
+                });
+            }
+        }
+#endif
+
+        if (!force && _spanApplied)
+            return;
 
         // The card template reads these through x:Reference, so no page has to repeat the numbers.
         //

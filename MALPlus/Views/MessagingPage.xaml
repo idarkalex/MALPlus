@@ -2,11 +2,12 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
 xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
 xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.MessagingPage"
              x:DataType="vm:MalMessagingViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -21,10 +22,11 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
 
         <Grid RowDefinitions="Auto,Auto,*" IsVisible="{Binding LoadingVisibility, Converter={StaticResource BoolVis}, ConverterParameter=invert, FallbackValue=true}">
             <!-- Header with title and compose -->
-            <Grid Grid.Row="0" Padding="16,12" ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="0" Padding="16,12" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <Label Grid.Column="0" Text="Messages" FontFamily="InterBold" FontSize="22"
                        TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                <Button Grid.Column="1" Text="✚" Clicked="OnComposeClicked"
+                <controls:WindowsRefreshButton Grid.Column="1" Clicked="OnRefreshing" />
+                <Button Grid.Column="2" Text="✚" Clicked="OnComposeClicked"
                         FontFamily="InterBold" FontSize="20" BackgroundColor="#0066FF" TextColor="White"
                         CornerRadius="20" WidthRequest="40" HeightRequest="40" Padding="0" />
             </Grid>
@@ -53,8 +55,8 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                     <CollectionView.ItemTemplate>
                         <DataTemplate
                         x:DataType="mmalspecific:MalMessageModel">
-                            <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            <Border Margin="16,4" BackgroundColor="{DynamicResource EmSheet}"
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnMessageTapped" CommandParameter="{Binding .}" />
@@ -89,8 +91,8 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                     <CollectionView.ItemTemplate>
                         <DataTemplate
                         x:DataType="mmalspecific:MalMessageModel">
-                            <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            <Border Margin="16,4" BackgroundColor="{DynamicResource EmSheet}"
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8" Padding="12">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnMessageTapped" CommandParameter="{Binding .}" />

@@ -270,10 +270,14 @@ public class MainActivity : MauiAppCompatActivity
     {
         try
         {
-            var navColor = isAmoled
-                ? global::Android.Graphics.Color.Black
-                : global::Android.Graphics.Color.ParseColor("#0A1F2E");
+            var sheet = MALPlus.Services.ThemeService.CurrentSheet;
+            var bg = MALPlus.Services.ThemeService.CurrentBackground;
+            var navColor = new global::Android.Graphics.Color(
+                (int)(sheet.Red * 255), (int)(sheet.Green * 255), (int)(sheet.Blue * 255), (int)(sheet.Alpha * 255));
+            var bgColor = new global::Android.Graphics.Color(
+                (int)(bg.Red * 255), (int)(bg.Green * 255), (int)(bg.Blue * 255), (int)(bg.Alpha * 255));
             Instance?.Window?.SetNavigationBarColor(navColor);
+            Instance?.Window?.DecorView?.SetBackgroundColor(bgColor);
         }
         catch (Exception ex)
         {
@@ -583,6 +587,14 @@ public override void HandleOnBackPressed()
         var path = PendingDeepLinkPath;
         if (string.IsNullOrWhiteSpace(path))
             return;
+#if DEBUG
+        if (string.Equals(path, "star-prompt", StringComparison.OrdinalIgnoreCase))
+        {
+            PendingDeepLinkPath = null;
+            await Services.GitHubStarService.ShowPromptAsync();
+            return;
+        }
+#endif
         Android.Util.Log.Info("MALPLUS", $"Applying pending deep link: {path}");
         var succeeded = await MainThread.InvokeOnMainThreadAsync(async () =>
         {
@@ -608,6 +620,25 @@ public override void HandleOnBackPressed()
     {
         var path = uri.StartsWith("malplus://") ? uri.Replace("malplus://", "") : uri;
         Android.Util.Log.Info("MALPLUS", $"Deep link path: {path}");
+#if DEBUG
+        if (string.Equals(path, "star-prompt", StringComparison.OrdinalIgnoreCase))
+        {
+            PendingDeepLinkPath = null;
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                for (int attempt = 0; attempt < 20; attempt++)
+                {
+                    if (Shell.Current != null)
+                    {
+                        await Services.GitHubStarService.ShowPromptAsync();
+                        return;
+                    }
+                    await System.Threading.Tasks.Task.Delay(250);
+                }
+            });
+            return;
+        }
+#endif
         MainThread.BeginInvokeOnMainThread(async () =>
             {
                 for (int attempt = 0; attempt < 20; attempt++)

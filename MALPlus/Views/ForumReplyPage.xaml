@@ -3,10 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="MALPlus.Views.ForumReplyPage"
              x:Name="ReplyRoot"
-             BackgroundColor="{StaticResource EmBackground}"
+             BackgroundColor="{DynamicResource EmBackground}"
              Title="Reply">
     <Grid RowDefinitions="Auto,*">
-        <Grid Padding="16,12,16,8" BackgroundColor="{StaticResource EmBackground}">
+        <Grid Padding="16,12,16,8" BackgroundColor="{DynamicResource EmBackground}">
             <Label Text="Reply to topic" FontFamily="InterBold" FontSize="20"
                    TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
         </Grid>
@@ -17,7 +17,7 @@
                 <Editor Text="{Binding ReplyMessage, Mode=TwoWay}"
                         Placeholder="Write a reply (BBCode supported)..."
                         FontFamily="Inter" FontSize="13" HeightRequest="220"
-                        BackgroundColor="{StaticResource EmSheet}" TextColor="{StaticResource BrushText}"
+                        BackgroundColor="{DynamicResource EmSheet}" TextColor="{StaticResource BrushText}"
                         PlaceholderColor="#80FFFFFF" AutoSize="Disabled" />
                 <Button Text="Post Reply" Clicked="OnPostReplyTapped"
                         FontFamily="InterSemiBold" FontSize="14"

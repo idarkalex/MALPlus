@@ -105,6 +105,75 @@ public static class OptionsSheetHost
     }
 
     /// <summary>
+    ///     Displays the GitHub star prompt with Star / Later / Dismiss options.
+    /// </summary>
+    public static async Task<Services.GitHubStarChoice> ShowGitHubStarAsync()
+    {
+        var answered = new TaskCompletionSource<Services.GitHubStarChoice>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var page = new OptionsSheetPage();
+
+        await Gate.WaitAsync();
+        try
+        {
+            page.Bind();
+            page.Dismissed += (_, _) =>
+            {
+                if (answered.TrySetResult(Services.GitHubStarChoice.Later))
+                    _ = PopAsync(page);
+            };
+            page.Sheet.OpenGitHubStar(
+                onStar: () =>
+                {
+                    if (answered.TrySetResult(Services.GitHubStarChoice.Star))
+                        _ = PopAsync(page);
+                },
+                onLater: () =>
+                {
+                    if (answered.TrySetResult(Services.GitHubStarChoice.Later))
+                        _ = PopAsync(page);
+                },
+                onDismiss: () =>
+                {
+                    if (answered.TrySetResult(Services.GitHubStarChoice.Dismiss))
+                        _ = PopAsync(page);
+                });
+
+            await PushAsync(page);
+            return await answered.Task;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("MALPLUS ShowGitHubStarAsync failed: " + ex.Message);
+            await PopAsync(page);
+            return Services.GitHubStarChoice.Later;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    private static OptionsSheet ResolveCurrentPageSheet()
+    {
+        var current = Shell.Current?.CurrentPage;
+        if (current is AnimeListPage listPage)
+            return listPage.FindByName<OptionsSheet>("PosterSheet");
+        if (current is AnimeDetailsPage detailsPage)
+            return detailsPage.FindByName<OptionsSheet>("DetailsSheet");
+        return null;
+    }
+
+    private static void ExecuteShare(string finalText, bool attachCard, string cardPath)
+    {
+        var provider = GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<Adapters.IShareProvider>();
+        if (attachCard && !string.IsNullOrEmpty(cardPath) && System.IO.File.Exists(cardPath))
+            provider?.Share(finalText, cardPath);
+        else
+            provider?.Share(finalText);
+    }
+
+    /// <summary>
     ///     Displays a share preview dialog with the visual card, text message and toggle to attach image.
     /// </summary>
     public static async Task ShowSharePreviewAsync(Models.Models.Anime.ShareCardModel model)
@@ -112,8 +181,64 @@ public static class OptionsSheetHost
         if (model == null)
             return;
 
+        // Present inside the active page's OptionsSheet when available instead of pushing a full-screen
+        // modal page, so the app's BottomNavBar remains intact underneath on root list tabs.
+        var inPageSheet = ResolveCurrentPageSheet();
+        if (inPageSheet != null)
+        {
+            await Gate.WaitAsync();
+            try
+            {
+                var answered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                void OnSheetClosed(object sender, EventArgs e) => answered.TrySetResult(false);
+                inPageSheet.Closed += OnSheetClosed;
+                try
+                {
+                    inPageSheet.OpenSharePreview(model, (finalText, attachCard, cardPath) =>
+                    {
+                        answered.TrySetResult(true);
+                        ExecuteShare(finalText, attachCard, cardPath);
+                    }, () =>
+                    {
+                        answered.TrySetResult(false);
+                    });
+#if ANDROID
+                    MainActivity.ArmMenuBackCallback(() => inPageSheet.Dismiss());
+#endif
+                    await answered.Task;
+                }
+                finally
+                {
+                    inPageSheet.Closed -= OnSheetClosed;
+#if ANDROID
+                    MainActivity.DisarmMenuBackCallback();
+#endif
+                }
+                return;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("MALPLUS in-page ShowSharePreviewAsync failed: " + ex.Message);
+                return;
+            }
+            finally
+            {
+                Gate.Release();
+            }
+        }
+
         var page = new OptionsSheetPage();
         await Gate.WaitAsync();
+        var popped = false;
+        async Task SafePopAsync()
+        {
+            if (popped)
+                return;
+            popped = true;
+            await PopAsync(page);
+        }
+
         try
         {
             var answered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -121,9 +246,7 @@ public static class OptionsSheetHost
             void DismissDialog()
             {
                 if (answered.TrySetResult(false))
-                {
-                    _ = PopAsync(page);
-                }
+                    _ = SafePopAsync();
             }
 
             page.Bind();
@@ -133,19 +256,8 @@ public static class OptionsSheetHost
             page.Sheet.OpenSharePreview(model, (finalText, attachCard, cardPath) =>
             {
                 if (answered.TrySetResult(true))
-                {
-                    _ = PopAsync(page);
-                }
-
-                var provider = GalaSoft.MvvmLight.Ioc.SimpleIoc.Default.GetInstance<Adapters.IShareProvider>();
-                if (attachCard && !string.IsNullOrEmpty(cardPath) && System.IO.File.Exists(cardPath))
-                {
-                    provider?.Share(finalText, cardPath);
-                }
-                else
-                {
-                    provider?.Share(finalText);
-                }
+                    _ = SafePopAsync();
+                ExecuteShare(finalText, attachCard, cardPath);
             }, () =>
             {
                 DismissDialog();
@@ -157,11 +269,11 @@ public static class OptionsSheetHost
         catch (Exception ex)
         {
             Console.WriteLine("MALPLUS ShowSharePreviewAsync failed: " + ex.Message);
-            await PopAsync(page);
+            await SafePopAsync();
         }
         finally
         {
-            await PopAsync(page);
+            await SafePopAsync();
             Gate.Release();
         }
     }

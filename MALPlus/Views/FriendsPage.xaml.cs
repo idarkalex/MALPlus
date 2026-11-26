@@ -80,6 +80,14 @@ public partial class FriendsPage : ContentPage, ITabSwipeHost
         return true;
     }
 
+    private void OnRefreshButtonClicked(object sender, EventArgs e)
+    {
+        if (Vm?.FriendsTabIndex == 1)
+            OnRefreshRequests(sender, e);
+        else
+            OnRefreshFriends(sender, e);
+    }
+
     private void OnRefreshFriends(object sender, EventArgs e)
     {
         try { Vm.RefreshFriendsCommand?.Execute(null); } catch { }

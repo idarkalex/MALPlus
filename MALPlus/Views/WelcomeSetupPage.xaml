@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
+             x:Class="MALPlus.Views.WelcomeSetupPage"
+             Shell.PresentationMode="NotAnimated"
+             BackgroundColor="{DynamicResource EmBackground}">
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <Style x:Key="SetupSectionHeader" TargetType="HorizontalStackLayout">
+                <Setter Property="Spacing" Value="8" />
+                <Setter Property="Margin" Value="2,16,2,8" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+            <Style x:Key="SetupSectionAccent" TargetType="BoxView">
+                <Setter Property="WidthRequest" Value="3" />
+                <Setter Property="HeightRequest" Value="13" />
+                <Setter Property="Color" Value="{StaticResource EmAccent}" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+            <Style x:Key="SetupSectionLabel" TargetType="Label">
+                <Setter Property="FontFamily" Value="InterBold" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="CharacterSpacing" Value="1.2" />
+                <Setter Property="TextTransform" Value="Uppercase" />
+                <Setter Property="TextColor" Value="{DynamicResource TabChipInactiveText}" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+            <Style x:Key="SetupCard" TargetType="Border" BasedOn="{StaticResource PanelStyle}">
+                <Setter Property="Padding" Value="0" />
+            </Style>
+            <Style x:Key="SetupTitle" TargetType="Label">
+                <Setter Property="FontFamily" Value="Inter" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="TextColor" Value="{StaticResource BrushText}" />
+            </Style>
+            <Style x:Key="SetupDesc" TargetType="Label">
+                <Setter Property="FontFamily" Value="Inter" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="TextColor" Value="{DynamicResource TabChipInactiveText}" />
+            </Style>
+            <Style x:Key="SetupDivider" TargetType="BoxView">
+                <Setter Property="HeightRequest" Value="1" />
+                <Setter Property="Color" Value="#1AFFFFFF" />
+                <Setter Property="Margin" Value="16,0" />
+            </Style>
+            <Style TargetType="Switch">
+                <Setter Property="OnColor" Value="{StaticResource EmAccent}" />
+                <Setter Property="VerticalOptions" Value="Center" />
+            </Style>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- ================================================================= -->
+        <!-- 1. TOP WELCOME HEADER + PINNED LIVE INTERACTIVE PREVIEW           -->
+        <!-- ================================================================= -->
+        <VerticalStackLayout Grid.Row="0" Padding="14,12,14,10" Spacing="10">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                    <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                        <Border Padding="7,2" StrokeShape="RoundRectangle 6"
+                                BackgroundColor="#1A0066FF" Stroke="#4D0066FF" StrokeThickness="1"
+                                VerticalOptions="Center">
+                            <Label x:Name="IntroBadgeLabel" Text="WELCOME TO MAL+"
+                                   FontFamily="InterBold" FontSize="9" CharacterSpacing="1.0"
+                                   TextColor="#60A5FA" />
+                        </Border>
+                        <Label x:Name="VersionPillLabel" Text="v0.8.0"
+                               FontFamily="InterSemiBold" FontSize="11"
+                               TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Label Text="Customize your look"
+                           FontFamily="InterBold" FontSize="21"
+                           TextColor="{StaticResource BrushText}" />
+                </VerticalStackLayout>
+
+                <Border x:Name="SkipButton" Grid.Column="1" VerticalOptions="Center" Padding="12,0" HeightRequest="32"
+                        BackgroundColor="{DynamicResource TabChipInactiveBg}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnSkipClicked" />
+                    </Border.GestureRecognizers>
+                    <Label Text="Skip" FontFamily="InterSemiBold" FontSize="12"
+                           TextColor="{DynamicResource TabChipInactiveText}"
+                           VerticalOptions="Center" HorizontalOptions="Center" />
+                </Border>
+            </Grid>
+
+            <!-- Miniature Live App Preview Device Card -->
+            <Border BackgroundColor="{DynamicResource EmBackground}"
+                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1.2"
+                    StrokeShape="RoundRectangle 16" Padding="0">
+                <Grid RowDefinitions="Auto,Auto,Auto" IsClippedToBounds="True">
+                    <!-- Mini Top Bar -->
+                    <Border Grid.Row="0" BackgroundColor="{DynamicResource EmSheet}"
+                            StrokeThickness="0" Padding="12,7">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <HorizontalStackLayout Grid.Column="0" Spacing="4" VerticalOptions="Center">
+                                <Label x:Name="PreviewBarTitleLabel" Text="Watching"
+                                       FontFamily="InterSemiBold" FontSize="12" TextColor="{StaticResource BrushText}"
+                                       VerticalOptions="Center" />
+                                <Label Text="▾" FontFamily="InterSemiBold" FontSize="10"
+                                       TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Border Grid.Column="2" Padding="7,2" StrokeShape="RoundRectangle 6"
+                                    BackgroundColor="{DynamicResource TabChipInactiveBg}"
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
+                                    VerticalOptions="Center">
+                                <Label x:Name="PreviewSummaryLabel" Text="Midnight Blue · Auto · Compact"
+                                       FontFamily="InterMedium" FontSize="9"
+                                       TextColor="{DynamicResource TabChipInactiveText}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Live Poster Grid Preview (Actual AnimePosterCard controls) -->
+                    <Grid x:Name="PreviewGridHost" Grid.Row="1"
+                          SizeChanged="OnPreviewGridHostSizeChanged"
+                          Padding="0,8" InputTransparent="True">
+                        <Grid x:Name="PreviewPosterGrid"
+                              HorizontalOptions="Center" VerticalOptions="Center"
+                              InputTransparent="True" />
+                    </Grid>
+
+                    <!-- Mini Bottom Nav Bar -->
+                    <Border Grid.Row="2" BackgroundColor="{DynamicResource EmSheet}"
+                            StrokeThickness="0" Padding="10,6">
+                        <Grid ColumnDefinitions="*,*,*,*">
+                            <Label x:Name="MiniNavDiscover" Grid.Column="0" Text="Discover"
+                                   FontFamily="InterSemiBold" FontSize="10" HorizontalTextAlignment="Center"
+                                   TextColor="{DynamicResource TabChipInactiveText}" />
+                            <Label x:Name="MiniNavAnime" Grid.Column="1" Text="Anime"
+                                   FontFamily="InterBold" FontSize="10" HorizontalTextAlignment="Center"
+                                   TextColor="#0066FF" />
+                            <Label x:Name="MiniNavManga" Grid.Column="2" Text="Manga"
+                                   FontFamily="InterSemiBold" FontSize="10" HorizontalTextAlignment="Center"
+                                   TextColor="{DynamicResource TabChipInactiveText}" />
+                            <Label x:Name="MiniNavMore" Grid.Column="3" Text="More"
+                                   FontFamily="InterSemiBold" FontSize="10" HorizontalTextAlignment="Center"
+                                   TextColor="{DynamicResource TabChipInactiveText}" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- ================================================================= -->
+        <!-- 2. SCROLLABLE CUSTOMIZATION CONTROLS                              -->
+        <!-- ================================================================= -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="14,0,14,18" Spacing="0">
+
+                <!-- THEME -->
+                <HorizontalStackLayout Style="{StaticResource SetupSectionHeader}" Margin="2,6,2,8">
+                    <BoxView Style="{StaticResource SetupSectionAccent}" />
+                    <Label Text="THEME &amp; OLED BLACK" Style="{StaticResource SetupSectionLabel}" />
+                </HorizontalStackLayout>
+
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                    <!-- Midnight Blue -->
+                    <Border x:Name="ThemeCard0" Grid.Column="0"
+                            BackgroundColor="{DynamicResource EmSheet}"
+                            Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1.5"
+                            StrokeShape="RoundRectangle 12" Padding="10,10">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnThemeCardTapped" CommandParameter="0" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="6" InputTransparent="True">
+                            <HorizontalStackLayout Spacing="4">
+                                <Border WidthRequest="16" HeightRequest="16" StrokeShape="RoundRectangle 8"
+                                        BackgroundColor="#051522" Stroke="#1E3A52" StrokeThickness="1" />
+                                <Border WidthRequest="16" HeightRequest="16" StrokeShape="RoundRectangle 8"
+                                        BackgroundColor="#0A1F2E" Stroke="#1E3A52" StrokeThickness="1" />
+                            </HorizontalStackLayout>
+                            <Label Text="Midnight Blue" FontFamily="InterSemiBold" FontSize="12"
+                                   TextColor="{StaticResource BrushText}" LineBreakMode="TailTruncation" />
+                            <Label Text="Deep navy" FontFamily="Inter" FontSize="10"
+                                   TextColor="{DynamicResource TabChipInactiveText}" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Dark AMOLED -->
+                    <Border x:Name="ThemeCard1" Grid.Column="1"
+                            BackgroundColor="{DynamicResource EmSheet}"
+                            Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1.5"
+                            StrokeShape="RoundRectangle 12" Padding="10,10">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnThemeCardTapped" CommandParameter="1" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="6" InputTransparent="True">
+                            <HorizontalStackLayout Spacing="4">
+                                <Border WidthRequest="16" HeightRequest="16" StrokeShape="RoundRectangle 8"
+                                        BackgroundColor="#000000" Stroke="#262626" StrokeThickness="1" />
+                                <Border WidthRequest="16" HeightRequest="16" StrokeShape="RoundRectangle 8"
+                                        BackgroundColor="#0D0D0D" Stroke="#262626" StrokeThickness="1" />
+                            </HorizontalStackLayout>
+                            <Label Text="Dark AMOLED" FontFamily="InterSemiBold" FontSize="12"
+                                   TextColor="{StaticResource BrushText}" LineBreakMode="TailTruncation" />
+                            <Label Text="Elevated black" FontFamily="Inter" FontSize="10"
+                                   TextColor="{DynamicResource TabChipInactiveText}" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Real Dark AMOLED -->
+                    <Border x:Name="ThemeCard2" Grid.Column="2"
+                            BackgroundColor="{DynamicResource EmSheet}"
+                            Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1.5"
+                            StrokeShape="RoundRectangle 12" Padding="10,10">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnThemeCardTapped" CommandParameter="2" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="6" InputTransparent="True">
+                            <HorizontalStackLayout Spacing="4">
+                                <Border WidthRequest="16" HeightRequest="16" StrokeShape="RoundRectangle 8"
+                                        BackgroundColor="#000000" Stroke="#282828" StrokeThickness="1" />
+                                <Border WidthRequest="16" HeightRequest="16" StrokeShape="RoundRectangle 8"
+                                        BackgroundColor="#000000" Stroke="#282828" StrokeThickness="1" />
+                            </HorizontalStackLayout>
+                            <Label Text="Real Dark" FontFamily="InterSemiBold" FontSize="12"
+                                   TextColor="{StaticResource BrushText}" LineBreakMode="TailTruncation" />
+                            <Label Text="Pure OLED" FontFamily="Inter" FontSize="10"
+                                   TextColor="{DynamicResource TabChipInactiveText}" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+
+                <!-- GRID LAYOUT -->
+                <HorizontalStackLayout Style="{StaticResource SetupSectionHeader}">
+                    <BoxView Style="{StaticResource SetupSectionAccent}" />
+                    <Label Text="POSTER GRID LAYOUT" Style="{StaticResource SetupSectionLabel}" />
+                </HorizontalStackLayout>
+
+                <Border Style="{StaticResource SetupCard}">
+                    <VerticalStackLayout Spacing="0">
+                        <VerticalStackLayout Spacing="8" Padding="16,12"
+                                             IsVisible="{OnPlatform WinUI=False, Default=True}">
+                            <Label Text="Grid columns" Style="{StaticResource SetupTitle}" />
+                            <FlexLayout Wrap="Wrap" Direction="Row" AlignItems="Center">
+                                <Button x:Name="ColChip0" Text="Auto" Clicked="OnColumnsChipClicked" CommandParameter="0"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,6,6" />
+                                <Button x:Name="ColChip1" Text="2" Clicked="OnColumnsChipClicked" CommandParameter="1"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,6,6" />
+                                <Button x:Name="ColChip2" Text="3" Clicked="OnColumnsChipClicked" CommandParameter="2"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,6,6" />
+                                <Button x:Name="ColChip3" Text="4" Clicked="OnColumnsChipClicked" CommandParameter="3"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,6,6" />
+                                <Button x:Name="ColChip4" Text="5" Clicked="OnColumnsChipClicked" CommandParameter="4"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,0,6" />
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                        <BoxView Style="{StaticResource SetupDivider}"
+                                 IsVisible="{OnPlatform WinUI=False, Default=True}" />
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Poster grid spacing" Style="{StaticResource SetupTitle}" />
+                                <Label Text="Add 8dp empty spacing between poster covers" Style="{StaticResource SetupDesc}" />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" x:Name="SpacingSwitch" IsToggled="{Binding PosterGridSpacing}"
+                                    Toggled="OnOptionToggled" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- POSTER CHIPS & BADGES -->
+                <HorizontalStackLayout Style="{StaticResource SetupSectionHeader}">
+                    <BoxView Style="{StaticResource SetupSectionAccent}" />
+                    <Label Text="POSTER CHIPS &amp; BADGES" Style="{StaticResource SetupSectionLabel}" />
+                </HorizontalStackLayout>
+
+                <Border Style="{StaticResource SetupCard}">
+                    <VerticalStackLayout Spacing="0">
+                        <VerticalStackLayout Spacing="8" Padding="16,12">
+                            <Label Text="Score chip on posters" Style="{StaticResource SetupTitle}" />
+                            <FlexLayout Wrap="Wrap" Direction="Row" AlignItems="Center">
+                                <Button x:Name="ScoreChip0" Text="Community" Clicked="OnScoreChipClicked" CommandParameter="0"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,6,6" />
+                                <Button x:Name="ScoreChip1" Text="Personal" Clicked="OnScoreChipClicked" CommandParameter="1"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,6,6" />
+                                <Button x:Name="ScoreChip2" Text="Hidden" Clicked="OnScoreChipClicked" CommandParameter="2"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,0,6" />
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                        <BoxView Style="{StaticResource SetupDivider}" />
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Media format chip" Style="{StaticResource SetupTitle}" />
+                                <Label Text="Show TV, Movie, OVA, ONA tag on posters" Style="{StaticResource SetupDesc}" />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" IsToggled="{Binding ShowFormatTag}" Toggled="OnOptionToggled" />
+                        </Grid>
+                        <BoxView Style="{StaticResource SetupDivider}" />
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Release season chip" Style="{StaticResource SetupTitle}" />
+                                <Label Text="Show season under score (e.g. Fall 24)" Style="{StaticResource SetupDesc}" />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" IsToggled="{Binding DisplaySeasonWithType}" Toggled="OnOptionToggled" />
+                        </Grid>
+                        <BoxView Style="{StaticResource SetupDivider}" />
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Aired episodes badge" Style="{StaticResource SetupTitle}" />
+                                <Label Text="Show aired episode count (e.g. EP 10/12)" Style="{StaticResource SetupDesc}" />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" IsToggled="{Binding ShowAiredEpisodes}" Toggled="OnOptionToggled" />
+                        </Grid>
+                        <BoxView Style="{StaticResource SetupDivider}" />
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Airing countdown badge" Style="{StaticResource SetupTitle}" />
+                                <Label Text="Show days remaining and Airing indicator" Style="{StaticResource SetupDesc}" />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" IsToggled="{Binding ShowAiringCountdown}" Toggled="OnOptionToggled" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- TITLES & LAUNCH -->
+                <HorizontalStackLayout Style="{StaticResource SetupSectionHeader}">
+                    <BoxView Style="{StaticResource SetupSectionAccent}" />
+                    <Label Text="TITLES &amp; START PAGE" Style="{StaticResource SetupSectionLabel}" />
+                </HorizontalStackLayout>
+
+                <Border Style="{StaticResource SetupCard}">
+                    <VerticalStackLayout Spacing="0">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,12">
+                            <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Prefer English titles" Style="{StaticResource SetupTitle}" />
+                                <Label Text="Use localized English titles instead of Japanese Romaji" Style="{StaticResource SetupDesc}" />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" IsToggled="{Binding PreferEnglishTitles}" Toggled="OnOptionToggled" />
+                        </Grid>
+                        <BoxView Style="{StaticResource SetupDivider}" />
+
+                        <VerticalStackLayout Spacing="8" Padding="16,12">
+                            <Label Text="Default start page" Style="{StaticResource SetupTitle}" />
+                            <FlexLayout Wrap="Wrap" Direction="Row" AlignItems="Center">
+                                <Button x:Name="StartChip0" Text="Anime list" Clicked="OnStartPageChipClicked" CommandParameter="Anime list"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,6,6" />
+                                <Button x:Name="StartChip1" Text="Manga list" Clicked="OnStartPageChipClicked" CommandParameter="Manga list"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,6,6" />
+                                <Button x:Name="StartChip2" Text="Discover" Clicked="OnStartPageChipClicked" CommandParameter="Discover"
+                                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="32" Padding="12,0" FontSize="12" Margin="0,0,0,6" />
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- ================================================================= -->
+        <!-- 3. STICKY BOTTOM ACTION BAR                                       -->
+        <!-- ================================================================= -->
+        <Grid Grid.Row="2" RowDefinitions="1,Auto" BackgroundColor="{DynamicResource EmSheet}">
+            <BoxView Grid.Row="0" HeightRequest="1" Color="{DynamicResource EmBorder}" />
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="10" Padding="14,10,14,14">
+                <Button Grid.Column="0" Text="Reset defaults" Clicked="OnResetDefaultsClicked"
+                        Style="{StaticResource TabChipButtonStyle}" HeightRequest="42" Padding="14,0" />
+                <Button Grid.Column="1" x:Name="ApplyButton" Text="Apply &amp; Continue" Clicked="OnApplyClicked"
+                        Style="{StaticResource TabChipActiveButtonStyle}" HeightRequest="42" />
+            </Grid>
+        </Grid>
+    </Grid>
+</ContentPage>

@@ -6,7 +6,7 @@
              xmlns:tmodelsforums="clr-namespace:MALPlus.Models.Models.Forums;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.ForumNewTopicPage"
              x:DataType="vm:ForumNewTopicViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -19,41 +19,41 @@
 
         <ScrollView Grid.Row="1">
             <VerticalStackLayout Padding="16,0,16,32" Spacing="12">
-                <Border BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                <Border BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 14" Padding="14">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="TITLE" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                               TextColor="{StaticResource TabChipInactiveText}" />
+                               TextColor="{DynamicResource TabChipInactiveText}" />
                         <Entry Text="{Binding Title, Mode=TwoWay}" Placeholder="Topic title..."
                                FontFamily="Inter" FontSize="14"
-                               BackgroundColor="{StaticResource EmBackground}"
+                               BackgroundColor="{DynamicResource EmBackground}"
                                TextColor="{StaticResource BrushText}"
                                PlaceholderColor="#80FFFFFF" />
                     </VerticalStackLayout>
                 </Border>
 
-                <Border BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                <Border BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 14" Padding="14">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="POLL QUESTION (OPTIONAL)" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                               TextColor="{StaticResource TabChipInactiveText}" />
+                               TextColor="{DynamicResource TabChipInactiveText}" />
                         <Entry Text="{Binding Question, Mode=TwoWay}" Placeholder="Ask a question..."
                                FontFamily="Inter" FontSize="14"
-                               BackgroundColor="{StaticResource EmBackground}"
+                               BackgroundColor="{DynamicResource EmBackground}"
                                TextColor="{StaticResource BrushText}"
                                PlaceholderColor="#80FFFFFF" />
                     </VerticalStackLayout>
                 </Border>
 
-                <Border BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                <Border BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 14" Padding="14"
                         IsVisible="{Binding AnswersVisibility}">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="POLL ANSWERS" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                               TextColor="{StaticResource TabChipInactiveText}" />
+                               TextColor="{DynamicResource TabChipInactiveText}" />
                         <CollectionView ItemsSource="{Binding Answers}" SelectionMode="None"
                                         HeightRequest="100">
                             <CollectionView.ItemTemplate>
@@ -61,7 +61,7 @@
                                 x:DataType="tmodelsforums:ForumTopicQestionModel">
                                     <Entry Text="{Binding Answer, Mode=TwoWay}" Placeholder="Answer..."
                                            FontFamily="Inter" FontSize="13"
-                                           BackgroundColor="{StaticResource EmBackground}"
+                                           BackgroundColor="{DynamicResource EmBackground}"
                                            TextColor="{StaticResource BrushText}"
                                            PlaceholderColor="#80FFFFFF" />
                                 </DataTemplate>
@@ -70,34 +70,34 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                <Border BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 14" Padding="14">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="MESSAGE (BBCODE SUPPORTED)" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                               TextColor="{StaticResource TabChipInactiveText}" />
+                               TextColor="{DynamicResource TabChipInactiveText}" />
                         <Editor Text="{Binding Message, Mode=TwoWay}" Placeholder="Write your topic..."
                                 FontFamily="Inter" FontSize="14" HeightRequest="240"
-                                BackgroundColor="{StaticResource EmBackground}"
+                                BackgroundColor="{DynamicResource EmBackground}"
                                 TextColor="{StaticResource BrushText}"
                                 PlaceholderColor="#80FFFFFF"
                                 AutoSize="Disabled" />
                         <Button Text="Preview" Command="{Binding PreviewCommand}"
                                 HorizontalOptions="End" Margin="0,6,0,0"
                                 FontFamily="InterSemiBold" FontSize="12"
-                                BackgroundColor="{StaticResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
-                                BorderColor="{StaticResource EmBorder}" BorderWidth="1"
+                                BackgroundColor="{DynamicResource TabChipInactiveBg}" TextColor="{StaticResource BrushText}"
+                                BorderColor="{DynamicResource EmBorder}" BorderWidth="1"
                                 CornerRadius="8" HeightRequest="32" Padding="10,0" />
                     </VerticalStackLayout>
                 </Border>
 
-                <Border BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                <Border BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 14" Padding="14"
                         IsVisible="{Binding PreviewAvailable}">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="PREVIEW" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                               TextColor="{StaticResource TabChipInactiveText}" />
+                               TextColor="{DynamicResource TabChipInactiveText}" />
                         <Label x:Name="PreviewLabel" Text="" FontFamily="Inter" FontSize="13"
                                TextColor="{StaticResource BrushText}" />
                     </VerticalStackLayout>

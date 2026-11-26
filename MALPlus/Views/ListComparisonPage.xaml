@@ -6,7 +6,7 @@ xmlns:mitems="clr-namespace:MALPlus.XShared.ViewModels.Items;assembly=MALPlus.Co
 xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.ListComparisonPage"
              x:DataType="vm:ListComparisonViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
@@ -28,8 +28,8 @@ xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
                 <CollectionView.ItemTemplate>
                     <DataTemplate
                     x:DataType="mitems:ComparisonItemViewModel">
-                        <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
-                                Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        <Border Margin="16,4" BackgroundColor="{DynamicResource EmSheet}"
+                                Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                 StrokeShape="RoundRectangle 8" Padding="10">
                             <Grid ColumnDefinitions="40,*,Auto,Auto" ColumnSpacing="10">
                                 <Image Grid.Column="0" Source="{Binding ImgUrl, Converter={StaticResource ImageConverter}}"

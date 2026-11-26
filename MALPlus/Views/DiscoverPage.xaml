@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:MALPlus.Controls"
              x:Class="MALPlus.Views.DiscoverPage"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
 
     <ContentPage.Resources>
         <ResourceDictionary>
@@ -19,8 +19,8 @@
 
             <!-- Card border style -->
             <Style x:Key="DiscoverCardStyle" TargetType="Border">
-                <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
-                <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
+                <Setter Property="BackgroundColor" Value="{DynamicResource EmSheet}" />
+                <Setter Property="Stroke" Value="{DynamicResource EmBorderBrush}" />
                 <Setter Property="StrokeThickness" Value="1" />
                 <Setter Property="Padding" Value="16,14" />
                 <Setter Property="StrokeShape">
@@ -51,7 +51,7 @@
             </Style>
 
             <Style x:Key="DiscoverCardSub" TargetType="Label">
-                <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
+                <Setter Property="TextColor" Value="{DynamicResource TabChipInactiveText}" />
                 <Setter Property="FontFamily" Value="Inter" />
                 <Setter Property="FontSize" Value="12" />
                 <Setter Property="MaxLines" Value="1" />
@@ -60,11 +60,16 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{OnPlatform WinUI=Auto, Android=0, iOS=0, Default=0}" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <controls:DesktopNavBar Grid.Row="0" />
         <ScrollView Grid.Row="1">
-            <!-- Top padding 18 clears status bar cleanly; bottom padding 20 keeps content snug above shared BottomNavBar -->
-            <VerticalStackLayout Padding="14,18,14,20" Spacing="14">
+            <!-- Top padding 14 clears status bar cleanly; bottom padding 20 keeps content snug above shared BottomNavBar -->
+            <VerticalStackLayout Padding="14,14,14,20" Spacing="14">
 
                 <!-- 1. Functional Search Bar + News Button -->
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
@@ -72,14 +77,14 @@
                             AutomationId="DiscoverSearch" SemanticProperties.Description="Search">
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" VerticalOptions="Center">
                             <Label Grid.Column="0" Text="&#xf002;" FontFamily="FontAwesome" FontSize="16"
-                                   TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center">
+                                   TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center">
                                 <Label.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnSearchTapped" />
                                 </Label.GestureRecognizers>
                             </Label>
                             <Entry x:Name="SearchInputField" Grid.Column="1"
                                    Placeholder="Search anime, manga…"
-                                   PlaceholderColor="{StaticResource TabChipInactiveText}"
+                                   PlaceholderColor="{DynamicResource TabChipInactiveText}"
                                    TextColor="{StaticResource BrushText}"
                                    FontFamily="Inter" FontSize="14"
                                    VerticalOptions="Center"
@@ -96,7 +101,7 @@
                             <TapGestureRecognizer Tapped="OnNewsTapped" />
                         </Border.GestureRecognizers>
                         <Label Text="&#xf1ea;" FontFamily="FontAwesome" FontSize="18"
-                               TextColor="{StaticResource TabChipInactiveText}"
+                               TextColor="{DynamicResource TabChipInactiveText}"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                 </Grid>
@@ -128,7 +133,7 @@
                             <Label Text="Because you liked…" TextColor="{StaticResource BrushText}"
                                    FontFamily="InterBold" FontSize="19" />
                             <Label Text="Picks tailored to your anime scores and status"
-                                   TextColor="{StaticResource TabChipInactiveText}"
+                                   TextColor="{DynamicResource TabChipInactiveText}"
                                    FontFamily="Inter" FontSize="12" />
                         </VerticalStackLayout>
                         <Label Grid.Column="1" Text="&#xf005;" FontFamily="FontAwesome" FontSize="28"
@@ -140,7 +145,7 @@
                 <HorizontalStackLayout Spacing="8" Margin="2,8,2,0" VerticalOptions="Center">
                     <BoxView WidthRequest="3" HeightRequest="13" Color="{StaticResource TintBlueIcon}" VerticalOptions="Center" />
                     <Label Text="EXPLORE" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                           TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                           TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                 </HorizontalStackLayout>
 
                 <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
@@ -177,7 +182,9 @@
                             </Border>
                             <VerticalStackLayout Spacing="2">
                                 <Label Text="Daily Gem" Style="{StaticResource DiscoverCardTitle}" />
-                                <Label Text="High score, low popularity" Style="{StaticResource DiscoverCardSub}" />
+                                <Label x:Name="DailyGemSubLabel" Text="High score · Hidden find"
+                                       Style="{StaticResource DiscoverCardSub}"
+                                       LineBreakMode="TailTruncation" MaxLines="1" />
                             </VerticalStackLayout>
                         </VerticalStackLayout>
                     </Border>
@@ -225,7 +232,7 @@
                 <HorizontalStackLayout Spacing="8" Margin="2,8,2,0" VerticalOptions="Center">
                     <BoxView WidthRequest="3" HeightRequest="13" Color="{StaticResource TintAmberIcon}" VerticalOptions="Center" />
                     <Label Text="SURPRISE ME" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                           TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                           TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                 </HorizontalStackLayout>
 
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
@@ -308,7 +315,7 @@
                 <HorizontalStackLayout Spacing="8" Margin="2,8,2,0" VerticalOptions="Center">
                     <BoxView WidthRequest="3" HeightRequest="13" Color="{StaticResource TintVioletIcon}" VerticalOptions="Center" />
                     <Label Text="MUSIC" FontFamily="InterBold" FontSize="11" CharacterSpacing="1.2"
-                           TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                           TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                 </HorizontalStackLayout>
 
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
@@ -355,7 +362,7 @@
         </ScrollView>
 
         <!-- Floating ActivityIndicator in top-right corner, non-blocking touch target -->
-        <ActivityIndicator x:Name="HeaderSpinner" Color="{StaticResource EmAccent}"
+        <ActivityIndicator x:Name="HeaderSpinner" Grid.Row="1" Color="{StaticResource EmAccent}"
                            WidthRequest="22" HeightRequest="22" IsRunning="False"
                            HorizontalOptions="End" VerticalOptions="Start"
                            Margin="0,8,16,0" ZIndex="10" InputTransparent="True" />

@@ -1,23 +1,27 @@
-# MAL+ v0.7.7
+# MAL+ v0.8.0
 
-## Windows Desktop Edition (Public Preview)
-- **Dedicated Windows Installer:** Introducing the official modern dark-themed Inno Setup installer (`MALPlus-Setup-v0.7.7.exe` / `MALPlus-Setup-x64.exe`) with customizable installation paths, Start Menu shortcuts, and desktop icons.
-- **Self-Contained Single-File Architecture:** Packages runtime components and dependencies into a unified executable (`MALPlus.exe`), running natively on WinUI 3 and .NET 11 MAUI without requiring external .NET or WebView2 dependencies.
-- **High-Density Desktop Grids:** Expanded multi-column responsive poster layouts tailored for desktop screens, displaying 8+ items per row with smooth container virtualization and fast image decoding.
-- **Integrated AnimeThemes Player:** Native desktop creditless OP/ED music video playback with interactive controls.
-- **Reliable Uninstaller:** Fully cleans up installation folders, program files, and temporary caches, with an interactive prompt to optionally preserve or purge stored user credentials and offline databases.
+## Visual Studio & Interactive Live Preview
+- **First-Launch & Update Showcase:** A guided visual setup welcomes first-time users and returning updaters, letting you tailor how MAL+ looks right from the start.
+- **Live Interactive Preview:** Displays real anime posters inside a live app frame that updates immediately as you switch themes, grid columns, spacing, poster badges, title language, or start page.
+- **Featured Access in Settings:** Reopen **Visual Studio (LIVE PREVIEW)** anytime from the top of **Settings** or **Appearance & Display**.
 
-## Authentication & Login Flow
-- **OAuth Authorization Fix:** Resolved the `400 Bad Request` issue on MyAnimeList's consent dialog by allowing standard browser navigation through the OAuth approval lifecycle.
-- **Keyboard Enter Support:** Pressing Enter in the username or password fields now triggers sign-in directly without needing mouse interaction.
+## Live Theme Switching & Redesigned Settings
+- **Instant Runtime Themes:** Switching between **Midnight Blue**, **Dark AMOLED**, and **Real Dark** now updates active pages, cards, navigation bars, bottom sheets, and system bars immediately without restarting the app.
+- **Subcategory Settings Hub:** Organized Preferences into focused categories (*Appearance & Display*, *Poster Cards & Badges*, *Library & Tracking*, *Broadcast Calendar*, *Sharing & Social*, and *Data & Storage*) and fixed selector sheets exiting subcategories.
 
-## UI Polish & Navigation
-- **Topic Header Clean-up:** Removed redundant mobile refresh icons from forum thread headers when running on Windows desktop.
-- **Responsive Layout Stability:** Resolved infinite layout measurement loops and stutter when scrolling large anime and manga libraries ("All" category).
-- **Batch Collection Rendering:** Optimized `SmartObservableCollection` to deliver atomic change notifications, preventing WinUI 3 container recycling desynchronization and interface freezes.
+## Poster Grid & Visual Polish
+- **Grid Columns & Optional Spacing:** Pick your preferred mobile grid density (**Auto**, **2**, **3**, **4**, or **5** columns) and toggle between seamless (`0dp`) or spaced (`8dp`) poster grids, including Related cards.
+- **Cleaner Default Posters:** Posters start minimal with just the library status/progress badge; score chips, format tags, release season, aired episodes, and countdown badges can all be toggled live.
+- **Unified Details Styling:** Aligned colors, typography, star icons, spoiler blocks, and trailer controls across Anime Details, Characters, Staff, Reviews, and Recommendations, plus stronger lower-hero contrast for readable white titles over bright artwork.
 
-## Auto-Update Engine
-- **Cross-Platform In-App Updates:** Integrated GitHub release discovery that automatically detects new versions, streams downloads with live progress indication, and launches the Windows installer seamlessly.
+## Social Share Cards, Feeds & Discovery
+- **Cleaner Recommendation Cards:** *Recommend to friends* share cards omit empty personal progress bars and display total episode/chapter counts cleanly.
+- **In-Page Share Preview:** Sharing from lists or details keeps the bottom navigation bar visible underneath.
+- **Feeds, Random & Calendar:** Added activity filters in Friends Activity, shared Random Anime/Manga discovery controls, and refactored Calendar/Discover flows.
+
+## Windows Desktop Edition & Diagnostics
+- **Windows Desktop Edition:** Added native WinUI 3 / .NET 11 MAUI desktop support with a dark-themed Inno Setup installer (`MALPlus-Setup-v0.8.0.exe`), self-contained single-file packaging, multi-column desktop grids, AnimeThemes OP/ED playback, OAuth login fixes, and cross-platform in-app auto-updates.
+- **Privacy-First Local Diagnostics:** Replaced remote telemetry with 100% local on-device diagnostic logging, startup tracing, and scroll/cache optimizations.
 
 ---
 

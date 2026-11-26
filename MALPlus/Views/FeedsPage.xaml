@@ -2,25 +2,38 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
+             xmlns:controls="clr-namespace:MALPlus.Controls"
 xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
 xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.FeedsPage"
              x:DataType="vm:FriendsFeedsViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*">
-        <!-- The page had no header at all, so the first row of cards started at the very top of the
-             window and ran up under the status bar. The other pages all carry a title band; this one
-             now does too. -->
-        <Label Grid.Row="0" Text="Friends activity" FontFamily="InterBold" FontSize="22"
-               TextColor="{StaticResource BrushText}" Padding="16,12" />
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="16,12,16,4">
+            <Label Grid.Column="0" Text="Friends activity" FontFamily="InterBold" FontSize="22"
+                   TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
+            <controls:WindowsRefreshButton Grid.Column="1" Clicked="OnRefreshing" />
+        </Grid>
 
-        <RefreshView Grid.Row="1" IsRefreshing="{Binding Loading}" Refreshing="OnRefreshing">
-            <CollectionView ItemsSource="{Binding Feeds}" SelectionMode="None">
+        <ScrollView Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
+                    Padding="16,4,16,8">
+            <HorizontalStackLayout Spacing="8">
+                <Button x:Name="TabAll" Text="All" Clicked="OnTabButtonClicked" CommandParameter="0"
+                        Style="{StaticResource TabChipActiveButtonStyle}" />
+                <Button x:Name="TabAnime" Text="Anime" Clicked="OnTabButtonClicked" CommandParameter="1"
+                        Style="{StaticResource TabChipButtonStyle}" />
+                <Button x:Name="TabManga" Text="Manga" Clicked="OnTabButtonClicked" CommandParameter="2"
+                        Style="{StaticResource TabChipButtonStyle}" />
+            </HorizontalStackLayout>
+        </ScrollView>
+
+        <RefreshView Grid.Row="2" IsRefreshing="{Binding Loading}" Refreshing="OnRefreshing">
+            <CollectionView ItemsSource="{Binding FilteredFeeds}" SelectionMode="None">
                 <CollectionView.EmptyView>
                     <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="8">
                         <Label Text="No activity yet" FontFamily="InterBold" FontSize="16"
@@ -31,33 +44,75 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
-                    <DataTemplate
-                    x:DataType="mmalspecific:UserFeedEntryModel">
-                        <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
-                                Stroke="{StaticResource EmBorder}" StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8" Padding="12">
+                    <DataTemplate x:DataType="mmalspecific:UserFeedEntryModel">
+                        <Border Margin="16,5" BackgroundColor="{DynamicResource EmSheet}"
+                                Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
+                                StrokeShape="RoundRectangle 12" Padding="12">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnEntryTapped" CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
                             <Grid ColumnDefinitions="40,*,Auto" ColumnSpacing="10">
-                                <Border Grid.Column="0" WidthRequest="36" HeightRequest="36"
-                                        StrokeShape="RoundRectangle 18"
-                                        Stroke="{StaticResource EmBorder}" StrokeThickness="1">
+                                <!-- Friend avatar (tap to open friend's profile) -->
+                                <Border Grid.Column="0" WidthRequest="38" HeightRequest="38"
+                                        StrokeShape="RoundRectangle 19"
+                                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
+                                        VerticalOptions="Start">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnUserTapped" CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
                                     <Image Source="{Binding User.ImgUrl, Converter={StaticResource ImageConverter}}"
                                            Aspect="AspectFill" />
                                 </Border>
-                                <VerticalStackLayout Grid.Column="1" Spacing="2">
-                                    <Label Text="{Binding Header}" FontFamily="InterBold" FontSize="13"
-                                           TextColor="{StaticResource BrushText}" MaxLines="2"
-                                           LineBreakMode="TailTruncation" />
-                                    <Label Text="{Binding Description}" FontFamily="Inter" FontSize="12"
-                                           TextColor="#C0FFFFFF" MaxLines="3" LineBreakMode="TailTruncation" />
-                                    <Label Text="{Binding Title}" FontFamily="InterSemiBold" FontSize="12"
+
+                                <!-- Main entry details -->
+                                <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                        <HorizontalStackLayout Grid.Column="0" Spacing="6" VerticalOptions="Center">
+                                            <Label Text="{Binding UserName}" FontFamily="InterBold" FontSize="12"
+                                                   TextColor="{StaticResource BrushText}"
+                                                   LineBreakMode="TailTruncation" MaxLines="1">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnUserTapped" CommandParameter="{Binding .}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+                                            <Border BackgroundColor="#22FFFFFF" StrokeThickness="0"
+                                                    Padding="6,2" StrokeShape="RoundRectangle 4"
+                                                    VerticalOptions="Center">
+                                                <Label Text="{Binding MediaBadge}" FontFamily="InterSemiBold" FontSize="9"
+                                                       TextColor="#CCFFFFFF" />
+                                            </Border>
+                                        </HorizontalStackLayout>
+                                        <Label Grid.Column="1" Text="{Binding DateLabel}"
+                                               FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF"
+                                               VerticalOptions="Center" MaxLines="1" />
+                                    </Grid>
+
+                                    <Label Text="{Binding Title}" FontFamily="InterSemiBold" FontSize="14"
                                            TextColor="{StaticResource EmAccent}" MaxLines="2"
                                            LineBreakMode="TailTruncation" />
+
+                                    <Label Text="{Binding Description}" FontFamily="Inter" FontSize="12"
+                                           TextColor="#D0FFFFFF" MaxLines="2" LineBreakMode="TailTruncation" />
+
+                                    <Label Text="{Binding MetaLine}" FontFamily="Inter" FontSize="11"
+                                           TextColor="#80FFFFFF" MaxLines="1" LineBreakMode="TailTruncation">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding MetaLine}" Value="">
+                                                <Setter Property="IsVisible" Value="False" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
                                 </VerticalStackLayout>
-                                <!-- Third column of three. It used to be laid out as part of the text
-                                     column, so there was nowhere to show when the activity happened. -->
-                                <Label Grid.Column="2" Text="{Binding Date, StringFormat='{0:d MMM}'}"
-                                       FontFamily="Inter" FontSize="11" TextColor="#80FFFFFF"
-                                       VerticalOptions="Start" MaxLines="1" />
+
+                                <!-- Anime/Manga cover thumbnail from Tenrai batch enrichment -->
+                                <Border Grid.Column="2" WidthRequest="48" HeightRequest="68"
+                                        StrokeShape="RoundRectangle 6" StrokeThickness="0"
+                                        BackgroundColor="#18FFFFFF"
+                                        IsVisible="{Binding HasEntryImg}"
+                                        VerticalOptions="Center">
+                                    <Image Source="{Binding EntryImgUrl, Converter={StaticResource ImageConverter}}"
+                                           Aspect="AspectFill" />
+                                </Border>
                             </Grid>
                         </Border>
                     </DataTemplate>

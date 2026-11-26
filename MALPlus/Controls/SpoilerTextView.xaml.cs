@@ -146,7 +146,7 @@ public partial class SpoilerTextView : ContentView
             Text = segment.Expanded ? "Hide spoiler" : "Show spoiler",
             FontFamily = "InterSemiBold",
             FontSize = 12,
-            TextColor = Color.FromArgb("#80B4FF"),
+            TextColor = Color.FromArgb("#60A5FA"),
             BackgroundColor = Color.FromArgb("#1A0066FF"),
             BorderWidth = 0,
             CornerRadius = 8,
@@ -163,8 +163,8 @@ public partial class SpoilerTextView : ContentView
             var panel = new Border
             {
                 Padding = new Thickness(10),
-                BackgroundColor = Color.FromArgb("#14FF8A3D"),
-                Stroke = Color.FromArgb("#33FF8A3D"),
+                BackgroundColor = Application.Current?.Resources.TryGetValue("TabChipInactiveBg", out var bg) == true && bg is Color bgc ? bgc : Color.FromArgb("#141D2B"),
+                Stroke = Application.Current?.Resources.TryGetValue("EmBorder", out var br) == true && br is Color brc ? brc : Color.FromArgb("#1E3A52"),
                 StrokeThickness = 1,
                 StrokeShape = new RoundRectangle {CornerRadius = new CornerRadius(8)}
             };

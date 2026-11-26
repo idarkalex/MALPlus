@@ -23,9 +23,18 @@ public partial class DesktopNavBar : ContentView
         IsVisible = false;
         HeightRequest = 0;
         MaximumHeightRequest = 0;
+        MinimumHeightRequest = 0;
+        RootBorder.IsVisible = false;
+        RootBorder.HeightRequest = 0;
+        RootBorder.MaximumHeightRequest = 0;
+        RootBorder.MinimumHeightRequest = 0;
+        RootBorder.Padding = new Thickness(0);
+        RootBorder.StrokeThickness = 0;
 #else
         IsVisible = true;
         HeightRequest = 54;
+        RootBorder.IsVisible = true;
+        RootBorder.HeightRequest = 54;
 #endif
     }
 
@@ -132,29 +141,35 @@ public partial class DesktopNavBar : ContentView
         }
     }
 
+    private async Task NavigateAndRefreshAsync(string route, string section = null)
+    {
+        await NavigateToRoute(route, section);
+        RefreshSelection();
+    }
+
     private async void OnLogoClicked(object sender, EventArgs e)
     {
-        await NavigateToRoute("///discover", "discover");
+        await NavigateAndRefreshAsync("///discover", "discover");
     }
 
     private async void OnDiscoverClicked(object sender, EventArgs e)
     {
-        await NavigateToRoute("///discover", "discover");
+        await NavigateAndRefreshAsync("///discover", "discover");
     }
 
     private async void OnAnimeClicked(object sender, EventArgs e)
     {
-        await NavigateToRoute("///anime?mode=0&status=0", "anime");
+        await NavigateAndRefreshAsync("///anime?mode=0&status=0", "anime");
     }
 
     private async void OnMangaClicked(object sender, EventArgs e)
     {
-        await NavigateToRoute("///manga?mode=2&status=0", "manga");
+        await NavigateAndRefreshAsync("///manga?mode=2&status=0", "manga");
     }
 
     private async void OnMoreClicked(object sender, EventArgs e)
     {
-        await NavigateToRoute("///more", "more");
+        await NavigateAndRefreshAsync("///more", "more");
     }
 
     private async void OnSearchClicked(object sender, EventArgs e)
@@ -166,8 +181,13 @@ public partial class DesktopNavBar : ContentView
         catch { }
     }
 
+    private static bool _isNavigating;
+
     private static async Task NavigateToRoute(string route, string section = null)
     {
+        if (_isNavigating)
+            return;
+        _isNavigating = true;
         try
         {
             var shell = Shell.Current;
@@ -207,7 +227,11 @@ public partial class DesktopNavBar : ContentView
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[DesktopNavBar] Navigation to '{route}' failed: {ex.Message}");
+            Console.WriteLine($"MALPLUS DesktopNavBar navigation to '{route}' failed: {ex.Message}");
+        }
+        finally
+        {
+            _isNavigating = false;
         }
     }
 }

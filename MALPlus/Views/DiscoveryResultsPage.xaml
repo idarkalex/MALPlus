@@ -5,7 +5,7 @@
              xmlns:converters="clr-namespace:MALPlus.Converters"
              x:Class="MALPlus.Views.DiscoveryResultsPage"
              x:Name="ResultsPage"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
 
     <ContentPage.Resources>
         <ResourceDictionary>
@@ -14,8 +14,8 @@
             <!-- Misma tarjeta que Discover (EmSheet + EmBorder). Si hoisteas DiscoverCardStyle a
                  App.xaml / Styles, borra esta copia local y usa la global. -->
             <Style x:Key="ResultRowStyle" TargetType="Border">
-                <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
-                <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
+                <Setter Property="BackgroundColor" Value="{DynamicResource EmSheet}" />
+                <Setter Property="Stroke" Value="{DynamicResource EmBorderBrush}" />
                 <Setter Property="StrokeThickness" Value="1" />
                 <Setter Property="Padding" Value="10" />
                 <Setter Property="StrokeShape">
@@ -101,7 +101,7 @@
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Padding="18,12,14,14">
                             <Label Grid.Column="0" Text="Open in MyAnimeList to add it to your list."
                                    FontFamily="Inter" FontSize="12"
-                                   TextColor="{StaticResource TabChipInactiveText}"
+                                   TextColor="{DynamicResource TabChipInactiveText}"
                                    VerticalOptions="Center" />
                             <Image Grid.Column="1" Source="icon_chevron_right" WidthRequest="20" HeightRequest="20"
                                    Opacity="0.6" VerticalOptions="Center" />
@@ -156,7 +156,7 @@
                                            TextColor="{StaticResource BrushText}" MaxLines="2"
                                            LineBreakMode="TailTruncation" />
                                     <Label Text="{Binding Subtitle}" FontFamily="Inter" FontSize="12"
-                                           TextColor="{StaticResource TabChipInactiveText}" MaxLines="3"
+                                           TextColor="{DynamicResource TabChipInactiveText}" MaxLines="3"
                                            LineBreakMode="TailTruncation" />
                                 </VerticalStackLayout>
 
@@ -173,7 +173,7 @@
                                VerticalOptions="Center" HorizontalOptions="Center" />
 
             <Label x:Name="EmptyLabel" Grid.Row="1" Text="Nothing found." IsVisible="False"
-                   FontFamily="Inter" FontSize="13" TextColor="{StaticResource TabChipInactiveText}"
+                   FontFamily="Inter" FontSize="13" TextColor="{DynamicResource TabChipInactiveText}"
                    VerticalOptions="Center" HorizontalOptions="Center" />
         </Grid>
 

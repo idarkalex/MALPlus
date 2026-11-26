@@ -29,7 +29,8 @@ namespace MALPlus.XShared.Comm
             _source = source;
         }
 
-        public async Task<List<ILibraryData>> GetLibrary(bool force = false, bool forceOtherUser = false)
+        public async Task<List<ILibraryData>> GetLibrary(bool force = false, bool forceOtherUser = false,
+            bool silentOnFailure = false)
         {
             // The library request asks MAL for up to 1000 entries at once, so it is the
             // single most expensive call at startup. The splash preloads the start tab
@@ -44,7 +45,7 @@ namespace MALPlus.XShared.Comm
                 if (existing != null)
                     return new List<ILibraryData>(await existing);
 
-                var mine = GetLibraryCore(force, forceOtherUser);
+                var mine = GetLibraryCore(force, forceOtherUser, silentOnFailure);
                 if (!_inFlight.TryAdd(key, mine))
                 {
                     // Another caller won the race; drop ours and use theirs.
@@ -64,7 +65,7 @@ namespace MALPlus.XShared.Comm
             }
         }
 
-        private async Task<List<ILibraryData>> GetLibraryCore(bool force, bool forceOtherUser)
+        private async Task<List<ILibraryData>> GetLibraryCore(bool force, bool forceOtherUser, bool silentOnFailure)
         {
             var output = force
                 ? new List<ILibraryData>()
@@ -72,7 +73,7 @@ namespace MALPlus.XShared.Comm
             if (output.Count > 0)
                 return output;
 
-
+            var fetchedCleanly = false;
             try
             {
                 var client = await ResourceLocator.MalHttpContextProvider.GetApiHttpContextAsync();
@@ -129,7 +130,7 @@ namespace MALPlus.XShared.Comm
                                             rawAnime = await animeResponse.Content.ReadAsStringAsync();
 
                                             if (string.IsNullOrEmpty(rawAnime))
-                                                return await DataCache.RetrieveDataForUser(_source, _mode) ?? output;
+                                                return await DataCache.RetrieveDataForUser(_source, _mode, ignoreExpiration: true) ?? output;
 
                                             Root anime;
                                             try
@@ -142,10 +143,10 @@ namespace MALPlus.XShared.Comm
                                             catch (Exception e)
                                             {
                                                 ResourceLocator.LocalDiagnostics.LogEvent(rawAnime);
-                                                var cached = await DataCache.RetrieveDataForUser(_source, _mode);
+                                                var cached = await DataCache.RetrieveDataForUser(_source, _mode, ignoreExpiration: true);
                                                 if (cached != null && cached.Count > 0)
                                                     return cached;
-                                                return await GetLibrary(force, true);
+                                                return await GetLibrary(force, true, silentOnFailure);
                                             }
 
                                             retryCount = 0;
@@ -154,6 +155,7 @@ namespace MALPlus.XShared.Comm
                                             if (anime.paging?.next == null)
                                             {
                                                 loop = false;
+                                                fetchedCleanly = true;
                                             }
 
 
@@ -272,7 +274,7 @@ namespace MALPlus.XShared.Comm
                                             var rawManga = await mangaResponse.Content.ReadAsStringAsync();
 
                                             if (string.IsNullOrEmpty(rawManga))
-                                                return await DataCache.RetrieveDataForUser(_source, _mode) ?? output;
+                                                return await DataCache.RetrieveDataForUser(_source, _mode, ignoreExpiration: true) ?? output;
 
                                             Root manga;
                                             try
@@ -285,10 +287,10 @@ namespace MALPlus.XShared.Comm
                                             catch (Exception e)
                                             {
                                                 ResourceLocator.LocalDiagnostics.LogEvent(rawManga);
-                                                var cached = await DataCache.RetrieveDataForUser(_source, _mode);
+                                                var cached = await DataCache.RetrieveDataForUser(_source, _mode, ignoreExpiration: true);
                                                 if (cached != null && cached.Count > 0)
                                                     return cached;
-                                                return await GetLibrary(force, true);
+                                                return await GetLibrary(force, true, silentOnFailure);
                                             }
                                             retryCount = 0;
                                             offset += manga.data?.Count ?? 0;
@@ -296,6 +298,7 @@ namespace MALPlus.XShared.Comm
                                             if (manga.paging?.next == null)
                                             {
                                                 loop = false;
+                                                fetchedCleanly = true;
                                             }
 
                                             foreach (var node in manga.data)
@@ -640,23 +643,29 @@ namespace MALPlus.XShared.Comm
                                 //"sign in again" was shown for EVERY failure here, including plain
                                 //timeouts and rate limits, which made a healthy session look dead.
                                 //Only an actual auth rejection earns that message.
-                                var cachedFallback = await DataCache.RetrieveDataForUser(_source, _mode);
+                                var cachedFallback = await DataCache.RetrieveDataForUser(_source, _mode, ignoreExpiration: true);
                                 if (cachedFallback != null && cachedFallback.Count > 0)
                                     return cachedFallback;
 
-                                ResourceLocator.DispatcherAdapter.Run(() =>
-                                    ResourceLocator.MessageDialogProvider.ShowMessageDialog(
-                                        authFailure
-                                            ? "Failed to authorize with MyAnimeList, please try signing in again."
-                                            : "Could not load your list from MyAnimeList. The session is still signed in, this looks like a network or server hiccup.",
-                                        "Error"));
+                                if (!silentOnFailure || authFailure)
+                                {
+                                    ResourceLocator.DispatcherAdapter.Run(() =>
+                                        ResourceLocator.MessageDialogProvider.ShowMessageDialog(
+                                            authFailure
+                                                ? "Failed to authorize with MyAnimeList, please try signing in again."
+                                                : "Could not load your list from MyAnimeList. The session is still signed in, this looks like a network or server hiccup.",
+                                            "Error"));
+                                }
                             }
                             else
                             {
                                 retryCount++;
-                                var delayMs = retryCount == 1 ? 1500 : 2500;
+                                // Evict potentially stale pooled sockets left over from device sleep/Doze
+                                ResourceLocator.MalHttpContextProvider.InvalidateApiContext();
+                                var delayMs = retryCount == 1 ? 1000 : 2000;
                                 Console.WriteLine($"MALPLUS library read retry {retryCount}/2 after {delayMs}ms");
                                 await Task.Delay(TimeSpan.FromMilliseconds(delayMs));
+                                client = await ResourceLocator.MalHttpContextProvider.GetApiHttpContextAsync();
                             }
                         }
                     }
@@ -667,7 +676,8 @@ namespace MALPlus.XShared.Comm
                 ResourceLocator.LocalDiagnostics.TrackException(e);
             }
 
-            DataCache.SaveDataForUser(_source, output, _mode);
+            if (fetchedCleanly || output.Count > 0)
+                DataCache.SaveDataForUser(_source, output, _mode);
             return output;
         }
 

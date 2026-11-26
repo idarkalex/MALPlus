@@ -532,25 +532,71 @@ namespace MALPlus.XShared.Utils
 
         public static bool ShowFormatTag
         {
-            get => (bool)(ApplicationDataService["ShowFormatTag"] ?? true);
+            get => (bool)(ApplicationDataService["ShowFormatTag"] ?? false);
             set => ApplicationDataService["ShowFormatTag"] = value;
         }
 
         public static int PosterScoreDisplay
         {
-            get => (int)(ApplicationDataService["PosterScoreDisplay"] ?? 0);
+            get => (int)(ApplicationDataService["PosterScoreDisplay"] ?? 2);
             set => ApplicationDataService["PosterScoreDisplay"] = value;
+        }
+
+        public static event Action PosterGridSpacingChanged;
+
+        public static bool PosterGridSpacing
+        {
+            get => (bool)(ApplicationDataService[nameof(PosterGridSpacing)] ?? false);
+            set
+            {
+                var current = (bool)(ApplicationDataService[nameof(PosterGridSpacing)] ?? false);
+                if (current != value)
+                {
+                    ApplicationDataService[nameof(PosterGridSpacing)] = value;
+                    try
+                    {
+                        PosterGridSpacingChanged?.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Settings] PosterGridSpacingChanged error: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        public static event Action GridColumnsChanged;
+
+        public static int GridColumns
+        {
+            get => (int)(ApplicationDataService[nameof(GridColumns)] ?? 0);
+            set
+            {
+                var current = (int)(ApplicationDataService[nameof(GridColumns)] ?? 0);
+                if (current != value)
+                {
+                    ApplicationDataService[nameof(GridColumns)] = value;
+                    try
+                    {
+                        GridColumnsChanged?.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Settings] GridColumnsChanged error: {ex.Message}");
+                    }
+                }
+            }
         }
 
         public static bool ShowAiredEpisodes
         {
-            get => (bool)(ApplicationDataService["ShowAiredEpisodes"] ?? true);
+            get => (bool)(ApplicationDataService["ShowAiredEpisodes"] ?? false);
             set => ApplicationDataService["ShowAiredEpisodes"] = value;
         }
 
         public static bool ShowAiringCountdown
         {
-            get => (bool)(ApplicationDataService["ShowAiringCountdown"] ?? true);
+            get => (bool)(ApplicationDataService["ShowAiringCountdown"] ?? false);
             set => ApplicationDataService["ShowAiringCountdown"] = value;
         }
 
@@ -974,6 +1020,14 @@ namespace MALPlus.XShared.Utils
         #endregion Content
 
         #region Updates
+
+        public const string CurrentOnboardingVersion = "0.8.0";
+
+        public static string LastOnboardingVersion
+        {
+            get => ApplicationDataService[nameof(LastOnboardingVersion)] as string;
+            set => ApplicationDataService[nameof(LastOnboardingVersion)] = value;
+        }
 
         public static DateTime? LastUpdateCheckUtc
         {

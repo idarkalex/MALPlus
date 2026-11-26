@@ -28,6 +28,7 @@ namespace MALPlus.XShared.Interfaces
         Task<CsrfHttpClient> GetHttpContextAsync(bool skipAuthCheck = false);
 
         void Invalidate();
+        void InvalidateApiContext();
         HttpClientHandler GetHandler();
         void SetCookies(string cookies);
 

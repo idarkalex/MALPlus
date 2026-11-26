@@ -65,8 +65,9 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("character", typeof(CharacterDetailsPage));
         Routing.RegisterRoute("staff", typeof(StaffDetailsPage));
         Routing.RegisterRoute("discoveryresults", typeof(DiscoveryResultsPage));
-    Routing.RegisterRoute("seasonthemes", typeof(SeasonThemesPage));
-    Routing.RegisterRoute("randomtheme", typeof(RandomThemePage));
+        Routing.RegisterRoute("seasonthemes", typeof(SeasonThemesPage));
+        Routing.RegisterRoute("randomtheme", typeof(RandomThemePage));
+        Routing.RegisterRoute("welcomesetup", typeof(WelcomeSetupPage));
 
         // Signing out from anywhere must land on the login page. The view model that drops the
         // session cannot navigate itself, so it raises the request and this is the only place that
@@ -111,7 +112,7 @@ public partial class AppShell : Shell
         private const int ScrollStateSettling = 2;
 
         private readonly global::AndroidX.ViewPager2.Widget.ViewPager2 _viewPager;
-        private readonly global::Android.Graphics.Color _color;
+        private global::Android.Graphics.Color _color;
         private global::Android.Views.View _shield;
         private int _hideGeneration;
 
@@ -119,6 +120,12 @@ public partial class AppShell : Shell
         {
             _viewPager = viewPager;
             _color = color;
+        }
+
+        public void SetColor(global::Android.Graphics.Color color)
+        {
+            _color = color;
+            _shield?.SetBackgroundColor(color);
         }
 
         public override void OnPageScrollStateChanged(int state)
@@ -337,10 +344,11 @@ public partial class AppShell : Shell
             catch { }
         }
 
-        if (height <= 0)
+        var density = barView.Context?.Resources?.DisplayMetrics?.Density ?? 2.75f;
+        var minBarHeight = (int)(58 * density);
+        if (height < minBarHeight)
         {
-            var density = barView.Context?.Resources?.DisplayMetrics?.Density ?? 2.75f;
-            height = (int)(58 * density);
+            height = minBarHeight;
         }
 
         _sharedBarInstalled = true;
@@ -564,12 +572,18 @@ public partial class AppShell : Shell
 
             // Only the shellitem pager gets a shield: it hosts pushed pages, while the
             // section pager is the swipe surface itself and must stay uncovered.
-            if (viewPager.Id == ShellItemPagerId(viewPager.Context) &&
-                !Shields.TryGetValue(viewPager, out _))
+            if (viewPager.Id == ShellItemPagerId(viewPager.Context))
             {
-                var shield = new PagerShield(viewPager, color);
-                Shields.Add(viewPager, shield);
-                viewPager.RegisterOnPageChangeCallback(shield);
+                if (Shields.TryGetValue(viewPager, out var existingShield))
+                {
+                    existingShield.SetColor(color);
+                }
+                else
+                {
+                    var shield = new PagerShield(viewPager, color);
+                    Shields.Add(viewPager, shield);
+                    viewPager.RegisterOnPageChangeCallback(shield);
+                }
             }
         }
 

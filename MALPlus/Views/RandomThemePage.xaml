@@ -7,7 +7,7 @@
              x:Class="MALPlus.Views.RandomThemePage"
              x:Name="RandomThemePageRoot"
              Shell.PresentationMode="NotAnimated"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
 
     <ContentPage.Resources>
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
@@ -15,12 +15,29 @@
 
     <Grid RowDefinitions="Auto,*">
 
-        <Border Grid.Row="0" BackgroundColor="{StaticResource EmSheet}" Padding="14,0"
+        <Border Grid.Row="0" BackgroundColor="{DynamicResource EmSheet}" Padding="14,0"
                 HeightRequest="52">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <Label Grid.Column="0" Text="Random theme" FontFamily="InterBold" FontSize="16"
                        TextColor="{StaticResource BrushText}" VerticalOptions="Center" />
-                <Border Grid.Column="1" WidthRequest="32" HeightRequest="32"
+                <Border Grid.Column="1" x:Name="RerollButton" HeightRequest="32"
+                        StrokeShape="RoundRectangle 16" BackgroundColor="#260066FF"
+                        Stroke="#4D0066FF" StrokeThickness="1"
+                        Padding="12,0" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRerollTapped" />
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="5" VerticalOptions="Center" InputTransparent="True">
+                        <ActivityIndicator x:Name="RerollSpinner" IsVisible="False" IsRunning="False"
+                                           WidthRequest="14" HeightRequest="14" Color="#80B4FF"
+                                           VerticalOptions="Center" />
+                        <Label x:Name="RerollGlyph" Text="↻" FontFamily="InterBold" FontSize="14"
+                               TextColor="#80B4FF" VerticalOptions="Center" />
+                        <Label Text="Reroll" FontFamily="InterSemiBold" FontSize="12"
+                               TextColor="#80B4FF" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+                <Border Grid.Column="2" WidthRequest="32" HeightRequest="32"
                         StrokeShape="RoundRectangle 16" BackgroundColor="#14FFFFFF" Padding="0"
                         VerticalOptions="Center">
                     <Image Source="icon_close.png" WidthRequest="18" HeightRequest="18"

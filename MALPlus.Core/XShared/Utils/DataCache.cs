@@ -108,14 +108,14 @@ namespace MALPlus.XShared.Utils
                 if (mode == AnimeListWorkModes.Anime)
                 {
                     await DataCacheService.SaveData(
-                        new Tuple<DateTime, IEnumerable<AnimeLibraryItemData>>(DateTime.Now,
+                        new Tuple<DateTime, IEnumerable<AnimeLibraryItemData>>(DateTime.UtcNow,
                             data.Select(item => item as AnimeLibraryItemData)),
                         $"{(mode == AnimeListWorkModes.Anime ? "anime" : "manga")}_data_{user.ToLower()}.json", "");
                 }
                 else
                 {
                     await DataCacheService.SaveData(
-                        new Tuple<DateTime, IEnumerable<MangaLibraryItemData>>(DateTime.Now,
+                        new Tuple<DateTime, IEnumerable<MangaLibraryItemData>>(DateTime.UtcNow,
                             data.Select(item => item as MangaLibraryItemData)),
                         $"{(mode == AnimeListWorkModes.Anime ? "anime" : "manga")}_data_{user.ToLower()}.json", "");
                 }
@@ -126,7 +126,8 @@ namespace MALPlus.XShared.Utils
             }
         }
 
-        public static async Task<List<ILibraryData>> RetrieveDataForUser(string user, AnimeListWorkModes mode)
+        public static async Task<List<ILibraryData>> RetrieveDataForUser(string user, AnimeListWorkModes mode,
+            bool ignoreExpiration = false)
         {
             if (!Settings.IsCachingEnabled)
                 return null;
@@ -140,18 +141,20 @@ namespace MALPlus.XShared.Utils
                             DataCacheService.RetrieveData<Tuple<DateTime, List<AnimeLibraryItemData>>>(
                                 $"{(mode == AnimeListWorkModes.Anime ? "anime" : "manga")}_data_{user.ToLower()}.json",
                                 "", 0);
-                    if (!CheckForOldData(jsonObj.Item1))
+                    if (jsonObj?.Item2 == null)
+                        return null;
+                    if (!ignoreExpiration && !CheckForOldData(jsonObj.Item1))
                     {
                         return null;
                     }
-                    if (jsonObj.Item2 != null && jsonObj.Item2.Count > 0 && !jsonObj.Item2.Any(x => !string.IsNullOrEmpty(x.AirStartDate)))
+                    if (!ignoreExpiration && jsonObj.Item2.Count > 0 && !jsonObj.Item2.Any(x => !string.IsNullOrEmpty(x.AirStartDate)))
                     {
                         // Cache is from an older schema without air start dates: trigger a live refresh in background
                         _ = Task.Run(async () =>
                         {
                             try
                             {
-                                await new Comm.LibraryListQuery(user, mode).GetLibrary(true);
+                                await new Comm.LibraryListQuery(user, mode).GetLibrary(true, silentOnFailure: true);
                             }
                             catch { }
                         });
@@ -165,7 +168,9 @@ namespace MALPlus.XShared.Utils
                             DataCacheService.RetrieveData<Tuple<DateTime, List<MangaLibraryItemData>>>(
                                 $"{(mode == AnimeListWorkModes.Anime ? "anime" : "manga")}_data_{user.ToLower()}.json",
                                 "", 0);
-                    if (!CheckForOldData(jsonObj.Item1))
+                    if (jsonObj?.Item2 == null)
+                        return null;
+                    if (!ignoreExpiration && !CheckForOldData(jsonObj.Item1))
                     {
                         return null;
                     }
@@ -185,9 +190,13 @@ namespace MALPlus.XShared.Utils
             if (!ConnectionInfoProvider.HasInternetConnection)
                 return true;
 
-            var diff = DateTime.Now.ToUniversalTime().Subtract(timestamp);
+            var utcTimestamp = timestamp.Kind == DateTimeKind.Utc
+                ? timestamp
+                : timestamp.ToUniversalTime();
+            var diff = DateTime.UtcNow.Subtract(utcTimestamp);
             var roamingUpdate = ApplicationDataService[RoamingDataTypes.LastLibraryUpdate] as long?;
-            if (diff.TotalSeconds > Settings.CachePersitence || (roamingUpdate != null && timestamp < DateTime.FromBinary(roamingUpdate.Value)))
+            if (diff.TotalSeconds > Settings.CachePersitence ||
+                (roamingUpdate != null && utcTimestamp < DateTime.FromBinary(roamingUpdate.Value).ToUniversalTime()))
                 return false;
             return true;
         }

@@ -1,6 +1,6 @@
 #define MyAppName "MAL+"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.7.7"
+  #define MyAppVersion "0.8.0"
 #endif
 #define MyAppPublisher "idarkalex"
 #define MyAppExeName "MALPlus.exe"

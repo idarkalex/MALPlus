@@ -28,7 +28,7 @@
         <Border x:Name="Panel"
                 HorizontalOptions="Fill" VerticalOptions="End"
                 Margin="0,0,0,58" Padding="0"
-                BackgroundColor="{StaticResource EmSheet}"
+                BackgroundColor="{DynamicResource EmSheet}"
                 StrokeShape="RoundRectangle 28 28 0 0">
             <Grid x:Name="PanelGrid" RowDefinitions="Auto,Auto,Auto">
                 <!-- Drag handle, sheet shape only. -->
@@ -50,7 +50,7 @@
                         <Label x:Name="TitleLabel" Text="Options" FontFamily="InterBold" FontSize="16"
                                TextColor="{StaticResource BrushText}" />
                         <Label x:Name="SubtitleLabel" Text="" FontFamily="InterMedium" FontSize="13"
-                               TextColor="{StaticResource TabChipInactiveText}" LineBreakMode="WordWrap" MaxLines="8"
+                               TextColor="{DynamicResource TabChipInactiveText}" LineBreakMode="WordWrap" MaxLines="8"
                                IsVisible="False" />
                     </VerticalStackLayout>
                     <Border Grid.Column="2" x:Name="CloseButton" WidthRequest="32" HeightRequest="32"
@@ -84,7 +84,7 @@
              than asking the system to. 24dp covers the tallest bar a device ships with and is
              invisible everywhere else, being the same colour as the panel it stands under.
              Last child, so it draws over the panel and over anything behind it. -->
-        <BoxView VerticalOptions="End" HeightRequest="24" Color="{StaticResource EmSheet}"
+        <BoxView VerticalOptions="End" HeightRequest="24" Color="{DynamicResource EmSheet}"
                  InputTransparent="True" />
     </Grid>
 </Border>

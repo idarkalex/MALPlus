@@ -6,7 +6,7 @@ xmlns:vm="clr-namespace:MALPlus.XShared.ViewModels.Main;assembly=MALPlus.Core"
 xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MALPlus.Core"
              x:Class="MALPlus.Views.MessageDetailsPage"
              x:DataType="vm:MalMessageDetailsViewModel"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
     </ContentPage.Resources>
@@ -20,8 +20,8 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
         <Grid RowDefinitions="Auto,*,Auto">
             <!-- Header: Back button, Title -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*" ColumnSpacing="10" Padding="12,10,12,4">
-                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{StaticResource TabChipInactiveBg}"
-                        Stroke="{StaticResource EmBorder}" WidthRequest="38" HeightRequest="38" VerticalOptions="Center">
+                <Border Grid.Column="0" StrokeThickness="1" StrokeShape="RoundRectangle 8" BackgroundColor="{DynamicResource TabChipInactiveBg}"
+                        Stroke="{DynamicResource EmBorderBrush}" WidthRequest="38" HeightRequest="38" VerticalOptions="Center">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnBackTapped" />
                     </Border.GestureRecognizers>
@@ -44,8 +44,8 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                     <CollectionView.ItemTemplate>
                         <DataTemplate
                         x:DataType="mmalspecific:MalMessageModel">
-                            <Border Margin="16,4" BackgroundColor="{StaticResource EmSheet}"
-                                    Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                            <Border Margin="16,4" BackgroundColor="{DynamicResource EmSheet}"
+                                    Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                     StrokeShape="RoundRectangle 14" Padding="12">
                                 <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
                                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -65,7 +65,7 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
 
             <!-- Reply / compose composer (plain Grid in its own Auto row. A Border here
                  silently killed the whole grid on Android, so avoid Border for pinned bars) -->
-            <Grid Grid.Row="2" BackgroundColor="{StaticResource EmSheet}"
+            <Grid Grid.Row="2" BackgroundColor="{DynamicResource EmSheet}"
                   Padding="12,8,12,12">
                 <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
                     <Label Grid.Row="0" Text="To / Subject" FontFamily="InterBold" FontSize="10"
@@ -73,19 +73,19 @@ xmlns:mmalspecific="clr-namespace:MALPlus.Models.Models.MalSpecific;assembly=MAL
                     <VerticalStackLayout Grid.Row="0" Spacing="4" IsVisible="{Binding NewMessageFieldsVisibility}">
                         <Entry Text="{Binding MessageTarget, Mode=TwoWay}" Placeholder="Recipient username..."
                                FontFamily="Inter" FontSize="13"
-                               BackgroundColor="{StaticResource EmBackground}"
+                               BackgroundColor="{DynamicResource EmBackground}"
                                TextColor="{StaticResource BrushText}"
                                PlaceholderColor="#80FFFFFF" />
                         <Entry Text="{Binding MessageSubject, Mode=TwoWay}" Placeholder="Subject..."
                                FontFamily="Inter" FontSize="13"
-                               BackgroundColor="{StaticResource EmBackground}"
+                               BackgroundColor="{DynamicResource EmBackground}"
                                TextColor="{StaticResource BrushText}"
                                PlaceholderColor="#80FFFFFF" />
                     </VerticalStackLayout>
                     <Editor Grid.Row="1" Text="{Binding MessageText, Mode=TwoWay}"
                             Placeholder="Write a message..." FontFamily="Inter" FontSize="13"
                             HeightRequest="100" AutoSize="Disabled"
-                            BackgroundColor="{StaticResource EmBackground}"
+                            BackgroundColor="{DynamicResource EmBackground}"
                             TextColor="{StaticResource BrushText}"
                             PlaceholderColor="#80FFFFFF" />
                     <Button Grid.Row="1" Text="Send" Command="{Binding SendMessageCommand}"

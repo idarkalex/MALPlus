@@ -133,8 +133,6 @@ namespace MALPlus.XShared.ViewModels.Details
                 Data.StaffPositions = Data.StaffPositions ?? new List<AnimeLightEntry>();
                 IsNoVoiceActingRolesNoticeVisible = Data.ShowCharacterPairs.Count == 0;
                 IsNoProductionRolesNoticeVisible = Data.StaffPositions.Count == 0;
-                if (IsNoVoiceActingRolesNoticeVisible)
-                    OnPivotItemSelectionRequest?.Invoke(1);
                 ViewModelLocator.GeneralMain.CurrentOffStatus = Data.Name ?? string.Empty;
                 ViewModelLocator.GeneralMain.IsCurrentStatusSelectable = true;
             }

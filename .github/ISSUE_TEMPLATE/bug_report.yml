@@ -23,7 +23,7 @@ body:
     attributes:
       label: "App Version & Device / OS"
       description: "Check Settings > ABOUT for the version (legacy 1.x versions are not supported)."
-      placeholder: "e.g., 0.7.7 · Pixel 8 (Android 15) or 0.7.7 · Windows 11"
+      placeholder: "e.g., 0.8.0 · Pixel 8 (Android 15) or 0.8.0 · Windows 11"
     validations:
       required: true
 

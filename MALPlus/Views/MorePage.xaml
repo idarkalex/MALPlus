@@ -1,10 +1,10 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:converters="clr-namespace:MALPlus.Converters"
              xmlns:controls="clr-namespace:MALPlus.Controls"
              x:Class="MALPlus.Views.MorePage"
-             BackgroundColor="{StaticResource EmBackground}">
+             BackgroundColor="{DynamicResource EmBackground}">
     <ContentPage.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolVis" />
         <converters:StringToImageSourceConverter x:Key="ImageConverter" />
@@ -54,21 +54,26 @@
             <Setter Property="FontSize" Value="11" />
             <Setter Property="CharacterSpacing" Value="1.2" />
             <Setter Property="TextTransform" Value="Uppercase" />
-            <Setter Property="TextColor" Value="{StaticResource TabChipInactiveText}" />
+            <Setter Property="TextColor" Value="{DynamicResource TabChipInactiveText}" />
             <Setter Property="VerticalOptions" Value="Center" />
             <Setter Property="HorizontalOptions" Value="Start" />
         </Style>
 
         <Style x:Key="SectionGroup" TargetType="Border">
-            <Setter Property="BackgroundColor" Value="{StaticResource EmSheet}" />
-            <Setter Property="Stroke" Value="{StaticResource EmBorder}" />
+            <Setter Property="BackgroundColor" Value="{DynamicResource EmSheet}" />
+            <Setter Property="Stroke" Value="{DynamicResource EmBorderBrush}" />
             <Setter Property="StrokeThickness" Value="1" />
             <Setter Property="StrokeShape" Value="RoundRectangle 14" />
             <Setter Property="Padding" Value="0" />
         </Style>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{OnPlatform WinUI=Auto, Android=0, iOS=0, Default=0}" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <controls:DesktopNavBar Grid.Row="0" />
         <!-- Content: Scrollable List -->
         <ScrollView Grid.Row="1">
@@ -76,8 +81,8 @@
 
                 <!-- Header: profile summary -->
                 <Border x:Name="ProfileHeader" Margin="0,12,0,4" Padding="14"
-                        BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 14">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnProfileHeaderTapped" />
@@ -86,8 +91,8 @@
                          as the fallback when MAL has no user picture ( profiles show "No Picture" ). -->
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" VerticalOptions="Center">
                         <Border Grid.Column="0" WidthRequest="50" HeightRequest="50"
-                                BackgroundColor="{StaticResource EmBackground}"
-                                Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                                BackgroundColor="{DynamicResource EmBackground}"
+                                Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                                 StrokeShape="RoundRectangle 25">
                             <Grid HorizontalOptions="Center" VerticalOptions="Center">
                                 <Image x:Name="ProfileFallbackIcon" Source="icon_account"
@@ -111,17 +116,17 @@
 
                 <!-- Primary entry outside the content groups. -->
                 <Border x:Name="SearchHeader" Margin="0,12,0,4" Padding="14,0"
-                        BackgroundColor="{StaticResource EmSheet}"
-                        Stroke="{StaticResource EmBorder}" StrokeThickness="1"
+                        BackgroundColor="{DynamicResource EmSheet}"
+                        Stroke="{DynamicResource EmBorderBrush}" StrokeThickness="1"
                         StrokeShape="RoundRectangle 14">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnSearchTapped" />
                     </Border.GestureRecognizers>
                     <Grid HeightRequest="50" ColumnDefinitions="Auto,*" ColumnSpacing="12" Padding="0">
                         <Label Grid.Column="0" Text="&#xf002;" FontFamily="FontAwesome" FontSize="16"
-                               TextColor="{StaticResource TabChipInactiveText}" VerticalOptions="Center" />
+                               TextColor="{DynamicResource TabChipInactiveText}" VerticalOptions="Center" />
                         <Label Grid.Column="1" Text="Search anime, manga…" Style="{StaticResource RowLabel}"
-                               FontSize="14" TextColor="{StaticResource TabChipInactiveText}" />
+                               FontSize="14" TextColor="{DynamicResource TabChipInactiveText}" />
                     </Grid>
                 </Border>
 
