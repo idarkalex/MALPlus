@@ -14,7 +14,6 @@ publish/
 ## Generated Android / MAUI resources
 *.keystore
 *.jks
-Resources/Raw/seed_bundle_v1.json
 Platforms/Android/Resources/xml/config.xml
 
 ## Secrets — never commit real credentials
